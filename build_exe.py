@@ -12,8 +12,12 @@ import re
 from pathlib import Path
 from datetime import datetime
 
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 # Default version
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.0"
 APP_NAME = "ZAY_POS"
 
 def get_version_input():
@@ -136,16 +140,27 @@ def build_exe(version):
         print(f"⚠️ Icon not found: {icon_path}")
         icon_path = "NONE"
     
-    # Create spec file
+# Create spec file
     spec_content = f'''
 # -*- mode: python ; coding: utf-8 -*-
+
+import os
+import sys
+
+
+sqlite_binaries = []
+python_dll_dir = os.path.join(sys.base_prefix, 'DLLs')
+for sqlite_name in ('_sqlite3.pyd', 'sqlite3.dll'):
+    sqlite_path = os.path.join(python_dll_dir, sqlite_name)
+    if os.path.exists(sqlite_path):
+        sqlite_binaries.append((sqlite_path, '.'))
 
 block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=sqlite_binaries,
     datas=[
         ('assets', 'assets'),
         ('version.txt', '.'),
@@ -160,6 +175,7 @@ a = Analysis(
         'PyQt6.QtSql',
         'loguru',
         'sqlite3',
+        '_sqlite3',
         'matplotlib',
         'matplotlib.pyplot',
         'matplotlib.figure',
@@ -262,14 +278,13 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
     name='{APP_NAME}',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    exclude_binaries=True,
+    strip=False,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -279,6 +294,15 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='{icon_path}' if '{icon_path}' != "NONE" else None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='{APP_NAME}',
 )
 '''
     

@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QPushButton, QMessageBox, QCheckBox, QSpinBox, QGroupBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog
+    QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
@@ -70,7 +70,10 @@ class AutoBackupDialog(QDialog):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.backup_table.setColumnWidth(3, 132)
+        self.backup_table.verticalHeader().setDefaultSectionSize(44)
+        self.backup_table.verticalHeader().setMinimumSectionSize(40)
         history_layout.addWidget(self.backup_table)
 
         btn_layout = QHBoxLayout()
@@ -139,6 +142,7 @@ class AutoBackupDialog(QDialog):
             self.btn_save.setText("Save Settings")
             self.btn_close.setText("Close")
             self.backup_table.setHorizontalHeaderLabels(["File Name", "Date", "Size", "Actions"])
+        self.backup_table.setColumnWidth(3, 132)
 
     def load_settings(self):
         try:
@@ -203,8 +207,17 @@ class AutoBackupDialog(QDialog):
             
             # Restore button
             btn_restore = QPushButton("Restore")
+            btn_restore.setMinimumSize(96, 30)
+            btn_restore.setMaximumHeight(32)
             btn_restore.clicked.connect(lambda checked, path=backup['path']: self.restore_specific_backup(path))
-            self.backup_table.setCellWidget(row, 3, btn_restore)
+            action_cell = QWidget()
+            action_layout = QHBoxLayout(action_cell)
+            action_layout.setContentsMargins(6, 4, 6, 4)
+            action_layout.addStretch()
+            action_layout.addWidget(btn_restore)
+            action_layout.addStretch()
+            self.backup_table.setRowHeight(row, 44)
+            self.backup_table.setCellWidget(row, 3, action_cell)
 
     def create_backup_now(self):
         self.backup_manager.create_backup()

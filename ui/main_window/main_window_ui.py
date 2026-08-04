@@ -1,269 +1,624 @@
 # ui/main_window/main_window_ui.py
+"""
+Main Window UI - Sajiwa POS Style with Lazy Loading
+With SVG Icons from assets/icons
+Collapsible Sidebar Support with QSplitter
+Default state: Sidebar Expanded
+"""
+
+from typing import Optional, Dict, Any, Callable, List
+
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
-    QStackedWidget, QStatusBar, QFrame, QSizePolicy, QApplication
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
+    QStackedWidget, QStatusBar, QFrame, QSizePolicy, QApplication,
+    QProgressBar, QSplitter
 )
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QIcon, QFont
 from utils.translations import tr
-from utils.permissions import PermissionManager, Permission
+from utils.permissions import PermissionManager
+from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
+from ui.lazy_loading_widget import LazyLoadingWidget
+from ui.main_window.sidebar import Sidebar
+from ui.main_window.header import Header
+from ui.main_window.status_bar import StatusBar
+from ui.widgets.loading_overlay import LoadingOverlay
+from ui.responsive_utils import parse_resolution
+from models.database import connect_db
 from loguru import logger
-from datetime import datetime
 
 
-class MainWindowUI:
-    """Handle UI setup for MainWindow"""
+class MainWindowUI(QMainWindow):
+    """Handle UI setup for MainWindow - Sajiwa POS Style with Lazy Loading"""
     
-    def setup_ui(self):
+    # Declare attributes to fix Pylance errors
+    current_user: Dict[str, Any]
+    header: Optional[Header] = None
+    sidebar: Optional[Sidebar] = None
+    splitter: Optional[QSplitter] = None
+    status_bar: Optional[StatusBar] = None
+    pages: Optional[QStackedWidget] = None
+    content_area: Optional[QWidget] = None
+    page_header: Optional[QFrame] = None
+    page_title: Optional[QLabel] = None
+    loading_overlay: Optional[LoadingOverlay] = None
+    _page_builders: Dict[int, Callable]
+    _page_widgets: Dict[int, QWidget]
+    _lazy_widgets: Dict[int, LazyLoadingWidget]
+    _page_names: Dict[int, str]
+    
+    # Page references
+    dashboard_page: Optional[Any] = None
+    sales_summary_page: Optional[Any] = None
+    products_page: Optional[Any] = None
+    ai_pages_page: Optional[Any] = None
+    inventory_page: Optional[Any] = None
+    receipts_page: Optional[Any] = None
+    sales_page: Optional[Any] = None
+    customers_page: Optional[Any] = None
+    expense_page: Optional[Any] = None
+    discount_page: Optional[Any] = None
+    
+    def setup_ui(self) -> None:
         # Get screen geometry for dynamic sizing
         screen = QApplication.primaryScreen()
-        screen_geometry = screen.availableGeometry()
-        screen_width = screen_geometry.width()
-        screen_height = screen_geometry.height()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            screen_width = screen_geometry.width()
+            screen_height = screen_geometry.height()
+        else:
+            screen_width = 1920
+            screen_height = 1080
         
-        # Set window size based on screen (85% of screen)
-        self.resize(int(screen_width * 0.85), int(screen_height * 0.85))
+        preferred_width, preferred_height = self._load_saved_window_resolution()
+        window_width = min(preferred_width, screen_width)
+        window_height = min(preferred_height, screen_height)
+        self.resize(window_width, window_height)
+        if screen:
+            x = screen_geometry.x() + max(0, (screen_width - window_width) // 2)
+            y = screen_geometry.y() + max(0, (screen_height - window_height) // 2)
+            self.move(x, y)
+        self.setMinimumSize(min(1366, window_width), min(768, window_height))
         
-        # Set minimum size
-        self.setMinimumSize(1024, 600)
+        # Theme colors
+        colors = get_theme_colors()
         
-        self.base_style = """
-            QLineEdit::placeholder { color: #888888; }
-            QWidget { font-size: 9pt; }
-        """
-        self.setStyleSheet(self.base_style)
-
+        # Main container
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
-
-        # Top bar - responsive
-        top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
-        
-        self.logo_label = QLabel()
-        self.logo_label.setFixedSize(35, 35)
-        self.logo_label.setScaledContents(True)
-        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        top_layout.addWidget(self.logo_label)
-        
-        self.title_label = QLabel("")
-        self.title_label.setStyleSheet("font-size: 11pt; font-weight: bold;")
-        top_layout.addWidget(self.title_label)
-        top_layout.addStretch()
-        
-        # ========== CLOCK WIDGET ==========
-        self.clock_label = QLabel()
-        self.clock_label.setStyleSheet("""
-            font-size: 10pt;
-            font-weight: bold;
-            padding: 4px 10px;
-            border-radius: 4px;
-            background-color: rgba(0, 0, 0, 0.05);
+        central_widget.setObjectName("mainContainer")
+        central_widget.setStyleSheet(f"""
+            QWidget#mainContainer {{
+                background-color: {colors['bg']};
+            }}
         """)
-        self.clock_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        top_layout.addWidget(self.clock_label)
+        self.setCentralWidget(central_widget)
         
-        # Start clock timer
-        self.clock_timer = QTimer()
-        self.clock_timer.timeout.connect(self.update_clock)
-        self.clock_timer.start(1000)  # Update every second
-        self.update_clock()  # Initial update
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # Navigation buttons - responsive
-        self._create_nav_buttons()
+        # ============================================================
+        # HEADER
+        # ============================================================
+        self.header = Header(self)
+        main_layout.addWidget(self.header)
         
-        nav_frame = QFrame()
-        nav_frame.setObjectName("navBar")
-        nav_layout = QHBoxLayout(nav_frame)
-        nav_layout.setContentsMargins(0, 0, 0, 0)
-        nav_layout.setSpacing(5)
+        # ============================================================
+        # BODY - SPLITTER (Sidebar + Content)
+        # ============================================================
+        # Use QSplitter for dynamic sidebar resize
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(0)
         
-        # Add buttons with size policy
-        for btn in [self.btn_sales, self.btn_dashboard, self.btn_sales_summary, 
-                    self.btn_expense, self.btn_settings]:
-            btn.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-            nav_layout.addWidget(btn)
-
-        top_layout.addWidget(nav_frame)
-        main_layout.addLayout(top_layout)
-
-        # Pages - takes remaining space
-        self._create_pages()
-        self.pages.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        main_layout.addWidget(self.pages)
-
-        # Status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
-        self.status_bar.setSizeGripEnabled(False)
-
-        self.apply_role_permissions()
-        self.switch_to_page(5)
-
-    def update_clock(self):
-        """Update clock label with current date and time"""
-        now = datetime.now()
-        date_str = now.strftime("%d.%m.%Y")
-        time_str = now.strftime("%I:%M %p")
-        self.clock_label.setText(f"📅 {date_str}  🕐 {time_str}")
-
-    def _create_nav_buttons(self):
-        """Create navigation buttons with dynamic sizing"""
-        self.btn_sales = QPushButton(tr("sales"))
-        self.btn_dashboard = QPushButton(tr("dashboard"))
-        self.btn_sales_summary = QPushButton(tr("sales_summary"))
-        self.btn_expense = QPushButton(tr("expense"))
-        self.btn_settings = QPushButton(tr("settings"))
-
-        all_buttons = [self.btn_sales, self.btn_dashboard, self.btn_sales_summary,
-                       self.btn_expense, self.btn_settings]
+        # --- Sidebar (default expanded) ---
+        self.sidebar = Sidebar(self)
+        self.splitter.addWidget(self.sidebar)
         
-        # Set minimum width and size policy
-        for btn in all_buttons:
-            btn.setCheckable(True)
-            btn.setAutoExclusive(True)
-            btn.setMinimumWidth(70)
-            btn.setMaximumWidth(120)
-            btn.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-
-        self.btn_dashboard.clicked.connect(lambda: self.switch_to_page(0))
-        self.btn_sales_summary.clicked.connect(lambda: self.switch_to_page(1))
-        self.btn_sales.clicked.connect(lambda: self.switch_to_page(5))
-        self.btn_expense.clicked.connect(lambda: self.switch_to_page(7))
-        self.btn_settings.clicked.connect(lambda: self.switch_to_page(8))
-
-    def _create_pages(self):
-        """Create all page widgets"""
-        from ui.dashboard_page import DashboardPage
-        from ui.sales_summary import SalesSummaryPage
-        from ui.products_page import ProductsPage
-        from ui.inventory_page import InventoryPage
-        from ui.receipts_page import ReceiptsPage
-        from ui.sales_page import SalesPage
-        from ui.customer_page import CustomersPage
-        from ui.expense import ExpensePage
-        from ui.settings import SettingsPage
+        # --- Content Area ---
+        self.content_area = QWidget()
+        self.content_area.setObjectName("mainContent")
+        self.content_area.setStyleSheet(f"""
+            QWidget#mainContent {{
+                background-color: {colors['bg']};
+            }}
+        """)
+        content_layout = QVBoxLayout(self.content_area)
+        content_layout.setContentsMargins(24, 10, 24, 18)
+        content_layout.setSpacing(8)
         
+        # Page header is kept as a hidden compatibility object; page titles are
+        # not shown so content gets more vertical room.
+        self.page_header = QFrame()
+        self.page_header.setObjectName("pageHeader")
+        self.page_header.setFixedHeight(0)
+        self.page_header.setStyleSheet("QFrame#pageHeader { background-color: transparent; }")
+        page_header_layout = QHBoxLayout(self.page_header)
+        page_header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.page_title = QLabel("Sales")
+        self.page_title.setStyleSheet(f"""
+            font-size: 15pt;
+            font-weight: bold;
+            color: {colors['text']};
+            background: transparent;
+        """)
+        page_header_layout.addWidget(self.page_title)
+        page_header_layout.addStretch()
+        self.page_header.hide()
+        content_layout.addWidget(self.page_header)
+        
+        # ============================================================
+        # PAGES STACKED WIDGET
+        # ============================================================
         self.pages = QStackedWidget()
-        self.dashboard_page = DashboardPage()
-        self.sales_summary_page = SalesSummaryPage()
+        self.pages.setStyleSheet(f"""
+            QStackedWidget {{
+                background-color: {colors['bg']};
+                border-radius: 10px;
+            }}
+        """)
         
-        # Products Page - pass user_id for permission checks
-        self.products_page = ProductsPage(
-            user_role=self.current_user["role"], 
+        # Page builders
+        self._page_builders = {}
+        self._page_widgets = {}
+        self._lazy_widgets = {}
+        self._page_names = {}
+        
+        # Define pages
+        page_definitions = [
+            (0, "Dashboard", self._build_dashboard_page, "dashboard"),
+            (1, "Sales Summary", self._build_sales_summary_page, "sales_summary"),
+            (2, "Products", self._build_products_page, "products"),
+            (9, "Discounts", self._build_discount_page, "products"),
+            (8, "AI Pages", self._build_ai_pages_page, "ai_pages"),
+            (3, "Inventory", self._build_inventory_page, "inventory"),
+            (4, "Receipts", self._build_receipts_page, "receipts"),
+            (5, "Sales", self._build_sales_page, "sales"),
+            (6, "Customers", self._build_customers_page, "customers"),
+            (7, "Expense", self._build_expense_page, "expense"),
+        ]
+        
+        for index, name, builder, perm in page_definitions:
+            if PermissionManager.user_can_view_page(self.current_user["id"], perm):
+                lazy_widget = LazyLoadingWidget(self.pages, load_delay=50)
+                self.pages.addWidget(lazy_widget)
+                self._lazy_widgets[index] = lazy_widget
+                self._page_builders[index] = builder
+                self._page_names[index] = name
+        
+        content_layout.addWidget(self.pages)
+        
+        self.splitter.addWidget(self.content_area)
+        
+        # ============================================================
+        # 🔥 SET INITIAL SPLITTER SIZES - EXPANDED
+        # ============================================================
+        self.splitter.setSizes([Sidebar.WIDTH_EXPANDED, 99999])
+        
+        main_layout.addWidget(self.splitter)
+        
+        # ============================================================
+        # STATUS BAR
+        # ============================================================
+        self.status_bar = StatusBar(self)
+        self.setStatusBar(self.status_bar)
+
+        self.loading_overlay = LoadingOverlay(central_widget)
+        
+        # ============================================================
+        # Apply role permissions
+        # ============================================================
+        self.apply_role_permissions()
+        
+        # ============================================================
+        # DEFAULT PAGE - Sales (index 5)
+        # ============================================================
+        self.switch_to_page(5)
+        
+        # Theme manager connection
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
+        # ============================================================
+        # 🔥 SIDEBAR COLLAPSE SIGNAL CONNECTION (ONLY ONCE)
+        # ============================================================
+        if self.sidebar:
+            self.sidebar.collapse_state_changed.connect(self._on_sidebar_collapse_changed)
+        
+        logger.info("MainWindow UI setup complete - with Lazy Loading, SVG Icons, and QSplitter")
+        logger.info("Sidebar default state: EXPANDED")
+
+    def show_loading(self, message: str = "Loading...", progress: Optional[int] = None) -> None:
+        if self.status_bar:
+            self.status_bar.begin_background_activity("main_loading", message)
+        if self.loading_overlay:
+            self.loading_overlay.show_loading(message, progress)
+
+    def update_loading(self, message: Optional[str] = None, progress: Optional[int] = None) -> None:
+        if message and self.status_bar:
+            self.status_bar.begin_background_activity("main_loading", message)
+        if self.loading_overlay:
+            self.loading_overlay.update_loading(message, progress)
+
+    def hide_loading(self) -> None:
+        if self.loading_overlay:
+            self.loading_overlay.hide_loading()
+        if self.status_bar:
+            self.status_bar.end_background_activity("main_loading")
+
+    def _load_saved_window_resolution(self) -> tuple[int, int]:
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES ('window_resolution', '1366x768')"
+            )
+            cursor.execute("SELECT value FROM settings WHERE key='window_resolution'")
+            row = cursor.fetchone()
+            conn.commit()
+            conn.close()
+            return parse_resolution(row[0] if row else "1366x768")
+        except Exception as e:
+            logger.warning(f"Could not load window resolution setting: {e}")
+            return 1366, 768
+
+    # ============================================================
+    # 🔥 SIDEBAR COLLAPSE EVENT HANDLER
+    # ============================================================
+    def _on_sidebar_collapse_changed(self, is_collapsed: bool) -> None:
+        """
+        Handle sidebar collapse/expand - update splitter sizes
+        Uses constants directly for reliable sizing
+        """
+        if self.splitter and self.sidebar:
+            # Use constant values directly
+            width = Sidebar.WIDTH_COLLAPSED if is_collapsed else Sidebar.WIDTH_EXPANDED
+            self.splitter.setSizes([width, 99999])
+            self.update()
+            logger.debug(f"Splitter updated: sidebar_width={width}, is_collapsed={is_collapsed}")
+
+    def _get_app_version(self) -> str:
+        """Get application version"""
+        try:
+            from updater.version_manager import VersionManager
+            version_manager = VersionManager()
+            return version_manager.get_current_version()
+        except Exception as e:
+            logger.warning(f"Could not get app version: {e}")
+            return "1.0.0"
+
+    # ============================================================
+    # PAGE BUILDERS
+    # ============================================================
+    
+    def _build_dashboard_page(self) -> QWidget:
+        from ui.dashboard.dashboard_page import DashboardPage
+        return DashboardPage()
+    
+    def _build_sales_summary_page(self) -> QWidget:
+        from ui.sales_summary import SalesSummaryPage
+        return SalesSummaryPage()
+    
+    def _build_products_page(self) -> QWidget:
+        from ui.products_page import ProductsPage
+        page = ProductsPage(
+            user_role=self.current_user["role"],
             user_id=self.current_user["id"]
         )
-        
-        # Connect categories changed signal to refresh sales page and current stock tab
-        self.products_page.categories_changed.connect(self.refresh_sales_categories)
-        self.products_page.categories_changed.connect(self.refresh_current_stock_categories)
-        
-        self.inventory_page = InventoryPage(self.current_user["role"])
-        
-        # Receipts Page - pass user_id for permission checks (index 4)
-        self.receipts_page = ReceiptsPage(
+        page.categories_changed.connect(self.refresh_sales_categories)
+        page.categories_changed.connect(self.refresh_current_stock_categories)
+        return page
+
+    def _build_discount_page(self) -> QWidget:
+        from ui.discount_page import DiscountPage
+        return DiscountPage()
+    
+    def _build_ai_pages_page(self) -> QWidget:
+        """Build AI Pages page"""
+        from ui.ai_pages import AIPagesPage
+        return AIPagesPage()
+    
+    def _build_inventory_page(self) -> QWidget:
+        from ui.inventory_page import InventoryPage
+        return InventoryPage(self.current_user["role"])
+    
+    def _build_receipts_page(self) -> QWidget:
+        from ui.receipts_page import ReceiptsPage
+        return ReceiptsPage(
             user_id=self.current_user["id"],
             user_role=self.current_user["role"]
         )
-        
-        self.sales_page = SalesPage()
-        self.customers_page = CustomersPage(self.current_user["role"])
-        self.expense_page = ExpensePage(self.current_user["role"])
-        
-        # Settings Page - pass user_id for permission checks
-        self.settings_page = SettingsPage(
-            current_user_role=self.current_user["role"], 
-            user_id=self.current_user["id"]
-        )
+    
+    def _build_sales_page(self) -> QWidget:
+        from ui.sales_page import SalesPage
+        page = SalesPage()
+        self.sales_page = page
+        return page
+    
+    def _build_customers_page(self) -> QWidget:
+        from ui.customer_page import CustomersPage
+        return CustomersPage(self.current_user["role"])
+    
+    def _build_expense_page(self) -> QWidget:
+        from ui.expense import ExpensePage
+        return ExpensePage(user_role=self.current_user["role"])
 
-        # ============================================================
-        # ✅ PAGE INDEX - IMPORTANT!
-        # ============================================================
-        self.pages.addWidget(self.dashboard_page)      # index 0
-        self.pages.addWidget(self.sales_summary_page)  # index 1
-        self.pages.addWidget(self.products_page)       # index 2
-        self.pages.addWidget(self.inventory_page)      # index 3
-        self.pages.addWidget(self.receipts_page)       # index 4  ✅ Receipts
-        self.pages.addWidget(self.sales_page)          # index 5
-        self.pages.addWidget(self.customers_page)      # index 6
-        self.pages.addWidget(self.expense_page)        # index 7
-        self.pages.addWidget(self.settings_page)       # index 8
-        
-        # Debug output
-        logger.info(f"Pages created - user_id: {self.current_user['id']}, role: {self.current_user['role']}")
-        logger.info(f"Receipts page at index 4")
-        logger.info(f"Settings page created with user_id: {self.current_user['id']}")
-
-    def refresh_sales_categories(self):
-        """Refresh categories in sales page when products page categories change"""
-        if hasattr(self, 'sales_page') and hasattr(self.sales_page, 'refresh_categories'):
-            self.sales_page.refresh_categories()
-            logger.info("Sales page categories refreshed")
-
-    def refresh_current_stock_categories(self):
-        """Refresh categories in current stock tab when products page categories change"""
-        if hasattr(self, 'inventory_page'):
-            inventory = self.inventory_page
-            if hasattr(inventory, 'current_stock_tab'):
-                inventory.current_stock_tab.load_categories()
-                inventory.current_stock_tab.refresh()
-                logger.info("Current stock tab categories refreshed")
-
-    def apply_role_permissions(self):
-        user_id = self.current_user["id"]
-        allowed_pages = self._get_allowed_pages_for_role(user_id)
-        self.btn_expense.setVisible(7 in allowed_pages)
-        self.btn_settings.setVisible(8 in allowed_pages)
-        
-        # Debug output
-        logger.info(f"Allowed pages for user {user_id}: {allowed_pages}")
-
-    def _get_allowed_pages_for_role(self, user_id):
-        allowed = []
-        if PermissionManager.user_can_view_page(user_id, "dashboard"):
-            allowed.append(0)
-        if PermissionManager.user_can_view_page(user_id, "sales_summary"):
-            allowed.append(1)
-        if PermissionManager.user_can_view_page(user_id, "products"):
-            allowed.append(2)
-        if PermissionManager.user_can_view_page(user_id, "inventory"):
-            allowed.append(3)
-        if PermissionManager.user_can_view_page(user_id, "receipts"):
-            allowed.append(4)
-        if PermissionManager.user_can_view_page(user_id, "sales"):
-            allowed.append(5)
-        if PermissionManager.user_can_view_page(user_id, "customers"):
-            allowed.append(6)
-        if PermissionManager.user_can_view_page(user_id, "expense"):
-            allowed.append(7)
-        if PermissionManager.user_can_view_page(user_id, "settings"):
-            allowed.append(8)
-        return allowed
-
-    def switch_to_page(self, index):
+    # ============================================================
+    # PAGE SWITCHING
+    # ============================================================
+    
+    def switch_to_page(self, index: int) -> None:
         from PyQt6.QtWidgets import QMessageBox
         from utils.translations import tr
+        
         allowed = self._get_allowed_pages_for_role(self.current_user["id"])
         if index not in allowed:
             QMessageBox.warning(self, tr("access_denied"), tr("permission_denied"))
             return
-        self.pages.setCurrentIndex(index)
-        all_buttons = [self.btn_sales, self.btn_dashboard, self.btn_sales_summary,
-                       self.btn_expense, self.btn_settings]
-        for btn in all_buttons:
-            btn.setChecked(False)
         
-        # ✅ Updated button_map with correct indices
-        button_map = {
-            0: self.btn_dashboard,
-            1: self.btn_sales_summary,
-            4: None,  # Receipts - no nav button (menu only)
-            5: self.btn_sales,
-            7: self.btn_expense,
-            8: self.btn_settings
+        lazy_widget = self._lazy_widgets.get(index)
+        if not lazy_widget:
+            logger.warning(f"Page {index} not found")
+            return
+        
+        if lazy_widget.is_loaded():
+            if self.pages:
+                self.pages.setCurrentWidget(lazy_widget)
+            self._update_sidebar_buttons(index)
+            self._update_page_title(index)
+            return
+        
+        if lazy_widget.is_loading():
+            return
+        
+        builder = self._page_builders.get(index)
+        if builder:
+            if self.pages:
+                self.pages.setCurrentWidget(lazy_widget)
+            self._update_sidebar_buttons(index)
+            self._update_page_title(index)
+            
+            lazy_widget.load_page(builder)
+            
+            def on_page_loaded(widget):
+                self._page_widgets[index] = widget
+                self._update_page_references(index, widget)
+            
+            lazy_widget.page_loaded.connect(on_page_loaded)
+            logger.info(f"Started lazy loading page: {index} - {self._page_names.get(index, 'Unknown')}")
+    
+    def _update_sidebar_buttons(self, index: int) -> None:
+        """Update sidebar button selection state"""
+        if self.sidebar:
+            for btn in self.sidebar.sidebar_buttons:
+                page_idx = btn.property("page_index")
+                btn.setChecked(page_idx == index)
+    
+    def _update_page_title(self, index: int) -> None:
+        page_names = {
+            0: "Dashboard",
+            1: "Sales Summary",
+            2: "Products",
+            9: "Discounts",
+            8: "AI Pages",
+            3: "Inventory",
+            4: "Receipts",
+            5: "Sales",
+            6: "Customers",
+            7: "Expense",
         }
-        if index in button_map and button_map[index] is not None:
-            button_map[index].setChecked(True)
+        if self.page_title:
+            self.page_title.setText(page_names.get(index, ""))
+    
+    def _update_page_references(self, index: int, widget: QWidget) -> None:
+        page_names = {
+            0: "dashboard_page",
+            1: "sales_summary_page",
+            2: "products_page",
+            9: "discount_page",
+            8: "ai_pages_page",
+            3: "inventory_page",
+            4: "receipts_page",
+            5: "sales_page",
+            6: "customers_page",
+            7: "expense_page",
+        }
+        attr_name = page_names.get(index)
+        if attr_name:
+            setattr(self, attr_name, widget)
+            logger.info(f"Updated reference: {attr_name}")
+    
+    def _get_allowed_pages_for_role(self, user_id: int) -> List[int]:
+        allowed = []
+        page_permissions = {
+            5: "sales",
+            0: "dashboard",
+            1: "sales_summary",
+            2: "products",
+            9: "products",
+            8: "ai_pages",
+            3: "inventory",
+            4: "receipts",
+            6: "customers",
+            7: "expense",
+        }
+        for index, perm in page_permissions.items():
+            if PermissionManager.user_can_view_page(user_id, perm):
+                allowed.append(index)
+        return allowed
+
+    def switch_to_inventory_tab(self, tab_index: int) -> None:
+        logger.info(f"Switching to inventory tab: {tab_index}")
+        self.switch_to_page(3)
+        
+        def check_and_switch() -> None:
+            if hasattr(self, 'inventory_page') and self.inventory_page:
+                # Use getattr for safety
+                if hasattr(self.inventory_page, 'tabs'):
+                    tabs = getattr(self.inventory_page, 'tabs')
+                    if 0 <= tab_index < tabs.count():
+                        tabs.setCurrentIndex(tab_index)
+                        tab_text = tabs.tabText(tab_index)
+                        logger.info(f"Switched to inventory tab: {tab_index} - {tab_text}")
+                        if self.status_bar:
+                            self.status_bar.showMessage(f"Switched to: {tab_text}", 3000)
+            else:
+                QTimer.singleShot(100, check_and_switch)
+        
+        QTimer.singleShot(200, check_and_switch)
+
+    def preload_page(self, index: int) -> None:
+        if index not in self._lazy_widgets:
+            return
+        
+        lazy_widget = self._lazy_widgets[index]
+        if lazy_widget.is_loaded() or lazy_widget.is_loading():
+            return
+        
+        builder = self._page_builders.get(index)
+        if builder:
+            logger.info(f"Preloading page: {index}")
+            lazy_widget.load_page(builder)
+            
+            def on_preload_done(widget):
+                self._page_widgets[index] = widget
+                self._update_page_references(index, widget)
+            
+            lazy_widget.page_loaded.connect(on_preload_done)
+    
+    def preload_adjacent_pages(self, current_index: int) -> None:
+        next_index = current_index + 1
+        if next_index in self._lazy_widgets:
+            self.preload_page(next_index)
+        
+        prev_index = current_index - 1
+        if prev_index in self._lazy_widgets:
+            self.preload_page(prev_index)
+
+    # ============================================================
+    # UTILITY METHODS
+    # ============================================================
+    
+    def refresh_sales_categories(self) -> None:
+        if hasattr(self, 'sales_page') and self.sales_page:
+            if hasattr(self.sales_page, 'refresh_categories'):
+                getattr(self.sales_page, 'refresh_categories')()
+
+    def refresh_current_stock_categories(self) -> None:
+        if hasattr(self, 'inventory_page') and self.inventory_page:
+            inventory = self.inventory_page
+            if hasattr(inventory, 'current_stock_tab'):
+                current_stock_tab = getattr(inventory, 'current_stock_tab')
+                if hasattr(current_stock_tab, 'load_categories'):
+                    current_stock_tab.load_categories()
+                if hasattr(current_stock_tab, 'refresh'):
+                    current_stock_tab.refresh()
+
+    def apply_role_permissions(self) -> None:
+        user_id = self.current_user["id"]
+        allowed_pages = self._get_allowed_pages_for_role(user_id)
+        
+        if self.sidebar:
+            for btn in self.sidebar.sidebar_buttons:
+                page_idx = btn.property("page_index")
+                btn.setVisible(page_idx in allowed_pages)
+
+    # ============================================================
+    # THEME UPDATE
+    # ============================================================
+    
+    def _on_theme_changed(self, theme_name: str) -> None:
+        colors = get_theme_colors()
+        is_dark = is_dark_theme()
+        
+        # Update main container
+        central_widget = self.centralWidget()
+        if central_widget:
+            central_widget.setStyleSheet(f"""
+                QWidget#mainContainer {{
+                    background-color: {colors['bg']};
+                }}
+            """)
+
+        if self.content_area:
+            self.content_area.setStyleSheet(f"""
+                QWidget#mainContent {{
+                    background-color: {colors['bg']};
+                }}
+            """)
+
+        if self.page_header:
+            self.page_header.setStyleSheet("""
+                QFrame#pageHeader {
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+        
+        # Update header
+        if self.header:
+            self.header.update_theme(theme_name)
+        
+        # Update sidebar
+        if self.sidebar:
+            self.sidebar.update_theme(theme_name)
+        
+        # Update page title
+        if self.page_title:
+            self.page_title.setStyleSheet(f"""
+                font-size: 15pt;
+                font-weight: bold;
+                color: {colors['text']};
+                background: transparent;
+            """)
+        
+        # Update pages stacked widget
+        if self.pages:
+            self.pages.setStyleSheet(f"""
+                QStackedWidget {{
+                    background-color: {colors['bg']};
+                    border-radius: 10px;
+                }}
+            """)
+        
+        # Update status bar
+        if self.status_bar:
+            self.status_bar.update_theme(theme_name)
+        
+        # Update loaded pages only
+        page_attrs = ['dashboard_page', 'sales_summary_page', 'products_page',
+                  'ai_pages_page', 'inventory_page', 'receipts_page', 'sales_page',
+                      'customers_page', 'expense_page', 'discount_page']
+        
+        for attr_name in page_attrs:
+            page = getattr(self, attr_name, None)
+            notify = getattr(self, '_notify_widget_theme_changed', None)
+            if callable(notify):
+                notify(page, theme_name, attr_name)
+            elif page and hasattr(page, 'update_theme'):
+                try:
+                    page.update_theme()
+                except Exception as e:
+                    logger.error(f"Error updating theme for {attr_name}: {e}")
+        
+        self.update()
+        logger.info(f"Theme updated in MainWindow UI: {theme_name}")
+
+    def _update_menu_bar_clock_color(self, theme_name: Optional[str] = None) -> None:
+        if not self.header or not hasattr(self.header, 'menu_bar_clock'):
+            return
+
+        colors = get_theme_colors(theme_name)
+        self.header.menu_bar_clock.setStyleSheet(f"""
+            QLabel {{
+                color: {colors.get('text', '#212529')};
+                font-size: 9pt;
+                font-weight: 500;
+                padding: 2px 0px;
+                background-color: transparent;
+                border: none;
+            }}
+        """)
+
+    def on_theme_manager_changed(self, theme_name: str) -> None:
+        self._on_theme_changed(theme_name)

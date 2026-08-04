@@ -1,222 +1,349 @@
-# ui/sales_page/cart_widget.py
-import json
-import os
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QSpinBox,
-    QPushButton, QLabel, QMessageBox, QHeaderView, QInputDialog, QApplication, QSizePolicy
-)
-from PyQt6.QtCore import pyqtSignal
-from utils.currency import get_currency_symbol, format_money
+"""Sales page cart using the same card-style UI as cashier mode."""
+
+from typing import Any, Dict, List
+
+from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtGui import QMouseEvent, QPainter, QPainterPath, QPixmap
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
+
 from models.database import connect_db
-from loguru import logger
+from utils.currency import get_currency_symbol, format_money
+from ui.sales_page.product_utils import load_thumbnail
+from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 
-CART_BACKUP_FILE = "temp/cart_backup.json"
-
-def save_cart_to_file(cart):
-    try:
-        os.makedirs("temp", exist_ok=True)
-        with open(CART_BACKUP_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cart, f, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to save cart backup: {e}")
-
-def load_cart_from_file():
-    try:
-        if os.path.exists(CART_BACKUP_FILE):
-            with open(CART_BACKUP_FILE, 'r', encoding='utf-8') as f:
-                cart = json.load(f)
-                valid_cart = []
-                for item in cart:
-                    if all(k in item for k in ('id', 'name', 'price', 'qty', 'is_service')):
-                        item['qty'] = max(1, int(item['qty']))
-                        valid_cart.append(item)
-                return valid_cart
-    except Exception as e:
-        logger.error(f"Failed to load cart backup: {e}")
-    return []
-
-def delete_cart_backup():
-    try:
-        if os.path.exists(CART_BACKUP_FILE):
-            os.remove(CART_BACKUP_FILE)
-    except Exception as e:
-        logger.error(f"Failed to delete cart backup: {e}")
+from ui.cashier_window.cart_widget import (
+    CartItemWidget as CashierCartItemWidget,
+    CartWidget as CashierCartWidget,
+    delete_cart_backup,
+    load_cart_from_file,
+    save_cart_to_file,
+)
 
 
-class CartWidget(QWidget):
-    cart_changed = pyqtSignal()
+class _CartSelectionProxy:
+    """Compatibility shim for existing SalesPage shortcuts that used table.currentRow()."""
+
+    def __init__(self, owner: "CartWidget"):
+        self._owner = owner
+
+    def currentRow(self) -> int:
+        return self._owner.selected_row
+
+    def setToolTip(self, text: str) -> None:
+        self._owner.setToolTip(text)
+
+
+class CartItemWidget(CashierCartItemWidget):
+    """Cashier cart item with lightweight row selection for SalesPage shortcuts."""
+
+    THUMBNAIL_SIZE = 44
+
+    def _setup_ui(self):
+        self.setFixedHeight(58)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(8)
+
+        self.image_label = QLabel()
+        self.image_label.setFixedSize(self.THUMBNAIL_SIZE, self.THUMBNAIL_SIZE)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setStyleSheet("""
+            background-color: rgba(128, 128, 128, 0.12);
+            border: none;
+            border-radius: 7px;
+        """)
+        layout.addWidget(self.image_label)
+
+        middle_layout = QVBoxLayout()
+        middle_layout.setContentsMargins(0, 0, 0, 0)
+        middle_layout.setSpacing(2)
+
+        self.name_label = QLabel(self.item["name"])
+        self.name_label.setFixedHeight(20)
+        self.name_label.setStyleSheet("font-size: 9.5pt; font-weight: 600; background: transparent; border: none;")
+        middle_layout.addWidget(self.name_label)
+
+        qty_row = QHBoxLayout()
+        qty_row.setContentsMargins(0, 0, 0, 0)
+        qty_row.setSpacing(4)
+        self.qty_label = QLabel(str(self.item["qty"]))
+        self.qty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qty_label.setFixedSize(24, 20)
+        self.qty_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.qty_label.mousePressEvent = self._on_qty_clicked
+        qty_row.addWidget(self.qty_label)
+
+        self.x_label = QLabel("x")
+        qty_row.addWidget(self.x_label)
+
+        symbol = get_currency_symbol()
+        self.price_label = QLabel(format_money(self.item["price"], symbol))
+        qty_row.addWidget(self.price_label)
+        qty_row.addStretch()
+        middle_layout.addLayout(qty_row)
+        layout.addLayout(middle_layout, stretch=1)
+
+        right_layout = QVBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(2)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        total = self.item["price"] * self.item["qty"]
+        self.total_label = QLabel(format_money(total, symbol))
+        self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.total_label.setFixedHeight(20)
+        right_layout.addWidget(self.total_label)
+
+        location = self.item.get("location")
+        location_text = str(location) if location and not self.item.get("is_service", False) else "N/A" if self.item.get("is_service", False) else "-"
+        self.location_label = QLabel(location_text)
+        self.location_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.location_label.setFixedHeight(18)
+        right_layout.addWidget(self.location_label)
+
+        layout.addLayout(right_layout)
+        self._update_thumbnail()
+
+    def _resolve_image_path(self) -> str:
+        image_path = str(self.item.get("image") or self.item.get("image_path") or "").strip()
+        if image_path:
+            return image_path
+        product_id = self.item.get("id")
+        if not product_id:
+            return ""
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT image FROM products WHERE id = ?", (product_id,))
+            row = cursor.fetchone()
+            conn.close()
+            return str(row[0] or "") if row else ""
+        except Exception:
+            return ""
+
+    def _rounded_pixmap(self, pixmap: QPixmap, radius: int = 7) -> QPixmap:
+        if pixmap.isNull():
+            return pixmap
+        target = QPixmap(self.THUMBNAIL_SIZE, self.THUMBNAIL_SIZE)
+        target.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(target)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, self.THUMBNAIL_SIZE, self.THUMBNAIL_SIZE), radius, radius)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+        return target
+
+    def _update_thumbnail(self) -> None:
+        thumb = load_thumbnail(self._resolve_image_path(), self.THUMBNAIL_SIZE)
+        if thumb:
+            scaled = thumb.scaled(
+                self.THUMBNAIL_SIZE,
+                self.THUMBNAIL_SIZE,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.image_label.setPixmap(self._rounded_pixmap(scaled))
+            self.image_label.setText("")
+        else:
+            self.image_label.setPixmap(QPixmap())
+            self.image_label.setText("Img")
+            self.image_label.setStyleSheet("""
+                color: #8a8f98;
+                font-size: 8pt;
+                background-color: rgba(128, 128, 128, 0.12);
+                border: none;
+                border-radius: 7px;
+            """)
+
+    def _apply_theme(self):
+        colors = get_theme_colors()
+        text = colors.get("text", "#212529")
+        secondary = colors.get("text_secondary", "#6c757d")
+        card_bg = colors.get("card_bg", "#ffffff")
+        hover_bg = "#3a3d44" if is_dark_theme() else "#f8f9fa"
+        accent = "#5865f2"
+
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border-radius: 6px;
+                margin: 1px 0px;
+                border: none;
+            }}
+            QFrame:hover {{
+                background-color: {hover_bg};
+            }}
+        """)
+        self.name_label.setStyleSheet(f"font-size: 9.5pt; font-weight: 600; color: {text}; background: transparent; border: none;")
+        self.qty_label.setStyleSheet(f"""
+            font-size: 9pt;
+            font-weight: bold;
+            background: transparent;
+            color: {accent};
+            border: 1px solid {accent};
+            border-radius: 4px;
+            padding: 0px 2px;
+        """)
+        self.x_label.setStyleSheet(f"font-size: 8pt; color: {secondary}; background: transparent; border: none;")
+        self.price_label.setStyleSheet(f"font-size: 8.5pt; color: {secondary}; background: transparent; border: none;")
+        self.total_label.setStyleSheet(f"font-size: 10pt; font-weight: 700; color: {accent}; background: transparent; border: none;")
+        self.location_label.setStyleSheet(f"font-size: 8pt; color: {secondary}; background: transparent; border: none;")
+
+    def update_theme(self):
+        self._is_dark = is_dark_theme()
+        self._apply_theme()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        parent = self.parent()
+        while parent is not None and not isinstance(parent, CartWidget):
+            parent = parent.parent()
+        if isinstance(parent, CartWidget):
+            parent.select_row(self.row)
+        super().mousePressEvent(event)
+
+
+class CartWidget(CashierCartWidget):
+    """Sales cart that shares the cashier window card layout and theme behavior."""
 
     def __init__(self, parent=None):
+        self.selected_row = -1
         super().__init__(parent)
-        self.cart = []
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        self.label = QLabel("Shopping Cart")
-        layout.addWidget(self.label)
-        self.table = QTableWidget()
-        self.table.setColumnCount(6)  # Added Location column
-        self.table.setWordWrap(True)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.verticalHeader().setDefaultSectionSize(45)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(1, 100)
-        self.table.setColumnWidth(5, 100)
-        layout.addWidget(self.table)
+        self.table = _CartSelectionProxy(self)
+        self.subtotal_label.setText("Grand Total")
 
-    def add_product(self, product_id, name, price, stock_available):
-        """Add a regular product (non-service)."""
-        for item in self.cart:
-            if item["id"] == product_id and not item.get("is_service", False):
-                new_qty = item["qty"] + 1
-                if new_qty > stock_available:
-                    QMessageBox.warning(self, "Stock Insufficient", f"Only {stock_available} left.")
-                    return
-                item["qty"] = new_qty
-                self.refresh_table()
-                return
-        if stock_available < 1:
-            QMessageBox.warning(self, "Out of Stock", f"{name} is out of stock.")
-            return
-        
-        # Get location for this product (FIFO)
-        location = self.get_best_location(product_id)
-        
-        self.cart.append({
-            "id": product_id, 
-            "name": name, 
-            "price": price, 
-            "qty": 1, 
-            "is_service": False,
-            "location": location  # Store location in cart
-        })
-        self.refresh_table()
+    def select_row(self, row: int) -> None:
+        self.selected_row = row if 0 <= row < len(self.cart) else -1
 
-    def add_service(self, product_id, name, manual_price):
-        """Add a service product (no stock check)."""
-        for item in self.cart:
-            if item["id"] == product_id and item.get("is_service", False):
-                item["qty"] += 1
-                self.refresh_table()
-                return
-        self.cart.append({
-            "id": product_id, 
-            "name": name, 
-            "price": manual_price, 
-            "qty": 1, 
-            "is_service": True,
-            "location": None
-        })
-        self.refresh_table()
-
-    def get_best_location(self, product_id):
-        """FIFO: Get the location with earliest expiry date for this product"""
-        conn = connect_db()
-        cursor = conn.cursor()
-        
-        # Get locations with stock > 0, ordered by expiry date (earliest first)
-        cursor.execute("""
-            SELECT location, quantity, expire_date 
-            FROM product_locations 
-            WHERE product_id = ? AND quantity > 0
-            ORDER BY expire_date ASC, last_updated ASC
-        """, (product_id,))
-        
-        locations = cursor.fetchall()
-        conn.close()
-        
-        if locations:
-            # Return the first location (earliest expiry)
-            return locations[0][0]
+    def _sales_page(self):
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, "totals_widget") and hasattr(parent, "payment_widget"):
+                return parent
+            parent = parent.parent()
         return None
 
-    def add_product_by_barcode(self, keyword):
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, price, stock, sold_by FROM products WHERE barcode=? OR sku=? OR name LIKE ?",
-                       (keyword, keyword, f'%{keyword}%'))
-        product = cursor.fetchone()
-        conn.close()
-        if not product:
-            QApplication.beep()
-            QMessageBox.warning(self, "Not Found", "Product Not Found")
-            return
-        pid, name, price, stock, sold_by = product
-        price = float(price) if price else 0.0
-        if sold_by and sold_by.lower() == "service":
-            manual_price, ok = QInputDialog.getDouble(
-                self, "Service Price", f"Enter price for {name}:",
-                value=0.0, min=0.0, max=1000000.0, decimals=2
-            )
-            if ok:
-                self.add_service(pid, name, manual_price)
-        else:
-            # Non‑service product: check stock
-            if stock <= 0:
-                QMessageBox.warning(self, "Out of Stock", f"{name} is out of stock.")
-                return
-            self.add_product(pid, name, price, stock)
+    def _image_for_product(self, product_id) -> str:
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT image FROM products WHERE id = ?", (product_id,))
+            row = cursor.fetchone()
+            conn.close()
+            return str(row[0] or "") if row else ""
+        except Exception:
+            return ""
+
+    def _ensure_item_images(self) -> None:
+        for item in self.cart:
+            if item.get("image") or item.get("is_service"):
+                continue
+            item["image"] = self._image_for_product(item.get("id"))
 
     def refresh_table(self):
-        symbol = get_currency_symbol()
-        self.table.setRowCount(0)
+        """Refresh the cart display with SalesPage-aware selectable item widgets."""
+        self._ensure_item_images()
+        for widget in self._item_widgets:
+            self.items_layout.removeWidget(widget)
+            widget.deleteLater()
+        self._item_widgets.clear()
+
+        if not self.cart:
+            self.selected_row = -1
+            self._show_empty_state(True)
+            self._update_subtotal()
+            self.cart_changed.emit()
+            save_cart_to_file(self.cart)
+            return
+
+        self._show_empty_state(False)
+        self.selected_row = min(self.selected_row, len(self.cart) - 1)
+
         for row, item in enumerate(self.cart):
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(item["name"]))
-            
-            qty_spin = QSpinBox()
-            qty_spin.setValue(item["qty"])
-            qty_spin.valueChanged.connect(lambda val, r=row: self.update_qty(r, val))
-            self.table.setCellWidget(row, 1, qty_spin)
-            
-            self.table.setItem(row, 2, QTableWidgetItem(format_money(item['price'], symbol)))
-            total = item["price"] * item["qty"]
-            self.table.setItem(row, 3, QTableWidgetItem(format_money(total, symbol)))
-            
-            # Location column
-            location_display = item.get("location", "-") if not item.get("is_service", False) else "N/A"
-            self.table.setItem(row, 4, QTableWidgetItem(str(location_display)))
-            
-            btn_remove = QPushButton("Remove")
-            btn_remove.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            btn_remove.clicked.connect(lambda _, r=row: self.remove_item(r))
-            self.table.setCellWidget(row, 5, btn_remove)
-            
+            item_widget = CartItemWidget(row, item, self)
+            item_widget.qty_changed.connect(self._on_qty_changed)
+            item_widget.remove_requested.connect(self._on_remove_requested)
+            self.items_layout.insertWidget(self.items_layout.count() - 1, item_widget)
+            self._item_widgets.append(item_widget)
+
+        self._update_subtotal()
         self.cart_changed.emit()
         save_cart_to_file(self.cart)
 
-    def update_qty(self, row, value):
-        if value <= 0:
-            self.remove_item(row)
-        else:
-            self.cart[row]["qty"] = value
-            self.refresh_table()
+    def _update_subtotal(self):
+        """Sales cart footer shows Grand Total instead of raw subtotal."""
+        total_items = sum(item.get("qty", 0) for item in self.cart)
+        self.count_badge.setText(str(total_items))
+        self.update_grand_total()
+        self.update_change()
 
-    def remove_item(self, row):
-        del self.cart[row]
-        self.refresh_table()
+    def update_grand_total(self, grand_total=None):
+        parent = self._sales_page()
+        if grand_total is None and parent and hasattr(parent, "totals_widget"):
+            grand_total = parent.totals_widget.get_current_grand_total()
+        if grand_total is None:
+            grand_total = self.compute_subtotal()
+        symbol = get_currency_symbol()
+        self.subtotal_label.setText("Grand Total")
+        self.subtotal_value.setText(format_money(float(grand_total or 0), symbol))
+        self.update_change()
+
+    def update_change(self):
+        parent = self._sales_page()
+        symbol = get_currency_symbol()
+        grand_total = 0.0
+        payment = 0.0
+        if parent and hasattr(parent, "totals_widget"):
+            grand_total = parent.totals_widget.get_current_grand_total()
+        if parent and hasattr(parent, "payment_widget"):
+            payment = parent.payment_widget.get_payment_amount()
+        change = float(payment or 0) - float(grand_total or 0)
+        if change >= 0:
+            self.change_value.setText(format_money(change, symbol))
+            self.change_value.setStyleSheet(
+                "font-size: 13pt; font-weight: bold; color: #27ae60; background: transparent; border: none;"
+            )
+        else:
+            self.change_value.setText(f"-{format_money(abs(change), symbol)}")
+            self.change_value.setStyleSheet(
+                "font-size: 13pt; font-weight: bold; color: #e74c3c; background: transparent; border: none;"
+            )
 
     def clear(self):
-        self.cart.clear()
-        self.refresh_table()
-        delete_cart_backup()
-
-    def get_cart(self):
-        return self.cart
-
-    def compute_subtotal(self):
-        return sum(item["price"] * item["qty"] for item in self.cart)
+        """Clear cart and reset Sale Page controls to a new-sale default state."""
+        super().clear()
+        parent = self._sales_page()
+        if not parent:
+            return
+        if hasattr(parent, "totals_widget"):
+            parent.totals_widget.discount_checkbox.setChecked(False)
+            parent.totals_widget.points_use_check.setChecked(False)
+            parent.totals_widget.update_totals()
+        if hasattr(parent, "payment_widget"):
+            parent.payment_widget.reset_manual_override()
+            parent.payment_widget.reset_to_default()
+        if hasattr(parent, "options_widget"):
+            parent.options_widget.set_payment_type("Cash")
+        if hasattr(parent, "payment_widget"):
+            parent.payment_widget.setEnabled(True)
+        if hasattr(parent, "customer_combo"):
+            parent.customer_combo.setCurrentIndex(0)
+        if hasattr(parent, "checkout_handler"):
+            parent.checkout_handler.selected_customer_id = None
+            parent.checkout_handler._credit_info_shown = False
+            parent.checkout_handler.update_credit_radio_state()
+        if hasattr(parent, "product_grid"):
+            parent.product_grid.focus_search()
 
     def retranslateUi(self):
-        from utils.language import lang
-        if lang.get_current() == "my":
-            self.label.setText("ဈေးခြင်း")
-            self.table.setHorizontalHeaderLabels(["ပစ္စည်း", "အရေအတွက်", "စျေးနှုန်း", "စုစုပေါင်း", "နေရာ", "ဖျက်မည်"])
-        else:
-            self.label.setText("Shopping Cart")
-            self.table.setHorizontalHeaderLabels(["Product", "Qty", "Price", "Total", "Location", "Remove"])
+        super().retranslateUi()
+        self.subtotal_label.setText("Grand Total")
+
+    def update_theme(self):
+        super().update_theme()
+        self.subtotal_label.setText("Grand Total")
+        self.update_grand_total()
+
+    def get_cart(self) -> List[Dict[str, Any]]:
+        return self.cart

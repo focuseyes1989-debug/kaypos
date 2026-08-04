@@ -141,17 +141,48 @@ def get_database_stats():
         return None
 
 
+# =============================================================================
+# ✅ FIXED: expire_old_points() - Uses expiry_date instead of created_at
+# =============================================================================
 def expire_old_points():
-    """Expire old loyalty points."""
+    """
+    Expire loyalty points based on expiry_date.
+    
+    ✅ FIX: Now correctly uses expiry_date column instead of created_at.
+    Previously it only checked expiry_date IS NULL, which meant points with
+    expiry_date set would never expire.
+    """
     with DBContext() as conn:
         cursor = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get expiry months from settings (for backward compatibility)
         cursor.execute("SELECT value FROM settings WHERE key='points_expiry_months'")
         row = cursor.fetchone()
         expiry_months = int(row[0]) if row else 12
+        
+        # ✅ FIX: Use expiry_date directly - expire points where expiry_date is in the past
+        # Also handle old data where expiry_date might be NULL (fallback to created_at)
         if expiry_months <= 0:
+            # If expiry is disabled (0 = never), skip expiration
+            logger.info("Points expiry is disabled (expiry_months = 0)")
             return 0
+        
         cutoff = (datetime.now() - timedelta(days=expiry_months * 30)).strftime("%Y-%m-%d")
+        
+        # ✅ FIX: Main query - expire points where expiry_date is in the past
+        cursor.execute("""
+            SELECT customer_id, SUM(points) as expired_points
+            FROM customer_points_log
+            WHERE type = 'earn'
+              AND expiry_date IS NOT NULL
+              AND date(expiry_date) < date('now')
+            GROUP BY customer_id
+            HAVING expired_points > 0
+        """)
+        expired = cursor.fetchall()
+        
+        # ✅ Also handle old data where expiry_date is NULL (fallback to created_at)
         cursor.execute("""
             SELECT customer_id, SUM(points) as expired_points
             FROM customer_points_log
@@ -161,37 +192,78 @@ def expire_old_points():
             GROUP BY customer_id
             HAVING expired_points > 0
         """, (cutoff,))
-        expired = cursor.fetchall()
+        old_expired = cursor.fetchall()
+        
+        # Combine both results
+        all_expired = expired + old_expired
+        
         affected = 0
-        for cust_id, pts in expired:
+        for cust_id, pts in all_expired:
+            # Deduct points from customer
             cursor.execute("UPDATE customers SET points = points - ? WHERE id = ?", (pts, cust_id))
+            
+            # Log the expiration
             cursor.execute("""
                 INSERT INTO customer_points_log (customer_id, points, type, reference, created_at)
                 VALUES (?, ?, 'expire', ?, ?)
             """, (cust_id, pts, f"auto_expiry_{today}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            
+            # Update expiry_date on original entries to prevent double expiration
             cursor.execute("""
                 UPDATE customer_points_log
                 SET expiry_date = ?
-                WHERE customer_id = ? AND type = 'earn' AND expiry_date IS NULL AND date(created_at) < ?
+                WHERE customer_id = ? 
+                  AND type = 'earn' 
+                  AND (expiry_date IS NULL OR expiry_date != '')
+                  AND (date(expiry_date) < date('now') OR date(created_at) < ?)
             """, (today, cust_id, cutoff))
+            
             affected += 1
+        
         conn.commit()
         if affected:
             logger.info(f"Expired loyalty points for {affected} customer(s)")
         return affected
 
 
+# =============================================================================
+# ✅ FIXED: expire_points_for_customer() - Uses expiry_date
+# =============================================================================
 def expire_points_for_customer(customer_id):
-    """Expire loyalty points for a specific customer."""
+    """
+    Expire loyalty points for a specific customer based on expiry_date.
+    
+    ✅ FIX: Now correctly uses expiry_date column instead of created_at.
+    """
     with DBContext() as conn:
         cursor = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get expiry months from settings
         cursor.execute("SELECT value FROM settings WHERE key='points_expiry_months'")
         row = cursor.fetchone()
         expiry_months = int(row[0]) if row else 12
+        
         if expiry_months <= 0:
+            # If expiry is disabled (0 = never), skip expiration
+            logger.debug(f"Points expiry disabled for customer {customer_id}")
             return 0
+        
         cutoff = (datetime.now() - timedelta(days=expiry_months * 30)).strftime("%Y-%m-%d")
+        
+        # ✅ FIX: Primary expiration based on expiry_date
+        cursor.execute("""
+            SELECT SUM(points) as expired_points
+            FROM customer_points_log
+            WHERE customer_id = ?
+              AND type = 'earn'
+              AND expiry_date IS NOT NULL
+              AND date(expiry_date) < date('now')
+            GROUP BY customer_id
+        """, (customer_id,))
+        row = cursor.fetchone()
+        
+        # Also check old data where expiry_date is NULL (fallback to created_at)
         cursor.execute("""
             SELECT SUM(points) as expired_points
             FROM customer_points_log
@@ -201,21 +273,38 @@ def expire_points_for_customer(customer_id):
               AND date(created_at) < ?
             GROUP BY customer_id
         """, (customer_id, cutoff))
-        row = cursor.fetchone()
-        if not row or not row[0]:
+        old_row = cursor.fetchone()
+        
+        pts = 0
+        if row and row[0]:
+            pts += row[0]
+        if old_row and old_row[0]:
+            pts += old_row[0]
+        
+        if pts == 0:
             return 0
-        pts = row[0]
+        
+        # Deduct points
         cursor.execute("UPDATE customers SET points = points - ? WHERE id = ?", (pts, customer_id))
+        
+        # Log the expiration
         cursor.execute("""
             INSERT INTO customer_points_log (customer_id, points, type, reference, created_at)
             VALUES (?, ?, 'expire', ?, ?)
         """, (customer_id, pts, f"auto_expiry_{today}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
+        # Update expiry_date on original entries to prevent double expiration
         cursor.execute("""
             UPDATE customer_points_log
             SET expiry_date = ?
-            WHERE customer_id = ? AND type = 'earn' AND expiry_date IS NULL AND date(created_at) < ?
+            WHERE customer_id = ? 
+              AND type = 'earn' 
+              AND (expiry_date IS NULL OR expiry_date != '')
+              AND (date(expiry_date) < date('now') OR date(created_at) < ?)
         """, (today, customer_id, cutoff))
+        
         conn.commit()
+        logger.info(f"Expired {pts} points for customer {customer_id}")
         return pts
 
 

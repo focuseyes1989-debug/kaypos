@@ -7,6 +7,18 @@ from ui.customer_page.credit_payment_dialog import CreditPaymentDialog
 from ui.customer_page.outstanding_report_dialog import OutstandingReportDialog
 from ui.customer_page.add_edit_customer_dialog import AddEditCustomerDialog
 
+# Customer display sub-modules
+from ui.customer_page.customer_display_title_bar import TitleBar
+from ui.customer_page.customer_display_theme import get_display_palette, get_launcher_style
+from ui.customer_page.customer_display_cart import CartDisplayWidget
+from ui.customer_page.customer_display_shop import ShopInfoWidget
+from ui.customer_page.customer_display_utils import (
+    load_qr_info,
+    set_default_geometry,
+    move_to_secondary_monitor,
+    show_on_customer_monitor_fullscreen,
+)
+
 __all__ = [
     'CustomersPage',
     'CustomerDisplayWindow',
@@ -15,4 +27,14 @@ __all__ = [
     'CreditPaymentDialog',
     'OutstandingReportDialog',
     'AddEditCustomerDialog',
+    # Sub-modules
+    'TitleBar',
+    'get_display_palette',
+    'get_launcher_style',
+    'CartDisplayWidget',
+    'ShopInfoWidget',
+    'load_qr_info',
+    'set_default_geometry',
+    'move_to_secondary_monitor',
+    'show_on_customer_monitor_fullscreen',
 ]

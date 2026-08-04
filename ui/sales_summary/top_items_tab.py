@@ -7,13 +7,24 @@ from utils.currency import format_money
 from utils.language import lang
 from utils.system_theme import system_theme
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import os
 import platform
+import logging
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+plt.rcParams["font.weight"] = "normal"
+plt.rcParams["axes.titleweight"] = "normal"
+plt.rcParams["axes.labelweight"] = "normal"
+
+# ✅ Import theme manager
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 
 
 class TopItemsTab(QWidget):
@@ -40,24 +51,25 @@ class TopItemsTab(QWidget):
         self.chart_tab.setLayout(chart_layout)
         self.view_tabs.addTab(self.chart_tab, "Chart")
         
-        # Table tab
+        # Table tab (without refresh button)
         self.table_tab = QWidget()
         table_layout = QVBoxLayout()
         
-        # Refresh button for chart
-        refresh_layout = QHBoxLayout()
-        self.btn_refresh_chart = QPushButton("🔄 Refresh Chart")
-        self.btn_refresh_chart.clicked.connect(self.update_chart)
-        refresh_layout.addStretch()
-        refresh_layout.addWidget(self.btn_refresh_chart)
-        table_layout.addLayout(refresh_layout)
-        
-        # Table
+        # ✅ Table with PyQt6 default style - no custom styling
         self.table = QTableWidget()
         self.table.setColumnCount(2)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        
+        # ✅ Use PyQt6 default selection behavior
+        # No custom selection mode - use default
+        # No custom focus policy - use default
+        
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        
+        # ✅ NO style sheet applied - use PyQt6 default
+        # self.table.setStyleSheet("")  # Not needed
+        
         table_layout.addWidget(self.table)
         
         self.table_tab.setLayout(table_layout)
@@ -66,8 +78,11 @@ class TopItemsTab(QWidget):
         layout.addWidget(self.view_tabs)
         self.setLayout(layout)
         
-        # Connect theme change signal
+        # Connect theme change signal from system_theme
         system_theme.theme_changed.connect(self.on_theme_changed)
+        
+        # ✅ Connect theme manager signal for auto refresh
+        theme_manager.theme_changed.connect(self.on_theme_manager_changed)
         
         # Load current theme
         self.current_theme = self._get_current_theme()
@@ -86,8 +101,15 @@ class TopItemsTab(QWidget):
             return "Light"
     
     def on_theme_changed(self, theme_name):
-        """Handle theme change"""
+        """Handle theme change from system_theme"""
         self.current_theme = theme_name
+        # ✅ No style to update - just update chart
+        self.update_chart()
+    
+    def on_theme_manager_changed(self, theme_name):
+        """✅ Handle theme change from theme_manager - auto refresh chart and table"""
+        self.current_theme = theme_name
+        # ✅ No style to update - just update chart
         self.update_chart()
     
     def _setup_myanmar_font(self):
@@ -125,10 +147,8 @@ class TopItemsTab(QWidget):
                     try:
                         fm.fontManager.addfont(path)
                         prop = fm.FontProperties(fname=path)
-                        # Get the actual font name
                         font_name = prop.get_name()
                         plt.rcParams['font.family'] = font_name
-                        # Also set for specific text rendering
                         plt.rcParams['font.size'] = 9
                         print(f"Loaded Myanmar font: {path} (name: {font_name})")
                         loaded = True
@@ -137,7 +157,6 @@ class TopItemsTab(QWidget):
                         print(f"Failed to load font {path}: {e}")
             
             if not loaded:
-                # Try to find any Myanmar font in system
                 font_list = fm.findSystemFonts(fontpaths=None, fontext='ttf')
                 myanmar_fonts = []
                 for f in font_list:
@@ -158,7 +177,6 @@ class TopItemsTab(QWidget):
                         print(f"Failed to load font: {e}")
             
             if not loaded:
-                # Use default font
                 plt.rcParams['font.family'] = 'sans-serif'
                 plt.rcParams['font.size'] = 9
                 print("Using default font for charts")
@@ -241,19 +259,23 @@ class TopItemsTab(QWidget):
         """Load data and update both table and chart"""
         conn = connect_db()
         cursor = conn.cursor()
+        
+        # ✅ FIX: Use same calculation as ItemsTab
         cursor.execute("""
-            SELECT sale_items.product_name, COALESCE(SUM(sale_items.total), 0) as total_sales
-            FROM sale_items
-            JOIN sales ON sale_items.sale_id = sales.id
-            WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
-            GROUP BY sale_items.product_name
-            ORDER BY total_sales DESC
+            SELECT 
+                si.product_name,
+                COALESCE(SUM(si.total) - SUM(s.discount_amount), 0) as net_sales
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
+            GROUP BY si.product_name
+            ORDER BY net_sales DESC
             LIMIT 20
         """, (from_date, to_date))
         rows = cursor.fetchall()
         conn.close()
         
-        # Sort by sales descending (already sorted from query)
+        # Sort by net sales descending (already sorted from query)
         self.full_data = [list(row) for row in rows]
         
         # Update current theme
@@ -275,15 +297,12 @@ class TopItemsTab(QWidget):
             self.table.setItem(r, 1, QTableWidgetItem(format_money(row_data[1])))
         
         if lang_code == "my":
-            self.table.setHorizontalHeaderLabels(["ပစ္စည်းအမည်", "စုစုပေါင်းရောင်းအား"])
+            self.table.setHorizontalHeaderLabels(["ပစ္စည်းအမည်", "အသားတင်ရောင်းအား"])
         else:
-            self.table.setHorizontalHeaderLabels(["Product Name", "Total Sales"])
+            self.table.setHorizontalHeaderLabels(["Product Name", "Net Sales"])
     
     def update_chart(self):
         """Update the chart with current data - sorted descending with theme colors"""
-        if not self.full_data:
-            return
-        
         self.figure.clear()
         
         # Get theme colors
@@ -293,6 +312,29 @@ class TopItemsTab(QWidget):
         ax = self.figure.add_subplot(111)
         ax.set_facecolor(colors['bg_color'])
         self.figure.patch.set_facecolor(colors['bg_color'])
+        
+        # ✅ Check if no data available
+        if not self.full_data:
+            # Display "No Data Available" message
+            lang_code = lang.get_current()
+            if lang_code == "my":
+                message = "ဒေတာမရှိပါ"
+            else:
+                message = "No Data Available"
+            
+            ax.text(0.5, 0.5, message, 
+                   ha='center', va='center', 
+                   fontsize=16, fontweight='normal',
+                   color=colors['text_color'],
+                   transform=ax.transAxes)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.axis('off')  # Hide axes
+            
+            # Adjust layout and redraw
+            self.figure.tight_layout(pad=2.0)
+            self.canvas.draw()
+            return
         
         # Extract data - already sorted descending from query
         names = [row[0] for row in self.full_data]
@@ -316,26 +358,24 @@ class TopItemsTab(QWidget):
         # Add value labels at the end of bars
         for bar, value in zip(bars, values_rev):
             width = bar.get_width()
-            # Format the value
             if lang_code == "my":
                 label = f"{format_money(value)}"
             else:
                 label = f"{format_money(value)}"
             
-            # Position label at the end of bar with theme text color
             ax.text(width * 1.02, bar.get_y() + bar.get_height()/2, label,
                    ha='left', va='center', fontsize=8, fontweight='normal',
                    color=colors['text_color'])
         
         # Set labels and title with theme colors
         if lang_code == "my":
-            ax.set_xlabel("စုစုပေါင်းရောင်းအား (ကျပ်)", fontsize=10, fontweight='bold', color=colors['text_color'])
-            ax.set_ylabel("ပစ္စည်းအမည်", fontsize=10, fontweight='bold', color=colors['text_color'])
-            ax.set_title("ထိပ်ဆုံးရောင်းအားရှိပစ္စည်း ၂၀", fontsize=12, fontweight='bold', color=colors['text_color'])
+            ax.set_xlabel("အသားတင်ရောင်းအား (ကျပ်)", fontsize=10, fontweight='normal', color=colors['text_color'])
+            ax.set_ylabel("ပစ္စည်းအမည်", fontsize=10, fontweight='normal', color=colors['text_color'])
+            ax.set_title("ထိပ်ဆုံးရောင်းအားရှိပစ္စည်း ၂၀", fontsize=12, fontweight='normal', color=colors['text_color'])
         else:
-            ax.set_xlabel("Total Sales", fontsize=10, fontweight='bold', color=colors['text_color'])
-            ax.set_ylabel("Product Name", fontsize=10, fontweight='bold', color=colors['text_color'])
-            ax.set_title("Top 20 Sales by Item", fontsize=12, fontweight='bold', color=colors['text_color'])
+            ax.set_xlabel("Net Sales", fontsize=10, fontweight='normal', color=colors['text_color'])
+            ax.set_ylabel("Product Name", fontsize=10, fontweight='normal', color=colors['text_color'])
+            ax.set_title("Top 20 Sales by Item (Net)", fontsize=12, fontweight='normal', color=colors['text_color'])
         
         # Set tick colors
         ax.tick_params(axis='y', labelsize=8, colors=colors['text_color'])
@@ -370,11 +410,9 @@ class TopItemsTab(QWidget):
         if lang_code == "my":
             self.view_tabs.setTabText(0, "ဇယား")
             self.view_tabs.setTabText(1, "စာရင်း")
-            self.btn_refresh_chart.setText("🔄 ဇယားပြန်လည်")
         else:
             self.view_tabs.setTabText(0, "Chart")
             self.view_tabs.setTabText(1, "Table")
-            self.btn_refresh_chart.setText("🔄 Refresh Chart")
         
         # Update table
         self._update_table(lang_code)
@@ -385,3 +423,7 @@ class TopItemsTab(QWidget):
         self.current_theme = self._get_current_theme()
         self.update_chart()
         super().showEvent(event)
+
+
+# ✅ EXPORT - Import လုပ်လို့ရအောင်
+__all__ = ['TopItemsTab']

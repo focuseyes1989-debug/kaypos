@@ -1,13 +1,19 @@
 # ui/inventory_page/current_stock_tab.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QMessageBox, QFileDialog, QLabel, QLineEdit, QComboBox
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QMessageBox, QFileDialog, QLabel, QComboBox
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 from models.database import connect_db
+from models.database.queries import reverse_stock_movement
 from utils.currency import format_money, get_currency_symbol
 from utils.translations import tr
 from ui.widgets.pagination_widget import PaginationWidget
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.search_widget import SearchWidget
 from ui.inventory_page.product_transaction_history_dialog import ProductTransactionHistoryDialog
+from ui.product_detail_dialog import ProductDetailDialog
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from datetime import datetime
-import csv
+import os
 
 
 class CurrentStockTab(QWidget):
@@ -16,55 +22,89 @@ class CurrentStockTab(QWidget):
         self.parent_page = parent
         self.current_page = 1
         self.page_size = 50
+        self.selected_product_id = None
+        self.selected_product_name = None
+        self._is_dark = is_dark_theme()
+        
         layout = QVBoxLayout()
+        layout.setSpacing(12)
 
         # Top button layout
         btn_layout = QHBoxLayout()
-        self.btn_stock_in = QPushButton(tr("stock_in"))
+        btn_layout.setSpacing(8)
+        
+        # ✅ Stock In button with SVG icon
+        self.btn_stock_in = ModernButton(" " + tr("stock_in"), ModernButton.PRIMARY)
+        self.btn_stock_in.set_icon("add", size=(16, 16))
+        self.btn_stock_in.set_compact(False)
         self.btn_stock_in.clicked.connect(self.open_stock_in)
-        self.btn_stock_out = QPushButton(tr("stock_out"))
-        self.btn_stock_out.clicked.connect(self.open_stock_out)
-        self.btn_adjustment = QPushButton(tr("adjustment"))
-        self.btn_adjustment.clicked.connect(self.open_adjustment)
-        
-        # Transfer button
-        self.btn_transfer = QPushButton("🔄 Transfer")
-        self.btn_transfer.clicked.connect(self.open_transfer)
-        
-        # Export button
-        self.btn_export = QPushButton("📊 Export Current Stock")
-        self.btn_export.clicked.connect(self.export_to_excel)
-        
         btn_layout.addWidget(self.btn_stock_in)
+        
+        # ✅ Stock Out button with SVG icon
+        self.btn_stock_out = ModernButton(" " + tr("stock_out"), ModernButton.PRIMARY)
+        self.btn_stock_out.set_icon("remove", size=(16, 16))
+        self.btn_stock_out.set_compact(False)
+        self.btn_stock_out.clicked.connect(self.open_stock_out)
         btn_layout.addWidget(self.btn_stock_out)
+        
+        # ✅ Adjustment button with SVG icon
+        self.btn_adjustment = ModernButton(" " + tr("adjustment"), ModernButton.PRIMARY)
+        self.btn_adjustment.set_icon("edit", size=(16, 16))
+        self.btn_adjustment.set_compact(False)
+        self.btn_adjustment.clicked.connect(self.open_adjustment)
         btn_layout.addWidget(self.btn_adjustment)
+        
+        # ✅ Transfer button with SVG icon
+        self.btn_transfer = ModernButton(" Transfer", ModernButton.PRIMARY)
+        self.btn_transfer.set_icon("swap_horiz", size=(16, 16))
+        self.btn_transfer.set_compact(False)
+        self.btn_transfer.clicked.connect(self.open_transfer)
         btn_layout.addWidget(self.btn_transfer)
+        
+        # ✅ View Movements button with SVG icon
+        self.btn_view_movements = ModernButton(" View Movements", ModernButton.SECONDARY)
+        self.btn_view_movements.set_icon("history", size=(16, 16))
+        self.btn_view_movements.set_compact(False)
+        self.btn_view_movements.clicked.connect(self.show_stock_movements)
+        btn_layout.addWidget(self.btn_view_movements)
+        
         btn_layout.addStretch()
+        
+        # ✅ Export button with SVG icon
+        self.btn_export = ModernButton(" Export Current Stock", ModernButton.SECONDARY)
+        self.btn_export.set_icon("file_export", size=(16, 16))
+        self.btn_export.set_compact(False)
+        self.btn_export.clicked.connect(self.export_to_excel)
         btn_layout.addWidget(self.btn_export)
+        
         layout.addLayout(btn_layout)
 
-        # Filter section
+        # Filter section with SearchWidget
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
+        filter_layout.setContentsMargins(0, 8, 0, 8)
         
-        # Search input
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by name, SKU or barcode...")
-        self.search_input.textChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.search_input, 2)
+        # ✅ Use SearchWidget with SVG icon
+        self.search_widget = SearchWidget(
+            placeholder="Search by name, SKU or barcode...",
+            show_label=False
+        )
+        self.search_widget.search_changed.connect(self.on_filter_changed)
+        self.search_widget.search_cleared.connect(self.on_filter_changed)
+        filter_layout.addWidget(self.search_widget, 2)
         
         # Category filter
+        filter_layout.addWidget(QLabel("Category:"))
         self.category_filter = QComboBox()
         self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(QLabel("Category:"))
         filter_layout.addWidget(self.category_filter, 1)
         
         # Status filter
+        filter_layout.addWidget(QLabel("Status:"))
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All Status", "In Stock", "Low Stock", "Out of Stock"])
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(QLabel("Status:"))
         filter_layout.addWidget(self.status_filter, 1)
         
         filter_layout.addStretch()
@@ -73,9 +113,16 @@ class CurrentStockTab(QWidget):
         self.stock_table = QTableWidget()
         self.stock_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stock_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.stock_table.verticalHeader().setDefaultSectionSize(40)
+        self.stock_table.verticalHeader().setDefaultSectionSize(52)
+        self.stock_table.verticalHeader().setMinimumSectionSize(48)
         self.stock_table.verticalHeader().setVisible(True)
         self.stock_table.setAlternatingRowColors(True)
+        
+        self.stock_table.cellClicked.connect(self.on_cell_clicked)
+        self.stock_table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        
+        # ✅ NO custom table style - use PyQt6 default
+        # self._apply_table_theme()  <-- ဒီ line ကို ဖယ်ရှားပါ
         
         header = self.stock_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -88,13 +135,100 @@ class CurrentStockTab(QWidget):
 
         self.setLayout(layout)
         
-        # Load categories and initial data
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
         self.load_categories()
         self.refresh()
         self.retranslateUi()
 
+    def _centered_cell_widget(self, widget):
+        container = QWidget()
+        container.setStyleSheet("background: transparent; border: none;")
+        container.setMinimumHeight(48)
+        layout = QGridLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(widget, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        return container
+
+    def _get_themed_icon(self, icon_name, size=(16, 16)):
+        """Get themed SVG icon"""
+        try:
+            from ui.themes.theme_manager import get_themed_icon
+            return get_themed_icon(icon_name, size=size)
+        except:
+            return QIcon()
+    
+    def _load_colored_icon(self, icon_name, size=(16, 16)):
+        """Load SVG icon with color based on theme"""
+        is_dark = is_dark_theme()
+        color_hex = "#ffffff" if is_dark else "#495057"
+        
+        # Try SVG first
+        paths = [
+            f"assets/icons/{icon_name}.svg",
+            f"assets/icons/{icon_name}.png",
+        ]
+        
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    pixmap = QPixmap(path)
+                    if not pixmap.isNull():
+                        scaled = pixmap.scaled(
+                            size[0], size[1],
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation
+                        )
+                        
+                        # Color the icon
+                        colored = scaled.copy()
+                        painter = QPainter(colored)
+                        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+                        painter.fillRect(colored.rect(), QColor(color_hex))
+                        painter.end()
+                        
+                        return QIcon(colored)
+                except Exception as e:
+                    print(f"Could not load icon {path}: {e}")
+        
+        return QIcon()
+
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        # ✅ Only update button icons and reload data - no table style update
+        self._update_button_icons()
+        self.load_data()
+    
+    def _update_button_icons(self):
+        """Update button icons when theme changes"""
+        self.btn_stock_in.set_icon("add", size=(16, 16))
+        self.btn_stock_out.set_icon("remove", size=(16, 16))
+        self.btn_adjustment.set_icon("edit", size=(16, 16))
+        self.btn_transfer.set_icon("swap_horiz", size=(16, 16))
+        self.btn_view_movements.set_icon("history", size=(16, 16))
+        self.btn_export.set_icon("file_export", size=(16, 16))
+
+    def on_cell_clicked(self, row, column):
+        id_item = self.stock_table.item(row, 0)
+        name_item = self.stock_table.item(row, 1)
+        if id_item:
+            try:
+                self.selected_product_id = int(id_item.text())
+                if name_item:
+                    self.selected_product_name = name_item.text()
+                else:
+                    self.selected_product_name = None
+            except ValueError:
+                self.selected_product_id = None
+                self.selected_product_name = None
+
+    def get_selected_product(self):
+        return self.selected_product_id, self.selected_product_name
+
     def load_categories(self):
-        """Load categories from database into filter combo box"""
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM categories ORDER BY name")
@@ -120,6 +254,9 @@ class CurrentStockTab(QWidget):
     def open_stock_in(self):
         from ui.inventory_page.stock_in_dialog import StockInDialog
         dialog = StockInDialog(self)
+        product_id, product_name = self.get_selected_product()
+        if product_id:
+            dialog.set_product(product_id, product_name)
         if dialog.exec():
             self.refresh()
             self.refresh_stock_alerts()
@@ -127,6 +264,9 @@ class CurrentStockTab(QWidget):
     def open_stock_out(self):
         from ui.inventory_page.stock_out_dialog import StockOutDialog
         dialog = StockOutDialog(self)
+        product_id, product_name = self.get_selected_product()
+        if product_id:
+            dialog.set_product(product_id, product_name)
         if dialog.exec():
             self.refresh()
             self.refresh_stock_alerts()
@@ -134,20 +274,105 @@ class CurrentStockTab(QWidget):
     def open_adjustment(self):
         from ui.inventory_page.adjustment_dialog import AdjustmentDialog
         dialog = AdjustmentDialog(self)
+        product_id, product_name = self.get_selected_product()
+        if product_id:
+            dialog.set_product(product_id, product_name)
         if dialog.exec():
             self.refresh()
             self.refresh_stock_alerts()
 
     def open_transfer(self):
-        """Open stock transfer dialog"""
         from ui.inventory_page.stock_transfer_dialog import StockTransferDialog
         dialog = StockTransferDialog(self)
+        product_id, product_name = self.get_selected_product()
+        if product_id:
+            dialog.set_product(product_id, product_name)
         if dialog.exec():
             self.refresh()
             self.refresh_stock_alerts()
 
+    def show_stock_movements(self):
+        product_id, product_name = self.get_selected_product()
+        if not product_id:
+            lang = self.get_lang()
+            msg = "Please select a product first." if lang != "my" else "ကျေးဇူးပြု၍ ပစ္စည်းတစ်ခုကို ဦးစွာရွေးချယ်ပါ။"
+            QMessageBox.warning(self, "No Selection" if lang != "my" else "မရွေးရသေး", msg)
+            return
+        
+        from ui.inventory_page.stock_movement_dialog import StockMovementDialog
+        dialog = StockMovementDialog(product_id, self)
+        dialog.movement_reversed.connect(self.on_movement_reversed)
+        dialog.exec()
+
+    def on_movement_reversed(self):
+        self.refresh()
+        self.refresh_stock_alerts()
+        lang = self.get_lang()
+        msg = "Stock movement reversed successfully." if lang != "my" else "စတော့လှုပ်ရှားမှုကို အောင်မြင်စွာ ပြန်ဖျက်ပြီးပါပြီ။"
+        QMessageBox.information(self, "Updated" if lang != "my" else "ပြင်ဆင်ပြီး", msg)
+
+    def reverse_last_stock_in(self):
+        product_id, product_name = self.get_selected_product()
+        if not product_id:
+            lang = self.get_lang()
+            msg = "Please select a product first." if lang != "my" else "ကျေးဇူးပြု၍ ပစ္စည်းတစ်ခုကို ဦးစွာရွေးချယ်ပါ။"
+            QMessageBox.warning(self, "No Selection" if lang != "my" else "မရွေးရသေး", msg)
+            return
+        
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, created_at, quantity, location, created_by
+            FROM stock_movements
+            WHERE product_id = ? AND type = 'in'
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (product_id,))
+        last_in = cursor.fetchone()
+        conn.close()
+        
+        if not last_in:
+            lang = self.get_lang()
+            msg = "No stock in record found for this product." if lang != "my" else "ဤပစ္စည်းအတွက် စတော့ဝင်မှတ်တမ်း မတွေ့ပါ။"
+            QMessageBox.warning(self, "No Stock In" if lang != "my" else "စတော့ဝင်မှတ်တမ်းမရှိ", msg)
+            return
+        
+        mov_id, created_at, qty, location, created_by = last_in
+        lang = self.get_lang()
+        
+        if lang == "my":
+            msg = (f"'{product_name}' အတွက် နောက်ဆုံး စတော့ဝင်မှုကို ပြန်ဖျက်မည်လား?\n\n"
+                   f"ရက်စွဲ: {created_at}\n"
+                   f"ပမာဏ: {qty}\n"
+                   f"နေရာ: {location or 'N/A'}\n"
+                   f"ဖန်တီးသူ: {created_by or 'System'}\n\n"
+                   f"ဤသည်မှာ စတော့မှ {qty} ကို ဖယ်ရှားမည်ဖြစ်သည်။")
+        else:
+            msg = (f"Reverse the last Stock In for '{product_name}'?\n\n"
+                   f"Date: {created_at}\n"
+                   f"Quantity: {qty}\n"
+                   f"Location: {location or 'N/A'}\n"
+                   f"Created by: {created_by or 'System'}\n\n"
+                   f"This will remove {qty} from stock.")
+        
+        reply = QMessageBox.question(
+            self,
+            "Reverse Stock In" if lang != "my" else "စတော့ဝင်မှုကို ပြန်ဖျက်ရန်",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            main_window = self.window()
+            created_by = main_window.current_user['username'] if hasattr(main_window, 'current_user') else 'System'
+            
+            result = reverse_stock_movement(mov_id, reason="User requested reversal", created_by=created_by)
+            if result['success']:
+                self.on_movement_reversed()
+            else:
+                QMessageBox.critical(self, "Error", result['message'])
+
     def refresh_stock_alerts(self):
-        """Refresh stock alerts in main window"""
         main_window = self.window()
         if hasattr(main_window, 'check_stock_alerts'):
             main_window.check_stock_alerts()
@@ -158,9 +383,18 @@ class CurrentStockTab(QWidget):
         self.load_data()
 
     def refresh(self):
-        """Refresh the current tab data"""
         self.load_data()
         self.retranslateUi()
+
+    def on_cell_double_clicked(self, row, column):
+        id_item = self.stock_table.item(row, 0)
+        if id_item:
+            try:
+                product_id = int(id_item.text())
+                dialog = ProductDetailDialog(product_id)
+                dialog.exec()
+            except ValueError:
+                pass
 
     def load_data(self, page=None, page_size=None):
         if page is None:
@@ -169,43 +403,42 @@ class CurrentStockTab(QWidget):
             page_size = self.page_size
             
         lang = self.get_lang()
-        search_text = self.search_input.text().strip().lower()
+        search_text = self.search_widget.get_text().lower()
         category = self.category_filter.currentText()
         status_filter = self.status_filter.currentText()
         use_category = category != "All Categories"
         
-        # Define main headers
         if lang == "my":
             main_headers = [
-                "ပစ္စည်းအမည်", "SKU", "ဘားကုဒ်", "အမျိုးအစား", "လက်ကျန်",
+                "ID", "ပစ္စည်းအမည်", "SKU", "ဘားကုဒ်", "အမျိုးအစား", "လက်ကျန်",
                 "ကုန်ကျစရိတ်", "ရောင်းဈေး", "စုစုပေါင်းတန်ဖိုး", "သတိပေးပမာဏ",
                 "အခြေအနေ", "နောက်ဆုံးပြင်ဆင်ချိန်", "နေရာ"
             ]
         else:
             main_headers = [
-                "Product Name", "SKU", "Barcode", "Category", "Current Qty",
+                "ID", "Product Name", "SKU", "Barcode", "Category", "Current Qty",
                 "Cost Price", "Selling Price", "Stock Value", "Low Stock Level",
                 "Status", "Last Updated", "Location"
             ]
         
-        # Add History column
+        # ✅ Add History header
         headers = main_headers + (["မှတ်တမ်း"] if lang == "my" else ["History"])
         self.stock_table.setColumnCount(len(headers))
         self.stock_table.setHorizontalHeaderLabels(headers)
         
-        # Configure column resize modes
+        self.stock_table.setColumnHidden(0, True)
+        
         header = self.stock_table.horizontalHeader()
-        for col in range(len(headers) - 1):
+        for col in range(1, len(headers) - 1):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
         
         history_col = len(headers) - 1
         header.setSectionResizeMode(history_col, QHeaderView.ResizeMode.Fixed)
-        self.stock_table.setColumnWidth(history_col, 100)
+        self.stock_table.setColumnWidth(history_col, 110)
 
         conn = connect_db()
         cursor = conn.cursor()
         
-        # Build base query with filters
         base_query = """
             FROM products p
             LEFT JOIN product_locations pl ON p.id = pl.product_id
@@ -222,7 +455,6 @@ class CurrentStockTab(QWidget):
             base_query += " AND (LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ? OR LOWER(p.barcode) LIKE ?)"
             params.extend([like, like, like])
         
-        # Apply status filter
         if status_filter == "In Stock" or status_filter == "စတော့ရှိပါ":
             base_query += " AND COALESCE(p.stock, 0) > COALESCE(p.low_stock, 0)"
         elif status_filter == "Low Stock" or status_filter == "စတော့နည်းနေပြီ":
@@ -230,18 +462,13 @@ class CurrentStockTab(QWidget):
         elif status_filter == "Out of Stock" or status_filter == "ကုန်သွားပြီ":
             base_query += " AND COALESCE(p.stock, 0) = 0"
         
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(DISTINCT p.id) 
-            {base_query}
-        """
+        count_query = f"SELECT COUNT(DISTINCT p.id) {base_query}"
         cursor.execute(count_query, params)
         total_items = cursor.fetchone()[0]
         self.pagination.set_total_items(total_items, emit_signal=False)
 
         offset = (page - 1) * page_size
         
-        # Query with filters
         cursor.execute(f"""
             SELECT 
                 p.id, 
@@ -271,6 +498,9 @@ class CurrentStockTab(QWidget):
         rows = cursor.fetchall()
         conn.close()
 
+        # ✅ Load history icon for buttons
+        history_icon = self._load_colored_icon("history", size=(14, 14))
+        
         self.stock_table.setRowCount(0)
         for row in rows:
             prod_id = row[0]
@@ -290,36 +520,42 @@ class CurrentStockTab(QWidget):
             
             r = self.stock_table.rowCount()
             self.stock_table.insertRow(r)
+            self.stock_table.setRowHeight(r, 52)
             
-            self.stock_table.setItem(r, 0, QTableWidgetItem(str(name) if name else ""))
-            self.stock_table.setItem(r, 1, QTableWidgetItem(str(sku) if sku else ""))
-            self.stock_table.setItem(r, 2, QTableWidgetItem(str(barcode) if barcode else ""))
-            self.stock_table.setItem(r, 3, QTableWidgetItem(str(category) if category else ""))
+            # ✅ Use PyQt6 default colors
+            id_item = QTableWidgetItem(str(prod_id))
+            self.stock_table.setItem(r, 0, id_item)
+            
+            name_item = QTableWidgetItem(str(name) if name else "")
+            self.stock_table.setItem(r, 1, name_item)
+            
+            self.stock_table.setItem(r, 2, QTableWidgetItem(str(sku) if sku else ""))
+            self.stock_table.setItem(r, 3, QTableWidgetItem(str(barcode) if barcode else ""))
+            self.stock_table.setItem(r, 4, QTableWidgetItem(str(category) if category else ""))
             
             stock_item = QTableWidgetItem(str(stock))
             if stock == 0:
-                stock_item.setForeground(Qt.GlobalColor.red)
+                stock_item.setForeground(QColor("#dc3545"))  # Red
             elif stock <= low_stock:
-                stock_item.setForeground(Qt.GlobalColor.darkYellow)
-            self.stock_table.setItem(r, 4, stock_item)
+                stock_item.setForeground(QColor("#f39c12"))  # Orange
+            self.stock_table.setItem(r, 5, stock_item)
             
-            self.stock_table.setItem(r, 5, QTableWidgetItem(format_money(cost)))
-            self.stock_table.setItem(r, 6, QTableWidgetItem(format_money(price)))
-            self.stock_table.setItem(r, 7, QTableWidgetItem(format_money(stock_value)))
-            self.stock_table.setItem(r, 8, QTableWidgetItem(str(low_stock)))
+            self.stock_table.setItem(r, 6, QTableWidgetItem(format_money(cost)))
+            self.stock_table.setItem(r, 7, QTableWidgetItem(format_money(price)))
+            self.stock_table.setItem(r, 8, QTableWidgetItem(format_money(stock_value)))
+            self.stock_table.setItem(r, 9, QTableWidgetItem(str(low_stock)))
             
             status_item = QTableWidgetItem(str(status))
             if status == "Out of Stock" or status == "ကုန်သွားပြီ":
-                status_item.setForeground(Qt.GlobalColor.red)
+                status_item.setForeground(QColor("#dc3545"))
             elif status == "Low Stock" or status == "စတော့နည်းနေပြီ":
-                status_item.setForeground(Qt.GlobalColor.darkYellow)
+                status_item.setForeground(QColor("#f39c12"))
             else:
-                status_item.setForeground(Qt.GlobalColor.darkGreen)
-            self.stock_table.setItem(r, 9, status_item)
+                status_item.setForeground(QColor("#28a745"))
+            self.stock_table.setItem(r, 10, status_item)
             
-            self.stock_table.setItem(r, 10, QTableWidgetItem(str(last_upd) if last_upd else ""))
+            self.stock_table.setItem(r, 11, QTableWidgetItem(str(last_upd) if last_upd else ""))
             
-            # Clean up locations string
             locations_str = str(locations) if locations else ""
             if locations_str:
                 loc_list = [loc.strip() for loc in locations_str.split(',') if loc.strip()]
@@ -331,13 +567,33 @@ class CurrentStockTab(QWidget):
                         unique_locs.append(loc)
                 locations_str = ', '.join(unique_locs)
             
-            self.stock_table.setItem(r, 11, QTableWidgetItem(locations_str))
+            self.stock_table.setItem(r, 12, QTableWidgetItem(locations_str))
             
-            # History Button
-            btn_history = QPushButton("📋 ကြည့်ရန်" if lang == "my" else "📋 View")
-            btn_history.setFixedSize(70, 28)
+            # ✅ History button (keep styled for functionality)
+            btn_history = QPushButton()
+            btn_history.setIcon(history_icon)
+            btn_history.setText(" " + ("ကြည့်ရန်" if lang == "my" else "View"))
+            btn_history.setFixedSize(95, 32)
+            btn_history.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_history.setStyleSheet("""
+                QPushButton {
+                    background-color: #5865f2;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 9pt;
+                    font-weight: 500;
+                    padding: 2px 8px;
+                }
+                QPushButton:hover {
+                    background-color: #4752c4;
+                }
+                QPushButton:pressed {
+                    background-color: #3c45a3;
+                }
+            """)
             btn_history.clicked.connect(lambda checked, pid=prod_id, pname=name: self.show_transaction_history(pid, pname))
-            self.stock_table.setCellWidget(r, 12, btn_history)
+            self.stock_table.setCellWidget(r, 13, self._centered_cell_widget(btn_history))
 
     def show_transaction_history(self, product_id, product_name):
         dialog = ProductTransactionHistoryDialog(product_id, product_name, self)
@@ -422,7 +678,6 @@ class CurrentStockTab(QWidget):
             total_cost_value = 0
             
             for row_idx, row_data in enumerate(rows, start=6):
-                # Skip the id column (index 0)
                 name, sku, barcode, category, stock, cost, price, stock_value, low_stock, location = row_data[1:]
                 
                 ws.cell(row=row_idx, column=1, value=name)
@@ -471,28 +726,43 @@ class CurrentStockTab(QWidget):
             return "en"
 
     def retranslateUi(self):
-        self.btn_stock_in.setText(tr("stock_in"))
-        self.btn_stock_out.setText(tr("stock_out"))
-        self.btn_adjustment.setText(tr("adjustment"))
-        
         lang = self.get_lang()
+        
+        # Update SearchWidget placeholder
         if lang == "my":
-            self.btn_transfer.setText("🔄 လွှဲပြောင်းမည်")
-            self.btn_export.setText("📊 စတော့စာရင်းထုတ်မည်")
-            self.search_input.setPlaceholderText("ပစ္စည်းအမည် / SKU / ဘားကုဒ်ဖြင့် ရှာရန်...")
-            # Update status filter text
+            self.search_widget.set_placeholder_text("ပစ္စည်းအမည် / SKU / ဘားကုဒ်ဖြင့် ရှာရန်...")
+        else:
+            self.search_widget.set_placeholder_text("Search by name, SKU or barcode...")
+        
+        if lang == "my":
+            self.btn_stock_in.setText(" " + tr("stock_in"))
+            self.btn_stock_out.setText(" " + tr("stock_out"))
+            self.btn_adjustment.setText(" " + tr("adjustment"))
+            self.btn_transfer.setText(" လွှဲပြောင်းမည်")
+            self.btn_export.setText(" စတော့စာရင်းထုတ်မည်")
+            self.btn_view_movements.setText(" လှုပ်ရှားမှုများကြည့်ရန်")
             self.status_filter.setItemText(0, "အားလုံး")
             self.status_filter.setItemText(1, "စတော့ရှိပါ")
             self.status_filter.setItemText(2, "စတော့နည်းနေပြီ")
             self.status_filter.setItemText(3, "ကုန်သွားပြီ")
         else:
-            self.btn_transfer.setText("🔄 Transfer")
-            self.btn_export.setText("📊 Export Current Stock")
-            self.search_input.setPlaceholderText("Search by name, SKU or barcode...")
+            self.btn_stock_in.setText(" " + tr("stock_in"))
+            self.btn_stock_out.setText(" " + tr("stock_out"))
+            self.btn_adjustment.setText(" " + tr("adjustment"))
+            self.btn_transfer.setText(" Transfer")
+            self.btn_export.setText(" Export Current Stock")
+            self.btn_view_movements.setText(" View Movements")
             self.status_filter.setItemText(0, "All Status")
             self.status_filter.setItemText(1, "In Stock")
             self.status_filter.setItemText(2, "Low Stock")
             self.status_filter.setItemText(3, "Out of Stock")
         
-        # Refresh table after language change
+        # ✅ Update button icons
+        self._update_button_icons()
+        
         self.load_data()
+    
+    def showEvent(self, event):
+        """Handle show event - refresh data"""
+        self.load_data()
+        super().showEvent(event)

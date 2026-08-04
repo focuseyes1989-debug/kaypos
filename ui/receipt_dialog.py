@@ -10,9 +10,16 @@ from PyQt6.QtGui import QIcon, QFont, QPixmap, QPainter, QFontMetrics, QPageLayo
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog, QPrinterInfo
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.receipt_template import build_receipt_html, build_receipt_text_lines
 
 
 class ReceiptDialog(QDialog):
+    PAPER_SIZES = {
+        0: (80.0, 297.0),
+        1: (58.0, 297.0),
+        2: None,
+    }
+
     def __init__(self, sale_id: int, parent=None):
         super().__init__(parent)
         self.sale_id = sale_id
@@ -131,6 +138,57 @@ class ReceiptDialog(QDialog):
         except:
             pass
 
+    def get_setting(self, key, default=""):
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key=?", (key,))
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else default
+        except Exception:
+            return default
+
+    def selected_printer_name(self):
+        saved_name = self.get_setting("receipt_printer_name", "").strip()
+        if saved_name:
+            return saved_name
+
+        default_printer = QPrinterInfo.defaultPrinter()
+        if default_printer.isNull():
+            return ""
+        return default_printer.printerName()
+
+    def receipt_print_quality(self):
+        value = self.get_setting("receipt_print_quality", "203")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 203
+
+    def configure_receipt_printer(self, printer):
+        paper_index = self.paper_combo.currentIndex()
+        paper_size = self.PAPER_SIZES.get(paper_index)
+        if paper_size is None:
+            page_size = QPageSize(QPageSize.PageSizeId.A4)
+        else:
+            width_mm, height_mm = paper_size
+            page_size = QPageSize(
+                QSizeF(width_mm, height_mm),
+                QPageSize.Unit.Millimeter,
+                f"{width_mm:g}mm Receipt",
+            )
+
+        page_layout = QPageLayout(
+            page_size,
+            QPageLayout.Orientation.Portrait,
+            QMarginsF(2, 2, 2, 2),
+            QPageLayout.Unit.Millimeter,
+        )
+        accepted = printer.setPageLayout(page_layout)
+        printer.setResolution(self.receipt_print_quality())
+        return accepted
+
     def load_receipt(self):
         conn = connect_db()
         cursor = conn.cursor()
@@ -191,6 +249,19 @@ class ReceiptDialog(QDialog):
         logo_path = row[0] if row else ""
 
         conn.close()
+
+        sale_data = {
+            "invoice_no": invoice_no,
+            "created_at": created_at,
+            "total": total,
+            "payment": payment,
+            "change": change,
+            "payment_type": payment_type,
+            "discount_amt": discount_amt,
+            "customer_name": customer_name,
+        }
+        self.receipt_display.setHtml(build_receipt_html(sale_data, items))
+        return
 
         symbol = get_currency_symbol()
 
@@ -331,6 +402,19 @@ class ReceiptDialog(QDialog):
         cursor.execute("SELECT product_name, qty, price, total FROM sale_items WHERE sale_id=?", (self.sale_id,))
         items = cursor.fetchall()
 
+        conn.close()
+        sale_data = {
+            "invoice_no": invoice_no,
+            "created_at": created_at,
+            "total": total,
+            "payment": payment,
+            "change": change,
+            "payment_type": payment_type,
+            "discount_amt": discount_amt,
+            "customer_name": customer_name,
+        }
+        return build_receipt_text_lines(sale_data, items)
+
         cursor.execute("SELECT value FROM settings WHERE key='shop_name'")
         row = cursor.fetchone()
         shop_name = row[0] if row else "ZAY POS"
@@ -437,12 +521,18 @@ class ReceiptDialog(QDialog):
             winspool.ClosePrinter(h_printer)
 
     def _send_cash_drawer_command(self):
-        """Open cash drawer using the default printer."""
-        default_printer = QPrinterInfo.defaultPrinter()
-        if default_printer.isNull():
-            return False
+        """Open cash drawer using receipt printer settings."""
+        use_receipt_printer = self.get_setting("receipt_cash_drawer_use_receipt_printer", "1") == "1"
+        if use_receipt_printer:
+            printer_name = self.selected_printer_name()
+        else:
+            default_printer = QPrinterInfo.defaultPrinter()
+            if default_printer.isNull():
+                return False
+            printer_name = default_printer.printerName()
 
-        printer_name = default_printer.printerName()
+        if not printer_name:
+            return False
         try:
             self._send_cash_drawer_pulse(printer_name)
             return True
@@ -456,23 +546,17 @@ class ReceiptDialog(QDialog):
             QMessageBox.warning(self, "Print Error", "No receipt data.")
             return
 
-        from PyQt6.QtPrintSupport import QPrinterInfo
-
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        default_printer = QPrinterInfo.defaultPrinter()
-        if default_printer is None:
-            QMessageBox.warning(self, "Print Error", "No default printer found.")
+        printer_name = self.selected_printer_name()
+        if not printer_name:
+            QMessageBox.warning(self, "Print Error", "No receipt printer found. Please check Receipt Settings.")
             return
-        printer.setPrinterName(default_printer.printerName())
+        printer.setPrinterName(printer_name)
 
         try:
-            page_size = QPageSize(QSizeF(80, 297), QPageSize.Unit.Millimeter)
-            layout = QPageLayout()
-            layout.setPageSize(page_size)
-            layout.setOrientation(QPageLayout.Orientation.Portrait)
-            layout.setMargins(QMarginsF(2, 2, 2, 2))
-            printer.setPageLayout(layout)
+            page_size_accepted = self.configure_receipt_printer(printer)
         except Exception as e:
+            page_size_accepted = False
             print(f"Custom page size failed: {e}")
 
         painter = QPainter()
@@ -512,7 +596,10 @@ class ReceiptDialog(QDialog):
         finally:
             painter.end()
 
-        QMessageBox.information(self, "Print", "Receipt sent to printer.")
+        note = ""
+        if not page_size_accepted:
+            note = "\n\nNote: Printer driver did not accept the custom paper size. Check Windows printer preferences if paper feed is not correct."
+        QMessageBox.information(self, "Print", f"Receipt sent to printer.\nPrinter: {printer_name}{note}")
 
     def close_without_drawer(self):
         """Close dialog without opening cash drawer"""

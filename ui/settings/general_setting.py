@@ -3,11 +3,12 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
     QDialog, QFormLayout, QDialogButtonBox, QCheckBox, QDoubleSpinBox,
-    QSpinBox, QScrollArea, QFrame, QComboBox
+    QSpinBox, QScrollArea, QFrame, QComboBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from models.database import connect_db
 from utils.language import lang
+from ui.responsive_utils import get_supported_resolution_options, parse_resolution
 
 
 class PaymentTypeDialog(QDialog):
@@ -59,29 +60,42 @@ class GeneralSettingWidget(QWidget):
         content_layout = QVBoxLayout(content)
         content_layout.setSpacing(20)
 
+        # Main two-column layout with equal width distribution
         columns_layout = QHBoxLayout()
         columns_layout.setSpacing(20)
 
         left_column = QWidget()
+        left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(15)
 
         right_column = QWidget()
+        right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(15)
 
         # Payment Types (left)
         self.payment_group = QGroupBox()
+        self.payment_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         payment_layout = QVBoxLayout()
+        payment_layout.setSpacing(8)
+        
+        # Table with fixed height to prevent over-expansion
         self.payment_table = QTableWidget()
         self.payment_table.setColumnCount(2)
         self.payment_table.setColumnHidden(0, True)
         self.payment_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.payment_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.payment_table.setMinimumHeight(200)
+        self.payment_table.setMaximumHeight(300)
         self.payment_table.cellClicked.connect(self.select_payment)
         self.payment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         payment_layout.addWidget(self.payment_table)
+        
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
         self.btn_add_pay = QPushButton()
         self.btn_edit_pay = QPushButton()
         self.btn_delete_pay = QPushButton()
@@ -91,18 +105,22 @@ class GeneralSettingWidget(QWidget):
         btn_layout.addWidget(self.btn_add_pay)
         btn_layout.addWidget(self.btn_edit_pay)
         btn_layout.addWidget(self.btn_delete_pay)
+        btn_layout.addStretch()
         payment_layout.addLayout(btn_layout)
         self.payment_group.setLayout(payment_layout)
         left_layout.addWidget(self.payment_group)
 
-        # Tax (left)
+        # Tax (left) - compact layout
         self.tax_group = QGroupBox()
+        self.tax_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         tax_layout = QHBoxLayout()
+        tax_layout.setSpacing(10)
         self.tax_enabled = QCheckBox()
         self.tax_rate = QDoubleSpinBox()
         self.tax_rate.setRange(0, 100)
         self.tax_rate.setSuffix(" %")
         self.tax_rate.setDecimals(2)
+        self.tax_rate.setFixedWidth(100)
         tax_layout.addWidget(self.tax_enabled)
         tax_layout.addWidget(QLabel("Tax Rate:"))
         tax_layout.addWidget(self.tax_rate)
@@ -112,105 +130,131 @@ class GeneralSettingWidget(QWidget):
 
         # Loyalty (right)
         self.royalty_group = QGroupBox()
+        self.royalty_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         royalty_layout = QFormLayout()
+        royalty_layout.setSpacing(6)
+        
         self.points_per_dollar = QDoubleSpinBox()
         self.points_per_dollar.setRange(0, 100)
         self.points_per_dollar.setDecimals(2)
-        self.points_per_dollar.setSuffix(" points per $ spent")
+        self.points_per_dollar.setSuffix(" per $")
         self.min_points = QSpinBox()
         self.min_points.setRange(0, 10000)
-        self.min_points.setSuffix(" points")
+        self.min_points.setSuffix(" pts")
         self.reward_discount = QDoubleSpinBox()
         self.reward_discount.setRange(0, 1000)
         self.reward_discount.setDecimals(2)
-        self.reward_discount.setSuffix(" $ discount")
+        self.reward_discount.setSuffix(" $")
         self.points_expiry_months = QSpinBox()
         self.points_expiry_months.setRange(0, 60)
-        self.points_expiry_months.setSuffix(" months (0 = never)")
+        self.points_expiry_months.setSuffix(" months")
         self.points_dollar_value = QDoubleSpinBox()
         self.points_dollar_value.setRange(0, 1)
         self.points_dollar_value.setDecimals(3)
         self.points_dollar_value.setSingleStep(0.001)
-        self.points_dollar_value.setSuffix(" $ per point")
+        self.points_dollar_value.setSuffix(" $")
 
-        royalty_layout.addRow(QLabel("Points per $:"), self.points_per_dollar)
-        royalty_layout.addRow(QLabel("Minimum points for reward:"), self.min_points)
-        royalty_layout.addRow(QLabel("Reward discount amount:"), self.reward_discount)
-        royalty_layout.addRow(QLabel("Points expiry (months, 0=never):"), self.points_expiry_months)
-        royalty_layout.addRow(QLabel("Value per point ($):"), self.points_dollar_value)
+        royalty_layout.addRow("Points per $:", self.points_per_dollar)
+        royalty_layout.addRow("Min points for reward:", self.min_points)
+        royalty_layout.addRow("Reward discount:", self.reward_discount)
+        royalty_layout.addRow("Points expiry (0=never):", self.points_expiry_months)
+        royalty_layout.addRow("Value per point:", self.points_dollar_value)
         self.royalty_group.setLayout(royalty_layout)
         right_layout.addWidget(self.royalty_group)
 
         # Discount (right)
         self.discount_group = QGroupBox()
+        self.discount_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         discount_layout = QFormLayout()
+        discount_layout.setSpacing(6)
+        
         self.discount_enabled = QCheckBox()
         discount_layout.addRow("", self.discount_enabled)
-        self.discount_type_percent = QCheckBox()
-        self.discount_type_fixed = QCheckBox()
-        self.discount_type_manual = QCheckBox()
-        self.discount_type_percent.toggled.connect(lambda: self.discount_type_fixed.setChecked(False) if self.discount_type_percent.isChecked() else None)
-        self.discount_type_percent.toggled.connect(lambda: self.discount_type_manual.setChecked(False) if self.discount_type_percent.isChecked() else None)
-        self.discount_type_fixed.toggled.connect(lambda: self.discount_type_percent.setChecked(False) if self.discount_type_fixed.isChecked() else None)
-        self.discount_type_fixed.toggled.connect(lambda: self.discount_type_manual.setChecked(False) if self.discount_type_fixed.isChecked() else None)
-        self.discount_type_manual.toggled.connect(lambda: self.discount_type_percent.setChecked(False) if self.discount_type_manual.isChecked() else None)
-        self.discount_type_manual.toggled.connect(lambda: self.discount_type_fixed.setChecked(False) if self.discount_type_manual.isChecked() else None)
-        type_layout = QVBoxLayout()
+        
+        # Radio buttons for discount type
+        self.discount_type_percent = QCheckBox("Percentage (%)")
+        self.discount_type_fixed = QCheckBox("Fixed Amount ($)")
+        self.discount_type_manual = QCheckBox("Manual")
+        
+        # Connect toggle signals properly
+        self.discount_type_percent.toggled.connect(lambda checked: self.discount_type_fixed.setChecked(False) if checked and self.discount_type_fixed.isChecked() else None)
+        self.discount_type_percent.toggled.connect(lambda checked: self.discount_type_manual.setChecked(False) if checked and self.discount_type_manual.isChecked() else None)
+        self.discount_type_fixed.toggled.connect(lambda checked: self.discount_type_percent.setChecked(False) if checked and self.discount_type_percent.isChecked() else None)
+        self.discount_type_fixed.toggled.connect(lambda checked: self.discount_type_manual.setChecked(False) if checked and self.discount_type_manual.isChecked() else None)
+        self.discount_type_manual.toggled.connect(lambda checked: self.discount_type_percent.setChecked(False) if checked and self.discount_type_percent.isChecked() else None)
+        self.discount_type_manual.toggled.connect(lambda checked: self.discount_type_fixed.setChecked(False) if checked and self.discount_type_fixed.isChecked() else None)
+        
+        type_widget = QWidget()
+        type_layout = QVBoxLayout(type_widget)
+        type_layout.setSpacing(2)
         type_layout.addWidget(self.discount_type_percent)
         type_layout.addWidget(self.discount_type_fixed)
         type_layout.addWidget(self.discount_type_manual)
-        discount_layout.addRow("Discount Type:", type_layout)
+        discount_layout.addRow("Discount Type:", type_widget)
+        
         self.discount_value = QDoubleSpinBox()
         self.discount_value.setRange(0, 100000)
         self.discount_value.setDecimals(2)
         self.discount_value.setSuffix("%")
         self.discount_value.setEnabled(False)
-        self.discount_type_percent.toggled.connect(lambda: self.discount_value.setSuffix("%") if self.discount_type_percent.isChecked() else self.discount_value.setSuffix("$"))
-        self.discount_type_fixed.toggled.connect(lambda: self.discount_value.setSuffix("$"))
-        self.discount_type_manual.toggled.connect(lambda: self.discount_value.setEnabled(False))
-        self.discount_type_percent.toggled.connect(lambda: self.discount_value.setEnabled(True))
-        self.discount_type_fixed.toggled.connect(lambda: self.discount_value.setEnabled(True))
+        
+        def update_discount_suffix():
+            if self.discount_type_percent.isChecked():
+                self.discount_value.setSuffix("%")
+                self.discount_value.setEnabled(True)
+            elif self.discount_type_fixed.isChecked():
+                self.discount_value.setSuffix("$")
+                self.discount_value.setEnabled(True)
+            else:
+                self.discount_value.setEnabled(False)
+        
+        self.discount_type_percent.toggled.connect(update_discount_suffix)
+        self.discount_type_fixed.toggled.connect(update_discount_suffix)
+        self.discount_type_manual.toggled.connect(update_discount_suffix)
+        
         discount_layout.addRow("Default Value:", self.discount_value)
         self.discount_group.setLayout(discount_layout)
         right_layout.addWidget(self.discount_group)
 
         # Appearance (right) - with theme selection
         self.appearance_group = QGroupBox()
+        self.appearance_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         appearance_layout = QFormLayout()
+        appearance_layout.setSpacing(6)
         
         # Theme selection combo box
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems([
-            "Light", 
-            "Dark", 
-            "Light Gray", 
-            "Ubuntu", 
-            "Ubuntu Dark", 
-            "Windows XP",
-            "PyQt6 Light",
-            "PyQt6 Dark"
-        ])
-        appearance_layout.addRow(QLabel("Theme:"), self.theme_combo)
+        self.theme_combo.addItems(["Light", "Light Gray", "Dark"])
+        appearance_layout.addRow("Theme:", self.theme_combo)
+
+        self.resolution_combo = QComboBox()
+        self._load_resolution_options()
+        appearance_layout.addRow("Resolution:", self.resolution_combo)
         
-        self.follow_system_theme_check = QCheckBox("Follow system theme (auto-switch)")
+        self.follow_system_theme_check = QCheckBox("Follow system theme")
         self.follow_system_theme_check.toggled.connect(self.on_follow_system_toggled)
         appearance_layout.addRow("", self.follow_system_theme_check)
         
         self.appearance_group.setLayout(appearance_layout)
         right_layout.addWidget(self.appearance_group)
 
-        columns_layout.addWidget(left_column)
-        columns_layout.addWidget(right_column)
+        # Add columns to main layout
+        columns_layout.addWidget(left_column, 1)  # Equal stretch
+        columns_layout.addWidget(right_column, 1)  # Equal stretch
         content_layout.addLayout(columns_layout)
 
+        # Save button
         self.btn_save = QPushButton()
         self.btn_save.clicked.connect(self.save_settings)
+        self.btn_save.setMinimumWidth(200)
+        self.btn_save.setMaximumWidth(300)
         content_layout.addWidget(self.btn_save, alignment=Qt.AlignmentFlag.AlignCenter)
         content_layout.addStretch()
 
         scroll.setWidget(content)
         layout.addWidget(scroll)
         self.setLayout(layout)
+        self.retranslateUi()
 
     def retranslateUi(self):
         if lang.get_current() == "my":
@@ -222,29 +266,30 @@ class GeneralSettingWidget(QWidget):
             self.tax_group.setTitle("အခွန်သတ်မှတ်ချက်")
             self.tax_enabled.setText("အခွန်သုံးမည်")
             self.royalty_group.setTitle("အမှတ်ပေးစနစ်")
+            # Update royalty labels
             for row in range(self.royalty_group.layout().rowCount()):
                 label_item = self.royalty_group.layout().itemAt(row, QFormLayout.ItemRole.LabelRole)
                 if label_item and isinstance(label_item.widget(), QLabel):
                     text = label_item.widget().text()
-                    if "Points per $" in text:
+                    if "Points per $" in text or "per $" in text:
                         label_item.widget().setText("တစ်ဒေါ်လာလျှင်ရမည့်အမှတ်:")
-                    elif "Minimum points for reward" in text:
+                    elif "Min points" in text:
                         label_item.widget().setText("ဆုချီးမြှင့်ရန်အနည်းဆုံးအမှတ်:")
-                    elif "Reward discount amount" in text:
+                    elif "Reward discount" in text:
                         label_item.widget().setText("ဆုလျှော့စျေးပမာဏ:")
                     elif "Points expiry" in text:
-                        label_item.widget().setText("အမှတ်သက်တမ်းကုန်ရက် (လ၊ ၀=ဘယ်တော့မှမကုန်):")
+                        label_item.widget().setText("အမှတ်သက်တမ်းကုန်ရက် (၀=ဘယ်တော့မှမကုန်):")
                     elif "Value per point" in text:
-                        label_item.widget().setText("တစ်အမှတ်တန်ဖိုး ($):")
+                        label_item.widget().setText("တစ်အမှတ်တန်ဖိုး:")
             self.discount_group.setTitle("လျှော့စျေးသတ်မှတ်ချက်")
             self.discount_enabled.setText("လျှော့စျေးသုံးမည်")
             for row in range(self.discount_group.layout().rowCount()):
                 label_item = self.discount_group.layout().itemAt(row, QFormLayout.ItemRole.LabelRole)
                 if label_item and isinstance(label_item.widget(), QLabel):
                     text = label_item.widget().text()
-                    if "Discount Type:" in text:
+                    if "Discount Type" in text:
                         label_item.widget().setText("လျှော့စျေးအမျိုးအစား:")
-                    elif "Default Value:" in text:
+                    elif "Default Value" in text:
                         label_item.widget().setText("မူလတန်ဖိုး:")
             self.discount_type_percent.setText("ရာခိုင်နှုန်း (%)")
             self.discount_type_fixed.setText("သတ်မှတ်ပမာဏ ($)")
@@ -268,13 +313,13 @@ class GeneralSettingWidget(QWidget):
                     if "တစ်ဒေါ်လာလျှင်ရမည့်အမှတ်" in text:
                         label_item.widget().setText("Points per $:")
                     elif "ဆုချီးမြှင့်ရန်အနည်းဆုံးအမှတ်" in text:
-                        label_item.widget().setText("Minimum points for reward:")
+                        label_item.widget().setText("Min points for reward:")
                     elif "ဆုလျှော့စျေးပမာဏ" in text:
-                        label_item.widget().setText("Reward discount amount:")
+                        label_item.widget().setText("Reward discount:")
                     elif "အမှတ်သက်တမ်းကုန်ရက်" in text:
-                        label_item.widget().setText("Points expiry (months, 0=never):")
+                        label_item.widget().setText("Points expiry (0=never):")
                     elif "တစ်အမှတ်တန်ဖိုး" in text:
-                        label_item.widget().setText("Value per point ($):")
+                        label_item.widget().setText("Value per point:")
             self.discount_group.setTitle("Discount Setting")
             self.discount_enabled.setText("Enable Discount")
             for row in range(self.discount_group.layout().rowCount()):
@@ -287,10 +332,26 @@ class GeneralSettingWidget(QWidget):
                         label_item.widget().setText("Default Value:")
             self.discount_type_percent.setText("Percentage (%)")
             self.discount_type_fixed.setText("Fixed Amount ($)")
-            self.discount_type_manual.setText("Manual (user enters any amount)")
+            self.discount_type_manual.setText("Manual")
             self.appearance_group.setTitle("Appearance")
-            self.follow_system_theme_check.setText("Follow system theme (auto-switch)")
+            self.follow_system_theme_check.setText("Follow system theme")
             self.btn_save.setText("Save General Settings")
+
+    def _load_resolution_options(self):
+        from PyQt6.QtWidgets import QApplication
+
+        screen = QApplication.primaryScreen()
+        if screen:
+            geometry = screen.availableGeometry()
+            screen_width = geometry.width()
+            screen_height = geometry.height()
+        else:
+            screen_width = 1366
+            screen_height = 768
+
+        self.resolution_combo.clear()
+        for label, width, height in get_supported_resolution_options(screen_width, screen_height):
+            self.resolution_combo.addItem(label, f"{width}x{height}")
 
     def on_follow_system_toggled(self, checked):
         # Save to DB immediately
@@ -314,12 +375,29 @@ class GeneralSettingWidget(QWidget):
         cursor.execute("SELECT value FROM settings WHERE key='theme'")
         row = cursor.fetchone()
         saved_theme = row[0] if row else "Light"
+        if saved_theme not in {"Light", "Light Gray", "Dark"}:
+            saved_theme = "Light"
         index = self.theme_combo.findText(saved_theme)
         if index >= 0:
             self.theme_combo.setCurrentIndex(index)
+
+        self._load_resolution_options()
+        cursor.execute("SELECT value FROM settings WHERE key='window_resolution'")
+        row = cursor.fetchone()
+        saved_resolution = row[0] if row else "1366x768"
+        width, height = parse_resolution(saved_resolution)
+        resolution_value = f"{width}x{height}"
+        index = self.resolution_combo.findData(resolution_value)
+        if index >= 0:
+            self.resolution_combo.setCurrentIndex(index)
+        elif self.resolution_combo.count() > 0:
+            self.resolution_combo.setCurrentIndex(0)
         conn.close()
 
     def save_settings(self):
+        main_window = self.window()
+        if hasattr(main_window, "show_loading"):
+            main_window.show_loading("Saving general settings...", 15)
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("UPDATE settings SET value=? WHERE key='tax_enabled'", ('1' if self.tax_enabled.isChecked() else '0',))
@@ -343,9 +421,18 @@ class GeneralSettingWidget(QWidget):
         # Save theme setting
         selected_theme = self.theme_combo.currentText()
         cursor.execute("UPDATE settings SET value=? WHERE key='theme'", (selected_theme,))
+        selected_resolution = self.resolution_combo.currentData() or "1366x768"
+        cursor.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('window_resolution', ?)",
+            (selected_resolution,)
+        )
         
         conn.commit()
         conn.close()
+        if hasattr(main_window, "update_loading"):
+            main_window.update_loading("General settings saved.", 100)
+        if hasattr(main_window, "hide_loading"):
+            main_window.hide_loading()
         
         msg = "အထွေထွေသတ်မှတ်ချက်များ သိမ်းဆည်းပြီးပါပြီ။" if lang.get_current() == "my" else "General settings saved."
         QMessageBox.information(self, "Saved", msg)

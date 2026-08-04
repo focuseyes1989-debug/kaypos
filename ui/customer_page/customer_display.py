@@ -1,410 +1,508 @@
-# ui/customer_display.py
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-    QTableWidgetItem, QHeaderView, QPushButton, QFrame
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRect, QPoint
-from PyQt6.QtGui import QFont, QColor, QPalette, QScreen, QMouseEvent
-from PyQt6.QtWidgets import QApplication
-from utils.currency import get_currency_symbol, format_money
-from utils.language import lang
+# ui/customer_page/customer_display.py
+import os
+import re
+from html import escape
+from urllib.parse import parse_qs, quote, urlparse
+from loguru import logger
+
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+
+from models.database import connect_db
+from utils.performance import get_performance_settings
+from utils.paths import get_images_dir
+from .customer_display_cart import CartDisplayWidget
+from .customer_display_theme import get_display_palette, get_launcher_style
+from .customer_display_utils import set_default_geometry, show_on_customer_monitor_fullscreen
 
 
-class TitleBar(QWidget):
-    """Custom title bar for the customer display window"""
-    
-    close_clicked = pyqtSignal()
-    minimize_clicked = pyqtSignal()
-    maximize_clicked = pyqtSignal()
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent_window = parent
-        self.is_maximized = False
-        self.dragging = False
-        self.drag_position = QPoint()
-        
-        self.setFixedHeight(50)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a2e;
-                color: white;
-            }
-            QPushButton {
-                background-color: transparent;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                font-size: 14pt;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #2a2a4e;
-            }
-            QPushButton#close_btn:hover {
-                background-color: #e94560;
-            }
-            QPushButton#maximize_btn:hover {
-                background-color: #2a2a4e;
-            }
-            QPushButton#minimize_btn:hover {
-                background-color: #2a2a4e;
-            }
-            QLabel {
-                color: white;
-                font-size: 14pt;
-                font-weight: bold;
-                padding-left: 10px;
-            }
-        """)
-        
-        layout = QHBoxLayout()
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(5)
-        
-        # Title
-        self.title_label = QLabel("🛒 Customer Display")
-        layout.addWidget(self.title_label)
-        
-        layout.addStretch()
-        
-        # Minimize button
-        self.minimize_btn = QPushButton("─")
-        self.minimize_btn.setObjectName("minimize_btn")
-        self.minimize_btn.setFixedSize(30, 30)
-        self.minimize_btn.clicked.connect(self.minimize_clicked.emit)
-        layout.addWidget(self.minimize_btn)
-        
-        # Maximize button
-        self.maximize_btn = QPushButton("□")
-        self.maximize_btn.setObjectName("maximize_btn")
-        self.maximize_btn.setFixedSize(30, 30)
-        self.maximize_btn.clicked.connect(self.toggle_maximize)
-        layout.addWidget(self.maximize_btn)
-        
-        # Close button
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setObjectName("close_btn")
-        self.close_btn.setFixedSize(30, 30)
-        self.close_btn.clicked.connect(self.close_clicked.emit)
-        layout.addWidget(self.close_btn)
-        
-        self.setLayout(layout)
-    
-    def toggle_maximize(self):
-        """Toggle maximize state"""
-        self.is_maximized = not self.is_maximized
-        self.maximize_btn.setText("□" if not self.is_maximized else "❐")
-        self.maximize_clicked.emit()
-    
-    def mousePressEvent(self, event):
-        """Handle mouse press for dragging"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = True
-            self.drag_position = event.globalPosition().toPoint() - self.parent_window.frameGeometry().topLeft()
-            event.accept()
-    
-    def mouseMoveEvent(self, event):
-        """Handle mouse move for dragging"""
-        if self.dragging and not self.is_maximized:
-            self.parent_window.move(event.globalPosition().toPoint() - self.drag_position)
-            event.accept()
-    
-    def mouseReleaseEvent(self, event):
-        """Handle mouse release"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = False
-            event.accept()
-    
-    def retranslateUi(self):
-        """Update translations"""
-        lang_code = lang.get_current()
-        if lang_code == "my":
-            self.title_label.setText("🛒 ဝယ်ယူသူမျက်နှာပြင်")
-        else:
-            self.title_label.setText("🛒 Customer Display")
+try:
+    from PyQt6.QtCore import QByteArray
+    from PyQt6.QtWebEngineCore import QWebEngineHttpRequest, QWebEngineSettings, QWebEngineUrlRequestInterceptor
+except Exception:
+    QByteArray = None
+    QWebEngineHttpRequest = None
+    QWebEngineSettings = None
+    QWebEngineUrlRequestInterceptor = None
+
+
+if QWebEngineUrlRequestInterceptor:
+    class YouTubeRequestInterceptor(QWebEngineUrlRequestInterceptor):
+        def interceptRequest(self, info):
+            try:
+                host = info.requestUrl().host().lower()
+                if "youtube.com" in host or "youtube-nocookie.com" in host or "googlevideo.com" in host:
+                    info.setHttpHeader(QByteArray(b"Referer"), QByteArray(b"https://www.youtube.com/"))
+                    info.setHttpHeader(QByteArray(b"Origin"), QByteArray(b"https://www.youtube.com"))
+            except Exception:
+                pass
+else:
+    YouTubeRequestInterceptor = None
 
 
 class CustomerDisplayWindow(QWidget):
-    """Customer display window showing cart items and totals"""
-    
+    """Simple customer display: shop header, YouTube player, cart cards."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_window = parent
         self.is_maximized = False
-        
-        # Remove default title bar and set window flags
+        self.youtube_view = None
+        self.youtube_placeholder = None
+        self.youtube_interceptor = None
+        self.youtube_fallback_pixmap = QPixmap()
+        self.performance_settings = get_performance_settings()
+
         self.setWindowFlags(
-            Qt.WindowType.Window |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.CustomizeWindowHint |
-            Qt.WindowType.FramelessWindowHint
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.FramelessWindowHint
         )
-        
-        self.setMinimumSize(600, 400)
-        
-        # Set dark theme for customer display
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a2e;
-                color: #ffffff;
-            }
-            QTableWidget {
-                background-color: #16213e;
-                color: #ffffff;
-                gridline-color: #2a3a5e;
-                border: none;
-                font-size: 14pt;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #0f3460;
-            }
-            QHeaderView::section {
-                background-color: #0f3460;
-                color: #ffffff;
-                padding: 8px;
-                border: none;
-                font-size: 14pt;
-                font-weight: bold;
-            }
-            QLabel {
-                color: #ffffff;
-                font-size: 16pt;
-            }
-        """)
-        
-        # Main layout
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        
-        # Custom title bar
-        self.title_bar = TitleBar(self)
-        self.title_bar.close_clicked.connect(self.close_display)
-        self.title_bar.minimize_clicked.connect(self.showMinimized)
-        self.title_bar.maximize_clicked.connect(self.toggle_maximize)
-        layout.addWidget(self.title_bar)
-        
-        # Content area
-        content_widget = QWidget()
-        content_widget.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a2e;
-            }
-        """)
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(20)
-        content_layout.setContentsMargins(30, 20, 30, 30)
+        self.setMinimumSize(820, 520)
+        self.setup_ui()
+        self.apply_theme_style()
+        set_default_geometry(self)
 
-        # Header
-        header_layout = QHBoxLayout()
-        
-        self.title_label = QLabel("🛒 Your Cart")
-        self.title_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #e94560;")
-        header_layout.addWidget(self.title_label)
-        
-        header_layout.addStretch()
-        
-        self.customer_name_label = QLabel("")
-        self.customer_name_label.setStyleSheet("font-size: 16pt; color: #4ecdc4;")
-        header_layout.addWidget(self.customer_name_label)
-        
-        content_layout.addLayout(header_layout)
-
-        # Separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("background-color: #2a3a5e; max-height: 2px;")
-        content_layout.addWidget(separator)
-
-        # Cart Table
-        self.cart_table = QTableWidget()
-        self.cart_table.setColumnCount(4)
-        self.cart_table.setHorizontalHeaderLabels(["Item", "Qty", "Price", "Total"])
-        self.cart_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.cart_table.setShowGrid(True)
-        self.cart_table.setAlternatingRowColors(True)
-        self.cart_table.setStyleSheet("""
-            QTableWidget {
-                alternate-background-color: #1e2a4a;
-            }
-        """)
-        
-        header = self.cart_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        
-        # Set row height
-        self.cart_table.verticalHeader().setDefaultSectionSize(50)
-        
-        content_layout.addWidget(self.cart_table)
-
-        # Totals
-        totals_layout = QHBoxLayout()
-        totals_layout.setSpacing(30)
-        
-        self.subtotal_label = QLabel("Subtotal: 0")
-        self.subtotal_label.setStyleSheet("font-size: 18pt; color: #a8a8b8;")
-        totals_layout.addWidget(self.subtotal_label)
-        
-        self.discount_label = QLabel("Discount: 0")
-        self.discount_label.setStyleSheet("font-size: 18pt; color: #f9ca24;")
-        totals_layout.addWidget(self.discount_label)
-        
-        totals_layout.addStretch()
-        
-        self.grand_total_label = QLabel("Grand Total: 0")
-        self.grand_total_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #4ecdc4;")
-        totals_layout.addWidget(self.grand_total_label)
-        
-        content_layout.addLayout(totals_layout)
-        
-        layout.addWidget(content_widget)
-        self.setLayout(layout)
-        
-        # Set initial size and position
-        self.set_default_geometry()
-        
-        # Set timer to auto-refresh
-        self.refresh_timer = QTimer()
+        self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_display)
-        self.refresh_timer.start(500)  # Refresh every 500ms
-        
-        # Retranslate
-        self.retranslateUi()
+        self.refresh_timer.start(500)
 
-    def set_default_geometry(self):
-        """Set default window geometry"""
-        screen = QApplication.primaryScreen()
-        if screen:
-            geometry = screen.availableGeometry()
-            width = int(geometry.width() * 0.6)
-            height = int(geometry.height() * 0.6)
-            x = (geometry.width() - width) // 2
-            y = (geometry.height() - height) // 2
-            self.setGeometry(x, y, width, height)
+        self.load_shop_info()
+        self.load_youtube_player()
 
-    def toggle_maximize(self):
-        """Toggle maximize state"""
-        self.is_maximized = not self.is_maximized
-        if self.is_maximized:
-            self.showMaximized()
+    def setup_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 18)
+        root.setSpacing(14)
+
+        self.header_frame = QFrame()
+        header_layout = QHBoxLayout(self.header_frame)
+        header_layout.setContentsMargins(14, 10, 14, 10)
+        header_layout.setSpacing(14)
+
+        self.logo_label = QLabel()
+        self.logo_label.setFixedSize(72, 52)
+        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.logo_label)
+
+        shop_text_layout = QVBoxLayout()
+        shop_text_layout.setContentsMargins(0, 0, 0, 0)
+        shop_text_layout.setSpacing(2)
+        self.shop_name_label = QLabel("ZAY POS")
+        self.shop_name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.shop_detail_label = QLabel("")
+        self.shop_detail_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.shop_detail_label.setWordWrap(True)
+        shop_text_layout.addWidget(self.shop_name_label)
+        shop_text_layout.addWidget(self.shop_detail_label)
+        header_layout.addLayout(shop_text_layout, 1)
+        root.addWidget(self.header_frame)
+
+        columns = QHBoxLayout()
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(14)
+
+        self.youtube_frame = QFrame()
+        self.youtube_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        youtube_layout = QVBoxLayout(self.youtube_frame)
+        youtube_layout.setContentsMargins(10, 10, 10, 10)
+        youtube_layout.setSpacing(0)
+        web_view_class = self._web_view_class() if self.performance_settings.customer_display_youtube_enabled else None
+        if web_view_class:
+            self.youtube_view = web_view_class()
+            self._configure_youtube_view()
+            youtube_layout.addWidget(self.youtube_view)
         else:
-            self.showNormal()
-            self.set_default_geometry()
+            self.youtube_placeholder = QLabel()
+            self.youtube_placeholder.setObjectName("youtubeFallbackImage")
+            self.youtube_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.youtube_placeholder.setWordWrap(True)
+            self.youtube_placeholder.setScaledContents(False)
+            self.youtube_placeholder.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            youtube_layout.addWidget(self.youtube_placeholder)
+            if not self.performance_settings.customer_display_youtube_enabled:
+                self._show_youtube_disabled_placeholder()
+            else:
+                self.youtube_placeholder.setText(
+                    "YouTube player is unavailable.\nInstall PyQt6-WebEngine to enable playback."
+                )
+        youtube_stretch = 3 if not self.performance_settings.customer_display_youtube_enabled else 4
+        columns.addWidget(self.youtube_frame, youtube_stretch)
 
-    def close_display(self):
-        """Close the customer display window"""
-        self.refresh_timer.stop()
-        self.close()
-        # Notify parent that display is closed
-        if self.parent_window and hasattr(self.parent_window, 'customer_display_closed'):
-            self.parent_window.customer_display_closed()
+        self.cart_frame = QFrame()
+        self.cart_frame.setMinimumWidth(330)
+        self.cart_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        cart_layout = QVBoxLayout(self.cart_frame)
+        cart_layout.setContentsMargins(12, 12, 12, 12)
+        cart_layout.setSpacing(0)
+        self.cart_display = CartDisplayWidget(self)
+        cart_layout.addWidget(self.cart_display)
+        columns.addWidget(self.cart_frame, 3)
+
+        root.addLayout(columns, 1)
+
+    def _web_view_class(self):
+        try:
+            from PyQt6.QtWebEngineWidgets import QWebEngineView
+            return QWebEngineView
+        except Exception as exc:
+            logger.warning(f"Customer display WebEngine unavailable: {exc}")
+            return None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if (
+            self.youtube_placeholder
+            and not self.youtube_fallback_pixmap.isNull()
+            and not self.performance_settings.customer_display_youtube_enabled
+        ):
+            scaled = self.youtube_fallback_pixmap.scaled(
+                self.youtube_placeholder.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.youtube_placeholder.setPixmap(scaled)
+
+    def _configure_youtube_view(self):
+        try:
+            page = self.youtube_view.page()
+            profile = page.profile()
+            profile.setHttpUserAgent(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            )
+            settings = page.settings()
+            if QWebEngineSettings and settings:
+                settings.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
+                settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+                settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, True)
+            if YouTubeRequestInterceptor:
+                self.youtube_interceptor = YouTubeRequestInterceptor(profile)
+                profile.setUrlRequestInterceptor(self.youtube_interceptor)
+        except Exception as exc:
+            logger.warning(f"Failed to configure customer display WebEngine: {exc}")
+
+    def apply_theme_style(self):
+        colors = get_display_palette()
+        self.setStyleSheet(get_launcher_style())
+        self.header_frame.setStyleSheet(f"""
+            QFrame {{
+                background: {colors['panel']};
+                border: 1px solid {colors['border']};
+                border-radius: 10px;
+            }}
+        """)
+        self.logo_label.setStyleSheet(f"""
+            background: transparent;
+            color: {colors['muted']};
+            border: none;
+            border-radius: 4px;
+            font-size: 9pt;
+            font-weight: 800;
+        """)
+        self.shop_name_label.setStyleSheet(f"""
+            color: {colors['title_text']};
+            font-size: 15pt;
+            font-weight: 800;
+            background: transparent;
+            border: none;
+        """)
+        self.shop_detail_label.setStyleSheet(f"""
+            color: {colors['muted']};
+            font-size: 10.5pt;
+            font-weight: 650;
+            background: transparent;
+            border: none;
+        """)
+        panel_style = f"""
+            QFrame {{
+                background: {colors['panel_alt']};
+                border: 1px solid {colors['border']};
+                border-radius: 10px;
+            }}
+        """
+        self.youtube_frame.setStyleSheet(panel_style)
+        self.cart_frame.setStyleSheet(panel_style)
+        if self.youtube_placeholder:
+            self.youtube_placeholder.setStyleSheet(f"""
+                color: {colors['muted']};
+                font-size: 16pt;
+                font-weight: 800;
+                background: transparent;
+                border: none;
+            """)
+        if self.cart_display:
+            self.cart_display.apply_theme_style()
+
+    def _settings(self):
+        values = {}
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT key, value
+                FROM settings
+                WHERE key IN (
+                    'shop_name', 'shop_address', 'shop_phone', 'shop_logo',
+                    'customer_display_youtube_url', 'youtube_url', 'shop_youtube_url'
+                )
+            """)
+            values = dict(cursor.fetchall())
+            conn.close()
+        except Exception:
+            pass
+        return values
+
+    def _market_image_path(self):
+        return os.path.join(get_images_dir(), "market.png")
+
+    def _show_youtube_disabled_placeholder(self):
+        image_path = self._market_image_path()
+        if self.youtube_view:
+            from PyQt6.QtCore import QUrl
+            image_url = QUrl.fromLocalFile(image_path).toString()
+            colors = get_display_palette()
+            self.youtube_view.setHtml(f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body {{
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: {colors['panel_alt']};
+    }}
+    body {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }}
+    img {{
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }}
+  </style>
+</head>
+<body>
+  <img src="{image_url}" alt="Market">
+</body>
+</html>""")
+            return
+
+        if not self.youtube_placeholder:
+            return
+        if os.path.exists(image_path):
+            self.youtube_fallback_pixmap = QPixmap(image_path)
+            scaled = self.youtube_fallback_pixmap.scaled(
+                self.youtube_frame.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.youtube_placeholder.setPixmap(scaled)
+            self.youtube_placeholder.setText("")
+        else:
+            self.youtube_placeholder.setPixmap(QPixmap())
+            self.youtube_placeholder.setText("YouTube is disabled in Performance settings.")
+
+    def load_shop_info(self):
+        settings = self._settings()
+        shop_name = settings.get("shop_name") or "ZAY POS"
+        address = settings.get("shop_address") or ""
+        phone = settings.get("shop_phone") or ""
+        details = " | ".join([part for part in (address, phone) if part])
+        self.shop_name_label.setText(shop_name)
+        self.shop_detail_label.setText(details)
+
+        logo_path = settings.get("shop_logo") or ""
+        if logo_path and os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            if not pixmap.isNull():
+                self.logo_label.setPixmap(pixmap.scaled(
+                    68,
+                    48,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                ))
+                self.logo_label.setText("")
+                return
+        self.logo_label.setPixmap(QPixmap())
+        self.logo_label.setText("Logo")
+
+    def _youtube_embed_url(self, raw_url):
+        raw_url = (raw_url or "").strip()
+        if not raw_url:
+            return "https://www.youtube.com/embed/videoseries?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI&autoplay=1&mute=1&loop=1"
+        if "youtube.com/embed/" in raw_url or "youtube-nocookie.com/embed/" in raw_url:
+            return self._with_youtube_params(raw_url)
+        video_match = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{6,})", raw_url)
+        if video_match:
+            video_id = video_match.group(1)
+            start = self._youtube_start_seconds(raw_url)
+            start_param = f"&start={start}" if start else ""
+            return f"https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&loop=1&playlist={video_id}&rel=0&origin={quote('https://www.youtube.com', safe='')}{start_param}"
+        list_match = re.search(r"[?&]list=([A-Za-z0-9_-]+)", raw_url)
+        if list_match:
+            return f"https://www.youtube.com/embed/videoseries?list={list_match.group(1)}&autoplay=1&mute=1&loop=1&rel=0&origin={quote('https://www.youtube.com', safe='')}"
+        return None
+
+    def _youtube_watch_url(self, raw_url):
+        raw_url = (raw_url or "").strip()
+        if not raw_url:
+            return "https://www.youtube.com/playlist?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI&autoplay=1&mute=1"
+
+        video_match = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{6,})", raw_url)
+        if video_match:
+            video_id = video_match.group(1)
+            start = self._youtube_start_seconds(raw_url)
+            start_param = f"&t={start}s" if start else ""
+            return f"https://www.youtube.com/watch?v={video_id}&autoplay=1&mute=1{start_param}"
+
+        list_match = re.search(r"[?&]list=([A-Za-z0-9_-]+)", raw_url)
+        if list_match:
+            return f"https://www.youtube.com/playlist?list={list_match.group(1)}&autoplay=1&mute=1"
+
+        return None
+
+    def _with_youtube_params(self, url):
+        separator = "&" if "?" in url else "?"
+        params = []
+        for key, value in (
+            ("autoplay", "1"),
+            ("mute", "1"),
+            ("rel", "0"),
+            ("origin", quote("https://www.youtube.com", safe="")),
+        ):
+            if f"{key}=" not in url:
+                params.append(f"{key}={value}")
+        return url if not params else f"{url}{separator}{'&'.join(params)}"
+
+    def _youtube_start_seconds(self, raw_url):
+        try:
+            query = parse_qs(urlparse(raw_url).query)
+            value = (query.get("t") or query.get("start") or [""])[0]
+            match = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?", value)
+            if match and value:
+                hours = int(match.group(1) or 0)
+                minutes = int(match.group(2) or 0)
+                seconds = int(match.group(3) or 0)
+                return hours * 3600 + minutes * 60 + seconds
+            return int(value) if value else 0
+        except Exception:
+            return 0
+
+    def _youtube_html(self, embed_url):
+        safe_url = escape(embed_url, quote=True)
+        return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <style>
+    html, body {{
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }}
+    iframe {{
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }}
+  </style>
+</head>
+<body>
+  <iframe
+    src="{safe_url}"
+    title="Customer display YouTube player"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    referrerpolicy="strict-origin-when-cross-origin"
+    allowfullscreen>
+  </iframe>
+</body>
+</html>"""
+
+    def _message_html(self, title, message):
+        colors = get_display_palette()
+        return f"""<!doctype html>
+<html>
+<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:{colors['panel_alt']};font-family:Arial,sans-serif;">
+  <div style="text-align:center;color:{colors['muted']};padding:32px;">
+    <div style="font-size:22px;font-weight:800;color:{colors['title_text']};margin-bottom:10px;">{escape(title)}</div>
+    <div style="font-size:15px;font-weight:650;line-height:1.5;">{escape(message)}</div>
+  </div>
+</body>
+</html>"""
+
+    def load_youtube_player(self):
+        self.performance_settings = get_performance_settings(refresh=True)
+        if not self.performance_settings.customer_display_youtube_enabled:
+            self._show_youtube_disabled_placeholder()
+            return
+        if not self.youtube_view:
+            return
+        from PyQt6.QtCore import QUrl
+        settings = self._settings()
+        raw_url = (
+            settings.get("customer_display_youtube_url")
+            or settings.get("youtube_url")
+            or settings.get("shop_youtube_url")
+            or ""
+        )
+        watch_url = self._youtube_watch_url(raw_url)
+        if not watch_url:
+            self.youtube_view.setHtml(
+                self._message_html(
+                    "YouTube link is not a video",
+                    "Please paste a YouTube video, Shorts, playlist, or embed link in Settings.",
+                ),
+                QUrl("https://www.youtube.com/"),
+            )
+            logger.warning(f"Invalid customer display YouTube URL: {raw_url}")
+            return
+        if QWebEngineHttpRequest and QByteArray:
+            request = QWebEngineHttpRequest(QUrl(watch_url))
+            request.setHeader(QByteArray(b"Referer"), QByteArray(b"https://www.youtube.com/"))
+            request.setHeader(QByteArray(b"Origin"), QByteArray(b"https://www.youtube.com"))
+            self.youtube_view.load(request)
+            return
+        self.youtube_view.setUrl(QUrl(watch_url))
 
     def refresh_display(self):
-        """Refresh the display with current cart data"""
-        if not self.parent_window:
+        if not self.parent_window or not hasattr(self.parent_window, "cart_widget"):
             return
-        
-        # Get cart from parent
-        if hasattr(self.parent_window, 'cart_widget'):
-            cart_items = self.parent_window.cart_widget.get_cart()
-            self.update_display(cart_items)
+        self.cart_display.update_display(self.parent_window.cart_widget.get_cart())
 
-    def update_display(self, cart_items):
-        """Update the display with cart items"""
-        symbol = get_currency_symbol()
-        
-        self.cart_table.setRowCount(0)
-        
-        subtotal = 0
-        for item in cart_items:
-            row = self.cart_table.rowCount()
-            self.cart_table.insertRow(row)
-            
-            name = item.get('name', '')
-            qty = item.get('qty', 0)
-            price = item.get('price', 0)
-            total = price * qty
-            
-            self.cart_table.setItem(row, 0, QTableWidgetItem(name))
-            self.cart_table.setItem(row, 1, QTableWidgetItem(str(qty)))
-            self.cart_table.setItem(row, 2, QTableWidgetItem(format_money(price, symbol)))
-            self.cart_table.setItem(row, 3, QTableWidgetItem(format_money(total, symbol)))
-            
-            subtotal += total
-        
-        # Update subtotal
-        self.subtotal_label.setText(f"Subtotal: {format_money(subtotal, symbol)}")
-        
-        # Get discount and grand total from parent
-        if hasattr(self.parent_window, 'totals_widget'):
-            reg_discount = self.parent_window.totals_widget.compute_regular_discount(subtotal)
-            points_discount = self.parent_window.totals_widget.compute_points_discount(subtotal)
-            total_discount = reg_discount + points_discount
-            after_discount = subtotal - total_discount
-            
-            # Calculate tax
-            tax = 0
-            if hasattr(self.parent_window, 'tax_enabled') and self.parent_window.tax_enabled:
-                if hasattr(self.parent_window, 'tax_rate'):
-                    tax = after_discount * (self.parent_window.tax_rate / 100.0)
-            
-            grand_total = after_discount + tax
-            
-            self.discount_label.setText(f"Discount: {format_money(total_discount, symbol)}")
-            self.grand_total_label.setText(f"Grand Total: {format_money(grand_total, symbol)}")
-            
-            # Color grand total based on amount
-            if grand_total > 0:
-                self.grand_total_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #4ecdc4;")
-            else:
-                self.grand_total_label.setStyleSheet("font-size: 28pt; font-weight: bold; color: #a8a8b8;")
-        
-        # Update customer name if available
-        if hasattr(self.parent_window, 'checkout_handler'):
-            customer_id = self.parent_window.checkout_handler.selected_customer_id
-            if customer_id:
-                from models.database import connect_db
-                conn = connect_db()
-                cursor = conn.cursor()
-                cursor.execute("SELECT name FROM customers WHERE id = ?", (customer_id,))
-                row = cursor.fetchone()
-                conn.close()
-                if row:
-                    self.customer_name_label.setText(f"👤 {row[0]}")
-                else:
-                    self.customer_name_label.setText("")
-            else:
-                self.customer_name_label.setText("")
+    def toggle_maximize(self):
+        self.is_maximized = not self.is_maximized
+        if self.is_maximized:
+            show_on_customer_monitor_fullscreen(self)
+        else:
+            self.showNormal()
+            set_default_geometry(self)
+
+    def close_display(self):
+        self.refresh_timer.stop()
+        self.close()
+        if self.parent_window and hasattr(self.parent_window, "customer_display_closed"):
+            self.parent_window.customer_display_closed()
 
     def showEvent(self, event):
-        """When window is shown, position it on secondary monitor if available"""
         super().showEvent(event)
-        self.move_to_secondary_monitor()
-
-    def move_to_secondary_monitor(self):
-        """Move window to secondary monitor if available"""
-        app = QApplication.instance()
-        screens = app.screens()
-        
-        if len(screens) > 1 and not self.is_maximized:
-            # Move to secondary monitor (index 1)
-            screen = screens[1]
-            geometry = screen.geometry()
-            width = int(geometry.width() * 0.6)
-            height = int(geometry.height() * 0.6)
-            x = geometry.x() + (geometry.width() - width) // 2
-            y = geometry.y() + (geometry.height() - height) // 2
-            self.setGeometry(x, y, width, height)
+        if not self.isFullScreen():
+            show_on_customer_monitor_fullscreen(self)
 
     def keyPressEvent(self, event):
-        """Handle key press events"""
         if event.key() == Qt.Key.Key_Escape:
             self.close_display()
         elif event.key() == Qt.Key.Key_F11:
@@ -412,21 +510,5 @@ class CustomerDisplayWindow(QWidget):
         super().keyPressEvent(event)
 
     def retranslateUi(self):
-        """Update translations"""
-        lang_code = lang.get_current()
-        if lang_code == "my":
-            self.title_label.setText("🛒 ဈေးခြင်း")
-            self.cart_table.setHorizontalHeaderLabels(["ပစ္စည်း", "အရေအတွက်", "စျေးနှုန်း", "စုစုပေါင်း"])
-            self.subtotal_label.setText(f"ကြားဖြတ်စုစုပေါင်း: 0")
-            self.discount_label.setText(f"လျှော့စျေး: 0")
-            self.grand_total_label.setText(f"စုစုပေါင်း: 0")
-        else:
-            self.title_label.setText("🛒 Your Cart")
-            self.cart_table.setHorizontalHeaderLabels(["Item", "Qty", "Price", "Total"])
-            self.subtotal_label.setText(f"Subtotal: 0")
-            self.discount_label.setText(f"Discount: 0")
-            self.grand_total_label.setText(f"Grand Total: 0")
-        
-        # Update title bar
-        if hasattr(self, 'title_bar'):
-            self.title_bar.retranslateUi()
+        if hasattr(self, "cart_display"):
+            self.cart_display.retranslate_ui()

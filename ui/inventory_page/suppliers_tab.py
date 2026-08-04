@@ -1,8 +1,14 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QMessageBox, QComboBox, QLabel
-from PyQt6.QtCore import Qt
+# ui/inventory_page/suppliers_tab.py
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QMessageBox, QComboBox, QLabel
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 from models.database import connect_db
 from ui.widgets.pagination_widget import PaginationWidget
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.search_widget import SearchWidget
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from utils.translations import tr
+import os
 
 
 class SuppliersTab(QWidget):
@@ -10,53 +16,116 @@ class SuppliersTab(QWidget):
         super().__init__(parent)
         self.parent_page = parent
         self.selected_supplier_id = None
+        self.current_page = 1
+        self.page_size = 50
+        self._is_dark = is_dark_theme()
+        
         layout = QVBoxLayout()
+        layout.setSpacing(12)
 
         # Search and Filter row
         filter_layout = QHBoxLayout()
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(tr("search_supplier"))
-        self.search_input.textChanged.connect(self.reset_pagination)
-        filter_layout.addWidget(self.search_input)
+        filter_layout.setSpacing(10)
+        filter_layout.setContentsMargins(0, 8, 0, 8)
+        
+        # ✅ SearchWidget with SVG icon
+        self.search_widget = SearchWidget(
+            placeholder=tr("search_supplier"),
+            show_label=False
+        )
+        self.search_widget.search_changed.connect(self.reset_pagination)
+        self.search_widget.search_cleared.connect(self.reset_pagination)
+        filter_layout.addWidget(self.search_widget, 2)
         
         # Status filter combo box
+        filter_layout.addWidget(QLabel(tr("show_status")))
         self.status_filter = QComboBox()
         self.status_filter.addItems([tr("all"), tr("active"), tr("inactive")])
         self.status_filter.setCurrentText(tr("active"))
         self.status_filter.currentTextChanged.connect(self.reset_pagination)
-        filter_layout.addWidget(QLabel(tr("show_status")))
-        filter_layout.addWidget(self.status_filter)
+        filter_layout.addWidget(self.status_filter, 1)
+        
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
 
+        # Button layout with SVG icons
         btn_layout = QHBoxLayout()
-        self.btn_add = QPushButton(tr("add_supplier"))
-        self.btn_edit = QPushButton(tr("edit"))
-        self.btn_delete = QPushButton(tr("delete"))
-        self.btn_ledger = QPushButton(tr("ledger"))
-        self.btn_payment = QPushButton(tr("make_payment"))
-        self.btn_toggle_status = QPushButton(tr("toggle_status"))
+        btn_layout.setSpacing(8)
+        
+        # ✅ Add Supplier button
+        self.btn_add = ModernButton(" " + tr("add_supplier"), ModernButton.PRIMARY)
+        self.btn_add.set_icon("add", size=(16, 16))
+        self.btn_add.set_compact(False)
         self.btn_add.clicked.connect(self.add_supplier)
-        self.btn_edit.clicked.connect(self.edit_supplier)
-        self.btn_delete.clicked.connect(self.delete_supplier)
-        self.btn_ledger.clicked.connect(self.show_ledger)
-        self.btn_payment.clicked.connect(self.make_payment)
-        self.btn_toggle_status.clicked.connect(self.toggle_supplier_status)
         btn_layout.addWidget(self.btn_add)
+        
+        # ✅ Edit button
+        self.btn_edit = ModernButton(" " + tr("edit"), ModernButton.SECONDARY)
+        self.btn_edit.set_icon("edit", size=(16, 16))
+        self.btn_edit.set_compact(False)
+        self.btn_edit.clicked.connect(self.edit_supplier)
         btn_layout.addWidget(self.btn_edit)
+        
+        # ✅ Delete button (Red)
+        self.btn_delete = ModernButton(" " + tr("delete"), ModernButton.PRIMARY)
+        self.btn_delete.set_icon("delete", size=(16, 16))
+        self.btn_delete.set_compact(False)
+        self.btn_delete.clicked.connect(self.delete_supplier)
+        self.btn_delete.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: 500;
+                padding: 5px 16px;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+            }
+        """)
         btn_layout.addWidget(self.btn_delete)
+        
+        # ✅ Ledger button
+        self.btn_ledger = ModernButton(" " + tr("ledger"), ModernButton.SECONDARY)
+        self.btn_ledger.set_icon("receipt_long", size=(16, 16))
+        self.btn_ledger.set_compact(False)
+        self.btn_ledger.clicked.connect(self.show_ledger)
         btn_layout.addWidget(self.btn_ledger)
+        
+        # ✅ Payment button
+        self.btn_payment = ModernButton(" " + tr("make_payment"), ModernButton.SECONDARY)
+        self.btn_payment.set_icon("payments", size=(16, 16))
+        self.btn_payment.set_compact(False)
+        self.btn_payment.clicked.connect(self.make_payment)
         btn_layout.addWidget(self.btn_payment)
+        
+        # ✅ Toggle Status button
+        self.btn_toggle_status = ModernButton(" " + tr("toggle_status"), ModernButton.SECONDARY)
+        self.btn_toggle_status.set_icon("swap_horiz", size=(16, 16))
+        self.btn_toggle_status.set_compact(False)
+        self.btn_toggle_status.clicked.connect(self.toggle_supplier_status)
         btn_layout.addWidget(self.btn_toggle_status)
+        
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
+        # Table - NO custom style, use PyQt6 default
         self.table = QTableWidget()
         self.table.setColumnCount(12)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
         self.table.cellClicked.connect(self.select_supplier)
         self.table.setColumnHidden(0, True)
+        
+        # ✅ NO custom table style
+        # self._apply_table_theme()  <-- ဒီ line ကို ဖယ်ရှားပါ
+        
         header = self.table.horizontalHeader()
         for col in range(1, 12):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
@@ -67,7 +136,27 @@ class SuppliersTab(QWidget):
         layout.addWidget(self.pagination)
 
         self.setLayout(layout)
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
         self.retranslateUi()
+
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        # ✅ Only update button icons and reload data - no table style update
+        self._update_button_icons()
+        self.load_data()
+    
+    def _update_button_icons(self):
+        """Update button icons when theme changes"""
+        self.btn_add.set_icon("add", size=(16, 16))
+        self.btn_edit.set_icon("edit", size=(16, 16))
+        self.btn_delete.set_icon("delete", size=(16, 16))
+        self.btn_ledger.set_icon("receipt_long", size=(16, 16))
+        self.btn_payment.set_icon("payments", size=(16, 16))
+        self.btn_toggle_status.set_icon("swap_horiz", size=(16, 16))
 
     def get_lang(self):
         try:
@@ -82,7 +171,7 @@ class SuppliersTab(QWidget):
 
     def retranslateUi(self):
         # Update search placeholder
-        self.search_input.setPlaceholderText(tr("search_supplier"))
+        self.search_widget.set_placeholder_text(tr("search_supplier"))
         
         # Update status filter items
         self.status_filter.blockSignals(True)
@@ -90,16 +179,27 @@ class SuppliersTab(QWidget):
         self.status_filter.addItems([tr("all"), tr("active"), tr("inactive")])
         self.status_filter.blockSignals(False)
         
-        # Update buttons
-        self.btn_add.setText(tr("add_supplier"))
-        self.btn_edit.setText(tr("edit"))
-        self.btn_delete.setText(tr("delete"))
-        self.btn_ledger.setText(tr("ledger"))
-        self.btn_payment.setText(tr("make_payment"))
-        self.btn_toggle_status.setText(tr("toggle_status"))
+        # Update buttons with text only (icons are SVG)
+        lang = self.get_lang()
+        if lang == "my":
+            self.btn_add.setText(" " + tr("add_supplier"))
+            self.btn_edit.setText(" " + tr("edit"))
+            self.btn_delete.setText(" " + tr("delete"))
+            self.btn_ledger.setText(" " + tr("ledger"))
+            self.btn_payment.setText(" " + tr("make_payment"))
+            self.btn_toggle_status.setText(" " + tr("toggle_status"))
+        else:
+            self.btn_add.setText(" " + tr("add_supplier"))
+            self.btn_edit.setText(" " + tr("edit"))
+            self.btn_delete.setText(" " + tr("delete"))
+            self.btn_ledger.setText(" " + tr("ledger"))
+            self.btn_payment.setText(" " + tr("make_payment"))
+            self.btn_toggle_status.setText(" " + tr("toggle_status"))
+        
+        # Update button icons
+        self._update_button_icons()
         
         # Update table headers
-        lang = self.get_lang()
         if lang == "my":
             headers = [
                 "ID", "ပေးသွင်းသူအမည်", "ဆက်သွယ်ရမည့်သူ", "ဖုန်း", "အီးမေး", "လိပ်စာ",
@@ -121,14 +221,21 @@ class SuppliersTab(QWidget):
         self.load_data()
 
     def on_page_changed(self, page: int, page_size: int):
+        self.current_page = page
+        self.page_size = page_size
         self.load_data(page, page_size)
 
     def refresh(self):
         self.load_data()
         self.retranslateUi()
 
-    def load_data(self, page=1, page_size=50):
-        search_text = self.search_input.text().strip().lower()
+    def load_data(self, page=None, page_size=None):
+        if page is None:
+            page = self.current_page
+        if page_size is None:
+            page_size = self.page_size
+            
+        search_text = self.search_widget.get_text().lower()
         status_filter = self.status_filter.currentText()
         lang = self.get_lang()
         
@@ -213,10 +320,11 @@ class SuppliersTab(QWidget):
                     else:
                         display_value = str(value) if value else ""
                     item = QTableWidgetItem(display_value)
+                    # ✅ Use hardcoded colors
                     if value == "Active":
-                        item.setForeground(Qt.GlobalColor.darkGreen)
+                        item.setForeground(QColor("#28a745"))  # Green
                     else:
-                        item.setForeground(Qt.GlobalColor.darkRed)
+                        item.setForeground(QColor("#dc3545"))  # Red
                 else:
                     item = QTableWidgetItem(str(value) if value is not None else "")
                 self.table.setItem(row_idx, col_idx, item)
@@ -442,3 +550,8 @@ class SuppliersTab(QWidget):
                 QMessageBox.critical(self, tr("error"), f"{tr('delete_failed')}: {e}")
             finally:
                 conn.close()
+    
+    def showEvent(self, event):
+        """Handle show event - refresh data"""
+        self.load_data()
+        super().showEvent(event)

@@ -2,6 +2,8 @@
 from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QCheckBox, QDoubleSpinBox, QLabel, QSpinBox
 from PyQt6.QtCore import pyqtSignal, QObject
 from utils.currency import get_currency_symbol, format_money
+from loguru import logger
+from ui.themes import get_theme_colors
 
 
 class TotalsWidget(QObject):
@@ -19,7 +21,10 @@ class TotalsWidget(QObject):
         self.points_per_dollar = 0.0
         self.points_dollar_value = 0.01
         self.points_available = 0
-        self.points_expiry_months = 12  # <-- Add this line
+        self.points_expiry_months = 12
+        
+        # ✅ Store current grand total
+        self._current_grand_total = 0.0
 
         # Discount group
         self.discount_group = QGroupBox("Discount")
@@ -65,6 +70,7 @@ class TotalsWidget(QObject):
         totals_layout.addWidget(self.tax_label)
         totals_layout.addWidget(self.total_label)
         self.totals_group.setLayout(totals_layout)
+        self.update_theme()
 
     def load_discount_settings(self, enabled, dtype, default_value):
         self.discount_enabled = enabled
@@ -83,7 +89,7 @@ class TotalsWidget(QObject):
 
     def set_loyalty_params(self, points_per_dollar, expiry_months, point_value):
         self.points_per_dollar = points_per_dollar
-        self.points_expiry_months = expiry_months  # <-- Add this line
+        self.points_expiry_months = expiry_months
         self.points_dollar_value = point_value
 
     def set_customer_points(self, points):
@@ -144,6 +150,9 @@ class TotalsWidget(QObject):
         tax_amt = self.compute_tax(after_discount)
         grand_total = after_discount + tax_amt
 
+        # ✅ Store current grand total
+        self._current_grand_total = grand_total
+
         symbol = get_currency_symbol()
         self.subtotal_label.setText(f"Subtotal: {format_money(subtotal, symbol)}")
         self.discount_label.setText(f"Discount (reg): -{format_money(reg_discount, symbol)}")
@@ -155,21 +164,19 @@ class TotalsWidget(QObject):
 
     def update_change_display(self, payment):
         # Called when payment changes, but grand total already known
-        # We'll just emit again to update payment widget's change label
-        # For simplicity, recalc and emit
         self.update_totals()
 
+    # ============================================================
+    # ✅ FIXED: get_current_grand_total()
+    # ============================================================
     def get_current_grand_total(self):
-        # Parse from label
-        symbol = get_currency_symbol()
-        txt = self.total_label.text()
-        parts = txt.split(symbol)
-        if len(parts) >= 2:
-            try:
-                return float(parts[1])
-            except:
-                return 0.0
-        return 0.0
+        """
+        Get current grand total.
+        
+        ✅ FIXED: Uses stored _current_grand_total instead of parsing label.
+        This fixes the issue where payment widget couldn't get the correct total.
+        """
+        return self._current_grand_total
 
     def retranslateUi(self):
         from utils.language import lang
@@ -195,3 +202,44 @@ class TotalsWidget(QObject):
             self.subtotal_label.setText("Subtotal: 0")
             self.tax_label.setText("Tax: 0")
             self.total_label.setText("Grand Total: 0")
+
+    def update_theme(self, theme_name=None):
+        """Apply current theme colors to totals sub-widgets."""
+        colors = get_theme_colors(theme_name)
+        text = colors.get('text', '#212529')
+        secondary = colors.get('text_secondary', '#6c757d')
+        input_bg = colors.get('input_bg', '#ffffff')
+        input_border = colors.get('input_border', colors.get('border', '#dee2e6'))
+        focus = colors.get('border_hover', '#5865f2')
+
+        for label in (
+            self.discount_label,
+            self.points_label,
+            self.points_discount_label,
+            self.subtotal_label,
+            self.tax_label,
+            self.total_label,
+        ):
+            label.setStyleSheet(f"color: {text}; background: transparent;")
+
+        for check in (self.discount_checkbox, self.points_use_check):
+            check.setStyleSheet(f"color: {text}; background: transparent;")
+
+        input_style = f"""
+            QSpinBox, QDoubleSpinBox {{
+                background-color: {input_bg};
+                color: {text};
+                border: 1px solid {input_border};
+                border-radius: 4px;
+                padding: 4px 6px;
+            }}
+            QSpinBox:disabled, QDoubleSpinBox:disabled {{
+                color: {secondary};
+                background-color: {colors.get('bg_hover', input_bg)};
+            }}
+            QSpinBox:focus, QDoubleSpinBox:focus {{
+                border: 1px solid {focus};
+            }}
+        """
+        self.discount_input.setStyleSheet(input_style)
+        self.points_spin.setStyleSheet(input_style)

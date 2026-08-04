@@ -80,6 +80,9 @@ class RegionalSettingWidget(QWidget):
         self.language_combo.setCurrentText("English" if current_lang == "en" else "Myanmar")
 
     def save_settings(self):
+        main_window = self.window()
+        if hasattr(main_window, "show_loading"):
+            main_window.show_loading("Saving regional settings...", 20)
         selected_currency = self.currency_combo.currentText()
         selected_lang = self.language_combo.currentText()
         lang_code = "en" if selected_lang == "English" else "my"
@@ -90,6 +93,8 @@ class RegionalSettingWidget(QWidget):
         cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("currency", selected_currency))
         conn.commit()
         conn.close()
+        if hasattr(main_window, "update_loading"):
+            main_window.update_loading("Refreshing regional settings...", 70)
         
         # Emit currency changed signal
         self.currency_changed.emit()
@@ -103,4 +108,8 @@ class RegionalSettingWidget(QWidget):
             msg = "ငွေကြေးနှင့် ဘာသာစကား သိမ်းဆည်းပြီးပါပြီ။"
         else:
             msg = "Currency and language settings saved."
+        if hasattr(main_window, "update_loading"):
+            main_window.update_loading("Regional settings saved.", 100)
+        if hasattr(main_window, "hide_loading"):
+            main_window.hide_loading()
         QMessageBox.information(self, "Saved", msg)

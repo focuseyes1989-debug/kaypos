@@ -5,20 +5,22 @@ import os
 
 
 class ChangePasswordDialog(QDialog):
-    def __init__(self, user_id, username, parent=None):
+    def __init__(self, user_id, username, parent=None, old_password: str | None = None):
         super().__init__(parent)
         self.user_id = user_id
         self.username = username
         self.setWindowTitle("Change Password")
         self.setModal(True)
         layout = QFormLayout()
-        self.old_password = QLineEdit()
-        self.old_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.old_password_input = QLineEdit()
+        self.old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        if old_password is not None:
+            self.old_password_input.setText(old_password)
         self.new_password = QLineEdit()
         self.new_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password = QLineEdit()
         self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
-        layout.addRow("Current Password:", self.old_password)
+        layout.addRow("Current Password:", self.old_password_input)
         layout.addRow("New Password:", self.new_password)
         layout.addRow("Confirm New Password:", self.confirm_password)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -28,7 +30,7 @@ class ChangePasswordDialog(QDialog):
         self.setLayout(layout)
 
     def change_password(self):
-        old = self.old_password.text()
+        old = self.old_password_input.text()
         new = self.new_password.text()
         confirm = self.confirm_password.text()
         if not old or not new:

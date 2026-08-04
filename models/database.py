@@ -264,6 +264,8 @@ def create_tables():
             points_expiry_date TEXT,
             credit_limit REAL DEFAULT 0,
             current_balance REAL DEFAULT 0,
+            total_credit REAL DEFAULT 0,
+            credit_balance REAL DEFAULT 0,
             remarks TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -274,6 +276,8 @@ def create_tables():
             'points_expiry_date': 'TEXT',
             'credit_limit': 'REAL DEFAULT 0',
             'current_balance': 'REAL DEFAULT 0',
+            'total_credit': 'REAL DEFAULT 0',
+            'credit_balance': 'REAL DEFAULT 0',
             'remarks': 'TEXT'
         }
         for col, dtype in missing_cust_cols.items():
@@ -313,10 +317,24 @@ def create_tables():
             ('currency', 'Kyats (Ks)'),
             ('shop_name', 'ZAY POS'), ('shop_logo', ''),
             ('shop_phone', ''), ('shop_address', ''), ('shop_footer_message', ''),
+            ('customer_display_youtube_url', ''),
             ('receipt_header', ''), ('receipt_footer', ''), ('show_customer_name', '1'),
+            ('receipt_printer_name', ''), ('receipt_paper_size', '0'),
+            ('receipt_print_quality', '203'), ('receipt_cash_drawer_use_receipt_printer', '1'),
+            ('receipt_show_logo', '1'), ('receipt_show_shop_phone', '1'), ('receipt_show_shop_address', '1'),
+            ('receipt_show_invoice', '1'), ('receipt_show_payment_type', '1'), ('receipt_show_customer', '1'),
+            ('receipt_show_item_prices', '1'), ('receipt_show_subtotal', '1'), ('receipt_show_discount', '1'),
+            ('receipt_show_tax', '1'), ('receipt_show_payment_change', '1'), ('receipt_show_thank_you', '1'),
+            ('receipt_thank_you_text', 'THANK YOU'), ('receipt_line_width', '32'),
             ('language', 'en'), ('theme', 'Light'),
             ('points_expiry_months', '12'), ('points_dollar_value', '0.01'),
+            ('window_resolution', '1366x768'),
             ('follow_system_theme', '1'),
+            ('performance_low_end_mode', '1'),
+            ('performance_product_page_size', '24'),
+            ('performance_search_debounce_ms', '450'),
+            ('performance_thumbnail_quality', 'low'),
+            ('performance_customer_display_youtube_enabled', '0'),
             ('auto_backup_enabled', '0'), ('auto_backup_interval', '24'), ('auto_backup_max', '30')
         ]
         for key, val in default_settings:
@@ -578,6 +596,10 @@ def create_tables():
             notes TEXT,
             sale_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            refunded_at TIMESTAMP,
+            refund_reason TEXT,
+            refund_type TEXT,
             FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
             FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL
         )
@@ -587,7 +609,35 @@ def create_tables():
         if 'sale_id' not in credit_sales_cols:
             cursor.execute("ALTER TABLE credit_sales ADD COLUMN sale_id INTEGER")
             logger.debug("Added sale_id column to credit_sales table")
+        for column, definition in (
+            ('updated_at', 'TIMESTAMP'),
+            ('refunded_at', 'TIMESTAMP'),
+            ('refund_reason', 'TEXT'),
+            ('refund_type', 'TEXT'),
+        ):
+            if column not in credit_sales_cols:
+                cursor.execute(f"ALTER TABLE credit_sales ADD COLUMN {column} {definition}")
         logger.debug("Credit sales table verified")
+
+        # Legacy payment ledger used by earlier credit-refund builds.
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_id INTEGER,
+            customer_id INTEGER,
+            payment_type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            cash_drawer_id INTEGER,
+            payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cash_drawer (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            is_active INTEGER DEFAULT 0
+        )
+        """)
 
         # ---------- Credit Payments ----------
         cursor.execute("""
@@ -674,17 +724,17 @@ def create_tables():
         cursor.execute("SELECT COUNT(*) FROM user_roles")
         if cursor.fetchone()[0] == 0:
             default_roles = [
-                ('Admin', 'Full access to all features', 
-                 'dashboard,sales,sales_summary,products,inventory,receipts,customers,expense,reports,credit,users,settings,backup,add_product,edit_product,delete_product,add_customer,edit_customer,delete_customer,add_user,edit_user,delete_user,edit_settings,stock_in,stock_out,adjustment,refund_sale,delete_sale,view_users',
+                ('Admin', 'Full access to every page and action',
+                 'dashboard,sales,create_sale,edit_sale,delete_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,delete_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,users,add_user,edit_user,delete_user,settings,edit_settings,backup,restore,factory_reset',
                  1),
-                ('Manager', 'Can manage sales, products, inventory, customers, expenses',
-                 'dashboard,sales,sales_summary,products,inventory,receipts,customers,expense,reports,credit,add_product,edit_product,add_customer,edit_customer,stock_in,stock_out,adjustment,refund_sale',
+                ('Manager', 'Manage daily operations without user deletion, restore, or factory reset',
+                 'dashboard,sales,create_sale,edit_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,settings,backup',
                  0),
-                ('Cashier', 'Can process sales and view receipts',
-                 'dashboard,sales,receipts,customers,add_customer,refund_sale',
+                ('Cashier', 'Process sales, print receipts, refund receipts, and manage sale customers',
+                 'sales,create_sale,receipts,print_receipt,refund_receipt,customers,add_customer,credit,credit_sale,payment_collection',
                  0),
-                ('Viewer', 'Read-only access',
-                 'dashboard,sales_summary,reports',
+                ('Viewer', 'Read-only access to dashboards, lists, receipts, reports, and credit',
+                 'dashboard,sales_summary,products,inventory,receipts,customers,reports,credit',
                  0),
             ]
             for name, desc, perms, is_system in default_roles:
@@ -792,16 +842,46 @@ def create_tables():
             logger.error(f"Migration failed: {e}")
 
 
+# =============================================================================
+# ✅ FIXED: expire_old_points() - Uses expiry_date
+# =============================================================================
 def expire_old_points():
+    """
+    Expire loyalty points based on expiry_date.
+    
+    ✅ FIX: Now correctly uses expiry_date column instead of created_at.
+    Previously it only checked expiry_date IS NULL, which meant points with
+    expiry_date set would never expire.
+    """
     with DBContext() as conn:
         cursor = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get expiry months from settings
         cursor.execute("SELECT value FROM settings WHERE key='points_expiry_months'")
         row = cursor.fetchone()
         expiry_months = int(row[0]) if row else 12
+        
         if expiry_months <= 0:
+            # If expiry is disabled (0 = never), skip expiration
+            logger.info("Points expiry is disabled (expiry_months = 0)")
             return 0
+        
         cutoff = (datetime.now() - timedelta(days=expiry_months * 30)).strftime("%Y-%m-%d")
+        
+        # ✅ FIX: Primary expiration based on expiry_date
+        cursor.execute("""
+            SELECT customer_id, SUM(points) as expired_points
+            FROM customer_points_log
+            WHERE type = 'earn'
+              AND expiry_date IS NOT NULL
+              AND date(expiry_date) < date('now')
+            GROUP BY customer_id
+            HAVING expired_points > 0
+        """)
+        expired = cursor.fetchall()
+        
+        # ✅ Also handle old data where expiry_date is NULL (fallback to created_at)
         cursor.execute("""
             SELECT customer_id, SUM(points) as expired_points
             FROM customer_points_log
@@ -811,36 +891,77 @@ def expire_old_points():
             GROUP BY customer_id
             HAVING expired_points > 0
         """, (cutoff,))
-        expired = cursor.fetchall()
+        old_expired = cursor.fetchall()
+        
+        # Combine both results
+        all_expired = expired + old_expired
+        
         affected = 0
-        for cust_id, pts in expired:
+        for cust_id, pts in all_expired:
+            # Deduct points from customer
             cursor.execute("UPDATE customers SET points = points - ? WHERE id = ?", (pts, cust_id))
+            
+            # Log the expiration
             cursor.execute("""
                 INSERT INTO customer_points_log (customer_id, points, type, reference, created_at)
                 VALUES (?, ?, 'expire', ?, ?)
             """, (cust_id, pts, f"auto_expiry_{today}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            
+            # Update expiry_date on original entries to prevent double expiration
             cursor.execute("""
                 UPDATE customer_points_log
                 SET expiry_date = ?
-                WHERE customer_id = ? AND type = 'earn' AND expiry_date IS NULL AND date(created_at) < ?
+                WHERE customer_id = ? 
+                  AND type = 'earn' 
+                  AND (expiry_date IS NULL OR expiry_date != '')
+                  AND (date(expiry_date) < date('now') OR date(created_at) < ?)
             """, (today, cust_id, cutoff))
+            
             affected += 1
+        
         conn.commit()
         if affected:
             logger.info(f"Expired loyalty points for {affected} customer(s)")
         return affected
 
 
+# =============================================================================
+# ✅ FIXED: expire_points_for_customer() - Uses expiry_date
+# =============================================================================
 def expire_points_for_customer(customer_id):
+    """
+    Expire loyalty points for a specific customer based on expiry_date.
+    
+    ✅ FIX: Now correctly uses expiry_date column instead of created_at.
+    """
     with DBContext() as conn:
         cursor = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get expiry months from settings
         cursor.execute("SELECT value FROM settings WHERE key='points_expiry_months'")
         row = cursor.fetchone()
         expiry_months = int(row[0]) if row else 12
+        
         if expiry_months <= 0:
+            # If expiry is disabled (0 = never), skip expiration
             return 0
+        
         cutoff = (datetime.now() - timedelta(days=expiry_months * 30)).strftime("%Y-%m-%d")
+        
+        # ✅ FIX: Primary expiration based on expiry_date
+        cursor.execute("""
+            SELECT SUM(points) as expired_points
+            FROM customer_points_log
+            WHERE customer_id = ?
+              AND type = 'earn'
+              AND expiry_date IS NOT NULL
+              AND date(expiry_date) < date('now')
+            GROUP BY customer_id
+        """, (customer_id,))
+        row = cursor.fetchone()
+        
+        # Also check old data where expiry_date is NULL (fallback to created_at)
         cursor.execute("""
             SELECT SUM(points) as expired_points
             FROM customer_points_log
@@ -850,20 +971,36 @@ def expire_points_for_customer(customer_id):
               AND date(created_at) < ?
             GROUP BY customer_id
         """, (customer_id, cutoff))
-        row = cursor.fetchone()
-        if not row or not row[0]:
+        old_row = cursor.fetchone()
+        
+        pts = 0
+        if row and row[0]:
+            pts += row[0]
+        if old_row and old_row[0]:
+            pts += old_row[0]
+        
+        if pts == 0:
             return 0
-        pts = row[0]
+        
+        # Deduct points
         cursor.execute("UPDATE customers SET points = points - ? WHERE id = ?", (pts, customer_id))
+        
+        # Log the expiration
         cursor.execute("""
             INSERT INTO customer_points_log (customer_id, points, type, reference, created_at)
             VALUES (?, ?, 'expire', ?, ?)
         """, (customer_id, pts, f"auto_expiry_{today}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        
+        # Update expiry_date on original entries to prevent double expiration
         cursor.execute("""
             UPDATE customer_points_log
             SET expiry_date = ?
-            WHERE customer_id = ? AND type = 'earn' AND expiry_date IS NULL AND date(created_at) < ?
+            WHERE customer_id = ? 
+              AND type = 'earn' 
+              AND (expiry_date IS NULL OR expiry_date != '')
+              AND (date(expiry_date) < date('now') OR date(created_at) < ?)
         """, (today, customer_id, cutoff))
+        
         conn.commit()
         return pts
 

@@ -81,9 +81,13 @@ class RoleManagementDialog(QDialog):
         self.permission_checkboxes = {}
         
         categories = [
-            ("Sales", ["sales", "edit_sale", "delete_sale", "refund_sale"]),
+            ("Dashboard", ["dashboard"]),
+            ("Sales", ["sales", "create_sale", "edit_sale", "delete_sale", "refund_sale"]),
+            ("Sales Summary", ["sales_summary"]),
             ("Products", ["products", "add_product", "edit_product", "delete_product"]),
+            ("Ai", ["ai_pages"]),
             ("Inventory", ["inventory", "stock_in", "stock_out", "adjustment"]),
+            ("Receipts", ["receipts", "print_receipt", "refund_receipt"]),
             ("Customers", ["customers", "add_customer", "edit_customer", "delete_customer"]),
             ("Expense", ["expense", "add_expense", "edit_expense", "delete_expense", "manage_expense_categories"]),
             ("Credit", ["credit", "credit_sale", "payment_collection"]),
@@ -111,10 +115,10 @@ class RoleManagementDialog(QDialog):
         right_layout.addWidget(perm_group)
         
         # Buttons
-        btn_save = QPushButton("Save Role")
-        btn_save.setStyleSheet("background-color: #27ae60; color: white;")
-        btn_save.clicked.connect(self.save_role)
-        right_layout.addWidget(btn_save)
+        self.btn_save = QPushButton("Save Role")
+        self.btn_save.setStyleSheet("background-color: #27ae60; color: white;")
+        self.btn_save.clicked.connect(self.save_role)
+        right_layout.addWidget(self.btn_save)
         
         main_layout.addWidget(left_panel, 1)
         main_layout.addWidget(right_panel, 1)
@@ -122,9 +126,9 @@ class RoleManagementDialog(QDialog):
         layout.addLayout(main_layout)
         
         # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.btn_close = QPushButton("Close")
+        self.btn_close.clicked.connect(self.accept)
+        layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
         
         self.setLayout(layout)
         self.load_roles()

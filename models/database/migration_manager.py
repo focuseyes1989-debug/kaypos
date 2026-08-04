@@ -302,14 +302,37 @@ class MigrationManager:
             return False
     
     def safe_add_column(self, table: str, column: str, column_def: str) -> bool:
-        """Safely add column if not exists."""
+        """
+        Safely add column if not exists.
+        
+        ✅ FIX: Handle UNIQUE constraint separately (SQLite doesn't support ALTER TABLE ADD COLUMN with UNIQUE)
+        """
         if not self.column_exists(table, column):
             try:
-                sql = f"ALTER TABLE {table} ADD COLUMN {column} {column_def}"
-                self.cursor.execute(sql)
-                logger.info(f"Added column {column} to {table}")
-                self.conn.commit()
-                return True
+                # ✅ Handle UNIQUE constraint separately
+                if 'UNIQUE' in column_def.upper():
+                    # Remove UNIQUE from column definition
+                    clean_def = column_def.replace('UNIQUE', '').strip()
+                    sql = f"ALTER TABLE {table} ADD COLUMN {column} {clean_def}"
+                    self.cursor.execute(sql)
+                    self.conn.commit()
+                    logger.info(f"Added column {column} to {table}")
+                    
+                    # Create unique index separately
+                    try:
+                        idx_name = f"idx_{table}_{column}_unique"
+                        self.cursor.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS {idx_name} ON {table}({column})")
+                        self.conn.commit()
+                        logger.info(f"Created unique index for {column} on {table}")
+                    except Exception as idx_e:
+                        logger.warning(f"Could not create unique index for {column}: {idx_e}")
+                    return True
+                else:
+                    sql = f"ALTER TABLE {table} ADD COLUMN {column} {column_def}"
+                    self.cursor.execute(sql)
+                    self.conn.commit()
+                    logger.info(f"Added column {column} to {table}")
+                    return True
             except Exception as e:
                 logger.warning(f"Could not add column {column} to {table}: {e}")
                 return False
@@ -343,7 +366,19 @@ class MigrationManager:
         """Execute SQL with error handling."""
         try:
             if sql and sql.strip() and sql.strip() != "SELECT 1;":
-                self.cursor.executescript(sql)
+                # Split into individual statements for better error handling
+                statements = sql.split(';')
+                for stmt in statements:
+                    stmt = stmt.strip()
+                    if stmt and stmt != "SELECT 1":
+                        try:
+                            self.cursor.execute(stmt)
+                        except Exception as e:
+                            # If it's a duplicate column error, continue
+                            if "duplicate column" in str(e).lower():
+                                logger.warning(f"Skipped duplicate column: {e}")
+                                continue
+                            raise
             return True
         except Exception as e:
             logger.error(f"SQL execution failed: {e}")

@@ -13,6 +13,9 @@ from utils.paths import app_path
 import functools
 import os
 
+# ✅ Import theme manager
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
+
 
 def _find_image_file(search_dir, filename):
     """Recursively search for an image file in a directory."""
@@ -115,6 +118,32 @@ def load_thumbnail(image_path: str, size: int = 50):
     return None
 
 
+def get_product_category(product_id):
+    """Get category name for a product"""
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT category FROM products WHERE id=?", (product_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else ""
+
+
+def get_product_category_group(product_id):
+    """Get category group name for a product"""
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT cg.name 
+        FROM products p
+        LEFT JOIN categories c ON p.category = c.name
+        LEFT JOIN category_groups cg ON c.group_id = cg.id
+        WHERE p.id = ?
+    """, (product_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else ""
+
+
 class ProductTable(QWidget):
     product_selected = pyqtSignal(int, str, float, int)
     service_selected = pyqtSignal(int, str, float)
@@ -125,34 +154,48 @@ class ProductTable(QWidget):
         self.rows_per_page = 50
         self.current_rows = []
         self.setup_ui()
+        
+        # ✅ Connect theme manager for auto refresh
+        theme_manager.theme_changed.connect(self._on_theme_changed)
 
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(8)  # ID, Image, Name, Barcode, Price, Stock, Sold By, Status
+        # Column count: ID, Image, Name, Category, Category Group, Barcode, Price, Stock, Sold By, Status
+        self.table.setColumnCount(10)
         self.table.setColumnHidden(0, True)  # Hide ID column
         self.table.setWordWrap(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
-        self.table.cellClicked.connect(self.on_row_clicked)
-        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)  # Double click handler
+        
+        # ❌ REMOVE cellClicked - ဒီနေရာမှာ ဖယ်ရှားလိုက်ပါ
+        # self.table.cellClicked.connect(self.on_row_clicked)  <-- ဒီ line ကို ဖယ်ရှားပါ
+        
+        # ✅ Keep only double click for product detail
+        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        
         self.table.verticalHeader().setDefaultSectionSize(60)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)  # Image
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Name
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)  # Barcode
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Price
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Stock
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # Sold By
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)  # Status
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Category
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Category Group
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Barcode
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Price
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # Stock
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # Sold By
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)  # Status
 
         # Set column width for image
         self.table.setColumnWidth(1, 70)
+        
+        # ✅ NO custom scrollbar style - use PyQt6 default
+        # self._apply_scrollbar_style()  <-- ဒီ line ကို ဖယ်ရှားပါ
 
         self.pagination = PaginationWidget()
         self.pagination.page_changed.connect(self.on_page_changed)
@@ -160,6 +203,12 @@ class ProductTable(QWidget):
         layout.addWidget(self.table)
         layout.addWidget(self.pagination)
         self.setLayout(layout)
+
+    def _on_theme_changed(self, theme_name):
+        """✅ Handle theme change - refresh table"""
+        # ✅ No style to update - just refresh
+        if self.current_rows:
+            self.populate_table(self.current_rows)
 
     def on_cell_double_clicked(self, row, column):
         """Handle double click on product row - show product detail dialog"""
@@ -181,54 +230,50 @@ class ProductTable(QWidget):
             parent.items_per_page = page_size
             parent.apply_filter()
 
-    def on_row_clicked(self, row, column):
-        id_item = self.table.item(row, 0)
-        if not id_item:
-            return
-        try:
-            prod_id = int(id_item.text())
-        except:
-            return
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock, sold_by FROM products WHERE id=?", (prod_id,))
-        product = cursor.fetchone()
-        conn.close()
-        if product:
-            name, price, stock, sold_by = product
-            price = float(price) if price else 0.0
-            if sold_by and sold_by.lower() == "service":
-                manual_price, ok = QInputDialog.getDouble(
-                    self, "Service Price", f"Enter price for {name}:",
-                    value=0.0, min=0.0, max=1000000.0, decimals=2
-                )
-                if ok:
-                    self.service_selected.emit(prod_id, name, manual_price)
-            else:
-                self.product_selected.emit(prod_id, name, price, stock)
+    # ❌ REMOVE on_row_clicked method entirely - ဒီ method ကို ဖယ်ရှားပါ
+    # def on_row_clicked(self, row, column):
+    #     ...
 
     def populate_table(self, rows):
         symbol = get_currency_symbol()
         self.table.setRowCount(0)
         self.current_rows = rows
+        
+        # Pre-fetch categories and groups for all products
+        product_data = []
         for row_data in rows:
             if len(row_data) >= 7:
-                # row_data: id, name, price, stock, low_stock, sold_by, image
                 prod_id, name, price, stock, low_stock, sold_by, image_path = row_data[:7]
             else:
                 continue
+            
+            category = get_product_category(prod_id)
+            category_group = get_product_category_group(prod_id)
+            product_data.append({
+                'id': prod_id,
+                'name': name,
+                'price': price,
+                'stock': stock,
+                'low_stock': low_stock,
+                'sold_by': sold_by,
+                'image_path': image_path,
+                'category': category,
+                'category_group': category_group
+            })
+        
+        for data in product_data:
             row = self.table.rowCount()
             self.table.insertRow(row)
             
             # Column 0: ID (hidden)
-            self.table.setItem(row, 0, QTableWidgetItem(str(prod_id)))
+            self.table.setItem(row, 0, QTableWidgetItem(str(data['id'])))
 
             # Column 1: Image thumbnail
             image_label = QLabel()
             image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             image_label.setScaledContents(True)
             image_label.setFixedSize(50, 50)
-            thumb = load_thumbnail(image_path, 50)
+            thumb = load_thumbnail(data['image_path'], 50)
             if thumb:
                 image_label.setPixmap(thumb)
             else:
@@ -241,47 +286,53 @@ class ProductTable(QWidget):
             self.table.setCellWidget(row, 1, container)
 
             # Column 2: Name
-            self.table.setItem(row, 2, QTableWidgetItem(name))
+            self.table.setItem(row, 2, QTableWidgetItem(data['name']))
             
-            # Column 3: Barcode
+            # Column 3: Category
+            self.table.setItem(row, 3, QTableWidgetItem(data['category']))
+            
+            # Column 4: Category Group
+            self.table.setItem(row, 4, QTableWidgetItem(data['category_group']))
+            
+            # Column 5: Barcode
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute("SELECT barcode FROM products WHERE id=?", (prod_id,))
+            cursor.execute("SELECT barcode FROM products WHERE id=?", (data['id'],))
             barcode_data = cursor.fetchone()
             conn.close()
             barcode = barcode_data[0] if barcode_data and barcode_data[0] else ""
-            self.table.setItem(row, 3, QTableWidgetItem(barcode))
+            self.table.setItem(row, 5, QTableWidgetItem(barcode))
             
-            # Column 4: Price
-            if sold_by and sold_by.lower() == "service":
+            # Column 6: Price
+            if data['sold_by'] and data['sold_by'].lower() == "service":
                 price_display = "Service"
             else:
-                price_display = format_money(price, symbol)
-            self.table.setItem(row, 4, QTableWidgetItem(price_display))
+                price_display = format_money(data['price'], symbol)
+            self.table.setItem(row, 6, QTableWidgetItem(price_display))
 
-            # Column 5: Stock
-            if sold_by and sold_by.lower() == "service":
+            # Column 7: Stock
+            if data['sold_by'] and data['sold_by'].lower() == "service":
                 stock_item = QTableWidgetItem("N/A")
             else:
-                stock_val = stock if stock is not None else 0
+                stock_val = data['stock'] if data['stock'] is not None else 0
                 stock_item = QTableWidgetItem(str(stock_val))
                 if stock_val == 0:
                     stock_item.setForeground(QColor(231, 76, 60))
-                elif stock_val <= (low_stock if low_stock else 0):
+                elif stock_val <= (data['low_stock'] if data['low_stock'] else 0):
                     stock_item.setForeground(QColor(230, 126, 34))
-            self.table.setItem(row, 5, stock_item)
+            self.table.setItem(row, 7, stock_item)
             
-            # Column 6: Sold By
-            sold_by_display = sold_by if sold_by else "Each"
-            self.table.setItem(row, 6, QTableWidgetItem(sold_by_display))
+            # Column 8: Sold By
+            sold_by_display = data['sold_by'] if data['sold_by'] else "Each"
+            self.table.setItem(row, 8, QTableWidgetItem(sold_by_display))
 
-            # Column 7: Status
-            if sold_by and sold_by.lower() == "service":
+            # Column 9: Status
+            if data['sold_by'] and data['sold_by'].lower() == "service":
                 status_text = "Service"
                 status_color = QColor(52, 152, 219)
             else:
-                stock_val = stock if stock is not None else 0
-                low_val = low_stock if low_stock else 0
+                stock_val = data['stock'] if data['stock'] is not None else 0
+                low_val = data['low_stock'] if data['low_stock'] else 0
                 if stock_val == 0:
                     status_text = "Out of Stock"
                     status_color = QColor(231, 76, 60)
@@ -293,7 +344,10 @@ class ProductTable(QWidget):
                     status_color = QColor(46, 204, 113)
             status_item = QTableWidgetItem(status_text)
             status_item.setForeground(status_color)
-            self.table.setItem(row, 7, status_item)
+            self.table.setItem(row, 9, status_item)
+        
+        # ✅ NO custom scrollbar style - use PyQt6 default
+        # self._apply_scrollbar_style()  <-- ဒီ line ကို ဖယ်ရှားပါ
 
     def get_selected_product_id(self):
         selected = self.table.currentRow()
@@ -315,7 +369,11 @@ class ProductTable(QWidget):
     def retranslateUi(self):
         from utils.language import lang
         if lang.get_current() == "my":
-            headers = ["ID", "ပုံ", "ပစ္စည်းအမည်", "ဘားကုဒ်", "စျေးနှုန်း", "ကျန်", "ရောင်းပုံစံ", "အခြေအနေ"]
+            headers = ["ID", "ပုံ", "ပစ္စည်းအမည်", "အမျိုးအစား", "အုပ်စု", "ဘားကုဒ်", "စျေးနှုန်း", "ကျန်", "ရောင်းပုံစံ", "အခြေအနေ"]
         else:
-            headers = ["ID", "Image", "Name", "Barcode", "Price", "Stock", "Sold By", "Status"]
+            headers = ["ID", "Image", "Name", "Category", "Category Group", "Barcode", "Price", "Stock", "Sold By", "Status"]
         self.table.setHorizontalHeaderLabels(headers)
+    
+    def showEvent(self, event):
+        """✅ Handle show event"""
+        super().showEvent(event)

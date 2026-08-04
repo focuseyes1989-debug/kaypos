@@ -13,15 +13,35 @@ import subprocess
 import hashlib
 import zipfile
 import re
+import importlib
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple, List
+
+
+class LauncherMode:
+    MAIN = "main"
+    CASHIER = "cashier"
+
+# ============================================================
+# ✅ FIX: Set console encoding to UTF-8 for Windows (safe version)
+# ============================================================
+if sys.platform == 'win32':
+    try:
+        import io
+        # Only wrap if stdout exists and has buffer
+        if sys.stdout is not None and hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        if sys.stderr is not None and hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # Fallback to default encoding
 
 # Try importing requests with fallback
 try:
     import requests
 except ImportError:
-    print("⚠️ requests not found, installing...")
+    print("WARNING: requests not found, installing...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
     import requests
 
@@ -29,36 +49,248 @@ except ImportError:
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QProgressBar, QTextEdit, QMessageBox,
-    QFrame, QGroupBox
+    QFrame, QGroupBox, QDialog, QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve
+pyqtProperty = None
+try:
+    pyqt_property_module = importlib.import_module('PyQt6.QtCore')
+    pyqtProperty = getattr(pyqt_property_module, 'pyqtProperty', None)
+except Exception:  # pragma: no cover - compatibility fallback
+    pyqtProperty = None
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QColor, QLinearGradient, QBrush, QPalette, QFontDatabase
 
 # Configuration
 GITHUB_REPO = "focuseyes1989-debug/ZAY_POS"
+APP_NAME = "ZAY_POS"
+
+
+def get_app_dir():
+    """Return the folder where the launcher should read/write app files."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.getcwd()
+
+
+def get_python_executable(app_dir: Optional[str] = None) -> str:
+    """Resolve a usable Python interpreter for launching scripts."""
+    candidates: List[str] = []
+    if app_dir:
+        candidates.extend([
+            os.path.join(app_dir, 'python.exe'),
+            os.path.join(app_dir, 'python'),
+            os.path.join(app_dir, 'Python.exe'),
+        ])
+
+    candidates.extend([
+        sys.executable,
+        shutil.which('python') or '',
+        shutil.which('python3') or '',
+        shutil.which('py') or '',
+    ])
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.exists(candidate):
+            return candidate
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+
+    return sys.executable
+
+
+def resolve_launch_target(app_dir: Optional[str] = None, mode: str = LauncherMode.MAIN) -> Tuple[List[str], str]:
+    """Resolve the best app entry point for the selected launcher mode.
+
+    The launcher now prefers Python entry points so main.py and cashier_main.py can
+    be run directly without requiring separate .exe builds.
+    """
+    base_dir = Path(app_dir or get_app_dir()).resolve()
+    search_roots = [base_dir]
+    parent_dir = base_dir.parent
+    if parent_dir != base_dir:
+        search_roots.append(parent_dir)
+
+    script_names = [
+        'main.py',
+        'cashier_main.py',
+        'launcher.py',
+    ]
+    if mode == LauncherMode.CASHIER:
+        script_names = ['cashier_main.py', 'main.py', 'launcher.py']
+
+    exe_names = [
+        'ZAY_POS.exe',
+        'main.exe',
+        'cashier_main.exe',
+        'ZAY_POS_main.exe',
+    ]
+
+    for root in search_roots:
+        for name in script_names:
+            candidate = root / name
+            if candidate.exists() and candidate.is_file():
+                python_executable = get_python_executable(str(root))
+                return [python_executable, str(candidate)], 'script'
+
+        for name in exe_names:
+            candidate = root / name
+            if candidate.exists() and candidate.is_file():
+                return [str(candidate)], 'exe'
+
+    for root in search_roots:
+        for pattern in ('**/main.py', '**/cashier_main.py', '**/ZAY_POS.exe'):
+            for candidate in root.glob(pattern):
+                if candidate.is_file():
+                    if candidate.suffix.lower() == '.py':
+                        python_executable = get_python_executable(str(root))
+                        return [python_executable, str(candidate)], 'script'
+                    return [str(candidate)], 'exe'
+
+    return [], 'missing'
+
+
+def should_auto_download_update(available: bool, auto_update_enabled: bool) -> bool:
+    """Return True when the launcher should auto-download an available update."""
+    return bool(available and auto_update_enabled)
+
+
+def normalize_version(value: str) -> str:
+    """Extract a dotted numeric version from values like v1.0.3."""
+    match = re.search(r'\d+(?:\.\d+)+', str(value or ''))
+    return match.group(0) if match else ""
+
+
+def extract_version_from_text(content: str) -> Optional[str]:
+    """Read version text from PyInstaller version files or simple metadata files."""
+    patterns = [
+        r'ProductVersion\s*=\s*["\']([\d.]+)["\']',
+        r'FileVersion\s*=\s*["\']([\d.]+)["\']',
+        r'StringStruct\(\s*u?["\']ProductVersion["\']\s*,\s*u?["\']([\d.]+)["\']\s*\)',
+        r'StringStruct\(\s*u?["\']FileVersion["\']\s*,\s*u?["\']([\d.]+)["\']\s*\)',
+        r'"version"\s*:\s*"([\d.]+)"',
+        r'version\s*=\s*["\']([\d.]+)["\']',
+        r'Version\s*[:=]\s*([\d.]+)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, content, re.IGNORECASE)
+        if match:
+            version = normalize_version(match.group(1))
+            if version:
+                return version
+    return None
+
+
+def get_update_download_info(data: Dict) -> tuple[Optional[str], Optional[str], Optional[int]]:
+    """Return the best update zip URL from GitHub release data or version.json data."""
+    assets = data.get('assets') or []
+    zip_assets = [
+        asset for asset in assets
+        if str(asset.get('name', '')).lower().endswith('.zip') and asset.get('browser_download_url')
+    ]
+    preferred_assets = [
+        asset for asset in zip_assets
+        if 'update' in str(asset.get('name', '')).lower()
+    ]
+    candidates = preferred_assets or zip_assets
+    if candidates:
+        asset = candidates[0]
+        return asset.get('browser_download_url'), asset.get('name'), asset.get('size')
+
+    download_url = data.get('download_url')
+    if download_url:
+        return download_url, os.path.basename(download_url), data.get('file_size')
+
+    return None, None, None
+
+
+def fetch_latest_update(log_callback=None) -> Dict:
+    """Fetch latest update metadata from GitHub release API or version.json."""
+    def log(message: str):
+        if log_callback:
+            log_callback(message)
+
+    urls = [
+        f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+        f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/update_build/version.json",
+        f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json"
+    ]
+
+    errors = []
+    for url in urls:
+        try:
+            log(f"Fetching: {url}")
+            response = requests.get(
+                url,
+                timeout=10,
+                headers={'User-Agent': 'ZAY-POS-Launcher/1.0'}
+            )
+            if response.status_code != 200:
+                errors.append(f"{url} returned HTTP {response.status_code}")
+                continue
+
+            data = response.json()
+            latest_version = normalize_version(data.get('tag_name') or data.get('version'))
+            if not latest_version:
+                errors.append(f"{url} did not include a valid version")
+                continue
+
+            download_url, asset_name, file_size = get_update_download_info(data)
+            return {
+                'version': latest_version,
+                'data': data,
+                'available': compare_versions(latest_version, CURRENT_VERSION) > 0,
+                'download_url': download_url,
+                'asset_name': asset_name,
+                'file_size': file_size,
+                'release_notes': data.get('body') or data.get('release_notes') or '',
+            }
+        except Exception as e:
+            errors.append(f"{url}: {e}")
+            log(f"Failed: {e}")
+
+    raise RuntimeError("; ".join(errors) if errors else "All update sources failed")
+
+
+def compare_versions(v1: str, v2: str) -> int:
+    def parse(v):
+        version = normalize_version(v)
+        try:
+            return [int(x) for x in version.split('.')]
+        except Exception:
+            return [0, 0, 0]
+
+    a = parse(v1)
+    b = parse(v2)
+    for i in range(max(len(a), len(b))):
+        av = a[i] if i < len(a) else 0
+        bv = b[i] if i < len(b) else 0
+        if av < bv:
+            return -1
+        if av > bv:
+            return 1
+    return 0
 
 # Try to get current version from version.txt
 def get_current_version():
     """Get current version from version.txt file."""
     try:
-        if getattr(sys, 'frozen', False):
-            app_dir = os.path.dirname(sys.executable)
-        else:
-            app_dir = os.getcwd()
-        
+        app_dir = get_app_dir()
         version_file = os.path.join(app_dir, 'version.txt')
         if os.path.exists(version_file):
             with open(version_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                match = re.search(r'ProductVersion\s*=\s*["\']([\d.]+)["\']', content)
-                if match:
-                    return match.group(1)
+                version = extract_version_from_text(f.read())
+                if version:
+                    return version
     except:
         pass
-    return "1.0.7"
+    return "1.0.0"
 
 CURRENT_VERSION = get_current_version()
-APP_NAME = "ZAY_POS"
 
 
 # ============================================================================
@@ -68,7 +300,7 @@ STYLESHEET = """
 /* Main Window */
 QMainWindow {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #1a1a2e, stop:0.5 #16213e, stop:1 #0f3460);
+        stop:0 #0f172a, stop:0.45 #111827, stop:1 #0b1220);
     border: none;
 }
 
@@ -94,9 +326,9 @@ QLabel#subTitleLabel {
 
 /* Version Group */
 QGroupBox {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
     margin-top: 10px;
     padding-top: 12px;
     padding-bottom: 8px;
@@ -206,7 +438,7 @@ QPushButton {
 
 QPushButton#startBtn {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #00b894, stop:1 #00cec9);
+        stop:0 #10b981, stop:1 #14b8a6);
 }
 
 QPushButton#startBtn:hover:!disabled {
@@ -221,7 +453,7 @@ QPushButton#startBtn:disabled {
 
 QPushButton#updateBtn {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #0984e3, stop:1 #6c5ce7);
+        stop:0 #3b82f6, stop:1 #6366f1);
 }
 
 QPushButton#updateBtn:hover:!disabled {
@@ -246,6 +478,19 @@ QPushButton#skipBtn:hover:!disabled {
 QPushButton#skipBtn:disabled {
     background: rgba(255, 255, 255, 0.03);
     color: #636e72;
+}
+
+QPushButton#modeBtnActive {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #3b82f6, stop:1 #6366f1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+QPushButton#modeBtnInactive {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    color: #cbd5e1;
 }
 
 /* Note Label */
@@ -279,6 +524,77 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 /* Logo label */
 QLabel#logoLabel {
     background: transparent;
+}
+"""
+
+# ============================================================================
+# CUSTOM MESSAGE BOX STYLESHEET
+# ============================================================================
+MESSAGE_BOX_STYLESHEET = """
+QDialog {
+    background-color: #1a1a2e;
+    border: 1px solid #2d3436;
+    border-radius: 12px;
+}
+
+QLabel {
+    color: #ffffff;
+    font-size: 11pt;
+    font-family: 'Segoe UI', 'Arial';
+}
+
+QPushButton {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 30px;
+    font-size: 11pt;
+    font-weight: bold;
+    font-family: 'Segoe UI', 'Arial';
+    color: white;
+    min-width: 80px;
+}
+
+QPushButton[text="Yes"] {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #00b894, stop:1 #00cec9);
+}
+
+QPushButton[text="Yes"]:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #00d2d3, stop:1 #55efc4);
+}
+
+QPushButton[text="No"] {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+QPushButton[text="No"]:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+QPushButton[text="OK"] {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #0984e3, stop:1 #6c5ce7);
+}
+
+QPushButton[text="OK"]:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #74b9ff, stop:1 #a29bfe);
+}
+
+QPushButton[text="Cancel"] {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+QPushButton[text="Cancel"]:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+QDialogButtonBox {
+    background: transparent;
+    border: none;
 }
 """
 
@@ -341,6 +657,93 @@ def load_window_icon():
     return None
 
 
+def custom_message_box(parent, title, message, buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, default_button=QMessageBox.StandardButton.Yes):
+    """
+    Custom message box with proper styling for dark theme.
+    """
+    msg_box = QMessageBox(parent)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(message)
+    msg_box.setStandardButtons(buttons)
+    msg_box.setDefaultButton(default_button)
+
+    # Apply custom stylesheet
+    msg_box.setStyleSheet(MESSAGE_BOX_STYLESHEET)
+
+    # Set text color for buttons using QDialogButtonBox
+    for button in msg_box.buttons():
+        if button.text() == "Yes":
+            button.setStyleSheet("""
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #00b894, stop:1 #00cec9);
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 30px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: white;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #00d2d3, stop:1 #55efc4);
+                }
+            """)
+        elif button.text() == "No":
+            button.setStyleSheet("""
+                QPushButton {
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 8px;
+                    padding: 10px 30px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: white;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+            """)
+        elif button.text() == "OK":
+            button.setStyleSheet("""
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #0984e3, stop:1 #6c5ce7);
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 30px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: white;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #74b9ff, stop:1 #a29bfe);
+                }
+            """)
+        elif button.text() == "Cancel":
+            button.setStyleSheet("""
+                QPushButton {
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 8px;
+                    padding: 10px 30px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: white;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+            """)
+
+    return msg_box.exec()
+
+
 class UpdateCheckerThread(QThread):
     """Background thread for checking updates."""
     
@@ -355,70 +758,14 @@ class UpdateCheckerThread(QThread):
         
     def run(self):
         try:
-            self.log.emit("🔄 Checking for updates...")
-            
-            urls = [
-                f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
-                f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/update_build/version.json"
-            ]
-            
-            for url in urls:
-                try:
-                    self.log.emit(f"📡 Fetching: {url}")
-                    response = requests.get(
-                        url,
-                        timeout=10,
-                        headers={'User-Agent': 'ZAY-POS-Launcher/1.0'}
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        
-                        if 'tag_name' in data:
-                            latest_version = data.get('tag_name', '').replace('v', '')
-                            self.finished.emit({
-                                'version': latest_version,
-                                'data': data,
-                                'available': self.compare_versions(latest_version, CURRENT_VERSION) > 0
-                            })
-                            return
-                        elif 'version' in data:
-                            latest_version = data.get('version', '')
-                            self.finished.emit({
-                                'version': latest_version,
-                                'data': data,
-                                'available': self.compare_versions(latest_version, CURRENT_VERSION) > 0
-                            })
-                            return
-                except Exception as e:
-                    self.log.emit(f"⚠️ Failed: {e}")
-                    continue
-            
-            self.error.emit("All update sources failed")
+            self.log.emit("Checking for updates...")
+            self.finished.emit(fetch_latest_update(self.log.emit))
                 
         except Exception as e:
             self.error.emit(str(e))
     
     def compare_versions(self, v1: str, v2: str) -> int:
-        def parse(v):
-            try:
-                return [int(x) for x in v.split('.')]
-            except:
-                return [0, 0, 0]
-        
-        try:
-            a = parse(v1)
-            b = parse(v2)
-            for i in range(max(len(a), len(b))):
-                av = a[i] if i < len(a) else 0
-                bv = b[i] if i < len(b) else 0
-                if av < bv:
-                    return -1
-                elif av > bv:
-                    return 1
-            return 0
-        except:
-            return 0
+        return compare_versions(v1, v2)
 
 
 class DownloadThread(QThread):
@@ -437,7 +784,7 @@ class DownloadThread(QThread):
         
     def run(self):
         try:
-            self.log.emit(f"📥 Downloading update v{self.version}...")
+            self.log.emit(f"Downloading update v{self.version}...")
             
             temp_dir = tempfile.mkdtemp(prefix='zay_update_')
             self.download_path = os.path.join(temp_dir, 'update.zip')
@@ -465,12 +812,17 @@ class DownloadThread(QThread):
                         if total_size > 0:
                             progress = int((downloaded / total_size) * 100)
                             self.progress.emit(progress, f"Downloading... {progress}%")
+
+            if downloaded == 0:
+                raise ValueError("Downloaded file is empty")
+            if not zipfile.is_zipfile(self.download_path):
+                raise ValueError("Downloaded file is not a valid zip update package")
             
-            self.log.emit(f"✅ Download complete: {downloaded // 1024} KB")
+            self.log.emit(f"Download complete: {downloaded // 1024} KB")
             self.finished.emit(True, self.download_path)
             
         except Exception as e:
-            self.log.emit(f"❌ Download failed: {e}")
+            self.log.emit(f"Download failed: {e}")
             self.finished.emit(False, str(e))
     
     def cancel(self):
@@ -484,14 +836,64 @@ class InstallThread(QThread):
     progress = pyqtSignal(int, str)
     log = pyqtSignal(str)
     
-    def __init__(self, zip_path: str):
+    def __init__(self, zip_path: str, expected_version: str = ""):
         super().__init__()
         self.zip_path = zip_path
+        self.expected_version = expected_version
         self._is_cancelled = False
+
+    def _get_install_source_dir(self, extract_dir: str) -> str:
+        """Support both flat update zips and full release zips with one root folder."""
+        if os.path.exists(os.path.join(extract_dir, 'ZAY_POS.exe')):
+            return extract_dir
+
+        entries = [
+            os.path.join(extract_dir, entry)
+            for entry in os.listdir(extract_dir)
+            if not entry.startswith('__MACOSX')
+        ]
+        dirs = [entry for entry in entries if os.path.isdir(entry)]
+        if len(dirs) == 1 and os.path.exists(os.path.join(dirs[0], 'ZAY_POS.exe')):
+            return dirs[0]
+
+        return extract_dir
+
+    def _should_skip_file(self, rel_path: str) -> bool:
+        parts = Path(rel_path).parts
+        if not parts:
+            return True
+
+        runtime_dirs = {'database', 'logs', 'temp', 'attachments'}
+        if parts[0].lower() in runtime_dirs:
+            return True
+
+        lowered = rel_path.lower()
+        if '__pycache__' in parts or lowered.endswith('.pyc'):
+            return True
+
+        skip_files = {
+            'zay_pos_launcher.exe',
+            'zay_pos_launcher',
+        }
+        return os.path.basename(lowered) in skip_files
+
+    def _copy_update_file(self, src: str, dest: str):
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        try:
+            shutil.copy2(src, dest)
+            return
+        except PermissionError:
+            if not os.path.exists(dest):
+                raise
+            old_path = dest + '.old'
+            if os.path.exists(old_path):
+                os.remove(old_path)
+            os.replace(dest, old_path)
+            shutil.copy2(src, dest)
         
     def run(self):
         try:
-            self.log.emit("📦 Installing update...")
+            self.log.emit("Installing update...")
             
             extract_dir = os.path.join(os.path.dirname(self.zip_path), 'extracted')
             os.makedirs(extract_dir, exist_ok=True)
@@ -506,70 +908,74 @@ class InstallThread(QThread):
                     progress = int((i + 1) / total * 100)
                     self.progress.emit(progress, f"Extracting... {progress}%")
             
-            self.log.emit("✅ Extraction complete")
+            self.log.emit("Extraction complete")
             
-            if getattr(sys, 'frozen', False):
-                app_dir = os.path.dirname(sys.executable)
-            else:
-                app_dir = os.getcwd()
+            app_dir = get_app_dir()
+            source_dir = self._get_install_source_dir(extract_dir)
             
-            skip_files = [
-                'ZAY_POS_Launcher.exe',
-                'ZAY_POS_Launcher',
-            ]
-            
-            self.log.emit(f"📂 Copying to: {app_dir}")
-            copied = 0
-            total_files = 0
+            self.log.emit(f"Copying to: {app_dir}")
+            if source_dir != extract_dir:
+                self.log.emit(f"Detected release root: {os.path.basename(source_dir)}")
+
+            files_to_copy = []
             skipped = 0
-            
-            for root, dirs, files in os.walk(extract_dir):
-                total_files += len(files)
-            
-            for root, dirs, files in os.walk(extract_dir):
+            has_main_exe = False
+            has_version_file = False
+            for root, dirs, files in os.walk(source_dir):
+                dirs[:] = [
+                    d for d in dirs
+                    if d != '__pycache__' and d.lower() not in {'database', 'logs', 'temp', 'attachments'}
+                ]
                 for file in files:
-                    if self._is_cancelled:
-                        self.finished.emit(False, "Installation cancelled")
-                        return
-                    
                     src = os.path.join(root, file)
-                    rel_path = os.path.relpath(src, extract_dir)
-                    dest = os.path.join(app_dir, rel_path)
-                    
-                    should_skip = False
-                    for skip in skip_files:
-                        if skip in file or skip in rel_path:
-                            should_skip = True
-                            break
-                    
-                    if should_skip:
+                    rel_path = os.path.relpath(src, source_dir)
+                    if self._should_skip_file(rel_path):
                         skipped += 1
                         continue
-                    
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    
-                    try:
-                        shutil.copy2(src, dest)
-                    except PermissionError:
-                        if os.path.exists(dest):
-                            try:
-                                old_path = dest + '.old'
-                                if os.path.exists(old_path):
-                                    os.remove(old_path)
-                                os.rename(dest, old_path)
-                                shutil.copy2(src, dest)
-                            except:
-                                continue
-                    except:
-                        continue
-                    
+                    if rel_path == 'ZAY_POS.exe':
+                        has_main_exe = True
+                    if rel_path == 'version.txt':
+                        has_version_file = True
+                    files_to_copy.append((src, rel_path))
+
+            if not has_main_exe:
+                raise FileNotFoundError("Update package does not contain ZAY_POS.exe")
+            if not has_version_file:
+                self.log.emit("Warning: update package does not contain version.txt")
+
+            copied = 0
+            failures = []
+            total_files = len(files_to_copy)
+            for src, rel_path in files_to_copy:
+                if self._is_cancelled:
+                    self.finished.emit(False, "Installation cancelled")
+                    return
+
+                dest = os.path.join(app_dir, rel_path)
+                try:
+                    self._copy_update_file(src, dest)
                     copied += 1
-                    
-                    if total_files > 0:
-                        progress = 90 + int((copied / total_files) * 10)
-                        self.progress.emit(progress, f"Copying files... {copied}/{total_files}")
+                except Exception as e:
+                    failures.append(f"{rel_path}: {e}")
+                    self.log.emit(f"Copy failed: {rel_path} - {e}")
+
+                if total_files > 0:
+                    progress = 90 + int((copied / total_files) * 10)
+                    self.progress.emit(progress, f"Copying files... {copied}/{total_files}")
+
+            if copied == 0:
+                raise RuntimeError("No update files were copied")
+
+            critical_failures = [
+                failure for failure in failures
+                if failure.startswith('ZAY_POS.exe') or failure.startswith('version.txt')
+            ]
+            if critical_failures:
+                raise RuntimeError("; ".join(critical_failures))
             
-            self.log.emit(f"✅ Copied {copied} files ({skipped} skipped)")
+            self.log.emit(f"Copied {copied} files ({skipped} skipped)")
+            if failures:
+                self.log.emit(f"Warning: {len(failures)} non-critical file(s) were not copied")
             
             try:
                 shutil.rmtree(os.path.dirname(self.zip_path))
@@ -580,15 +986,16 @@ class InstallThread(QThread):
             version_file = os.path.join(app_dir, 'version.txt')
             if os.path.exists(version_file):
                 with open(version_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    match = re.search(r'ProductVersion\s*=\s*["\']([\d.]+)["\']', content)
-                    if match:
-                        CURRENT_VERSION = match.group(1)
+                    found_version = extract_version_from_text(f.read())
+                    if found_version:
+                        CURRENT_VERSION = found_version
+            elif self.expected_version:
+                CURRENT_VERSION = self.expected_version
             
             self.finished.emit(True, f"Installed version {CURRENT_VERSION}")
             
         except Exception as e:
-            self.log.emit(f"❌ Installation failed: {e}")
+            self.log.emit(f"Installation failed: {e}")
             self.finished.emit(False, str(e))
     
     def cancel(self):
@@ -624,7 +1031,10 @@ class ModernButton(QPushButton):
         self._opacity = value
         self.setStyleSheet(f"QPushButton {{ opacity: {value}; }}")
     
-    opacity = pyqtProperty(float, get_opacity, set_opacity)
+    if pyqtProperty is not None:
+        opacity = pyqtProperty(float, get_opacity, set_opacity)
+    else:
+        opacity = property(get_opacity, set_opacity)
 
 
 class LauncherWindow(QMainWindow):
@@ -636,13 +1046,18 @@ class LauncherWindow(QMainWindow):
         self.download_thread = None
         self.install_thread = None
         self.update_info = None
+        self.pending_update_version = ""
+        self.selected_mode = LauncherMode.MAIN
+        self.auto_update_enabled = True
+        self.auto_update_countdown = 5
+        self.auto_update_timer = None
         self.setup_ui()
         QTimer.singleShot(500, self.check_for_updates)
     
     def setup_ui(self):
         """Setup the modern user interface."""
         self.setWindowTitle("ZAY POS Launcher")
-        self.setFixedSize(640, 560)
+        self.setFixedSize(720, 620)
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.CustomizeWindowHint |
@@ -650,22 +1065,24 @@ class LauncherWindow(QMainWindow):
             Qt.WindowType.WindowCloseButtonHint
         )
         
-        # 🔥 Set window icon from app_icon.ico
+        # Set window icon from app_icon.ico
         window_icon = load_window_icon()
         if window_icon:
             self.setWindowIcon(window_icon)
-            print("✅ Window icon loaded")
+            print("[OK] Window icon loaded")
         else:
-            print("⚠️ Window icon not found")
+            print("[WARN] Window icon not found")
         
         # Set stylesheet
         self.setStyleSheet(STYLESHEET)
         
         # Center window
-        screen = QApplication.primaryScreen().geometry()
-        x = (screen.width() - self.width()) // 2
-        y = (screen.height() - self.height()) // 2
-        self.move(x, y)
+        primary_screen = QApplication.primaryScreen()
+        if primary_screen is not None:
+            screen_geometry = primary_screen.geometry()
+            x = (screen_geometry.width() - self.width()) // 2
+            y = (screen_geometry.height() - self.height()) // 2
+            self.move(x, y)
         
         # Main widget
         central_widget = QWidget()
@@ -679,8 +1096,9 @@ class LauncherWindow(QMainWindow):
         # HEADER WITH LOGO
         # ============================================================
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 🔥 Logo from zaypos.png
+        # Logo from zaypos.png
         logo_pixmap = load_logo()
         if logo_pixmap:
             logo_label = QLabel()
@@ -692,7 +1110,7 @@ class LauncherWindow(QMainWindow):
             icon_label = QLabel("⚡")
             icon_label.setStyleSheet("font-size: 36pt;")
             header_layout.addWidget(icon_label)
-            print("⚠️ Logo not found, using fallback")
+            print("[WARN] Logo not found, using fallback")
         
         # Title
         title_layout = QVBoxLayout()
@@ -707,27 +1125,44 @@ class LauncherWindow(QMainWindow):
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
         
-        # Version badge
-        version_badge = QLabel(f"v{CURRENT_VERSION}")
-        version_badge.setStyleSheet("""
+        # Version label
+        version_label = QLabel(f"v{CURRENT_VERSION}")
+        version_label.setStyleSheet("""
             QLabel {
-                background: rgba(100, 255, 218, 0.15);
-                color: #64ffda;
-                padding: 6px 16px;
-                border-radius: 20px;
-                font-size: 11pt;
+                color: #cbd5e1;
+                font-size: 10pt;
                 font-weight: bold;
-                border: 1px solid rgba(100, 255, 218, 0.3);
             }
         """)
-        header_layout.addWidget(version_badge)
+        header_layout.addWidget(version_label)
         
         layout.addLayout(header_layout)
+
+        mode_group = QGroupBox("Launch Mode")
+        mode_group.setObjectName("modeGroup")
+        mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(10)
+        self.main_mode_btn = ModernButton("Main")
+        self.main_mode_btn.setObjectName("modeBtnActive")
+        self.main_mode_btn.clicked.connect(lambda: self.set_mode(LauncherMode.MAIN))
+        self.cashier_mode_btn = ModernButton("Cashier")
+        self.cashier_mode_btn.setObjectName("modeBtnInactive")
+        self.cashier_mode_btn.clicked.connect(lambda: self.set_mode(LauncherMode.CASHIER))
+        mode_layout.addWidget(self.main_mode_btn)
+        mode_layout.addWidget(self.cashier_mode_btn)
+        mode_group.setLayout(mode_layout)
+        layout.addWidget(mode_group)
         
         # ============================================================
-        # VERSION INFO
+        # MAIN CONTENT AREA (LEFT + DEDICATED RIGHT LOG COLUMN)
         # ============================================================
-        version_group = QGroupBox("📊 Version Information")
+        content_row = QHBoxLayout()
+        content_row.setSpacing(12)
+
+        left_column = QVBoxLayout()
+        left_column.setSpacing(10)
+
+        version_group = QGroupBox("Version Information")
         version_layout = QHBoxLayout()
         version_layout.setSpacing(30)
         
@@ -762,42 +1197,71 @@ class LauncherWindow(QMainWindow):
         
         version_layout.addStretch()
         version_group.setLayout(version_layout)
-        layout.addWidget(version_group)
+        left_column.addWidget(version_group)
         
-        # ============================================================
-        # STATUS
-        # ============================================================
-        status_group = QGroupBox("📌 Status")
+        status_group = QGroupBox("Update Status")
         status_group.setObjectName("statusGroup")
+        self.status_group = status_group
         status_layout = QVBoxLayout()
         status_layout.setSpacing(8)
         
-        self.status_label = QLabel("🔄 Initializing...")
+        self.status_label = QLabel("Initializing...")
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setFixedHeight(8)
         status_layout.addWidget(self.progress_bar)
+
+        self.mode_status_label = QLabel("Ready to launch Main mode")
+        self.mode_status_label.setStyleSheet("color: #cbd5e1; font-size: 10pt;")
+        status_layout.addWidget(self.mode_status_label)
+
+        self.update_badge_label = QLabel("Auto-update: checking")
+        self.update_badge_label.setStyleSheet("""
+            QLabel {
+                color: #fbbf24;
+                background: rgba(251, 191, 36, 0.14);
+                border: 1px solid rgba(251, 191, 36, 0.25);
+                border-radius: 10px;
+                padding: 6px 10px;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+        """)
+        status_layout.addWidget(self.update_badge_label)
         
         status_group.setLayout(status_layout)
-        layout.addWidget(status_group)
-        
-        # ============================================================
-        # LOG
-        # ============================================================
-        log_group = QGroupBox("📋 Log")
+        left_column.addWidget(status_group)
+
+        right_column = QVBoxLayout()
+        right_column.setSpacing(10)
+
+        activity_container = QWidget()
+        activity_layout = QVBoxLayout(activity_container)
+        activity_layout.setContentsMargins(0, 0, 0, 0)
+        activity_layout.setSpacing(8)
+
+        log_group = QGroupBox("Activity Log")
         log_group.setObjectName("logGroup")
         log_layout = QVBoxLayout()
         log_layout.setSpacing(5)
         
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(100)
+        self.log_text.setMinimumHeight(220)
+        self.log_text.setMaximumHeight(320)
         log_layout.addWidget(self.log_text)
         
         log_group.setLayout(log_layout)
-        layout.addWidget(log_group)
+        activity_layout.addWidget(log_group)
+
+        right_column.addWidget(activity_container)
+
+        content_row.addLayout(left_column, 1)
+        content_row.addLayout(right_column, 2)
+        layout.addLayout(content_row)
         
         # ============================================================
         # BUTTONS
@@ -805,51 +1269,95 @@ class LauncherWindow(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(12)
         
-        self.start_btn = ModernButton("🚀 Start Application")
+        self.start_btn = ModernButton("Launch")
         self.start_btn.setObjectName("startBtn")
         self.start_btn.setMinimumHeight(45)
         self.start_btn.clicked.connect(self.start_app)
         self.start_btn.setEnabled(False)
         button_layout.addWidget(self.start_btn)
         
-        self.update_btn = ModernButton("⬇️ Download Update")
+        self.update_btn = ModernButton("Download Update")
         self.update_btn.setObjectName("updateBtn")
         self.update_btn.setMinimumHeight(45)
         self.update_btn.clicked.connect(self.download_update)
         self.update_btn.setEnabled(False)
         button_layout.addWidget(self.update_btn)
         
-        self.skip_btn = ModernButton("⏭️ Skip")
+        self.skip_btn = ModernButton("Skip")
         self.skip_btn.setObjectName("skipBtn")
         self.skip_btn.setMinimumHeight(45)
         self.skip_btn.clicked.connect(self.skip_update)
         self.skip_btn.setEnabled(False)
         button_layout.addWidget(self.skip_btn)
+
+        self.auto_update_btn = ModernButton("Auto-Install")
+        self.auto_update_btn.setObjectName("updateBtn")
+        self.auto_update_btn.setMinimumHeight(45)
+        self.auto_update_btn.clicked.connect(self.start_auto_update)
+        self.auto_update_btn.setEnabled(False)
+        button_layout.addWidget(self.auto_update_btn)
         
         layout.addLayout(button_layout)
         
         # ============================================================
         # FOOTER
         # ============================================================
-        note_label = QLabel("ℹ️ Launcher checks for updates before starting the application")
+        note_label = QLabel("Launcher can check for updates, switch between Main and Cashier modes, and launch the selected app.")
         note_label.setObjectName("noteLabel")
         note_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(note_label)
+
+        self.set_mode(LauncherMode.MAIN)
     
+    def set_mode(self, mode: str):
+        """Switch the selected launch mode and update the UI hints."""
+        if mode not in {LauncherMode.MAIN, LauncherMode.CASHIER}:
+            return
+        self.selected_mode = mode
+        if mode == LauncherMode.MAIN:
+            self.main_mode_btn.setEnabled(False)
+            self.cashier_mode_btn.setEnabled(True)
+            self.mode_status_label.setText("Selected mode: Main")
+            self.start_btn.setText("Launch Main")
+            self.main_mode_btn.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #6366f1); border: 1px solid rgba(255,255,255,0.25); color: white;")
+            self.cashier_mode_btn.setStyleSheet("background: rgba(255,255,255,0.06); border: 1px solid rgba(148,163,184,0.18); color: #cbd5e1;")
+            self.log("Selected launch mode: Main")
+        else:
+            self.main_mode_btn.setEnabled(True)
+            self.cashier_mode_btn.setEnabled(False)
+            self.mode_status_label.setText("Selected mode: Cashier")
+            self.start_btn.setText("Launch Cashier")
+            self.main_mode_btn.setStyleSheet("background: rgba(255,255,255,0.06); border: 1px solid rgba(148,163,184,0.18); color: #cbd5e1;")
+            self.cashier_mode_btn.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #6366f1); border: 1px solid rgba(255,255,255,0.25); color: white;")
+            self.log("Selected launch mode: Cashier")
+
     def log(self, message: str):
         """Add log message with timestamp."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_text.append(f"[{timestamp}] {message}")
-        self.log_text.verticalScrollBar().setValue(
-            self.log_text.verticalScrollBar().maximum()
-        )
+        scroll_bar = self.log_text.verticalScrollBar()
+        if scroll_bar is not None:
+            scroll_bar.setValue(scroll_bar.maximum())
         QApplication.processEvents()
     
     def check_for_updates(self):
         """Start update check."""
-        self.log("🔍 Checking for updates...")
-        self.status_label.setText("🔄 Checking for updates...")
-        self.start_btn.setEnabled(False)
+        self.log("Checking for updates...")
+        self.status_label.setText("Checking for updates...")
+        self.update_badge_label.setText("Auto-update: checking")
+        self.update_badge_label.setStyleSheet("""
+            QLabel {
+                color: #fbbf24;
+                background: rgba(251, 191, 36, 0.14);
+                border: 1px solid rgba(251, 191, 36, 0.25);
+                border-radius: 10px;
+                padding: 6px 10px;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+        """)
+        self.status_group.setStyleSheet("QGroupBox { border: 1px solid rgba(148, 163, 184, 0.25); }")
+        self.start_btn.setEnabled(True)
         self.update_btn.setEnabled(False)
         self.skip_btn.setEnabled(False)
         
@@ -864,60 +1372,139 @@ class LauncherWindow(QMainWindow):
         latest_version = result.get('version', '')
         available = result.get('available', False)
         
-        self.latest_version_label.setText(f"v{latest_version}")
+        self.latest_version_label.setText(f"v{latest_version or 'Unknown'}")
         
         if available:
-            self.update_info = result.get('data', {})
-            self.status_label.setText("✅ New version available! Click Download Update.")
+            self.update_info = result
+            self.pending_update_version = latest_version
+            self.status_label.setText("New update ready. Download to install it.")
+            self.mode_status_label.setText(f"Selected mode: {self.selected_mode.title()}")
             self.status_label.setStyleSheet("color: #64ffda; font-size: 11pt;")
+            self.update_badge_label.setText("Auto-update: available")
+            self.update_badge_label.setStyleSheet("""
+                QLabel {
+                    color: #5eead4;
+                    background: rgba(45, 212, 191, 0.16);
+                    border: 1px solid rgba(45, 212, 191, 0.3);
+                    border-radius: 10px;
+                    padding: 6px 10px;
+                    font-size: 9pt;
+                    font-weight: bold;
+                }
+            """)
+            self.status_group.setStyleSheet("QGroupBox { border: 1px solid rgba(45, 212, 191, 0.35); }")
             self.update_btn.setEnabled(True)
             self.skip_btn.setEnabled(True)
-            self.start_btn.setEnabled(False)
-            self.log(f"📢 Update available: v{CURRENT_VERSION} → v{latest_version}")
+            self.start_btn.setEnabled(True)
+            self.log(f"Update available: v{CURRENT_VERSION} -> v{latest_version}")
         else:
-            self.status_label.setText("✅ You have the latest version!")
+            self.update_info = None
+            self.pending_update_version = ""
+            self.status_label.setText("You already have the latest version.")
+            self.mode_status_label.setText(f"Selected mode: {self.selected_mode.title()}")
             self.status_label.setStyleSheet("color: #64ffda; font-size: 11pt;")
+            self.update_badge_label.setText("Auto-update: up to date")
+            self.update_badge_label.setStyleSheet("""
+                QLabel {
+                    color: #93c5fd;
+                    background: rgba(59, 130, 246, 0.16);
+                    border: 1px solid rgba(59, 130, 246, 0.25);
+                    border-radius: 10px;
+                    padding: 6px 10px;
+                    font-size: 9pt;
+                    font-weight: bold;
+                }
+            """)
+            self.status_group.setStyleSheet("QGroupBox { border: 1px solid rgba(59, 130, 246, 0.3); }")
             self.update_btn.setEnabled(False)
             self.skip_btn.setEnabled(False)
             self.start_btn.setEnabled(True)
-            self.log("✅ Application is up to date")
+            self.auto_update_btn.setEnabled(False)
+            self.log("Application is up to date")
     
     def on_check_error(self, error: str):
         """Handle check error."""
-        self.status_label.setText("⚠️ Update check failed")
+        self.status_label.setText("Update check failed")
         self.status_label.setStyleSheet("color: #fdcb6e; font-size: 11pt;")
         self.start_btn.setEnabled(True)
         self.update_btn.setEnabled(False)
         self.skip_btn.setEnabled(False)
+        self.update_info = None
+        self.pending_update_version = ""
         self.latest_version_label.setText("Unknown")
-        self.log(f"⚠️ Update check failed: {error}")
-        self.log("ℹ️ Starting application without update...")
+        self.update_badge_label.setText("Auto-update: failed")
+        self.update_badge_label.setStyleSheet("""
+            QLabel {
+                color: #fda4af;
+                background: rgba(244, 63, 94, 0.16);
+                border: 1px solid rgba(244, 63, 94, 0.26);
+                border-radius: 10px;
+                padding: 6px 10px;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+        """)
+        self.status_group.setStyleSheet("QGroupBox { border: 1px solid rgba(244, 63, 94, 0.3); }")
+        self.log(f"Update check failed: {error}")
+        self.log("Starting application without update...")
     
+    def start_auto_update_countdown(self):
+        """Start a short countdown and auto-download when the user does not cancel it."""
+        if self.auto_update_timer is not None:
+            self.auto_update_timer.stop()
+        self.auto_update_countdown = 5
+        self.auto_update_btn.setText("Auto-Installing in 5s")
+        self.auto_update_btn.setEnabled(False)
+        self.auto_update_timer = QTimer(self)
+        self.auto_update_timer.setInterval(1000)
+        self.auto_update_timer.timeout.connect(self._tick_auto_update_countdown)
+        self.auto_update_timer.start()
+
+    def _tick_auto_update_countdown(self):
+        self.auto_update_countdown -= 1
+        if self.auto_update_countdown <= 0:
+            if self.auto_update_timer is not None:
+                self.auto_update_timer.stop()
+                self.auto_update_timer = None
+            self.start_auto_update()
+            return
+        self.auto_update_btn.setText(f"Auto-Installing in {self.auto_update_countdown}s")
+
+    def start_auto_update(self):
+        """Start downloading the update automatically."""
+        if self.auto_update_timer is not None:
+            self.auto_update_timer.stop()
+            self.auto_update_timer = None
+        if not self.update_info:
+            return
+        self.auto_update_btn.setText("Auto-Installing")
+        self.auto_update_btn.setEnabled(False)
+        self.log("Auto-update started")
+        self.download_update()
+
     def download_update(self):
         """Start download process."""
         if not self.update_info:
             return
         
-        download_url = None
-        if 'assets' in self.update_info:
-            for asset in self.update_info.get('assets', []):
-                if asset['name'].endswith('.zip'):
-                    download_url = asset['browser_download_url']
-                    break
-        elif 'download_url' in self.update_info:
-            download_url = self.update_info['download_url']
+        download_url = self.update_info.get('download_url')
+        asset_name = self.update_info.get('asset_name')
+        if not download_url:
+            download_url, asset_name, _ = get_update_download_info(self.update_info.get('data', {}))
         
         if not download_url:
-            QMessageBox.warning(self, "Error", "No download URL found!")
+            custom_message_box(self, "Error", "No download URL found!", QMessageBox.StandardButton.Ok)
             return
         
-        version = self.update_info.get('tag_name', '').replace('v', '')
-        if not version:
-            version = self.update_info.get('version', '1.0.0')
+        version = self.update_info.get('version') or '1.0.0'
+        self.pending_update_version = version
+        if asset_name:
+            self.log(f"Selected update package: {asset_name}")
         
         self.update_btn.setEnabled(False)
         self.skip_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
+        self.auto_update_btn.setEnabled(False)
         
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -936,20 +1523,21 @@ class LauncherWindow(QMainWindow):
     def on_download_finished(self, success: bool, result: str):
         """Handle download completion."""
         if success:
-            self.log("✅ Download complete")
-            self.status_label.setText("📦 Installing update...")
+            self.log("Download complete")
+            self.status_label.setText("Installing update...")
             
-            self.install_thread = InstallThread(result)
+            self.install_thread = InstallThread(result, self.pending_update_version)
             self.install_thread.progress.connect(self.on_install_progress)
             self.install_thread.log.connect(self.log)
             self.install_thread.finished.connect(self.on_install_finished)
             self.install_thread.start()
         else:
-            self.status_label.setText("❌ Download failed")
+            self.status_label.setText("Download failed")
             self.status_label.setStyleSheet("color: #ff6b6b; font-size: 11pt;")
             self.update_btn.setEnabled(True)
             self.skip_btn.setEnabled(True)
             self.start_btn.setEnabled(True)
+            self.auto_update_btn.setEnabled(bool(self.update_info))
             self.progress_bar.setVisible(False)
     
     def on_install_progress(self, value: int, status: str):
@@ -962,15 +1550,16 @@ class LauncherWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         
         if success:
-            self.status_label.setText("✅ Update installed successfully!")
+            self.status_label.setText("Update installed successfully!")
             self.status_label.setStyleSheet("color: #64ffda; font-size: 11pt;")
             self.current_version_label.setText(f"v{CURRENT_VERSION}")
+            self.log(message)
             
-            reply = QMessageBox.question(
+            reply = custom_message_box(
                 self,
-                "✨ Update Complete",
+                "Update Complete",
                 f"ZAY POS has been updated to version {CURRENT_VERSION}!\n\n"
-                "🔄 The launcher will restart to apply changes.\n\n"
+                "The launcher can restart the app now.\n\n"
                 "Would you like to restart now?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
@@ -981,63 +1570,111 @@ class LauncherWindow(QMainWindow):
             else:
                 self.start_app()
         else:
-            self.status_label.setText("❌ Installation failed")
+            self.status_label.setText("Installation failed")
             self.status_label.setStyleSheet("color: #ff6b6b; font-size: 11pt;")
             self.update_btn.setEnabled(True)
             self.skip_btn.setEnabled(True)
             self.start_btn.setEnabled(True)
+            self.auto_update_btn.setEnabled(bool(self.update_info))
+            self.log(f"Installation failed: {message}")
     
     def restart_launcher(self):
-        """Restart the launcher."""
-        self.log("🔄 Restarting launcher...")
+        """Restart the launcher or launch the application directly if needed."""
+        self.log("Restarting launcher...")
         try:
+            command = []
             if getattr(sys, 'frozen', False):
-                exe_path = sys.executable
-                subprocess.Popen([exe_path])
+                command = [sys.executable]
             else:
-                subprocess.Popen([sys.executable, 'launcher.py'])
-            
+                command = [sys.executable, 'launcher.py']
+
+            subprocess.Popen(command, cwd=get_app_dir(), close_fds=True, creationflags=(
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+            ) if sys.platform == "win32" else 0)
+            self.log("Launcher restarted successfully")
             QTimer.singleShot(500, self.close)
         except Exception as e:
-            self.log(f"❌ Failed to restart: {e}")
+            self.log(f"Failed to restart: {e}")
             self.start_app()
     
     def start_app(self):
-        """Start the main application."""
-        self.log("🚀 Starting ZAY POS...")
-        
+        """Start the main application using the best available entry point."""
+        self.log(f"Starting ZAY POS in {self.selected_mode.title()} mode...")
+
         if getattr(sys, 'frozen', False):
             app_dir = os.path.dirname(sys.executable)
         else:
             app_dir = os.getcwd()
-        
-        app_path = os.path.join(app_dir, 'ZAY_POS.exe')
-        
-        if os.path.exists(app_path):
-            self.log(f"📂 Found: {app_path}")
-            try:
-                subprocess.Popen([app_path])
-                self.log("✅ Application started!")
-                QTimer.singleShot(1000, self.close)
-            except Exception as e:
-                self.log(f"❌ Failed to start: {e}")
-                QMessageBox.critical(self, "Error", f"Failed to start application: {e}")
-        else:
-            self.log(f"❌ Application not found: {app_path}")
-            QMessageBox.warning(
+
+        command, source = resolve_launch_target(app_dir, mode=self.selected_mode)
+        if not command:
+            self.log(f"Application entry point not found in: {app_dir}")
+            custom_message_box(
                 self,
                 "Error",
-                f"Application not found: {app_path}\n\nPlease check your installation."
+                f"Application entry point not found in: {app_dir}\n\nPlease check your installation.",
+                QMessageBox.StandardButton.Ok
             )
+            return
+
+        self.log(f"Resolved launch target via {source}: {command[0]}")
+        try:
+            popen_kwargs = {
+                "cwd": app_dir,
+                "close_fds": True,
+            }
+            if sys.platform == "win32":
+                popen_kwargs["creationflags"] = (
+                    getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                    | getattr(subprocess, "DETACHED_PROCESS", 0)
+                )
+
+            subprocess.Popen(command, **popen_kwargs)
+            self.log("Application started!")
+            QTimer.singleShot(300, self.exit_launcher_after_start)
+        except Exception as e:
+            self.log(f"Failed to start: {e}")
+            custom_message_box(self, "Error", f"Failed to start application: {e}", QMessageBox.StandardButton.Ok)
     
     def skip_update(self):
         """Skip update and start app."""
-        self.log("⏭️ Skipping update...")
+        self.log("Skipping update...")
         self.start_app()
+
+    def exit_launcher_after_start(self):
+        """Exit the launcher after ZAY POS has been started."""
+        self.log("Closing launcher...")
+        self.close()
+        app = QApplication.instance()
+        if app:
+            app.quit()
+        QTimer.singleShot(1000, lambda: os._exit(0))
+
+
+def check_only() -> int:
+    """CLI mode used by the Settings > Update tab."""
+    try:
+        result = fetch_latest_update()
+        print(f"version: {result.get('version', '')}")
+        print(f"notes: {str(result.get('release_notes', '')).splitlines()[0] if result.get('release_notes') else ''}")
+        print(f"url: {result.get('download_url') or ''}")
+        print(f"size: {result.get('file_size') or 0}")
+        print(f"available: {1 if result.get('available') else 0}")
+        return 0
+    except Exception as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
 
 def main():
     """Main entry point."""
+    if '--check-only' in sys.argv:
+        sys.exit(check_only())
+
+    # Qt WebEngine requires this before QApplication is created.
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
+
     app = QApplication(sys.argv)
     
     # Set application style

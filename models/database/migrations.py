@@ -124,6 +124,8 @@ def fix_missing_columns():
         safe_additions = [
             ('customers', 'credit_limit', 'REAL DEFAULT 0'),
             ('customers', 'current_balance', 'REAL DEFAULT 0'),
+            ('customers', 'total_credit', 'REAL DEFAULT 0'),
+            ('customers', 'credit_balance', 'REAL DEFAULT 0'),
             ('customers', 'remarks', 'TEXT'),
             ('sales', 'cogs', 'REAL DEFAULT 0'),
             ('sales', 'gross_profit', 'REAL DEFAULT 0'),
@@ -132,6 +134,15 @@ def fix_missing_columns():
             ('expenses', 'image', 'TEXT'),
             ('stock_movements', 'location', 'TEXT'),
             ('products', 'last_updated', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
+            # Credit refund metadata (required by older packaged refund service).
+            ('credit_sales', 'updated_at', 'TIMESTAMP'),
+            ('credit_sales', 'refunded_at', 'TIMESTAMP'),
+            ('credit_sales', 'refund_reason', 'TEXT'),
+            ('credit_sales', 'refund_type', 'TEXT'),
+            # Compatibility fields for older builds that used these names.
+            ('credit_transactions', 'type', 'TEXT'),
+            ('credit_transactions', 'description', 'TEXT'),
+            ('credit_transactions', 'payment_id', 'INTEGER'),
         ]
         
         for table, column, column_def in safe_additions:
@@ -142,10 +153,16 @@ def fix_missing_columns():
             ('shop_phone', ''),
             ('shop_address', ''),
             ('shop_footer_message', ''),
+            ('receipt_printer_name', ''),
+            ('receipt_paper_size', '0'),
+            ('receipt_print_quality', '203'),
+            ('receipt_cash_drawer_use_receipt_printer', '1'),
             ('auto_backup_enabled', '0'),
             ('auto_backup_interval', '24'),
             ('auto_backup_max', '30'),
             ('app_version', '1.0.0'),
+            ('credit_due_days', '15'),
+            ('credit_limit_enabled', 'true'),
         ]
         
         for key, value in safe_settings:
@@ -158,6 +175,79 @@ def fix_missing_columns():
         logger.error(f"Failed to fix missing columns: {e}")
         if manager.conn:
             manager.conn.rollback()
+    finally:
+        manager.close()
+
+
+def repair_credit_balances():
+    """
+    Repair credit balances by recalculating from credit_sales.
+    
+    This function fixes mismatches between customers.current_balance
+    and actual credit_sales balances.
+    """
+    logger.info("Starting credit balance repair...")
+    
+    manager = MigrationManager()
+    
+    try:
+        manager.connect()
+        cursor = manager.conn.cursor()
+        
+        # Recalculate balance for each customer
+        cursor.execute("""
+            SELECT DISTINCT customer_id 
+            FROM credit_sales 
+            WHERE customer_id IS NOT NULL
+        """)
+        customers = cursor.fetchall()
+        
+        repaired_count = 0
+        total_repaired = 0
+        
+        for (customer_id,) in customers:
+            # Calculate actual balance from credit_sales
+            cursor.execute("""
+                SELECT COALESCE(SUM(balance_amount), 0)
+                FROM credit_sales
+                WHERE customer_id = ?
+                  AND status != 'refunded'
+            """, (customer_id,))
+            actual_balance = cursor.fetchone()[0]
+            
+            # Get current balance
+            cursor.execute("""
+                SELECT current_balance 
+                FROM customers 
+                WHERE id = ?
+            """, (customer_id,))
+            current = cursor.fetchone()
+            
+            if current and abs(current[0] - actual_balance) > 0.01:
+                # Update customer balance
+                cursor.execute("""
+                    UPDATE customers
+                    SET current_balance = ?,
+                        credit_balance = ?
+                    WHERE id = ?
+                """, (actual_balance, actual_balance, customer_id))
+                repaired_count += 1
+                total_repaired += abs(current[0] - actual_balance)
+                logger.debug(f"Repaired customer {customer_id}: {current[0]} -> {actual_balance}")
+        
+        manager.conn.commit()
+        logger.info(f"Repaired {repaired_count} customers, total adjustment: {total_repaired}")
+        
+        return {
+            'repaired_count': repaired_count,
+            'total_adjustment': total_repaired
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to repair credit balances: {e}")
+        if manager.conn:
+            manager.conn.rollback()
+        return None
     finally:
         manager.close()
 
@@ -201,18 +291,22 @@ def check_and_run_migrations():
                 logger.error(f"Failed to update app metadata: {e}")
             finally:
                 manager.close()
+            
+            # Run credit balance repair after migrations
+            repair_result = repair_credit_balances()
+            if repair_result:
+                logger.info(f"Credit balance repair completed: {repair_result}")
         elif result['failed']:
             logger.error(f"Failed migrations: {result['failed']}")
     else:
         logger.info("No pending migrations found. Database is up to date.")
 
 
-# ✅ Bug #4 Fixed: CLI with auto-migration
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Database Migration Tool")
-    parser.add_argument("command", choices=["up", "down", "status", "fix", "auto"],
+    parser.add_argument("command", choices=["up", "down", "status", "fix", "auto", "repair"],
                        help="Migration command")
     parser.add_argument("--target", help="Target version")
     parser.add_argument("--app-version", help="Application version")
@@ -257,6 +351,14 @@ if __name__ == "__main__":
     elif args.command == "fix":
         fix_missing_columns()
         print("Fixed missing columns and settings")
+    
+    elif args.command == "repair":
+        result = repair_credit_balances()
+        if result:
+            print(f"Repaired {result['repaired_count']} customers")
+            print(f"Total adjustment: {result['total_adjustment']}")
+        else:
+            print("Repair failed")
     
     elif args.command == "auto":
         check_and_run_migrations()

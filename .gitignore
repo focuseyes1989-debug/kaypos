@@ -1,18 +1,28 @@
-# Build Output
-update_build/
+.env
+.venv/
+.venv-1/
 build/
 dist/
-
-# Executables
-*.exe
-*.zip
-
-# Python
+update_build/
 __pycache__/
-*.pyc
-
-# Database
+.pytest_cache/
+logs/
+temp/
+*.zip
 *.db
-
-# Environment
-.env
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+database/*.db
+database/*.db-shm
+database/*.db-wal
+database/product_images/
+database/images/
+database/logos/
+utils/database/
+_internal/
+dist_launcher/
+android-viewer/.idea/
+*.old
+*.log

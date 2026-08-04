@@ -16,3 +16,4 @@ from ui.inventory_page.purchase_order_dialog import PurchaseOrderEditDialog
 from ui.inventory_page.warehouse_dialog import WarehouseDialog
 from ui.inventory_page.product_location_dialog import ProductLocationDialog
 from ui.inventory_page.stock_transfer_dialog import StockTransferDialog  # Add this line
+from ui.inventory_page.stock_movement_dialog import StockMovementDialog

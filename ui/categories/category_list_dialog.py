@@ -1,0 +1,316 @@
+# ui/categories/category_list_dialog.py
+"""
+Main Category Management Dialog
+✅ Theme-aware - Dark/Light theme နှစ်မျိုးလုံးအတွက် အလိုအလျောက် ပြောင်းလဲပေးမယ်
+✅ FIX: Theme ပြောင်းတာနဲ့ ချက်ချင်း refresh ဖြစ်မယ်
+"""
+
+from PyQt6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
+    QPushButton, QMessageBox, QMenu, QComboBox, QFrame,
+    QScrollArea, QSizePolicy
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QColor, QAction, QPixmap, QIcon, QFont
+
+from models.database import connect_db
+from ui.categories.category_service import CategoryService
+from ui.categories.category_form_dialog import CategoryFormDialog
+from ui.categories.category_merge_dialog import CategoryMergeDialog
+from ui.categories.category_summary_widget import CategorySummaryWidget
+from ui.categories.category_list_ui import CategoryListUI
+from ui.categories.category_list_table import CategoryListTable
+from ui.categories.category_list_actions import CategoryListActions
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.pagination_widget import PaginationWidget
+from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
+from utils.translations import tr
+from utils.language import lang
+from utils.excel_exporter import ExcelExporter
+
+from loguru import logger
+from datetime import datetime
+from typing import List, Optional, Dict
+
+
+class CategoryListDialog(
+    QDialog,
+    CategoryListUI,
+    CategoryListTable,
+    CategoryListActions
+):
+    """Main dialog for managing categories - Theme-aware"""
+    
+    categories_changed = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        # ✅ FIX: Call QDialog.__init__ directly
+        QDialog.__init__(self, parent)
+        
+        # Initialize attributes
+        self.service = CategoryService()
+        self.categories = []
+        self.current_page = 1
+        self.page_size = 20
+        self.filter_status = 'all'
+        self.search_text = ''
+        
+        # Setup window
+        self.setWindowTitle("Manage Categories")
+        self.setModal(True)
+        self.resize(950, 720)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(550)
+        
+        # Enable minimize/maximize buttons
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowCloseButtonHint |
+            Qt.WindowType.WindowMinimizeButtonHint |
+            Qt.WindowType.WindowMaximizeButtonHint
+        )
+        
+        # Set window icon
+        try:
+            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        except:
+            pass
+        
+        # Setup UI
+        self.setup_ui()
+        
+        # Load data
+        self.load_categories()
+        self.update_statistics()
+        
+        # Language support
+        lang.language_changed.connect(self.retranslateUi)
+        self.retranslateUi()
+        
+        # ✅ Connect theme change signal for auto-refresh
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+    
+    # ==================== Theme Handling ====================
+    
+    def _on_theme_changed(self, theme_name):
+        """
+        Theme ပြောင်းတဲ့အခါ UI ကို update လုပ်မယ်
+        ✅ FIX: ချက်ချင်း refresh ဖြစ်အောင် load_categories() ကိုခေါ်မယ်
+        """
+        logger.debug(f"CategoryListDialog: Theme changed to {theme_name}, refreshing...")
+        
+        # Update UI styles
+        colors = get_theme_colors()
+        
+        # Update header
+        self._update_header_style(colors)
+        
+        # Update search bar
+        self._update_search_bar_style(colors)
+        
+        # Update table
+        self._update_table_style(colors)
+        
+        # Update pagination status
+        self._update_pagination_status_style(colors)
+        
+        # Update action buttons container
+        self._update_action_buttons_style(colors)
+        
+        # ✅ FIX: Reload categories to refresh table display with new theme colors
+        self.load_categories()
+        
+        # ✅ FIX: Update summary widget
+        if hasattr(self, 'summary_widget'):
+            self.summary_widget.refresh()
+    
+    # ==================== Data Loading ====================
+    
+    def load_categories(self):
+        """Load categories from database"""
+        try:
+            self.load_parent_filter()
+            
+            status_filter = None if self.filter_status == 'all' else self.filter_status
+            parent_filter = self._get_parent_filter()
+            
+            self.categories, total = self.service.get_categories(
+                status=status_filter,
+                parent_id=parent_filter,
+                search=self.search_text if self.search_text else None,
+                limit=self.page_size,
+                offset=(self.current_page - 1) * self.page_size
+            )
+            
+            self.pagination.set_total_items(total, emit_signal=False)
+            self.populate_table(self.categories)
+            self.update_selection_label()
+            
+        except Exception as e:
+            logger.error(f"Failed to load categories: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to load categories: {e}")
+    
+    def load_parent_filter(self):
+        """Load parent filter options"""
+        try:
+            categories, _ = self.service.get_categories(limit=1000)
+            self.parent_filter.blockSignals(True)
+            
+            current = self.parent_filter.currentText()
+            self.parent_filter.clear()
+            self.parent_filter.addItem('📂 All Parents')
+            self.parent_filter.addItem('📁 No Parent')
+            
+            # Add category names with icons
+            cat_names = sorted(set(c['name'] for c in categories if c['name']))
+            for name in cat_names:
+                icon = '📁'
+                for cat in categories:
+                    if cat['name'] == name and cat.get('icon'):
+                        icon = cat['icon']
+                        break
+                self.parent_filter.addItem(f"{icon} {name}")
+            
+            idx = self.parent_filter.findText(current)
+            self.parent_filter.setCurrentIndex(idx if idx >= 0 else 0)
+            self.parent_filter.blockSignals(False)
+            
+        except Exception as e:
+            logger.error(f"Failed to load parent filter: {e}")
+    
+    def _get_parent_filter(self):
+        """Get parent filter value"""
+        current = self.parent_filter.currentText()
+        if current == '📂 All Parents':
+            return None
+        if current == '📁 No Parent':
+            return -1
+        # Find parent ID
+        for cat in self.categories:
+            if cat['name'] == current:
+                return cat['id']
+        return None
+    
+    def update_statistics(self):
+        """Update statistics"""
+        if hasattr(self, 'summary_widget'):
+            self.summary_widget.refresh()
+    
+    def update_selection_label(self):
+        """Update selection label"""
+        selected = len(self.table.selectedIndexes())
+        if selected > 0:
+            rows = set(idx.row() for idx in self.table.selectedIndexes())
+            self.selection_label.setText(f"☑️ {len(rows)} selected")
+        else:
+            self.selection_label.setText("☐ 0 selected")
+    
+    # ==================== Event Handlers ====================
+    
+    def on_summary_card_clicked(self, card_type: str):
+        """Handle click on summary card"""
+        status_map = {
+            'total': 'all',
+            'active': 'active',
+            'inactive': 'inactive',
+            'hidden': 'hidden'
+        }
+        
+        if card_type in status_map:
+            status = status_map[card_type]
+            if status == 'all':
+                self.status_filter.setCurrentIndex(0)
+            elif status == 'active':
+                self.status_filter.setCurrentIndex(1)
+            elif status == 'inactive':
+                self.status_filter.setCurrentIndex(2)
+            elif status == 'hidden':
+                self.status_filter.setCurrentIndex(3)
+            self.filter_status = status
+            self.load_categories()
+        elif card_type == 'products':
+            self.search_input.setText("")
+            self.status_filter.setCurrentIndex(0)
+            QMessageBox.information(self, "Products", 
+                "Categories with products are shown in the list.\n"
+                "You can manage products from the Products section.")
+    
+    def on_page_changed(self, page: int, page_size: int):
+        """Handle page change"""
+        self.current_page = page
+        self.page_size = page_size
+        self.load_categories()
+    
+    def on_search_changed(self, text: str):
+        """Handle search text change"""
+        self.search_text = text.strip()
+        self.current_page = 1
+        self.load_categories()
+    
+    def on_filter_changed(self):
+        """Handle filter change"""
+        self.filter_status = self.status_filter.currentText().lower()
+        self.current_page = 1
+        self.load_categories()
+    
+    def on_selection_changed(self):
+        """Handle selection change"""
+        self.update_selection_label()
+    
+    # ==================== Retranslate ====================
+    
+    def retranslateUi(self):
+        """Retranslate UI"""
+        is_my = lang.get_current() == "my"
+        
+        if is_my:
+            self.setWindowTitle("အမျိုးအစားများ စီမံခန့်ခွဲခြင်း")
+            self.search_input.setPlaceholderText("🔍 အမျိုးအစားရှာရန်...")
+            self.btn_add.setText("➕ အမျိုးအစားအသစ်")
+            self.btn_edit.setText("✏️ ပြင်မည်")
+            self.btn_delete.setText("🗑️ ဖျက်မည်")
+            self.btn_merge.setText("🔀 ပေါင်းမည်")
+            self.btn_export.setText("📤 ထုတ်မည်")
+            self.btn_import.setText("📥 သွင်းမည်")
+            
+            self.table.setHorizontalHeaderLabels([
+                "ID", "အမည်", "မိဘ", "ပစ္စည်း", "အခြေအနေ"
+            ])
+            
+            self.status_filter.setItemText(0, "အားလုံး")
+            self.status_filter.setItemText(1, "အသက်ဝင်")
+            self.status_filter.setItemText(2, "မလှုပ်ရှား")
+            self.status_filter.setItemText(3, "ဝှက်ထား")
+            
+            self.parent_filter.setItemText(0, "📂 မိဘအားလုံး")
+            self.parent_filter.setItemText(1, "📁 မိဘမရှိ")
+            
+        else:
+            self.setWindowTitle("Manage Categories")
+            self.search_input.setPlaceholderText("🔍 Search categories...")
+            self.btn_add.setText("➕ Add Category")
+            self.btn_edit.setText("✏️ Edit")
+            self.btn_delete.setText("🗑️ Delete")
+            self.btn_merge.setText("🔀 Merge")
+            self.btn_export.setText("📤 Export")
+            self.btn_import.setText("📥 Import")
+            
+            self.table.setHorizontalHeaderLabels([
+                "ID", "Name", "Parent", "Products", "Status"
+            ])
+            
+            self.status_filter.setItemText(0, "All")
+            self.status_filter.setItemText(1, "Active")
+            self.status_filter.setItemText(2, "Inactive")
+            self.status_filter.setItemText(3, "Hidden")
+            
+            self.parent_filter.setItemText(0, "📂 All Parents")
+            self.parent_filter.setItemText(1, "📁 No Parent")
+        
+        # ✅ Retranslate summary widget
+        if hasattr(self, 'summary_widget'):
+            self.summary_widget.retranslateUi()
+        
+        # ✅ Refresh table with new language
+        self.load_categories()

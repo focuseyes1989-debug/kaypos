@@ -22,6 +22,15 @@ def create_optimized_indexes():
          "CREATE INDEX IF NOT EXISTS idx_products_name_price ON products(name, price)"),
         ("idx_products_stock_low", 
          "CREATE INDEX IF NOT EXISTS idx_products_stock_low ON products(stock, low_stock)"),
+        # ✅ AI: Product name search
+        ("idx_products_name_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_products_name_idx ON products(name)"),
+        # ✅ AI: Product stock query
+        ("idx_products_stock_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_products_stock_idx ON products(stock)"),
+        # ✅ AI: Product category filter
+        ("idx_products_category_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_products_category_idx ON products(category)"),
         
         # Sales table
         ("idx_sales_customer_date", 
@@ -30,12 +39,21 @@ def create_optimized_indexes():
          "CREATE INDEX IF NOT EXISTS idx_sales_status_date ON sales(status, created_at)"),
         ("idx_sales_payment_type", 
          "CREATE INDEX IF NOT EXISTS idx_sales_payment_type ON sales(payment_type)"),
+        # ✅ AI: Date + Status for sales queries
+        ("idx_sales_date_status", 
+         "CREATE INDEX IF NOT EXISTS idx_sales_date_status ON sales(date(created_at), status)"),
+        # ✅ AI: Created at for sorting
+        ("idx_sales_created_at_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_sales_created_at_idx ON sales(created_at DESC)"),
         
         # Sales Items table
         ("idx_sale_items_product_sale", 
          "CREATE INDEX IF NOT EXISTS idx_sale_items_product_sale ON sale_items(product_name, sale_id)"),
         ("idx_sale_items_sale_product", 
          "CREATE INDEX IF NOT EXISTS idx_sale_items_sale_product ON sale_items(sale_id, product_name)"),
+        # ✅ AI: Product name for top products
+        ("idx_sale_items_product_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_sale_items_product_idx ON sale_items(product_name)"),
         
         # Customers table
         ("idx_customers_phone", 
@@ -44,6 +62,12 @@ def create_optimized_indexes():
          "CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)"),
         ("idx_customers_points", 
          "CREATE INDEX IF NOT EXISTS idx_customers_points ON customers(points)"),
+        # ✅ AI: Customer name search
+        ("idx_customers_name_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_customers_name_idx ON customers(name)"),
+        # ✅ AI: Customer phone search
+        ("idx_customers_phone_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_customers_phone_idx ON customers(phone)"),
         
         # Stock Movements table
         ("idx_stock_movements_type_date", 
@@ -56,12 +80,44 @@ def create_optimized_indexes():
          "CREATE INDEX IF NOT EXISTS idx_expenses_category_date ON expenses(category, expense_date)"),
         ("idx_expenses_amount", 
          "CREATE INDEX IF NOT EXISTS idx_expenses_amount ON expenses(amount)"),
+        # ✅ AI: Expense date for today/monthly queries
+        ("idx_expenses_date_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_expenses_date_idx ON expenses(expense_date DESC)"),
+        # ✅ AI: Expense category filter
+        ("idx_expenses_category_idx", 
+         "CREATE INDEX IF NOT EXISTS idx_expenses_category_idx ON expenses(category)"),
         
-        # Credit Sales table
+        # Credit Sales table - Enhanced for reports
         ("idx_credit_sales_status_date", 
          "CREATE INDEX IF NOT EXISTS idx_credit_sales_status_date ON credit_sales(status, due_date)"),
         ("idx_credit_sales_customer_status", 
          "CREATE INDEX IF NOT EXISTS idx_credit_sales_customer_status ON credit_sales(customer_id, status)"),
+        ("idx_credit_sales_customer_balance_due",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_customer_balance_due ON credit_sales(customer_id, balance_amount, due_date)"),
+        ("idx_credit_sales_sale_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_sale_date ON credit_sales(sale_date DESC)"),
+        ("idx_credit_sales_due_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_due_date ON credit_sales(due_date)"),
+        
+        # Credit Payments table
+        ("idx_credit_payments_customer_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_payments_customer_date ON credit_payments(customer_id, payment_date DESC)"),
+        ("idx_credit_payments_credit_sale",
+         "CREATE INDEX IF NOT EXISTS idx_credit_payments_credit_sale ON credit_payments(credit_sale_id)"),
+        
+        # Credit Adjustments table
+        ("idx_credit_adjustments_customer",
+         "CREATE INDEX IF NOT EXISTS idx_credit_adjustments_customer ON credit_adjustments(customer_id, created_at DESC)"),
+        ("idx_credit_adjustments_type",
+         "CREATE INDEX IF NOT EXISTS idx_credit_adjustments_type ON credit_adjustments(adjustment_type)"),
+        
+        # Credit Transactions table
+        ("idx_credit_transactions_customer",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id, created_at DESC)"),
+        ("idx_credit_transactions_type",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_type ON credit_transactions(transaction_type)"),
+        ("idx_credit_transactions_credit_sale",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_credit_sale ON credit_transactions(credit_sale_id)"),
         
         # Supplier Payments table
         ("idx_supplier_payments_date", 
@@ -100,6 +156,16 @@ def create_optimized_indexes():
          "CREATE INDEX IF NOT EXISTS idx_po_items_product ON purchase_order_items(product_id)"),
         ("idx_po_items_po", 
          "CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items(po_id)"),
+        
+        # Expense Budgets indexes
+        ("idx_expense_budgets_category", 
+         "CREATE INDEX IF NOT EXISTS idx_expense_budgets_category ON expense_budgets(category, month, year)"),
+        
+        # Expense Alerts Log indexes
+        ("idx_expense_alerts_read", 
+         "CREATE INDEX IF NOT EXISTS idx_expense_alerts_read ON expense_alerts_log(is_read)"),
+        ("idx_expense_alerts_created", 
+         "CREATE INDEX IF NOT EXISTS idx_expense_alerts_created ON expense_alerts_log(created_at DESC)"),
     ]
     
     results = {
@@ -132,6 +198,87 @@ def create_optimized_indexes():
     return results
 
 
+def create_ai_optimized_indexes():
+    """
+    ✅ NEW: Create indexes specifically for AI Chat optimization.
+    These indexes speed up common AI query patterns.
+    
+    Returns:
+        Dict with creation results
+    """
+    logger.info("Creating AI optimized indexes...")
+    
+    ai_indexes = [
+        # ✅ Sales date + status (for today, weekly, monthly sales)
+        ("idx_ai_sales_date_status",
+         "CREATE INDEX IF NOT EXISTS idx_ai_sales_date_status ON sales(date(created_at), status)"),
+        
+        # ✅ Sales created_at (for sorting)
+        ("idx_ai_sales_created_at",
+         "CREATE INDEX IF NOT EXISTS idx_ai_sales_created_at ON sales(created_at DESC)"),
+        
+        # ✅ Product name (for search)
+        ("idx_ai_products_name",
+         "CREATE INDEX IF NOT EXISTS idx_ai_products_name ON products(name)"),
+        
+        # ✅ Product stock (for low stock queries)
+        ("idx_ai_products_stock",
+         "CREATE INDEX IF NOT EXISTS idx_ai_products_stock ON products(stock)"),
+        
+        # ✅ Product category (for filtering)
+        ("idx_ai_products_category",
+         "CREATE INDEX IF NOT EXISTS idx_ai_products_category ON products(category)"),
+        
+        # ✅ Customer name (for search)
+        ("idx_ai_customers_name",
+         "CREATE INDEX IF NOT EXISTS idx_ai_customers_name ON customers(name)"),
+        
+        # ✅ Customer phone (for search)
+        ("idx_ai_customers_phone",
+         "CREATE INDEX IF NOT EXISTS idx_ai_customers_phone ON customers(phone)"),
+        
+        # ✅ Expense date (for today/monthly expenses)
+        ("idx_ai_expenses_date",
+         "CREATE INDEX IF NOT EXISTS idx_ai_expenses_date ON expenses(expense_date DESC)"),
+        
+        # ✅ Expense category (for grouping)
+        ("idx_ai_expenses_category",
+         "CREATE INDEX IF NOT EXISTS idx_ai_expenses_category ON expenses(category)"),
+        
+        # ✅ Sale items product name (for top products)
+        ("idx_ai_sale_items_product",
+         "CREATE INDEX IF NOT EXISTS idx_ai_sale_items_product ON sale_items(product_name)"),
+    ]
+    
+    results = {
+        'created': [],
+        'failed': [],
+        'skipped': []
+    }
+    
+    with DBContext() as conn:
+        cursor = conn.cursor()
+        
+        for name, sql in ai_indexes:
+            try:
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name=?", (name,))
+                if cursor.fetchone():
+                    results['skipped'].append(name)
+                    continue
+                
+                cursor.execute(sql)
+                results['created'].append(name)
+                logger.debug(f"Created AI index: {name}")
+            except Exception as e:
+                results['failed'].append({'name': name, 'error': str(e)})
+                logger.error(f"Failed to create AI index {name}: {e}")
+        
+        conn.commit()
+    
+    logger.info(f"Created {len(results['created'])} AI indexes, skipped {len(results['skipped'])} existing, failed {len(results['failed'])}")
+    return results
+
+
 def drop_optimized_indexes():
     """Drop all optimized indexes."""
     indexes = [
@@ -152,6 +299,16 @@ def drop_optimized_indexes():
         'idx_expenses_amount',
         'idx_credit_sales_status_date',
         'idx_credit_sales_customer_status',
+        'idx_credit_sales_customer_balance_due',
+        'idx_credit_sales_sale_date',
+        'idx_credit_sales_due_date',
+        'idx_credit_payments_customer_date',
+        'idx_credit_payments_credit_sale',
+        'idx_credit_adjustments_customer',
+        'idx_credit_adjustments_type',
+        'idx_credit_transactions_customer',
+        'idx_credit_transactions_type',
+        'idx_credit_transactions_credit_sale',
         'idx_supplier_payments_date',
         'idx_supplier_payments_type',
         'idx_product_locations_quantity',
@@ -164,7 +321,21 @@ def drop_optimized_indexes():
         'idx_purchase_orders_status',
         'idx_purchase_orders_date',
         'idx_po_items_product',
-        'idx_po_items_po'
+        'idx_po_items_po',
+        'idx_expense_budgets_category',
+        'idx_expense_alerts_read',
+        'idx_expense_alerts_created',
+        # AI indexes
+        'idx_ai_sales_date_status',
+        'idx_ai_sales_created_at',
+        'idx_ai_products_name',
+        'idx_ai_products_stock',
+        'idx_ai_products_category',
+        'idx_ai_customers_name',
+        'idx_ai_customers_phone',
+        'idx_ai_expenses_date',
+        'idx_ai_expenses_category',
+        'idx_ai_sale_items_product',
     ]
     
     with DBContext() as conn:
@@ -328,3 +499,55 @@ def check_indexes():
             })
         
         return result
+
+
+def create_credit_indexes():
+    """
+    Create all credit-related indexes for better report performance.
+    """
+    credit_indexes = [
+        ("idx_credit_sales_customer_balance_due",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_customer_balance_due ON credit_sales(customer_id, balance_amount, due_date)"),
+        ("idx_credit_sales_sale_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_sale_date ON credit_sales(sale_date DESC)"),
+        ("idx_credit_sales_due_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_sales_due_date ON credit_sales(due_date)"),
+        ("idx_credit_payments_customer_date",
+         "CREATE INDEX IF NOT EXISTS idx_credit_payments_customer_date ON credit_payments(customer_id, payment_date DESC)"),
+        ("idx_credit_payments_credit_sale",
+         "CREATE INDEX IF NOT EXISTS idx_credit_payments_credit_sale ON credit_payments(credit_sale_id)"),
+        ("idx_credit_adjustments_customer",
+         "CREATE INDEX IF NOT EXISTS idx_credit_adjustments_customer ON credit_adjustments(customer_id, created_at DESC)"),
+        ("idx_credit_adjustments_type",
+         "CREATE INDEX IF NOT EXISTS idx_credit_adjustments_type ON credit_adjustments(adjustment_type)"),
+        ("idx_credit_transactions_customer",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id, created_at DESC)"),
+        ("idx_credit_transactions_type",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_type ON credit_transactions(transaction_type)"),
+        ("idx_credit_transactions_credit_sale",
+         "CREATE INDEX IF NOT EXISTS idx_credit_transactions_credit_sale ON credit_transactions(credit_sale_id)"),
+    ]
+    
+    results = {'created': [], 'failed': [], 'skipped': []}
+    
+    with DBContext() as conn:
+        cursor = conn.cursor()
+        
+        for name, sql in credit_indexes:
+            try:
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name=?", (name,))
+                if cursor.fetchone():
+                    results['skipped'].append(name)
+                    continue
+                
+                cursor.execute(sql)
+                results['created'].append(name)
+                logger.debug(f"Created credit index: {name}")
+            except Exception as e:
+                results['failed'].append({'name': name, 'error': str(e)})
+                logger.error(f"Failed to create credit index {name}: {e}")
+        
+        conn.commit()
+    
+    logger.info(f"Created {len(results['created'])} credit indexes")
+    return results

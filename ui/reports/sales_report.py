@@ -1,12 +1,14 @@
 # ui/reports/sales_report.py
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox, QWidget
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QWidget
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.excel_exporter import ExcelExporter
+from ui.widgets import PaginationWidget
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from loguru import logger
-import csv
+from datetime import datetime
 
 
 class SalesReportWorker(QObject):
@@ -14,10 +16,12 @@ class SalesReportWorker(QObject):
     error = pyqtSignal(str)
     result = pyqtSignal(dict)
     
-    def __init__(self, from_date, to_date):
+    def __init__(self, from_date, to_date, page=1, page_size=50):
         super().__init__()
         self.from_date = from_date
         self.to_date = to_date
+        self.page = page
+        self.page_size = page_size
     
     def run(self):
         try:
@@ -25,12 +29,22 @@ class SalesReportWorker(QObject):
             cursor = conn.cursor()
             
             cursor.execute("""
+                SELECT COUNT(*) FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
+            """, (self.from_date, self.to_date))
+            total_count = cursor.fetchone()[0]
+            
+            offset = (self.page - 1) * self.page_size
+            
+            cursor.execute("""
                 SELECT s.created_at, s.invoice_no, c.name, s.total, s.payment, s.change_amount
                 FROM sales s
                 LEFT JOIN customers c ON s.customer_id = c.id
                 WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
                 ORDER BY s.created_at DESC
-            """, (self.from_date, self.to_date))
+                LIMIT ? OFFSET ?
+            """, (self.from_date, self.to_date, self.page_size, offset))
             rows = cursor.fetchall()
             
             total_sales = sum(row[3] for row in rows) if rows else 0
@@ -43,7 +57,11 @@ class SalesReportWorker(QObject):
                 'rows': rows,
                 'total_sales': total_sales,
                 'transaction_count': transaction_count,
-                'avg_sale': avg_sale
+                'avg_sale': avg_sale,
+                'total_count': total_count,
+                'current_page': self.page,
+                'page_size': self.page_size,
+                'total_pages': (total_count + self.page_size - 1) // self.page_size if total_count > 0 else 1
             })
         except Exception as e:
             self.error.emit(str(e))
@@ -57,22 +75,131 @@ class SalesReportTab(QWidget):
         self.parent_dialog = parent
         self._is_loading = False
         self._current_data = None
+        self.current_page = 1
+        self.page_size = 50
+        self.total_items = 0
+        self._is_dark = is_dark_theme()
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
         self.setup_ui()
+    
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        self._apply_theme()
+    
+    def _apply_theme(self):
+        """Apply theme-aware styles"""
+        colors = get_theme_colors()
+        is_dark = is_dark_theme()
+        
+        if is_dark:
+            table_style = """
+                QTableWidget {
+                    background-color: #2f3136;
+                    alternate-background-color: #36393f;
+                    selection-background-color: #40444b;
+                    selection-color: #dcddde;
+                    gridline-color: #40444b;
+                    border: 1px solid #40444b;
+                    border-radius: 6px;
+                    color: #dcddde;
+                }
+                QTableWidget::item {
+                    padding: 8px 12px;
+                    color: #dcddde;
+                }
+                QTableWidget::item:selected {
+                    background-color: #40444b;
+                    color: #dcddde;
+                }
+                QHeaderView::section {
+                    background-color: #202225;
+                    padding: 8px 12px;
+                    border: none;
+                    border-bottom: 2px solid #40444b;
+                    font-weight: 600;
+                    font-size: 10pt;
+                    color: #b9bbbe;
+                }
+                QTableWidget::item:hover {
+                    background-color: #40444b;
+                }
+            """
+        else:
+            table_style = """
+                QTableWidget {
+                    background-color: white;
+                    alternate-background-color: #f8f9fa;
+                    selection-background-color: #e9ecef;
+                    selection-color: #212529;
+                    gridline-color: #dee2e6;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    color: #212529;
+                }
+                QTableWidget::item {
+                    padding: 8px 12px;
+                    color: #212529;
+                }
+                QTableWidget::item:selected {
+                    background-color: #e9ecef;
+                    color: #212529;
+                }
+                QHeaderView::section {
+                    background-color: #f8f9fa;
+                    padding: 8px 12px;
+                    border: none;
+                    border-bottom: 2px solid #dee2e6;
+                    font-weight: 600;
+                    font-size: 10pt;
+                    color: #2c3e50;
+                }
+                QTableWidget::item:hover {
+                    background-color: #f1f3f5;
+                }
+            """
+        
+        self.table.setStyleSheet(table_style)
     
     def setup_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(10)
         
-        # Summary cards
+        # Summary cards using SummaryCardWidget with SVG icons
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(10)
         
-        self.total_card = self.parent_dialog.create_card("Total Sales")
+        # Total Sales Card
+        self.total_card = self.parent_dialog.create_summary_card(
+            title="Total Sales",
+            value="0",
+            icon="attach_money",
+            color="#2ecc71",
+            icon_is_svg=True
+        )
         card_layout.addWidget(self.total_card, 1)
         
-        self.count_card = self.parent_dialog.create_card("Transactions")
+        # Transactions Card
+        self.count_card = self.parent_dialog.create_summary_card(
+            title="Transactions",
+            value="0",
+            icon="receipt_long",
+            color="#3498db",
+            icon_is_svg=True
+        )
         card_layout.addWidget(self.count_card, 1)
         
-        self.avg_card = self.parent_dialog.create_card("Average Sale")
+        # Average Sale Card
+        self.avg_card = self.parent_dialog.create_summary_card(
+            title="Average Sale",
+            value="0",
+            icon="analytics",
+            color="#f39c12",
+            icon_is_svg=True
+        )
         card_layout.addWidget(self.avg_card, 1)
         
         layout.addLayout(card_layout)
@@ -83,6 +210,10 @@ class SalesReportTab(QWidget):
         self.table.setHorizontalHeaderLabels(["Date", "Invoice No", "Customer", "Total", "Payment", "Change"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        
+        # Apply initial theme
+        self._apply_theme()
+        
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -92,19 +223,38 @@ class SalesReportTab(QWidget):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.table)
         
+        # Pagination
+        self.pagination = PaginationWidget()
+        self.pagination.page_changed.connect(self.on_page_changed)
+        layout.addWidget(self.pagination)
+        
         self.setLayout(layout)
     
-    def refresh(self, from_date, to_date):
+    def on_page_changed(self, page, page_size):
+        self.current_page = page
+        self.page_size = page_size
+        self.refresh_current_page()
+    
+    def refresh_current_page(self):
+        if self._is_loading:
+            return
+        from_date, to_date = self.parent_dialog.get_date_range()
+        self.refresh(from_date, to_date, self.current_page, self.page_size)
+    
+    def refresh(self, from_date, to_date, page=1, page_size=50):
         if self._is_loading:
             return
         
         self._is_loading = True
-        self.table.setRowCount(0)
-        self.total_card.amount_label.setText("Loading...")
-        self.count_card.amount_label.setText("Loading...")
-        self.avg_card.amount_label.setText("Loading...")
+        self.current_page = page
+        self.page_size = page_size
         
-        worker = SalesReportWorker(from_date, to_date)
+        self.table.setRowCount(0)
+        self.total_card.set_value("Loading...")
+        self.count_card.set_value("Loading...")
+        self.avg_card.set_value("Loading...")
+        
+        worker = SalesReportWorker(from_date, to_date, page, page_size)
         thread = QThread()
         worker.moveToThread(thread)
         
@@ -121,22 +271,52 @@ class SalesReportTab(QWidget):
     
     def on_refresh_complete(self, result):
         symbol = get_currency_symbol()
+        is_dark = is_dark_theme()
+        text_color = "#dcddde" if is_dark else "#212529"
+        green_color = "#3ba55d" if is_dark else "#28a745"
         
         self._current_data = result
         self._is_loading = False
+        self.total_items = result.get('total_count', 0)
         
-        self.parent_dialog.update_card(self.total_card, result['total_sales'], symbol)
-        self.count_card.amount_label.setText(str(result['transaction_count']))
-        self.parent_dialog.update_card(self.avg_card, result['avg_sale'], symbol)
+        self.pagination.set_total_items(self.total_items, emit_signal=False)
+        
+        # Update cards using summary card methods
+        self.parent_dialog.update_summary_card(self.total_card, result['total_sales'], symbol)
+        self.count_card.set_value(str(result['transaction_count']))
+        self.parent_dialog.update_summary_card(self.avg_card, result['avg_sale'], symbol)
         
         self.table.setRowCount(len(result['rows']))
         for i, row in enumerate(result['rows']):
-            self.table.setItem(i, 0, QTableWidgetItem(str(row[0])[:16] if row[0] else ""))
-            self.table.setItem(i, 1, QTableWidgetItem(row[1] or ""))
-            self.table.setItem(i, 2, QTableWidgetItem(row[2] if row[2] else "Walk-in"))
-            self.table.setItem(i, 3, QTableWidgetItem(format_money(row[3], symbol)))
-            self.table.setItem(i, 4, QTableWidgetItem(format_money(row[4], symbol)))
-            self.table.setItem(i, 5, QTableWidgetItem(format_money(row[5], symbol)))
+            # Date
+            date_item = QTableWidgetItem(str(row[0])[:16] if row[0] else "")
+            date_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 0, date_item)
+            
+            # Invoice No
+            inv_item = QTableWidgetItem(row[1] or "")
+            inv_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 1, inv_item)
+            
+            # Customer
+            cust_item = QTableWidgetItem(row[2] if row[2] else "Walk-in")
+            cust_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 2, cust_item)
+            
+            # Total
+            total_item = QTableWidgetItem(format_money(row[3], symbol))
+            total_item.setForeground(QColor(green_color))
+            self.table.setItem(i, 3, total_item)
+            
+            # Payment
+            payment_item = QTableWidgetItem(format_money(row[4], symbol))
+            payment_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 4, payment_item)
+            
+            # Change
+            change_item = QTableWidgetItem(format_money(row[5], symbol))
+            change_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 5, change_item)
         
         self.parent_dialog.on_refresh_complete()
     
@@ -156,7 +336,7 @@ class SalesReportTab(QWidget):
         
         try:
             from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.styles import Font, PatternFill, Alignment
             
             symbol = get_currency_symbol()
             
@@ -171,7 +351,6 @@ class SalesReportTab(QWidget):
             """, (from_date, to_date))
             rows = cursor.fetchall()
             
-            # Get totals
             cursor.execute("""
                 SELECT COALESCE(SUM(total), 0), COUNT(*), COALESCE(AVG(total), 0)
                 FROM sales
@@ -208,7 +387,6 @@ class SalesReportTab(QWidget):
                 cell.fill = PatternFill(start_color="2c3e50", end_color="2c3e50", fill_type="solid")
                 cell.alignment = Alignment(horizontal="center")
             
-            # Data
             for row_idx, row in enumerate(rows, start=11):
                 ws.cell(row=row_idx, column=1, value=str(row[0]) if row[0] else "")
                 ws.cell(row=row_idx, column=2, value=row[1] or "")
@@ -217,7 +395,6 @@ class SalesReportTab(QWidget):
                 ws.cell(row=row_idx, column=5, value=float(row[4]) if row[4] else 0)
                 ws.cell(row=row_idx, column=6, value=float(row[5]) if row[5] else 0)
             
-            # Auto adjust columns
             for col in range(1, 7):
                 ws.column_dimensions[chr(64 + col)].auto_size = True
             
@@ -226,3 +403,33 @@ class SalesReportTab(QWidget):
             
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
+    
+    def refresh_from_parent(self, from_date, to_date):
+        self.current_page = 1
+        self.refresh(from_date, to_date, 1, self.page_size)
+    
+    def retranslateUi(self):
+        """Retranslate UI for language change"""
+        lang = self.parent_dialog.get_lang() if hasattr(self.parent_dialog, 'get_lang') else "en"
+        
+        if lang == "my":
+            self.total_card.set_title("စုစုပေါင်းရောင်းအား")
+            self.count_card.set_title("ငွေပေးချေမှုအရေအတွက်")
+            self.avg_card.set_title("ပျမ်းမျှရောင်းအား")
+            self.table.setHorizontalHeaderLabels([
+                "ရက်စွဲ", "ပြေစာအမှတ်", "ဝယ်ယူသူ", "စုစုပေါင်း", "ငွေပေးချေမှု", "ပြန်အမ်းငွေ"
+            ])
+        else:
+            self.total_card.set_title("Total Sales")
+            self.count_card.set_title("Transactions")
+            self.avg_card.set_title("Average Sale")
+            self.table.setHorizontalHeaderLabels([
+                "Date", "Invoice No", "Customer", "Total", "Payment", "Change"
+            ])
+        
+        # Update card icons
+        self.total_card.set_icon("attach_money", is_svg=True, size=(24, 24))
+        self.count_card.set_icon("receipt_long", is_svg=True, size=(24, 24))
+        self.avg_card.set_icon("analytics", is_svg=True, size=(24, 24))
+        
+        self._apply_theme()

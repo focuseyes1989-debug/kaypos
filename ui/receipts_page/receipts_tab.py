@@ -2,116 +2,98 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
-    QLineEdit, QComboBox, QFileDialog, QDateEdit
+    QComboBox, QFileDialog, QGridLayout
 )
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.permissions import PermissionManager, Permission
 from ui.receipt_detail_dialog import ReceiptDetailDialog
 from ui.receipt_dialog import ReceiptDialog
 from ui.widgets.pagination_widget import PaginationWidget
+from ui.widgets.search_widget import SearchWidget
+from ui.widgets.toast_notification_widget import ToastNotificationWidget
+from ui.widgets.modern_button import ModernButton
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from services.credit_service import CreditService
 import csv
 from datetime import datetime
+from loguru import logger
 
 
 class ReceiptsTab(QWidget):
+    """Receipts Tab - Theme-aware (uses parent's date range)"""
+    
     def __init__(self, user_id=None, user_role=None, parent=None):
         super().__init__(parent)
         self.user_id = user_id
         self.user_role = user_role
+        self.credit_service = CreditService()
+        self._is_dark = is_dark_theme()
+        self.parent_page = parent
+        
+        # Store current date range
+        self._current_from_date = None
+        self._current_to_date = None
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
         layout = QVBoxLayout()
+        layout.setSpacing(10)
 
-        # ====== Quick Filter Buttons ======
-        quick_filter_layout = QHBoxLayout()
-        quick_filter_layout.setSpacing(5)
-        
-        self.btn_today = QPushButton("Today")
-        self.btn_today.setFixedWidth(80)
-        self.btn_today.clicked.connect(lambda: self.set_quick_filter(0))
-        quick_filter_layout.addWidget(self.btn_today)
-        
-        self.btn_week = QPushButton("This Week")
-        self.btn_week.setFixedWidth(80)
-        self.btn_week.clicked.connect(lambda: self.set_quick_filter(7))
-        quick_filter_layout.addWidget(self.btn_week)
-        
-        self.btn_month = QPushButton("This Month")
-        self.btn_month.setFixedWidth(80)
-        self.btn_month.clicked.connect(lambda: self.set_quick_filter(30))
-        quick_filter_layout.addWidget(self.btn_month)
-        
-        self.btn_3months = QPushButton("3 Months")
-        self.btn_3months.setFixedWidth(80)
-        self.btn_3months.clicked.connect(lambda: self.set_quick_filter(90))
-        quick_filter_layout.addWidget(self.btn_3months)
-        
-        self.btn_6months = QPushButton("6 Months")
-        self.btn_6months.setFixedWidth(80)
-        self.btn_6months.clicked.connect(lambda: self.set_quick_filter(180))
-        quick_filter_layout.addWidget(self.btn_6months)
-        
-        self.btn_year = QPushButton("This Year")
-        self.btn_year.setFixedWidth(80)
-        self.btn_year.clicked.connect(self.set_year_filter)
-        quick_filter_layout.addWidget(self.btn_year)
-        
-        quick_filter_layout.addStretch()
-        layout.addLayout(quick_filter_layout)
-
-        # Top bar: search and filters
+        # ====== Top bar: Search and Filters ======
         top_layout = QHBoxLayout()
+        top_layout.setSpacing(10)
+        top_layout.setContentsMargins(0, 8, 0, 8)
         
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by invoice no...")
-        self.search_input.textChanged.connect(self.reset_and_load)
-        top_layout.addWidget(self.search_input, 2)
+        # SearchWidget - ရှာဖွေမှုကို invoice_no, customer_name, payment_type အားလုံးနဲ့ ရှာနိုင်အောင်
+        self.search_widget = SearchWidget(
+            placeholder="Search by invoice no, customer, or payment type...",
+            show_label=True
+        )
+        self.search_widget.search_changed.connect(self.reset_and_load)
+        top_layout.addWidget(self.search_widget, 2)
         
-        # ====== ✅ PAYMENT TYPE FILTER (from general settings) ======
-        top_layout.addWidget(QLabel("Payment:"))
+        # Payment type filter
+        payment_label = QLabel("Payment:")
+        payment_label.setStyleSheet(self._get_label_style())
+        top_layout.addWidget(payment_label)
         
         self.payment_filter = QComboBox()
-        # Load from database later
         self.payment_filter.currentTextChanged.connect(self.reset_and_load)
+        self.payment_filter.setStyleSheet(self._get_combobox_style())
         top_layout.addWidget(self.payment_filter)
         
-        # ====== ✅ CUSTOMER TYPE FILTER ======
-        top_layout.addWidget(QLabel("Customer:"))
+        # Customer filter
+        customer_label = QLabel("Customer:")
+        customer_label.setStyleSheet(self._get_label_style())
+        top_layout.addWidget(customer_label)
         
         self.customer_filter = QComboBox()
         self.customer_filter.addItems(["All", "Walk-in", "Registered", "Credit"])
         self.customer_filter.currentTextChanged.connect(self.reset_and_load)
+        self.customer_filter.setStyleSheet(self._get_combobox_style())
         top_layout.addWidget(self.customer_filter)
         
-        # Date range filters
-        self.from_date = QDateEdit()
-        self.from_date.setCalendarPopup(True)
-        self.from_date.setDate(QDate.currentDate().addDays(-30))
-        self.from_date.dateChanged.connect(self.reset_and_load)
-        top_layout.addWidget(QLabel("From:"))
-        top_layout.addWidget(self.from_date)
-        
-        self.to_date = QDateEdit()
-        self.to_date.setCalendarPopup(True)
-        self.to_date.setDate(QDate.currentDate())
-        self.to_date.dateChanged.connect(self.reset_and_load)
-        top_layout.addWidget(QLabel("To:"))
-        top_layout.addWidget(self.to_date)
-        
-        # Export buttons
-        self.btn_export_list = QPushButton("📋 Export List")
+        # Export buttons with SVG icons
+        self.btn_export_list = ModernButton(" Export List", ModernButton.SECONDARY)
+        self.btn_export_list.set_icon("file_export", size=(16, 16))
+        self.btn_export_list.set_compact(True)
         self.btn_export_list.clicked.connect(self.export_receipt_list)
         top_layout.addWidget(self.btn_export_list)
         
-        self.btn_export_range = QPushButton("📊 Export Range")
+        self.btn_export_range = ModernButton(" Export Range", ModernButton.SECONDARY)
+        self.btn_export_range.set_icon("file_export", size=(16, 16))
+        self.btn_export_range.set_compact(True)
         self.btn_export_range.clicked.connect(self.export_receipt_range)
         top_layout.addWidget(self.btn_export_range)
         
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
-        # Table (10 columns)
+        # ====== Table - NO custom style, use PyQt6 default ======
         self.table = QTableWidget()
         self.table.setColumnCount(10)
         self.table.setColumnHidden(0, True)
@@ -119,66 +101,164 @@ class ReceiptsTab(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.cellDoubleClicked.connect(self.show_receipt_detail)
         self.table.setAlternatingRowColors(True)
+        
+        # Set row height to accommodate buttons
+        self.table.verticalHeader().setDefaultSectionSize(52)
+        self.table.verticalHeader().setMinimumSectionSize(48)
+
+        # ✅ NO custom table style
+        # self._update_table_style(colors)  <-- ဒီ line ကို ဖယ်ရှားပါ
 
         header = self.table.horizontalHeader()
         for col in range(1, 8):
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
-        self.table.verticalHeader().setDefaultSectionSize(45)
         
-        self.table.setColumnWidth(8, 100)
-        self.table.setColumnWidth(9, 100)
+        self.table.setColumnWidth(8, 110)
+        self.table.setColumnWidth(9, 110)
         
         layout.addWidget(self.table)
 
-        # Pagination
+        # ====== Pagination ======
         self.pagination = PaginationWidget()
+        self.pagination.set_page_size(100, emit_signal=False)
         self.pagination.page_changed.connect(self.on_page_changed)
         layout.addWidget(self.pagination)
 
+        # ====== Toast Notification ======
+        self.toast = ToastNotificationWidget(self)
+
         self.setLayout(layout)
+        
+        # Apply initial theme
+        self._apply_theme()
+        
         self.retranslateUi()
         
         # Load payment types from database
         self.load_payment_types()
 
-    # ---------- Load Payment Types from General Settings ----------
+    def _centered_cell_widget(self, widget):
+        container = QWidget()
+        container.setStyleSheet("background: transparent; border: none;")
+        container.setMinimumHeight(48)
+        layout = QGridLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(widget, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        return container
+
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        self._apply_theme()
+        self._update_button_icons()
+        self.load_sales()
+
+    def _update_button_icons(self):
+        """Update button icons when theme changes"""
+        self.btn_export_list.set_icon("file_export", size=(16, 16))
+        self.btn_export_range.set_icon("file_export", size=(16, 16))
+
+    def _apply_theme(self):
+        """Apply theme-aware styles"""
+        colors = get_theme_colors()
+        
+        # ✅ NO table style update
+        # self._update_table_style(colors)  <-- ဒီ line ကို ဖယ်ရှားပါ
+        
+        # Update comboboxes
+        if hasattr(self, 'payment_filter'):
+            self.payment_filter.setStyleSheet(self._get_combobox_style())
+        if hasattr(self, 'customer_filter'):
+            self.customer_filter.setStyleSheet(self._get_combobox_style())
+        
+        # Update labels
+        for child in self.findChildren(QLabel):
+            child.setStyleSheet(self._get_label_style())
+        
+        # Update button icons
+        self._update_button_icons()
+    
+    def _get_label_style(self):
+        colors = get_theme_colors()
+        return f"color: {colors['text']}; font-size: 10pt;"
+    
+    def _get_combobox_style(self):
+        colors = get_theme_colors()
+        return f"""
+            QComboBox {{
+                padding: 5px 10px;
+                border: 1px solid {colors['border']};
+                border-radius: 6px;
+                background: {colors['card_bg']};
+                color: {colors['text']};
+                font-size: 9pt;
+                min-width: 90px;
+                max-height: 32px;
+            }}
+            QComboBox:focus {{
+                border-color: #5865f2;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
+                color: {colors['text']};
+                selection-background-color: #5865f2;
+                selection-color: white;
+                padding: 4px;
+            }}
+            QComboBox QAbstractItemView::item {{
+                padding: 4px 8px;
+                border-radius: 2px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {colors['bg_hover']};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: #5865f2;
+                color: white;
+            }}
+        """
+
+    # ---------- Load Payment Types ----------
     def load_payment_types(self):
-        """Load payment types from database (same as general_setting.py)"""
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM payment_types ORDER BY name")
         rows = cursor.fetchall()
         conn.close()
         
-        # Clear and add "All" as first item
-        self.payment_filter.clear()
+        self.payment_filter.blockSignals(True)
         lang = self.get_lang()
+        self.payment_filter.clear()
         self.payment_filter.addItem("All" if lang != "my" else "အားလုံး")
         
         for row in rows:
             self.payment_filter.addItem(row[0])
+        self.payment_filter.blockSignals(False)
 
-    # ---------- Language support ----------
+    # ---------- Language ----------
     def get_lang(self):
         from utils.language import lang
         return lang.get_current()
 
     def retranslateUi(self):
         lang = self.get_lang()
+        colors = get_theme_colors()
+        
+        self.search_widget.retranslateUi(lang)
+        
         if lang == "my":
-            self.search_input.setPlaceholderText("ပြေစာအမှတ်ဖြင့် ရှာရန်...")
-            self.btn_export_list.setText("📋 စာရင်းထုတ်မည်")
-            self.btn_export_range.setText("📊 ရက်ကား အလိုက် ထုတ်မည်")
-            self.btn_today.setText("ယနေ့")
-            self.btn_week.setText("ဤတစ်ပတ်")
-            self.btn_month.setText("ဤတစ်လ")
-            self.btn_3months.setText("၃ လ")
-            self.btn_6months.setText("၆ လ")
-            self.btn_year.setText("ဤတစ်နှစ်")
+            self.search_widget.search_input.setPlaceholderText("ပြေစာအမှတ်၊ ဝယ်ယူသူ သို့မဟုတ် ငွေပေးချေမှုအမျိုးအစားဖြင့် ရှာရန်...")
+            self.btn_export_list.setText(" စာရင်းထုတ်မည်")
+            self.btn_export_range.setText(" ရက်ကား အလိုက် ထုတ်မည်")
             
-            # Customer filter - Myanmar
             self.customer_filter.setItemText(0, "အားလုံး")
             self.customer_filter.setItemText(1, "လမ်းဘေးဝယ်")
             self.customer_filter.setItemText(2, "မှတ်ပုံတင်ထားသူ")
@@ -189,17 +269,10 @@ class ReceiptsTab(QWidget):
                 "ပြန်အမ်းငွေ", "ဝယ်ယူသူ", "ငွေပေးချေမှုအမျိုးအစား", "ပြန်အမ်းမည်", "ပြေစာထုတ်မည်"
             ]
         else:
-            self.search_input.setPlaceholderText("Search by invoice no...")
-            self.btn_export_list.setText("📋 Export List")
-            self.btn_export_range.setText("📊 Export Range")
-            self.btn_today.setText("Today")
-            self.btn_week.setText("This Week")
-            self.btn_month.setText("This Month")
-            self.btn_3months.setText("3 Months")
-            self.btn_6months.setText("6 Months")
-            self.btn_year.setText("This Year")
+            self.search_widget.search_input.setPlaceholderText("Search by invoice no, customer, or payment type...")
+            self.btn_export_list.setText(" Export List")
+            self.btn_export_range.setText(" Export Range")
             
-            # Customer filter - English
             self.customer_filter.setItemText(0, "All")
             self.customer_filter.setItemText(1, "Walk-in")
             self.customer_filter.setItemText(2, "Registered")
@@ -209,161 +282,236 @@ class ReceiptsTab(QWidget):
                 "ID", "Invoice No", "Date", "Total", "Payment", "Change", 
                 "Customer", "Payment Type", "Refund", "Print"
             ]
+        
         self.table.setHorizontalHeaderLabels(headers)
         
-        self.table.setColumnWidth(8, 100)
+        self.table.setColumnWidth(8, 110)
         self.table.setColumnWidth(9, 100)
         
-        self.load_sales()
-
-    def set_quick_filter(self, days):
-        today = QDate.currentDate()
-        from_date = today.addDays(-days)
-        self.from_date.setDate(from_date)
-        self.to_date.setDate(today)
-        self.reset_and_load()
-    
-    def set_year_filter(self):
-        today = QDate.currentDate()
-        from_date = QDate(today.year(), 1, 1)
-        self.from_date.setDate(from_date)
-        self.to_date.setDate(today)
-        self.reset_and_load()
+        # Update button icons
+        self._update_button_icons()
+        
+        # Apply theme after language change
+        self._apply_theme()
 
     def on_page_changed(self, page: int, page_size: int):
-        self.load_sales(page, page_size)
+        self.load_sales(page=page, page_size=page_size)
 
     def reset_and_load(self):
         self.pagination.set_current_page(1)
         self.load_sales()
 
-    def get_date_range(self):
-        from_date = self.from_date.date().toString("yyyy-MM-dd")
-        to_date = self.to_date.date().toString("yyyy-MM-dd")
-        return from_date, to_date
-
-    def get_currency_symbol(self):
-        from utils.currency import get_currency_symbol
-        return get_currency_symbol()
-
-    # ---------- LOAD SALES WITH PAYMENT AND CUSTOMER FILTERS ----------
-    def load_sales(self, page=1, page_size=50):
-        symbol = get_currency_symbol()
-        search_text = self.search_input.text().strip()
-        from_date = self.from_date.date().toString("yyyy-MM-dd")
-        to_date = self.to_date.date().toString("yyyy-MM-dd")
-        lang = self.get_lang()
-        
-        # Get payment type filter
-        payment_type = self.payment_filter.currentText()
-        
-        # Get customer filter
-        customer_filter = self.customer_filter.currentText()
-        
-        conn = connect_db()
-        cursor = conn.cursor()
-        like = f'%{search_text}%'
-        
-        # ✅ FIX: Use LOWER() for case-insensitive comparison
-        payment_condition = ""
-        if payment_type and payment_type not in ["All", "အားလုံး"]:
-            # Get the actual payment type name from database (case-insensitive)
-            cursor.execute("SELECT name FROM payment_types WHERE LOWER(name) = LOWER(?)", (payment_type,))
-            result = cursor.fetchone()
-            if result:
-                actual_name = result[0]
-                payment_condition = f"AND LOWER(s.payment_type) = LOWER('{actual_name}')"
+    # ============================================================
+    # ✅ FIXED: load_sales() - Search by payment type too
+    # ============================================================
+    def load_sales(self, from_date=None, to_date=None, page=1, page_size=None):
+        """Load sales with pagination - search by invoice_no, customer_name, and payment_type"""
+        try:
+            symbol = get_currency_symbol()
+            search_text = self.search_widget.get_text().strip()
+            lang = self.get_lang()
+            if page_size is None:
+                page_size = getattr(self.pagination, "_page_size", 100)
+            try:
+                page_size = int(page_size)
+            except (TypeError, ValueError):
+                page_size = 100
+            
+            # Get date range from parent
+            if from_date is not None and to_date is not None:
+                self._current_from_date = from_date
+                self._current_to_date = to_date
+            elif hasattr(self.parent_page, 'get_current_date_range'):
+                from_date, to_date = self.parent_page.get_current_date_range()
+                self._current_from_date = from_date
+                self._current_to_date = to_date
             else:
-                payment_condition = f"AND LOWER(s.payment_type) = LOWER('{payment_type}')"
-        
-        # Build customer condition
-        customer_condition = ""
-        if customer_filter == "Walk-in" or customer_filter == "လမ်းဘေးဝယ်":
-            customer_condition = "AND s.customer_id IS NULL"
-        elif customer_filter == "Registered" or customer_filter == "မှတ်ပုံတင်ထားသူ":
-            customer_condition = "AND s.customer_id IS NOT NULL"
-        elif customer_filter == "Credit" or customer_filter == "အကြွေး":
-            customer_condition = "AND LOWER(s.payment_type) = 'credit'"
-        
-        # Count total with filters
-        if search_text:
-            cursor.execute(f"""
+                today = QDate.currentDate().toString("yyyy-MM-dd")
+                from_date, to_date = today, today
+                self._current_from_date = from_date
+                self._current_to_date = to_date
+            
+            payment_type = self.payment_filter.currentText()
+            customer_filter = self.customer_filter.currentText()
+            
+            conn = connect_db()
+            cursor = conn.cursor()
+            
+            # ✅ Search condition - include payment_type in search
+            search_condition = ""
+            search_params = []
+            
+            if search_text:
+                # Search by invoice_no, customer name, or payment_type
+                search_condition = """AND (
+                    s.invoice_no LIKE ? 
+                    OR COALESCE(c.name, '') LIKE ? 
+                    OR LOWER(s.payment_type) LIKE LOWER(?)
+                )"""
+                like = f'%{search_text}%'
+                search_params = [like, like, like]
+            
+            payment_condition = ""
+            filter_params = []
+            if payment_type and payment_type not in ["All", "အားလုံး"]:
+                cursor.execute("SELECT name FROM payment_types WHERE LOWER(name) = LOWER(?)", (payment_type,))
+                result = cursor.fetchone()
+                if result:
+                    actual_name = result[0]
+                else:
+                    actual_name = payment_type
+                payment_condition = "AND LOWER(COALESCE(s.payment_type, '')) = LOWER(?)"
+                filter_params.append(actual_name)
+            
+            customer_condition = ""
+            if customer_filter == "Walk-in" or customer_filter == "လမ်းဘေးဝယ်":
+                customer_condition = "AND s.customer_id IS NULL"
+            elif customer_filter == "Registered" or customer_filter == "မှတ်ပုံတင်ထားသူ":
+                customer_condition = "AND s.customer_id IS NOT NULL"
+            elif customer_filter == "Credit" or customer_filter == "အကြွေး":
+                customer_condition = "AND LOWER(s.payment_type) = 'credit'"
+            
+            # Build WHERE clause
+            where_clause = f"""
+                WHERE s.status='completed' 
+                  AND date(s.created_at) BETWEEN ? AND ?
+                  {search_condition}
+                  {payment_condition}
+                  {customer_condition}
+            """
+            
+            # Count query
+            count_query = f"""
                 SELECT COUNT(*) FROM sales s
                 LEFT JOIN customers c ON s.customer_id = c.id
-                WHERE s.status='completed' 
-                  AND date(s.created_at) BETWEEN ? AND ?
-                  AND (s.invoice_no LIKE ? OR c.name LIKE ?)
-                  {payment_condition}
-                  {customer_condition}
-            """, (from_date, to_date, like, like))
-        else:
-            cursor.execute(f"""
-                SELECT COUNT(*) FROM sales s
-                LEFT JOIN customers c ON s.customer_id = c.id
-                WHERE s.status='completed' 
-                  AND date(s.created_at) BETWEEN ? AND ?
-                  {payment_condition}
-                  {customer_condition}
-            """, (from_date, to_date))
-        total_items = cursor.fetchone()[0]
-        self.pagination.set_total_items(total_items, emit_signal=False)
-        
-        offset = (page - 1) * page_size
-        
-        # Main query with filters
-        if search_text:
-            cursor.execute(f"""
-                SELECT s.id, s.invoice_no, s.created_at, s.total, s.payment, s.change_amount, 
-                       c.name, s.payment_type
+                {where_clause}
+            """
+            
+            # Count params
+            count_params = [from_date, to_date] + search_params + filter_params
+            
+            cursor.execute(count_query, count_params)
+            total_items = cursor.fetchone()[0]
+            
+            # Convert to int
+            try:
+                total_items = int(total_items) if total_items is not None else 0
+            except (ValueError, TypeError):
+                total_items = 0
+            
+            # Ensure page and page_size are int
+            try:
+                page = int(page) if page is not None else 1
+            except (ValueError, TypeError):
+                page = 1
+            
+            try:
+                page_size = int(page_size) if page_size is not None else 50
+            except (ValueError, TypeError):
+                page_size = 50
+            
+            # Set pagination
+            try:
+                self.pagination.set_total_items(total_items, emit_signal=False)
+            except Exception as e:
+                logger.error(f"Error setting pagination total items: {e}")
+                self.pagination.set_total_items(0, emit_signal=False)
+            
+            offset = (page - 1) * page_size
+            
+            # Select query
+            select_query = f"""
+                SELECT 
+                    s.id, 
+                    s.invoice_no, 
+                    s.created_at, 
+                    COALESCE(SUM(si.qty * si.price), 0) as total,
+                    s.payment, 
+                    s.change_amount, 
+                    c.name, 
+                    s.payment_type
                 FROM sales s
                 LEFT JOIN customers c ON s.customer_id = c.id
-                WHERE s.status='completed' 
-                  AND date(s.created_at) BETWEEN ? AND ?
-                  AND (s.invoice_no LIKE ? OR c.name LIKE ?)
-                  {payment_condition}
-                  {customer_condition}
+                LEFT JOIN sale_items si ON s.id = si.sale_id
+                {where_clause}
+                GROUP BY s.id
                 ORDER BY s.created_at DESC
                 LIMIT ? OFFSET ?
-            """, (from_date, to_date, like, like, page_size, offset))
-        else:
-            cursor.execute(f"""
-                SELECT s.id, s.invoice_no, s.created_at, s.total, s.payment, s.change_amount, 
-                       c.name, s.payment_type
-                FROM sales s
-                LEFT JOIN customers c ON s.customer_id = c.id
-                WHERE s.status='completed' 
-                  AND date(s.created_at) BETWEEN ? AND ?
-                  {payment_condition}
-                  {customer_condition}
-                ORDER BY s.created_at DESC
-                LIMIT ? OFFSET ?
-            """, (from_date, to_date, page_size, offset))
-        rows = cursor.fetchall()
-        conn.close()
-        
-        self.table.setRowCount(0)
-        for row_data in rows:
-            sale_id, invoice_no, created_at, total, payment, change_amount, customer_name, payment_type_db = row_data
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(str(sale_id)))
-            self.table.setItem(row, 1, QTableWidgetItem(invoice_no))
-            self.table.setItem(row, 2, QTableWidgetItem(str(created_at)))
-            self.table.setItem(row, 3, QTableWidgetItem(format_money(total, symbol)))
-            self.table.setItem(row, 4, QTableWidgetItem(format_money(payment, symbol)))
-            self.table.setItem(row, 5, QTableWidgetItem(format_money(change_amount, symbol)))
-            self.table.setItem(row, 6, QTableWidgetItem(customer_name if customer_name else "-"))
-            self.table.setItem(row, 7, QTableWidgetItem(payment_type_db if payment_type_db else "-"))
+            """
+            
+            select_params = [from_date, to_date] + search_params + filter_params + [page_size, offset]
+            
+            cursor.execute(select_query, select_params)
+            rows = cursor.fetchall()
+            conn.close()
+            
+            self.table.setRowCount(0)
+            for row_data in rows:
+                sale_id, invoice_no, created_at, total, payment, change_amount, customer_name, payment_type_db = row_data
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self.table.setRowHeight(row, 52)
+                
+                # ✅ Use PyQt6 default colors - no custom text color
+                # ID (hidden)
+                id_item = QTableWidgetItem(str(sale_id))
+                self.table.setItem(row, 0, id_item)
+                
+                # Invoice No
+                inv_item = QTableWidgetItem(invoice_no)
+                self.table.setItem(row, 1, inv_item)
+                
+                # Date
+                date_item = QTableWidgetItem(str(created_at))
+                self.table.setItem(row, 2, date_item)
+                
+                # Total
+                total_item = QTableWidgetItem(format_money(total, symbol))
+                self.table.setItem(row, 3, total_item)
+                
+                # Payment
+                payment_item = QTableWidgetItem(format_money(payment, symbol))
+                self.table.setItem(row, 4, payment_item)
+                
+                # Change
+                change_item = QTableWidgetItem(format_money(change_amount, symbol))
+                self.table.setItem(row, 5, change_item)
+                
+                # Customer
+                cust_name = customer_name if customer_name else "-"
+                cust_item = QTableWidgetItem(cust_name)
+                self.table.setItem(row, 6, cust_item)
+                
+                # Payment Type
+                ptype_item = QTableWidgetItem(payment_type_db if payment_type_db else "-")
+                self.table.setItem(row, 7, ptype_item)
 
-            btn_refund = QPushButton("ပြန်အမ်းမည်" if lang == "my" else "Refund")
-            btn_refund.setFixedSize(90, 30)
-            btn_refund.clicked.connect(lambda _, sid=sale_id: self.refund_sale(sid))
-            self.table.setCellWidget(row, 8, btn_refund)
+                # Refund button
+                btn_refund = ModernButton("Refund" if lang != "my" else "ပြန်အမ်းမည်", ModernButton.PRIMARY)
+                btn_refund.set_icon("currency_exchange", size=(14, 14))
+                btn_refund.set_compact(True)
+                btn_refund.setFixedHeight(32)
+                btn_refund.setMinimumWidth(80)
+                btn_refund.setMaximumWidth(100)
+                btn_refund.clicked.connect(lambda _, sid=sale_id: self.refund_sale(sid))
+                self.table.setCellWidget(row, 8, self._centered_cell_widget(btn_refund))
 
-            btn_print = QPushButton("ထုတ်မည်" if lang == "my" else "Print")
-            btn_print.setFixedSize(90, 30)
-            btn_print.clicked.connect(lambda _, sid=sale_id: self.print_receipt(sid))
-            self.table.setCellWidget(row, 9, btn_print)
+                # Print button
+                btn_print = ModernButton("Print" if lang != "my" else "ထုတ်မည်", ModernButton.SECONDARY)
+                btn_print.set_icon("print", size=(14, 14))
+                btn_print.set_compact(True)
+                btn_print.setFixedHeight(32)
+                btn_print.setMinimumWidth(70)
+                btn_print.setMaximumWidth(100)
+                btn_print.clicked.connect(lambda _, sid=sale_id: self.print_receipt(sid))
+                self.table.setCellWidget(row, 9, self._centered_cell_widget(btn_print))
+                
+        except Exception as e:
+            logger.error(f"Error loading sales: {e}")
+            self.table.setRowCount(1)
+            error_item = QTableWidgetItem(f"Error loading data: {str(e)}")
+            error_item.setForeground(QColor("#dc3545"))
+            self.table.setItem(0, 1, error_item)
 
     def show_receipt_detail(self, row, column):
         sale_id_item = self.table.item(row, 0)
@@ -380,7 +528,6 @@ class ReceiptsTab(QWidget):
             QMessageBox.critical(self, "Print Error", f"Could not print receipt: {e}")
 
     def refund_sale(self, sale_id):
-        """Refund a sale - restore stock and adjust customer points"""
         lang = self.get_lang()
         
         if self.user_id:
@@ -394,11 +541,13 @@ class ReceiptsTab(QWidget):
             confirm_text = "ဤရောင်းချမှုကို ပြန်အမ်းမည်လား?\nစတော့ပြန်လည်သိုလှောင်ပေးမည်ဖြစ်ပြီး အမှတ်များကို ပြန်လည်ချိန်ညှိပေးမည်။"
             success_msg = "အောင်မြင်စွာ ပြန်အမ်းပြီးပါပြီ။"
             error_msg = "ပြန်အမ်းခြင်း မအောင်မြင်ပါ: {e}"
+            partial_refund_msg = "ဤအကြွေးစာရင်းတွင် ကျန်ငွေရှိသေးသောကြောင့် အပြည့်အဝ ပြန်အမ်းနိုင်မည်မဟုတ်ပါ။ ဦးစွာ ကျန်ငွေကို ကောက်ခံပါ။"
         else:
             confirm_title = "Confirm Refund"
             confirm_text = "Refund this sale? Stock will be restored and customer points adjusted."
             success_msg = "Sale refunded successfully."
             error_msg = "Refund failed: {e}"
+            partial_refund_msg = "This credit sale still has remaining balance. Please collect the outstanding amount first."
 
         confirm = QMessageBox.question(
             self, confirm_title, confirm_text,
@@ -428,32 +577,11 @@ class ReceiptsTab(QWidget):
                 
             customer_id, total, invoice_no, payment_type = sale_data
 
-            cursor.execute("SELECT product_name, qty FROM sale_items WHERE sale_id=?", (sale_id,))
-            items = cursor.fetchall()
-            
-            for product_name, qty in items:
-                cursor.execute("SELECT id, sold_by FROM products WHERE name=?", (product_name,))
-                prod = cursor.fetchone()
-                if prod and prod[1] != 'Service':
-                    cursor.execute("UPDATE products SET stock = stock + ? WHERE id=?", (qty, prod[0]))
-
-            if customer_id:
-                cursor.execute("SELECT value FROM settings WHERE key='loyalty_points_per_dollar'")
-                res = cursor.fetchone()
-                points_per_dollar = float(res[0]) if res else 0.0
-                points_earned = int(total * points_per_dollar)
-                
-                cursor.execute("""
-                    UPDATE customers 
-                    SET total_visit = total_visit - 1,
-                        total_spent = total_spent - ?,
-                        points = points - ?
-                    WHERE id = ?
-                """, (total, points_earned, customer_id))
-
+            # Check credit sale
+            credit_sale = None
             if customer_id and (payment_type or "").lower() == "credit":
                 cursor.execute("""
-                    SELECT id, balance_amount, status
+                    SELECT id, balance_amount, paid_amount, status
                     FROM credit_sales
                     WHERE sale_id = ?
                     LIMIT 1
@@ -462,39 +590,144 @@ class ReceiptsTab(QWidget):
 
                 if not credit_sale and invoice_no:
                     cursor.execute("""
-                        SELECT id, balance_amount, status
+                        SELECT id, balance_amount, paid_amount, status
                         FROM credit_sales
                         WHERE invoice_no = ? AND customer_id = ?
                         LIMIT 1
                     """, (invoice_no, customer_id))
                     credit_sale = cursor.fetchone()
 
-                if credit_sale:
-                    credit_sale_id, balance_amount, credit_status = credit_sale
-                    balance_to_remove = max(float(balance_amount or 0), 0)
+            # Handle credit refund - FIXED
+            if credit_sale:
+                credit_sale_id, balance_amount, paid_amount, credit_status = credit_sale
+                balance_amount = float(balance_amount or 0)
+                paid_amount = float(paid_amount or 0)
+                
+                if credit_status != "refunded":
+                    # Check if this is a credit sale with no payment yet
+                    if balance_amount > 0 and paid_amount == 0:
+                        # Unpaid credit sale - can refund directly
+                        result = self.credit_service.refund_credit_sale(
+                            credit_sale_id=credit_sale_id,
+                            reason="Unpaid credit refund",
+                            refund_type='full'
+                        )
+                        if not result.get('success'):
+                            QMessageBox.critical(self, "Error", f"Refund failed: {result.get('error')}")
+                            return
+                    elif balance_amount == 0 and paid_amount > 0:
+                        # Fully paid credit sale - needs payment refund
+                        result = self.credit_service.refund_credit_sale(
+                            credit_sale_id=credit_sale_id,
+                            reason="Fully paid credit refund",
+                            refund_type='full'
+                        )
+                        if not result.get('success'):
+                            QMessageBox.critical(self, "Error", f"Refund failed: {result.get('error')}")
+                            return
+                    elif balance_amount > 0 and paid_amount > 0:
+                        # Partially paid - cannot refund full, must collect remaining first
+                        QMessageBox.warning(self, "Cannot Refund", partial_refund_msg)
+                        return
+                    elif balance_amount == 0 and paid_amount == 0:
+                        # Zero balance, zero paid - can refund
+                        result = self.credit_service.refund_credit_sale(
+                            credit_sale_id=credit_sale_id,
+                            reason="Zero balance refund",
+                            refund_type='full'
+                        )
+                        if not result.get('success'):
+                            QMessageBox.critical(self, "Error", f"Refund failed: {result.get('error')}")
+                            return
 
-                    if credit_status != "refunded":
-                        if balance_to_remove > 0:
-                            cursor.execute("""
-                                UPDATE customers
-                                SET current_balance = CASE
-                                    WHEN COALESCE(current_balance, 0) - ? < 0 THEN 0
-                                    ELSE COALESCE(current_balance, 0) - ?
-                                END
-                                WHERE id = ?
-                            """, (balance_to_remove, balance_to_remove, customer_id))
+            # Restore stock to the original product/location/batch when available.
+            cursor.execute("PRAGMA table_info(sale_items)")
+            sale_item_cols = {row[1] for row in cursor.fetchall()}
+            wanted_cols = [
+                "product_name", "qty",
+                "product_id" if "product_id" in sale_item_cols else "NULL AS product_id",
+                "variant_id" if "variant_id" in sale_item_cols else "NULL AS variant_id",
+                "location_id" if "location_id" in sale_item_cols else "NULL AS location_id",
+                "location" if "location" in sale_item_cols else "'' AS location",
+                "batch_no" if "batch_no" in sale_item_cols else "'' AS batch_no",
+                "expire_date" if "expire_date" in sale_item_cols else "'' AS expire_date",
+            ]
+            cursor.execute(f"SELECT {', '.join(wanted_cols)} FROM sale_items WHERE sale_id=?", (sale_id,))
+            items = cursor.fetchall()
+            
+            for product_name, qty, product_id, variant_id, location_id, location, batch_no, expire_date in items:
+                qty = int(qty or 0)
+                if qty <= 0:
+                    continue
 
-                        cursor.execute("""
-                            UPDATE credit_sales
-                            SET balance_amount = 0, status = 'refunded'
-                            WHERE id = ?
-                        """, (credit_sale_id,))
+                if not product_id:
+                    clean_name = str(product_name or "").split(" (", 1)[0]
+                    cursor.execute("SELECT id, sold_by FROM products WHERE name=?", (clean_name,))
+                else:
+                    cursor.execute("SELECT id, sold_by FROM products WHERE id=?", (product_id,))
+                prod = cursor.fetchone()
+                if not prod or prod[1] == 'Service':
+                    continue
+
+                product_id = prod[0]
+                cursor.execute("UPDATE products SET stock = stock + ?, last_updated = CURRENT_TIMESTAMP WHERE id=?", (qty, product_id))
+
+                if variant_id:
+                    cursor.execute("""
+                        UPDATE product_variants
+                        SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ? AND product_id = ?
+                    """, (qty, variant_id, product_id))
+                    restore_location = location or "Variant"
+                else:
+                    restore_location = location or "Default"
+                    restore_batch = batch_no or ""
+                    restore_expire = expire_date or ""
+                    cursor.execute("""
+                        INSERT INTO product_locations
+                            (product_id, location, batch_no, expire_date, quantity, last_updated)
+                        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(product_id, location, batch_no, expire_date)
+                        DO UPDATE SET quantity = quantity + excluded.quantity,
+                                      last_updated = CURRENT_TIMESTAMP
+                    """, (product_id, restore_location, restore_batch, restore_expire, qty))
+
+                cursor.execute("""
+                    INSERT INTO stock_movements
+                        (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, notes, location)
+                    VALUES (
+                        ?, 'refund', ?, 
+                        (SELECT COALESCE(stock, 0) - ? FROM products WHERE id = ?),
+                        (SELECT COALESCE(stock, 0) FROM products WHERE id = ?),
+                        'Refund', ?, 'System', ?, ?
+                    )
+                """, (
+                    product_id, qty, qty, product_id, product_id, invoice_no,
+                    f"Refund sale item: {product_name}; batch: {batch_no or 'N/A'}; expiry: {expire_date or 'N/A'}",
+                    restore_location,
+                ))
+
+            # Adjust customer points
+            if customer_id:
+                cursor.execute("SELECT value FROM settings WHERE key='loyalty_points_per_dollar'")
+                res = cursor.fetchone()
+                points_per_dollar = float(res[0]) if res else 0.0
+                points_earned = int(total * points_per_dollar)
+                
+                cursor.execute("""
+                    UPDATE customers 
+                    SET total_visit = CASE WHEN total_visit > 0 THEN total_visit - 1 ELSE 0 END,
+                        total_spent = CASE WHEN total_spent >= ? THEN total_spent - ? ELSE 0 END,
+                        points = CASE WHEN points >= ? THEN points - ? ELSE 0 END
+                    WHERE id = ?
+                """, (total, total, points_earned, points_earned, customer_id))
 
             cursor.execute("UPDATE sales SET status='refunded' WHERE id=?", (sale_id,))
             conn.commit()
             
             QMessageBox.information(self, "Success", success_msg)
 
+            # Refresh UI
             main_window = self.window()
             if hasattr(main_window, 'check_stock_alerts'):
                 main_window.check_stock_alerts()
@@ -513,12 +746,24 @@ class ReceiptsTab(QWidget):
         finally:
             conn.close()
 
-    # ---------- EXPORT FUNCTIONS ----------
+    # ============================================================
+    # Export functions (updated with search support)
+    # ============================================================
     def export_receipt_list(self):
-        """Export current receipt list to CSV"""
-        from_date, to_date = self.get_date_range()
+        """Export receipt list using stored date range"""
+        if self._current_from_date and self._current_to_date:
+            from_date, to_date = self._current_from_date, self._current_to_date
+        elif hasattr(self.parent_page, 'get_current_date_range'):
+            from_date, to_date = self.parent_page.get_current_date_range()
+            self._current_from_date = from_date
+            self._current_to_date = to_date
+        else:
+            today = QDate.currentDate().toString("yyyy-MM-dd")
+            from_date, to_date = today, today
+            
         payment_type = self.payment_filter.currentText()
         customer_filter = self.customer_filter.currentText()
+        search_text = self.search_widget.get_text().strip()
         
         file_path, _ = QFileDialog.getSaveFileName(
             self, 
@@ -530,53 +775,60 @@ class ReceiptsTab(QWidget):
             return
         
         try:
-            symbol = self.get_currency_symbol()
-            search_text = self.search_input.text().strip()
+            symbol = get_currency_symbol()
             
             conn = connect_db()
             cursor = conn.cursor()
             
-            like = f'%{search_text}%'
+            # Search condition
+            search_condition = ""
+            search_params = []
             
-            # Build payment condition
+            if search_text:
+                search_condition = """AND (
+                    s.invoice_no LIKE ? 
+                    OR COALESCE(c.name, '') LIKE ? 
+                    OR LOWER(s.payment_type) LIKE LOWER(?)
+                )"""
+                like = f'%{search_text}%'
+                search_params = [like, like, like]
+            
             payment_condition = ""
-            if payment_type and payment_type != "All" and payment_type != "အားလုံး":
-                payment_condition = f"AND s.payment_type = '{payment_type.lower()}'"
+            if payment_type and payment_type not in ["All", "အားလုံး"]:
+                payment_condition = f"AND LOWER(s.payment_type) = LOWER('{payment_type}')"
             
-            # Build customer condition
             customer_condition = ""
             if customer_filter == "Walk-in" or customer_filter == "လမ်းဘေးဝယ်":
                 customer_condition = "AND s.customer_id IS NULL"
             elif customer_filter == "Registered" or customer_filter == "မှတ်ပုံတင်ထားသူ":
                 customer_condition = "AND s.customer_id IS NOT NULL"
             elif customer_filter == "Credit" or customer_filter == "အကြွေး":
-                customer_condition = "AND s.payment_type = 'credit'"
+                customer_condition = "AND LOWER(s.payment_type) = 'credit'"
             
-            if search_text:
-                cursor.execute(f"""
-                    SELECT s.invoice_no, s.created_at, s.total, s.payment, s.change_amount, 
-                           c.name, s.payment_type
-                    FROM sales s
-                    LEFT JOIN customers c ON s.customer_id = c.id
-                    WHERE s.status='completed' 
-                      AND date(s.created_at) BETWEEN ? AND ?
-                      AND (s.invoice_no LIKE ? OR c.name LIKE ?)
-                      {payment_condition}
-                      {customer_condition}
-                    ORDER BY s.created_at DESC
-                """, (from_date, to_date, like, like))
-            else:
-                cursor.execute(f"""
-                    SELECT s.invoice_no, s.created_at, s.total, s.payment, s.change_amount, 
-                           c.name, s.payment_type
-                    FROM sales s
-                    LEFT JOIN customers c ON s.customer_id = c.id
-                    WHERE s.status='completed' 
-                      AND date(s.created_at) BETWEEN ? AND ?
-                      {payment_condition}
-                      {customer_condition}
-                    ORDER BY s.created_at DESC
-                """, (from_date, to_date))
+            select_query = f"""
+                SELECT 
+                    s.invoice_no, 
+                    s.created_at, 
+                    COALESCE(SUM(si.qty * si.price), 0) as total,
+                    s.payment, 
+                    s.change_amount, 
+                    c.name, 
+                    s.payment_type
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                LEFT JOIN sale_items si ON s.id = si.sale_id
+                WHERE s.status='completed' 
+                  AND date(s.created_at) BETWEEN ? AND ?
+                  {search_condition}
+                  {payment_condition}
+                  {customer_condition}
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+            """
+            
+            select_params = [from_date, to_date] + search_params
+            
+            cursor.execute(select_query, select_params)
             rows = cursor.fetchall()
             conn.close()
             
@@ -590,9 +842,9 @@ class ReceiptsTab(QWidget):
                 writer.writerow(["Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 if search_text:
                     writer.writerow(["Search Filter:", search_text])
-                if payment_type and payment_type != "All" and payment_type != "အားလုံး":
+                if payment_type and payment_type not in ["All", "အားလုံး"]:
                     writer.writerow(["Payment Type:", payment_type])
-                if customer_filter and customer_filter != "All" and customer_filter != "အားလုံး":
+                if customer_filter and customer_filter not in ["All", "အားလုံး"]:
                     writer.writerow(["Customer Type:", customer_filter])
                 writer.writerow([])
                 writer.writerow(["Invoice No", "Date", "Total", "Payment", "Change", "Customer", "Payment Type"])
@@ -634,10 +886,20 @@ class ReceiptsTab(QWidget):
             QMessageBox.critical(self, "Export Error", f"Failed to export receipt list: {e}")
 
     def export_receipt_range(self):
-        """Export all receipts within date range to CSV"""
-        from_date, to_date = self.get_date_range()
+        """Export receipt range using stored date range"""
+        if self._current_from_date and self._current_to_date:
+            from_date, to_date = self._current_from_date, self._current_to_date
+        elif hasattr(self.parent_page, 'get_current_date_range'):
+            from_date, to_date = self.parent_page.get_current_date_range()
+            self._current_from_date = from_date
+            self._current_to_date = to_date
+        else:
+            today = QDate.currentDate().toString("yyyy-MM-dd")
+            from_date, to_date = today, today
+            
         payment_type = self.payment_filter.currentText()
         customer_filter = self.customer_filter.currentText()
+        search_text = self.search_widget.get_text().strip()
         
         file_path, _ = QFileDialog.getSaveFileName(
             self, 
@@ -649,52 +911,83 @@ class ReceiptsTab(QWidget):
             return
         
         try:
-            symbol = self.get_currency_symbol()
+            symbol = get_currency_symbol()
             
             conn = connect_db()
             cursor = conn.cursor()
             
-            # Build payment condition
-            payment_condition = ""
-            if payment_type and payment_type != "All" and payment_type != "အားလုံး":
-                payment_condition = f"AND s.payment_type = '{payment_type.lower()}'"
+            # Search condition
+            search_condition = ""
+            search_params = []
             
-            # Build customer condition
+            if search_text:
+                search_condition = """AND (
+                    s.invoice_no LIKE ? 
+                    OR COALESCE(c.name, '') LIKE ? 
+                    OR LOWER(s.payment_type) LIKE LOWER(?)
+                )"""
+                like = f'%{search_text}%'
+                search_params = [like, like, like]
+            
+            payment_condition = ""
+            if payment_type and payment_type not in ["All", "အားလုံး"]:
+                payment_condition = f"AND LOWER(s.payment_type) = LOWER('{payment_type}')"
+            
             customer_condition = ""
             if customer_filter == "Walk-in" or customer_filter == "လမ်းဘေးဝယ်":
                 customer_condition = "AND s.customer_id IS NULL"
             elif customer_filter == "Registered" or customer_filter == "မှတ်ပုံတင်ထားသူ":
                 customer_condition = "AND s.customer_id IS NOT NULL"
             elif customer_filter == "Credit" or customer_filter == "အကြွေး":
-                customer_condition = "AND s.payment_type = 'credit'"
+                customer_condition = "AND LOWER(s.payment_type) = 'credit'"
             
-            cursor.execute(f"""
-                SELECT s.invoice_no, s.created_at, s.total, s.payment, s.change_amount, 
-                       c.name, s.payment_type, s.discount_amount
+            select_query = f"""
+                SELECT 
+                    s.invoice_no, 
+                    s.created_at, 
+                    COALESCE(SUM(si.qty * si.price), 0) as total,
+                    s.payment, 
+                    s.change_amount, 
+                    c.name, 
+                    s.payment_type, 
+                    s.discount_amount
                 FROM sales s
                 LEFT JOIN customers c ON s.customer_id = c.id
+                LEFT JOIN sale_items si ON s.id = si.sale_id
                 WHERE s.status='completed' 
                   AND date(s.created_at) BETWEEN ? AND ?
+                  {search_condition}
                   {payment_condition}
                   {customer_condition}
+                GROUP BY s.id
                 ORDER BY s.created_at DESC
-            """, (from_date, to_date))
+            """
+            
+            select_params = [from_date, to_date] + search_params
+            
+            cursor.execute(select_query, select_params)
             rows = cursor.fetchall()
             
-            cursor.execute(f"""
+            # Stats query
+            stats_query = f"""
                 SELECT 
-                    COUNT(*) as total_count,
-                    COALESCE(SUM(total), 0) as total_sales,
-                    COALESCE(SUM(payment), 0) as total_payments,
-                    COALESCE(SUM(change_amount), 0) as total_change,
-                    COALESCE(AVG(total), 0) as avg_sale
+                    COUNT(DISTINCT s.id) as total_count,
+                    COALESCE(SUM(si.qty * si.price), 0) as total_sales,
+                    COALESCE(SUM(s.payment), 0) as total_payments,
+                    COALESCE(SUM(s.change_amount), 0) as total_change,
+                    COALESCE(AVG(si.qty * si.price), 0) as avg_sale
                 FROM sales s
-                LEFT JOIN customers c ON s.customer_id = c.id
+                LEFT JOIN sale_items si ON s.id = si.sale_id
                 WHERE s.status='completed' 
                   AND date(s.created_at) BETWEEN ? AND ?
+                  {search_condition}
                   {payment_condition}
                   {customer_condition}
-            """, (from_date, to_date))
+            """
+            
+            stats_params = [from_date, to_date] + search_params
+            
+            cursor.execute(stats_query, stats_params)
             stats = cursor.fetchone()
             conn.close()
             
@@ -706,9 +999,11 @@ class ReceiptsTab(QWidget):
                 writer.writerow([])
                 writer.writerow(["Report Period:", f"{from_date} to {to_date}"])
                 writer.writerow(["Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-                if payment_type and payment_type != "All" and payment_type != "အားလုံး":
+                if search_text:
+                    writer.writerow(["Search Filter:", search_text])
+                if payment_type and payment_type not in ["All", "အားလုံး"]:
                     writer.writerow(["Payment Type Filter:", payment_type])
-                if customer_filter and customer_filter != "All" and customer_filter != "အားလုံး":
+                if customer_filter and customer_filter not in ["All", "အားလုံး"]:
                     writer.writerow(["Customer Type:", customer_filter])
                 writer.writerow([])
                 
@@ -765,6 +1060,6 @@ class ReceiptsTab(QWidget):
             QMessageBox.critical(self, "Export Error", f"Failed to export receipt range: {e}")
 
     def showEvent(self, event):
-        self.load_payment_types()  # Reload payment types from DB
+        self.load_payment_types()
         self.load_sales()
         super().showEvent(event)

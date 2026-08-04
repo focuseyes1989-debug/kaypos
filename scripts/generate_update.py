@@ -10,8 +10,14 @@ import hashlib
 import zipfile
 import shutil
 import re
+import argparse
 from datetime import datetime
 from pathlib import Path
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # 🔥 Get the project root directory
 def get_project_root():
@@ -23,6 +29,7 @@ def get_project_root():
     return current_dir
 
 PROJECT_ROOT = get_project_root()
+DEFAULT_REPO = "focuseyes1989-debug/ZAY_POS"
 
 def get_version_input():
     """Get version from user input."""
@@ -40,21 +47,18 @@ def get_version_input():
             print("❌ Invalid version format! Please use format: x.y.z")
 
 def find_versioned_folder(version):
-    """Find the versioned folder in dist directory."""
-    # 🔥 Use project root for dist folder
+    """Find the full application build folder in dist."""
     dist_folder = PROJECT_ROOT / "dist"
-    
-    print(f"📂 Looking in: {dist_folder}")
-    
+    print(f"?? Looking in: {dist_folder}")
+
     if not dist_folder.exists():
-        print(f"❌ dist folder not found at: {dist_folder}")
+        print(f"? dist folder not found at: {dist_folder}")
         print(f"   Current directory: {os.getcwd()}")
         print(f"   Project root: {PROJECT_ROOT}")
         return None
-    
-    print(f"✅ Found dist folder: {dist_folder}")
-    
-    # 🔥 Check all possible locations
+
+    print(f"? Found dist folder: {dist_folder}")
+
     possible_locations = [
         dist_folder / f"ZAY_POS_v{version}",
         dist_folder / f"ZAY_POS_{version}",
@@ -62,41 +66,43 @@ def find_versioned_folder(version):
         dist_folder / f"ZAY_POS_{version}_update",
         dist_folder / f"{version}",
     ]
-    
-    # Also check for any folder containing the version
+
     for folder in dist_folder.iterdir():
         if folder.is_dir() and version in folder.name:
             possible_locations.append(folder)
-    
-    # Check each location
+
     for location in possible_locations:
-        if location.exists() and location.is_dir():
-            exe_path = location / "ZAY_POS.exe"
-            if exe_path.exists():
-                print(f"✅ Found versioned folder: {location}")
-                return location
-    
-    # 🔥 If not found, ask user for location
-    print(f"\n⚠️ Could not find versioned folder automatically.")
+        if location.exists() and location.is_dir() and (location / "ZAY_POS.exe").exists():
+            print(f"? Found versioned folder: {location}")
+            return location
+
+    candidate_folders = [p for p in dist_folder.iterdir() if p.is_dir() and (p / "ZAY_POS.exe").exists()]
+    if candidate_folders:
+        latest_folder = sorted(candidate_folders, key=lambda item: item.name, reverse=True)[0]
+        print(f"? Using latest available build folder: {latest_folder}")
+        return latest_folder
+
+    print(f"\n?? Could not find versioned folder automatically.")
     print(f"   Looking for: ZAY_POS_v{version}")
-    print("\n📂 Available folders in dist:")
+    print("\n?? Available folders in dist:")
     for item in dist_folder.iterdir():
         if item.is_dir():
             print(f"   - {item.name}")
         elif item.is_file() and item.suffix == '.exe':
             print(f"   - {item.name} (file)")
-    
-    manual_path = input(f"\n📁 Enter the folder path manually (or press Enter to cancel): ").strip()
+
+    manual_path = input(f"\n?? Enter the folder path manually (or press Enter to cancel): ").strip()
     if manual_path:
         manual_folder = Path(manual_path)
         if not manual_folder.is_absolute():
             manual_folder = PROJECT_ROOT / manual_folder
-        if manual_folder.exists() and manual_folder.is_dir():
+        if manual_folder.exists() and manual_folder.is_dir() and (manual_folder / "ZAY_POS.exe").exists():
             return manual_folder
-    
+        print("? Manual folder does not contain ZAY_POS.exe")
+
     return None
 
-def generate_update():
+def generate_update(version=None, github_repo=DEFAULT_REPO):
     """Generate update package."""
     print("=" * 60)
     print("📦 ZAY POS UPDATE GENERATOR")
@@ -106,11 +112,13 @@ def generate_update():
     print(f"📂 Current directory: {os.getcwd()}")
     
     # Get version
-    version = get_version_input()
+    if version:
+        if not re.match(r'^\d+\.\d+\.\d+$', version):
+            print(f"Invalid version format: {version}")
+            return None
+    else:
+        version = get_version_input()
     print(f"\n📌 Generating update for version: {version}")
-    
-    # GitHub repository
-    github_repo = "focuseyes1989-debug/ZAY_POS"
     
     # 🔥 Create update directory in project root
     update_dir = PROJECT_ROOT / "update_build"
@@ -153,6 +161,12 @@ def generate_update():
     if launcher_path.exists():
         files_to_copy.append("ZAY_POS_Launcher.exe")
         print("✅ Found ZAY_POS_Launcher.exe")
+    else:
+        fallback_launcher = PROJECT_ROOT / "dist_launcher" / "ZAY_POS_Launcher.exe"
+        if fallback_launcher.exists():
+            shutil.copy2(fallback_launcher, update_dir / "ZAY_POS_Launcher.exe")
+            print("✅ Copied ZAY_POS_Launcher.exe from dist_launcher")
+            files_to_copy.append("ZAY_POS_Launcher.exe")
     
     # Check for version.txt
     version_txt = versioned_folder / "version.txt"
@@ -164,6 +178,14 @@ def generate_update():
         with open(update_dir / "version.txt", 'w', encoding='utf-8') as f:
             f.write(f'ProductVersion = "{version}"\nFileVersion = "{version}"\n')
         print("✅ Created version.txt")
+    
+    # Copy PyInstaller onedir runtime files.
+    internal_folder = versioned_folder / "_internal"
+    if internal_folder.exists():
+        shutil.copytree(internal_folder, update_dir / "_internal", dirs_exist_ok=True)
+        print("? Added: _internal/")
+    else:
+        print(f"?? _internal folder not found in: {versioned_folder}")
     
     # Copy assets if exists
     assets_folder = versioned_folder / "assets"
@@ -257,9 +279,15 @@ def generate_update():
     return version_info
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate ZAY POS update package")
+    parser.add_argument("--version", help="Version to package (e.g., 1.0.8)")
+    parser.add_argument("--repo", default=DEFAULT_REPO, help="GitHub repo in owner/name format")
+    args = parser.parse_args()
+
     # 🔥 Change to project root if running from scripts folder
     if Path(__file__).parent.name == "scripts":
         os.chdir(PROJECT_ROOT)
         print(f"📂 Changed directory to: {os.getcwd()}")
     
-    generate_update()
+    result = generate_update(args.version, args.repo)
+    sys.exit(0 if result else 1)

@@ -8,6 +8,7 @@ from models.database import connect_db
 
 
 class AutoBackupManager(QObject):
+    backup_started = pyqtSignal(str)
     backup_created = pyqtSignal(str)
     backup_failed = pyqtSignal(str)
 
@@ -18,6 +19,7 @@ class AutoBackupManager(QObject):
         self.max_backups = 30  # Keep maximum 30 backups
         self.timer = QTimer()
         self.timer.timeout.connect(self.create_backup)
+        self.running = False
         
         # Create backup directory if not exists
         os.makedirs(self.backup_dir, exist_ok=True)
@@ -58,6 +60,7 @@ class AutoBackupManager(QObject):
             # Start timer (interval in milliseconds)
             interval_ms = self.interval_hours * 3600000
             self.timer.start(interval_ms)
+            self.running = True
             logger.info(f"Auto backup started - Interval: {self.interval_hours} hours")
             # Create first backup after 5 seconds
             QTimer.singleShot(5000, self.create_backup)
@@ -65,6 +68,7 @@ class AutoBackupManager(QObject):
     def stop(self):
         """Stop auto backup timer"""
         self.timer.stop()
+        self.running = False
         logger.info("Auto backup stopped")
 
     def get_last_backup_time(self):
@@ -118,6 +122,7 @@ class AutoBackupManager(QObject):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_filename = f"pos_backup_auto_{timestamp}.db"
             backup_path = os.path.join(self.backup_dir, backup_filename)
+            self.backup_started.emit("Auto backup: creating database backup")
             
             # Copy database file
             shutil.copy2(db_path, backup_path)

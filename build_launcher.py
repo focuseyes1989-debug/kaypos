@@ -12,6 +12,10 @@ import site
 import re
 from pathlib import Path
 
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 APP_NAME = "ZAY_POS"
 LAUNCHER_NAME = "ZAY_POS_Launcher"
 
@@ -189,7 +193,7 @@ def build_launcher(version):
     cmd = [
         sys.executable,
         '-m', 'PyInstaller',
-        '--onedir',
+        '--onefile',
         '--windowed',
         '--clean',
         '--noconfirm',

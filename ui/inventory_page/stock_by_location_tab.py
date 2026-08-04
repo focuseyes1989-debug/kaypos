@@ -2,23 +2,33 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QPushButton, 
                              QComboBox, QLabel, QLineEdit)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 from models.database import connect_db
 from utils.currency import format_money
 from ui.widgets.pagination_widget import PaginationWidget
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.search_widget import SearchWidget
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from datetime import datetime
+import os
 
 
 class StockByLocationTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_page = parent
+        self.current_page = 1
+        self.page_size = 50
+        self._is_dark = is_dark_theme()
+        
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         # Filter section
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(10)
+        filter_layout.setContentsMargins(0, 8, 0, 8)
         
         filter_layout.addWidget(QLabel("Location:"))
         self.location_filter = QComboBox()
@@ -26,29 +36,42 @@ class StockByLocationTab(QWidget):
         self.location_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.location_filter)
         
-        filter_layout.addWidget(QLabel("Search:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search product by name or SKU...")
-        self.search_input.textChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.search_input)
+        # ✅ SearchWidget with SVG icon
+        self.search_widget = SearchWidget(
+            placeholder="Search product by name or SKU...",
+            show_label=False
+        )
+        self.search_widget.search_changed.connect(self.on_filter_changed)
+        self.search_widget.search_cleared.connect(self.on_filter_changed)
+        filter_layout.addWidget(self.search_widget, 2)
         
         filter_layout.addStretch()
         
-        self.btn_refresh = QPushButton("🔄 Refresh")
+        # ✅ Refresh button with SVG icon
+        self.btn_refresh = ModernButton(" Refresh", ModernButton.SECONDARY)
+        self.btn_refresh.set_icon("refresh", size=(16, 16))
+        self.btn_refresh.set_compact(False)
         self.btn_refresh.clicked.connect(self.refresh)
         filter_layout.addWidget(self.btn_refresh)
         
-        self.btn_export = QPushButton("📊 Export")
+        # ✅ Export button with SVG icon
+        self.btn_export = ModernButton(" Export", ModernButton.SECONDARY)
+        self.btn_export.set_icon("file_export", size=(16, 16))
+        self.btn_export.set_compact(False)
         self.btn_export.clicked.connect(self.export_to_excel)
         filter_layout.addWidget(self.btn_export)
         
         layout.addLayout(filter_layout)
 
-        # Stock by Location table
+        # Stock by Location table - NO custom style, use PyQt6 default
         self.table = QTableWidget()
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        
+        # ✅ NO custom table style
+        # self._apply_table_theme()  <-- ဒီ line ကို ဖယ်ရှားပါ
+        
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
@@ -59,8 +82,25 @@ class StockByLocationTab(QWidget):
         layout.addWidget(self.pagination)
 
         self.setLayout(layout)
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        
         self.load_locations()
         self.load_data()
+        self.retranslateUi()
+
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        # ✅ Only update button icons and reload data - no table style update
+        self._update_button_icons()
+        self.load_data()
+    
+    def _update_button_icons(self):
+        """Update button icons when theme changes"""
+        self.btn_refresh.set_icon("refresh", size=(16, 16))
+        self.btn_export.set_icon("file_export", size=(16, 16))
 
     def get_lang(self):
         try:
@@ -101,17 +141,25 @@ class StockByLocationTab(QWidget):
 
     def on_filter_changed(self):
         """Refresh when filter changes"""
-        self.pagination.set_current_page(1)
+        self.current_page = 1
         self.load_data()
 
     def on_page_changed(self, page: int, page_size: int):
+        self.current_page = page
+        self.page_size = page_size
         self.load_data(page, page_size)
 
     def refresh(self):
         self.load_locations()
         self.load_data()
+        self.retranslateUi()
 
-    def load_data(self, page=1, page_size=50):
+    def load_data(self, page=None, page_size=None):
+        if page is None:
+            page = self.current_page
+        if page_size is None:
+            page_size = self.page_size
+            
         lang = self.get_lang()
         
         # Set headers
@@ -131,7 +179,7 @@ class StockByLocationTab(QWidget):
         cursor = conn.cursor()
         
         location_filter = self.location_filter.currentText()
-        search_text = self.search_input.text().strip().lower()
+        search_text = self.search_widget.get_text().lower()
         
         # Build query
         count_query = """
@@ -212,7 +260,7 @@ class StockByLocationTab(QWidget):
             
             qty_item = QTableWidgetItem(str(quantity))
             if quantity <= 0:
-                qty_item.setForeground(Qt.GlobalColor.red)
+                qty_item.setForeground(QColor("#dc3545"))  # Red
             self.table.setItem(r, 5, qty_item)
             
             self.table.setItem(r, 6, QTableWidgetItem(format_money(cost)))
@@ -229,10 +277,16 @@ class StockByLocationTab(QWidget):
             
             # Merge cells for summary
             summary_item = QTableWidgetItem("TOTAL" if lang != "my" else "စုစုပေါင်း")
+            summary_item.setForeground(QColor("#28a745"))  # Green
             self.table.setItem(r, 0, summary_item)
             
-            self.table.setItem(r, 5, QTableWidgetItem(str(total_quantity)))
-            self.table.setItem(r, 7, QTableWidgetItem(format_money(total_value)))
+            qty_summary = QTableWidgetItem(str(total_quantity))
+            qty_summary.setForeground(QColor("#28a745"))
+            self.table.setItem(r, 5, qty_summary)
+            
+            value_summary = QTableWidgetItem(format_money(total_value))
+            value_summary.setForeground(QColor("#28a745"))
+            self.table.setItem(r, 7, value_summary)
 
     def get_all_stock_by_location_data(self):
         """Get all data for export"""
@@ -240,7 +294,7 @@ class StockByLocationTab(QWidget):
         cursor = conn.cursor()
         
         location_filter = self.location_filter.currentText()
-        search_text = self.search_input.text().strip().lower()
+        search_text = self.search_widget.get_text().lower()
         
         query = """
             SELECT 
@@ -362,4 +416,25 @@ class StockByLocationTab(QWidget):
             ExcelExporter.show_error_message(self, e)
 
     def retranslateUi(self):
+        lang = self.get_lang()
+        
+        # Update SearchWidget placeholder
+        if lang == "my":
+            self.search_widget.set_placeholder_text("ပစ္စည်းအမည် သို့မဟုတ် SKU ဖြင့် ရှာရန်...")
+            self.btn_refresh.setText(" ပြန်လည်")
+            self.btn_export.setText(" ထုတ်မည်")
+        else:
+            self.search_widget.set_placeholder_text("Search product by name or SKU...")
+            self.btn_refresh.setText(" Refresh")
+            self.btn_export.setText(" Export")
+        
+        # Update button icons
+        self._update_button_icons()
+        
         self.load_data()
+    
+    def showEvent(self, event):
+        """Handle show event - refresh data"""
+        self.load_locations()
+        self.load_data()
+        super().showEvent(event)

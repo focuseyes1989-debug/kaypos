@@ -1,14 +1,17 @@
 # ui/customer_page/customers_page.py
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
     QFileDialog
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from ui.widgets.pagination_widget import PaginationWidget
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.action_toolbar import ActionToolbar
+from ui.widgets.search_widget import SearchWidget
 from utils.language import lang
 from utils.activity_logger import log_activity
 from ui.customer_page.credit_sale_dialog import CreditSaleDialog
@@ -16,74 +19,99 @@ from ui.customer_page.credit_payment_dialog import CreditPaymentDialog
 from ui.customer_page.customer_ledger_dialog import CustomerLedgerDialog
 from ui.customer_page.outstanding_report_dialog import OutstandingReportDialog
 from ui.customer_page.add_edit_customer_dialog import AddEditCustomerDialog
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from utils.excel_exporter import ExcelExporter
 from datetime import datetime
 import csv
 
 
 class CustomersPage(QWidget):
+    """Customers Page - Theme-aware with SVG Icons"""
+    
     def __init__(self, user_role=None, parent=None):
         super().__init__(parent)
         self.user_role = user_role
         self.selected_customer_id = None
         self.current_language = lang.get_current()
+        self._is_dark = is_dark_theme()
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
-        # Search
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by name, phone, email...")
-        self.search_input.textChanged.connect(self.reset_and_search)
-        layout.addWidget(self.search_input)
-
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(5)
+        # ====== Top Row: Search, Add Button, Action Toolbar (All on left) ======
+        top_layout = QHBoxLayout()
+        top_layout.setSpacing(8)
+        top_layout.setContentsMargins(0, 8, 0, 8)
         
-        self.btn_add = QPushButton()
-        self.btn_edit = QPushButton()
-        self.btn_delete = QPushButton()
-        self.btn_credit_sale = QPushButton()
-        self.btn_payment = QPushButton()
-        self.btn_ledger = QPushButton()
-        self.btn_outstanding_report = QPushButton()
-        self.btn_export_excel = QPushButton("📊 Export Excel")
+        # ====== Search Widget (Leftmost) ======
+        self.search_widget = SearchWidget(
+            placeholder="Search by name, phone, email...",
+            show_label=False
+        )
+        self.search_widget.search_changed.connect(self.reset_and_search)
+        self.search_widget.search_cleared.connect(self.reset_and_search)
+        top_layout.addWidget(self.search_widget, 0)  # No stretch, fixed size
         
+        # ====== Add Customer Button ======
+        self.btn_add = ModernButton("", ModernButton.PRIMARY)
+        self.btn_add.set_icon("add", size=(16, 16))
+        self.btn_add.setFixedWidth(130)
+        self.btn_add.setFixedHeight(36)
         self.btn_add.clicked.connect(self.add_customer)
-        self.btn_edit.clicked.connect(self.edit_customer)
-        self.btn_delete.clicked.connect(self.delete_customer)
-        self.btn_credit_sale.clicked.connect(self.credit_sale)
-        self.btn_payment.clicked.connect(self.payment_collection)
-        self.btn_ledger.clicked.connect(self.show_ledger)
-        self.btn_outstanding_report.clicked.connect(self.show_outstanding_report)
-        self.btn_export_excel.clicked.connect(self.export_to_excel)
+        top_layout.addWidget(self.btn_add)
         
-        btn_layout.addWidget(self.btn_add)
-        btn_layout.addWidget(self.btn_edit)
-        btn_layout.addWidget(self.btn_delete)
-        btn_layout.addWidget(self.btn_credit_sale)
-        btn_layout.addWidget(self.btn_payment)
-        btn_layout.addWidget(self.btn_ledger)
-        btn_layout.addWidget(self.btn_outstanding_report)
-        btn_layout.addWidget(self.btn_export_excel)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-
-        # Table
+        # ====== Action Toolbar (More menu) ======
+        self.action_toolbar = ActionToolbar(self)
+        
+        # More actions
+        self.action_edit = self.action_toolbar.add_more_action("Edit", self.edit_customer, "edit")
+        self.action_credit_sale = self.action_toolbar.add_more_action("Credit Sale", self.credit_sale, "credit_card")
+        self.action_payment = self.action_toolbar.add_more_action("Payment Collection", self.payment_collection, "payments")
+        self.action_ledger = self.action_toolbar.add_more_action("Ledger", self.show_ledger, "receipt_long")
+        self.action_outstanding_report = self.action_toolbar.add_more_action("Outstanding Report", self.show_outstanding_report, "analytics")
+        self.action_toolbar.add_separator()
+        self.action_export_excel = self.action_toolbar.add_more_action("Export Excel", self.export_to_excel, "file_export")
+        self.action_delete = self.action_toolbar.add_more_action("Delete", self.delete_customer, "delete")
+        self.action_toolbar.finalize()
+        
+        # Add action toolbar
+        top_layout.addWidget(self.action_toolbar)
+        
+        # Add stretch to push everything to the left (optional, but keeps things left-aligned)
+        top_layout.addStretch()
+        
+        layout.addLayout(top_layout)
+        
+        # ====== Table - NO custom style, use PyQt6 default ======
         self.table = QTableWidget()
         self.table.setColumnCount(10)
         self.table.setColumnHidden(0, True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.cellClicked.connect(self.select_customer)
+        self.table.setAlternatingRowColors(True)
+        
+        # Row height
+        self.table.verticalHeader().setDefaultSectionSize(55)
+        self.table.verticalHeader().setVisible(False)
+        
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for col in range(2, 10):
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Name
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Phone
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Email
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Address
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Total Visit
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Total Spent
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # Points
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)  # Credit Limit
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)  # Current Balance
+        
         layout.addWidget(self.table)
 
-        # Pagination
+        # ====== Pagination ======
         self.pagination = PaginationWidget()
         self.pagination.page_changed.connect(self.on_page_changed)
         layout.addWidget(self.pagination)
@@ -93,6 +121,82 @@ class CustomersPage(QWidget):
         lang.language_changed.connect(self.retranslateUi)
         self.retranslateUi()
         self.load_customers()
+
+    def _get_delete_button_style(self):
+        """Get delete button style with red color"""
+        colors = get_theme_colors()
+        is_dark = is_dark_theme()
+        
+        if is_dark:
+            return """
+                QPushButton {
+                    background-color: #ed4245;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    padding: 5px 16px;
+                    font-size: 9pt;
+                }
+                QPushButton:hover {
+                    background-color: #c0392b;
+                }
+                QPushButton:pressed {
+                    background-color: #a93226;
+                }
+            """
+        else:
+            return """
+                QPushButton {
+                    background-color: #e74c3c;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                    padding: 5px 16px;
+                    font-size: 9pt;
+                }
+                QPushButton:hover {
+                    background-color: #c0392b;
+                }
+                QPushButton:pressed {
+                    background-color: #a93226;
+                }
+            """
+
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        self._apply_theme()
+        self._update_button_icons()
+        self.load_customers()
+    
+    def _update_button_icons(self):
+        """Update button icons when theme changes"""
+        if hasattr(self, 'btn_add'):
+            self.btn_add.set_icon("add", size=(16, 16))
+    
+    def _apply_theme(self):
+        """Apply theme-aware styles"""
+        if hasattr(self, 'action_edit'):
+            self.action_edit.setText("Edit")
+        if hasattr(self, 'action_delete'):
+            self.action_delete.setText("Delete")
+        if hasattr(self, 'action_credit_sale'):
+            self.action_credit_sale.setText("Credit Sale")
+        if hasattr(self, 'action_payment'):
+            self.action_payment.setText("Payment Collection")
+        if hasattr(self, 'action_ledger'):
+            self.action_ledger.setText("Ledger")
+        if hasattr(self, 'action_outstanding_report'):
+            self.action_outstanding_report.setText("Outstanding Report")
+        if hasattr(self, 'action_export_excel'):
+            self.action_export_excel.setText("Export Excel")
+        
+        # Update button icons
+        self._update_button_icons()
+        if hasattr(self, "action_toolbar"):
+            self.action_toolbar.update_theme()
 
     def reset_and_search(self):
         self.pagination.set_current_page(1)
@@ -113,7 +217,7 @@ class CustomersPage(QWidget):
         file_path = ExcelExporter.save_file_dialog(
             self, 
             f"customer_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            "Export Customer List" if self.current_language != "my" else "ဝယ်ယူသူစာရင်း ထုတ်ရန်"
+            "Export Customer List" if self.current_language != "my" else "ဖောက်သည်စာရင်း ထုတ်ရန်"
         )
         if not file_path:
             return
@@ -123,7 +227,7 @@ class CustomersPage(QWidget):
             from openpyxl.styles import Font, PatternFill, Alignment
             
             symbol = get_currency_symbol()
-            search_text = self.search_input.text().strip().lower()
+            search_text = self.search_widget.get_text().lower()
             lang_code = self.current_language
             
             conn = connect_db()
@@ -188,8 +292,8 @@ class CustomersPage(QWidget):
             
             # Headers
             if lang_code == "my":
-                headers = ["အမည်", "ဖုန်း", "အီးမေး", "လိပ်စာ", "အလည်လာရောက်မှု", 
-                          "စုစုပေါင်းသုံးစွဲမှု", "အမှတ်", "ခရက်ဒစ်ကန့်သတ်", "လက်ကျန်အကြွေး"]
+                headers = ["အမည်", "ဖုန်း", "အီးမေး", "လိပ်စာ", "အလည်လာခဲ့မှု", 
+                          "စုစုပေါင်းသုံးစွဲမှု", "အမှတ်", "ခရက်ဒစ်ကန့်သတ်ချက်", "လက်ကျန်ငွေ"]
             else:
                 headers = ["Name", "Phone", "Email", "Address", "Total Visit", 
                           "Total Spent", "Points", "Credit Limit", "Current Balance"]
@@ -253,7 +357,8 @@ class CustomersPage(QWidget):
     def load_customers(self, page=1, page_size=50):
         try:
             symbol = get_currency_symbol()
-            search_text = self.search_input.text().strip().lower()
+            search_text = self.search_widget.get_text().lower()
+            
             conn = connect_db()
             cursor = conn.cursor()
             
@@ -290,14 +395,26 @@ class CustomersPage(QWidget):
             conn.close()
             
             self.table.setRowCount(len(rows))
+            
+            # Use hardcoded colors
+            red_color = "#dc3545"
+            green_color = "#28a745"
+            
             for row_idx, row_data in enumerate(rows):
+                self.table.setRowHeight(row_idx, 55)
+                
                 for col_idx, val in enumerate(row_data):
-                    if col_idx == 6:  # total_spent
+                    # Use PyQt6 default colors - no custom text color
+                    if col_idx == 9:  # current_balance
                         item = QTableWidgetItem(format_money(val, symbol))
-                    elif col_idx == 8 or col_idx == 9:  # credit_limit or current_balance
+                        if val > 0:
+                            item.setForeground(QColor(red_color))
+                        else:
+                            item.setForeground(QColor(green_color))
+                    elif col_idx == 6:  # total_spent
                         item = QTableWidgetItem(format_money(val, symbol))
-                        if col_idx == 9 and val > 0:  # current_balance
-                            item.setForeground(Qt.GlobalColor.red)
+                    elif col_idx == 8:  # credit_limit
+                        item = QTableWidgetItem(format_money(val, symbol))
                     else:
                         item = QTableWidgetItem(str(val) if val else "")
                     self.table.setItem(row_idx, col_idx, item)
@@ -322,7 +439,7 @@ class CustomersPage(QWidget):
     def credit_sale(self):
         if not self.selected_customer_id:
             lang_code = lang.get_current()
-            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဝယ်ယူသူတစ်ဦးကို ရွေးပါ။"
+            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဖောက်သည်တစ်ဦးကို ရွေးပါ။"
             QMessageBox.warning(self, "No Selection", msg)
             return
         
@@ -334,7 +451,7 @@ class CustomersPage(QWidget):
     def payment_collection(self):
         if not self.selected_customer_id:
             lang_code = lang.get_current()
-            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဝယ်ယူသူတစ်ဦးကို ရွေးပါ။"
+            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဖောက်သည်တစ်ဦးကို ရွေးပါ။"
             QMessageBox.warning(self, "No Selection", msg)
             return
         
@@ -346,7 +463,7 @@ class CustomersPage(QWidget):
     def show_ledger(self):
         if not self.selected_customer_id:
             lang_code = lang.get_current()
-            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဝယ်ယူသူတစ်ဦးကို ရွေးပါ။"
+            msg = "Please select a customer first." if lang_code != "my" else "ကျေးဇူးပြု၍ ဖောက်သည်တစ်ဦးကို ရွေးပါ။"
             QMessageBox.warning(self, "No Selection", msg)
             return
         
@@ -380,14 +497,14 @@ class CustomersPage(QWidget):
                 if hasattr(main_window, 'current_user'):
                     log_activity(main_window.current_user["id"], main_window.current_user["username"],
                                "Add Customer", f"Customer: {data['name']}")
-                msg = "ဝယ်ယူသူထည့်သွင်းပြီးပါပြီ။" if self.current_language == "my" else "Customer added"
+                msg = "ဖောက်သည်ထည့်သွင်းပြီးပါပြီ။" if self.current_language == "my" else "Customer added"
                 QMessageBox.information(self, "Success", msg)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not add customer: {e}")
 
     def edit_customer(self):
         if not self.selected_customer_id:
-            msg = "ကျေးဇူးပြု၍ ဝယ်ယူသူတစ်ဦးကို ရွေးပါ။" if self.current_language == "my" else "Please select a customer first."
+            msg = "ကျေးဇူးပြု၍ ဖောက်သည်တစ်ဦးကို ရွေးပါ။" if self.current_language == "my" else "Please select a customer first."
             QMessageBox.warning(self, "No Selection", msg)
             return
         try:
@@ -431,7 +548,7 @@ class CustomersPage(QWidget):
                 if hasattr(main_window, 'current_user'):
                     log_activity(main_window.current_user["id"], main_window.current_user["username"],
                                "Edit Customer", f"Customer: {old_name} → {data['name']}")
-                msg = "ဝယ်ယူသူပြင်ဆင်ပြီးပါပြီ။" if self.current_language == "my" else "Customer updated"
+                msg = "ဖောက်သည်ပြင်ဆင်ပြီးပါပြီ။" if self.current_language == "my" else "Customer updated"
                 QMessageBox.information(self, "Success", msg)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not edit customer: {e}")
@@ -441,7 +558,7 @@ class CustomersPage(QWidget):
             QMessageBox.warning(self, "Access Denied", "You don't have permission to delete customers.")
             return
         if not self.selected_customer_id:
-            msg = "ကျေးဇူးပြု၍ ဝယ်ယူသူတစ်ဦးကို ရွေးပါ။" if self.current_language == "my" else "Please select a customer first."
+            msg = "ကျေးဇူးပြု၍ ဖောက်သည်တစ်ဦးကို ရွေးပါ။" if self.current_language == "my" else "Please select a customer first."
             QMessageBox.warning(self, "No Selection", msg)
             return
         
@@ -453,7 +570,7 @@ class CustomersPage(QWidget):
         conn.close()
         
         if credit_count > 0:
-            msg = "This customer has outstanding credit sales. Please settle all debts before deleting." if self.current_language != "my" else "ဤဝယ်ယူသူတွင် အကြွေးကျန်ရှိနေပါသည်။ ဖျက်မည်ဆိုပါက အကြွေးအားလုံးကို ဦးစွာရှင်းပါ။"
+            msg = "This customer has outstanding credit sales. Please settle all debts before deleting." if self.current_language != "my" else "ဤဖောက်သည်တွင် အကွှေးနေသေးပါသည်။ ဖျက်မည်ဆိုပါက အကြွေးအားလုံးကို ရှင်းပါ။"
             QMessageBox.warning(self, "Cannot Delete", msg)
             return
         
@@ -463,7 +580,7 @@ class CustomersPage(QWidget):
         cust_name = cursor.fetchone()[0]
         conn.close()
         
-        confirm_text = "ဤဝယ်ယူသူကို ဖျက်မည်လား?" if self.current_language == "my" else "Delete this customer?"
+        confirm_text = "ဤဖောက်သည်ကို ဖျက်မည်လား?" if self.current_language == "my" else "Delete this customer?"
         reply = QMessageBox.question(self, "Confirm Delete", confirm_text,
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
@@ -479,7 +596,7 @@ class CustomersPage(QWidget):
                 if hasattr(main_window, 'current_user'):
                     log_activity(main_window.current_user["id"], main_window.current_user["username"],
                                "Delete Customer", f"Customer: {cust_name}")
-                msg = "ဝယ်ယူသူဖျက်ပြီးပါပြီ။" if self.current_language == "my" else "Customer deleted"
+                msg = "ဖောက်သည်ဖျက်ပြီးပါပြီ။" if self.current_language == "my" else "Customer deleted"
                 QMessageBox.information(self, "Deleted", msg)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Could not delete customer: {e}")
@@ -487,38 +604,49 @@ class CustomersPage(QWidget):
     def retranslateUi(self):
         lang_code = lang.get_current()
         self.current_language = lang_code
+        colors = get_theme_colors()
         
+        # Update SearchWidget placeholder
         if lang_code == "my":
-            self.search_input.setPlaceholderText("အမည်၊ ဖုန်း၊ အီးမေးဖြင့် ရှာရန်...")
-            self.btn_add.setText("ဝယ်ယူသူအသစ်")
-            self.btn_edit.setText("ပြင်ဆင်မည်")
-            self.btn_delete.setText("ဖျက်မည်")
-            self.btn_credit_sale.setText("အကြွေးရောင်းမည်")
-            self.btn_payment.setText("ငွေပေးချေမှုကောက်ခံမည်")
-            self.btn_ledger.setText("စာရင်း")
-            self.btn_outstanding_report.setText("အကြွေးကျန်စာရင်း")
-            self.btn_export_excel.setText("📊 Excel ထုတ်မည်")
+            self.search_widget.set_placeholder_text("အမည်၊ ဖုန်း၊ အီးမေးဖွင့် ရှာရန်...")
+            self.btn_add.setText(" ဖောက်သည်အသစ်")
             headers = [
                 "ID", "အမည်", "ဖုန်း", "အီးမေး", "လိပ်စာ",
-                "အလည်လာရောက်မှု", "စုစုပေါင်းသုံးစွဲမှု", 
-                "အမှတ်", "ခရက်ဒစ်ကန့်သတ်", "လက်ကျန်အကြွေး"
+                "အလည်လာခဲ့မှု", "စုစုပေါင်းသုံးစွဲမှု", 
+                "အမှတ်", "ခရက်ဒစ်ကန့်သတ်ချက်", "လက်ကျန်ငွေ"
             ]
         else:
-            self.search_input.setPlaceholderText("Search by name, phone, email...")
-            self.btn_add.setText("Add Customer")
-            self.btn_edit.setText("Edit")
-            self.btn_delete.setText("Delete")
-            self.btn_credit_sale.setText("Credit Sale")
-            self.btn_payment.setText("Payment Collection")
-            self.btn_ledger.setText("Ledger")
-            self.btn_outstanding_report.setText("Outstanding Report")
-            self.btn_export_excel.setText("📊 Export Excel")
+            self.search_widget.set_placeholder_text("Search by name, phone, email...")
+            self.btn_add.setText(" Add Customer")
             headers = [
                 "ID", "Name", "Phone", "Email", "Address",
                 "Total Visit", "Total Spent", "Points", "Credit Limit", "Current Balance"
             ]
+        
+        if hasattr(self, 'action_edit'):
+            self.action_edit.setText("Edit")
+        if hasattr(self, 'action_delete'):
+            self.action_delete.setText("Delete")
+        if hasattr(self, 'action_credit_sale'):
+            self.action_credit_sale.setText("Credit Sale")
+        if hasattr(self, 'action_payment'):
+            self.action_payment.setText("Payment Collection")
+        if hasattr(self, 'action_ledger'):
+            self.action_ledger.setText("Ledger")
+        if hasattr(self, 'action_outstanding_report'):
+            self.action_outstanding_report.setText("Outstanding Report")
+        if hasattr(self, 'action_export_excel'):
+            self.action_export_excel.setText("Export Excel")
+        
+        # Update button icons
+        self._update_button_icons()
+        
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
+        
+        # Apply theme after language change
+        self._apply_theme()
+        self.load_customers()
 
     def showEvent(self, event):
         self.load_customers()

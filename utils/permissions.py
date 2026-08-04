@@ -24,6 +24,9 @@ class Permission(Enum):
     EDIT_PRODUCT = "edit_product"
     DELETE_PRODUCT = "delete_product"
     
+    # AI Pages  <-- NEW
+    VIEW_AI_PAGES = "ai_pages"
+    
     # Inventory
     VIEW_INVENTORY = "inventory"
     STOCK_IN = "stock_in"
@@ -129,6 +132,7 @@ class PermissionManager:
             "sales_summary": Permission.VIEW_SALES_SUMMARY,
             "sales": Permission.VIEW_SALES,
             "products": Permission.VIEW_PRODUCTS,
+            "ai_pages": Permission.VIEW_AI_PAGES,  # <-- NEW
             "inventory": Permission.VIEW_INVENTORY,
             "receipts": Permission.VIEW_RECEIPTS,
             "customers": Permission.VIEW_CUSTOMERS,
@@ -148,32 +152,21 @@ class PermissionManager:
 ROLE_PERMISSIONS = {
     "Admin": {
         "permissions": [
-            # Dashboard
             Permission.VIEW_DASHBOARD,
-            # Sales
-            Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.EDIT_SALE, 
+            Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.EDIT_SALE,
             Permission.DELETE_SALE, Permission.REFUND_SALE,
-            # Sales Summary
             Permission.VIEW_SALES_SUMMARY,
-            # Products
             Permission.VIEW_PRODUCTS, Permission.ADD_PRODUCT, Permission.EDIT_PRODUCT, Permission.DELETE_PRODUCT,
-            # Inventory
+            Permission.VIEW_AI_PAGES,
             Permission.VIEW_INVENTORY, Permission.STOCK_IN, Permission.STOCK_OUT, Permission.STOCK_ADJUSTMENT,
-            # Receipts
             Permission.VIEW_RECEIPTS, Permission.PRINT_RECEIPT, Permission.REFUND_RECEIPT,
-            # Customers
             Permission.VIEW_CUSTOMERS, Permission.ADD_CUSTOMER, Permission.EDIT_CUSTOMER, Permission.DELETE_CUSTOMER,
-            # Expense
             Permission.VIEW_EXPENSE, Permission.ADD_EXPENSE, Permission.EDIT_EXPENSE, Permission.DELETE_EXPENSE,
             Permission.MANAGE_EXPENSE_CATEGORIES,
-            # Reports
             Permission.VIEW_REPORTS,
-            # Credit
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
-            # Users & Settings
             Permission.VIEW_USERS, Permission.ADD_USER, Permission.EDIT_USER, Permission.DELETE_USER,
             Permission.VIEW_SETTINGS, Permission.EDIT_SETTINGS,
-            # Backup
             Permission.BACKUP, Permission.RESTORE, Permission.FACTORY_RESET,
         ]
     },
@@ -182,27 +175,23 @@ ROLE_PERMISSIONS = {
             Permission.VIEW_DASHBOARD,
             Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.EDIT_SALE, Permission.REFUND_SALE,
             Permission.VIEW_SALES_SUMMARY,
-            Permission.VIEW_PRODUCTS, Permission.ADD_PRODUCT, Permission.EDIT_PRODUCT,
+            Permission.VIEW_PRODUCTS, Permission.ADD_PRODUCT, Permission.EDIT_PRODUCT, Permission.DELETE_PRODUCT,
+            Permission.VIEW_AI_PAGES,
             Permission.VIEW_INVENTORY, Permission.STOCK_IN, Permission.STOCK_OUT, Permission.STOCK_ADJUSTMENT,
             Permission.VIEW_RECEIPTS, Permission.PRINT_RECEIPT, Permission.REFUND_RECEIPT,
             Permission.VIEW_CUSTOMERS, Permission.ADD_CUSTOMER, Permission.EDIT_CUSTOMER,
-            Permission.VIEW_EXPENSE, Permission.ADD_EXPENSE, Permission.EDIT_EXPENSE,
+            Permission.VIEW_EXPENSE, Permission.ADD_EXPENSE, Permission.EDIT_EXPENSE, Permission.DELETE_EXPENSE,
             Permission.MANAGE_EXPENSE_CATEGORIES,
             Permission.VIEW_REPORTS,
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
-            Permission.VIEW_SETTINGS,
+            Permission.VIEW_SETTINGS, Permission.BACKUP,
         ]
     },
     "Cashier": {
         "permissions": [
-            Permission.VIEW_DASHBOARD,
-            Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.REFUND_SALE,
-            Permission.VIEW_SALES_SUMMARY,
-            Permission.VIEW_PRODUCTS,
-            Permission.VIEW_INVENTORY,
+            Permission.VIEW_SALES, Permission.CREATE_SALE,
             Permission.VIEW_RECEIPTS, Permission.PRINT_RECEIPT, Permission.REFUND_RECEIPT,
             Permission.VIEW_CUSTOMERS, Permission.ADD_CUSTOMER,
-            Permission.VIEW_EXPENSE,
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
         ]
     },
@@ -210,39 +199,75 @@ ROLE_PERMISSIONS = {
         "permissions": [
             Permission.VIEW_DASHBOARD,
             Permission.VIEW_SALES_SUMMARY,
-            Permission.VIEW_REPORTS,
+            Permission.VIEW_PRODUCTS,
+            Permission.VIEW_INVENTORY,
             Permission.VIEW_RECEIPTS,
+            Permission.VIEW_CUSTOMERS,
+            Permission.VIEW_REPORTS,
+            Permission.VIEW_CREDIT,
         ]
     }
 }
 
 
+ROLE_DESCRIPTIONS = {
+    "Admin": "Full access to every page and action",
+    "Manager": "Manage daily operations without user deletion, restore, or factory reset",
+    "Cashier": "Process sales, print receipts, refund receipts, and manage sale customers",
+    "Viewer": "Read-only access to dashboards, lists, receipts, reports, and credit",
+}
+
+
 def update_role_permissions_in_db():
-    """Update role permissions in database (run once after adding new permissions)"""
-    conn = connect_db()
-    cursor = conn.cursor()
-    
-    for role_name, role_data in ROLE_PERMISSIONS.items():
-        permissions_str = ','.join([p.value for p in role_data["permissions"]])
-        cursor.execute("""
-            UPDATE user_roles 
-            SET permissions = ? 
-            WHERE name = ?
-        """, (permissions_str, role_name))
+    """Update role permissions in database (runs automatically on import)"""
+    try:
+        conn = connect_db()
+        cursor = conn.cursor()
         
-        if cursor.rowcount == 0:
-            # Role doesn't exist, insert it
-            cursor.execute("""
-                INSERT INTO user_roles (name, description, permissions, is_system)
-                VALUES (?, ?, ?, ?)
-            """, (role_name, f"{role_name} role", permissions_str, 1))
-            logger.info(f"Inserted role: {role_name}")
+        # ✅ Check if user_roles table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_roles'")
+        if not cursor.fetchone():
+            logger.warning("user_roles table not found, skipping permission update")
+            conn.close()
+            return
+        
+        updated_count = 0
+        for role_name, role_data in ROLE_PERMISSIONS.items():
+            permissions_str = ','.join([p.value for p in role_data["permissions"]])
+            description = ROLE_DESCRIPTIONS.get(role_name, f"{role_name} role")
+            
+            cursor.execute("SELECT permissions FROM user_roles WHERE name = ?", (role_name,))
+            row = cursor.fetchone()
+            
+            if row:
+                current_perms = row[0] or ''
+                if current_perms != permissions_str:
+                    cursor.execute("""
+                        UPDATE user_roles
+                        SET description = ?, permissions = ?
+                        WHERE name = ?
+                    """, (description, permissions_str, role_name))
+                    updated_count += 1
+                    logger.info(f"Updated permissions for role: {role_name}")
+            else:
+                # Role doesn't exist, insert it
+                cursor.execute("""
+                    INSERT INTO user_roles (name, description, permissions, is_system)
+                    VALUES (?, ?, ?, ?)
+                """, (role_name, description, permissions_str, 1 if role_name == "Admin" else 0))
+                updated_count += 1
+                logger.info(f"Inserted role: {role_name}")
+        
+        conn.commit()
+        conn.close()
+        
+        if updated_count > 0:
+            logger.info(f"Updated {updated_count} default role permission set(s)")
         else:
-            logger.info(f"Updated role: {role_name}")
-    
-    conn.commit()
-    conn.close()
-    logger.info("Role permissions updated successfully")
+            logger.debug("All default role permission sets are up to date")
+        
+    except Exception as e:
+        logger.warning(f"Could not update role permissions: {e}")
 
 
 def get_permission_description(permission):
@@ -259,6 +284,7 @@ def get_permission_description(permission):
         Permission.ADD_PRODUCT: "Add Product",
         Permission.EDIT_PRODUCT: "Edit Product",
         Permission.DELETE_PRODUCT: "Delete Product",
+        Permission.VIEW_AI_PAGES: "View AI Pages",  # <-- NEW
         Permission.VIEW_INVENTORY: "View Inventory",
         Permission.STOCK_IN: "Stock In",
         Permission.STOCK_OUT: "Stock Out",
@@ -292,8 +318,8 @@ def get_permission_description(permission):
     return descriptions.get(permission, permission.value.replace('_', ' ').title())
 
 
-# Run update when module is imported (for new installations)
+# ✅ AUTO-RUN on import - Client အတွက် auto update
 try:
     update_role_permissions_in_db()
 except Exception as e:
-    logger.warning(f"Could not update role permissions: {e}")
+    logger.warning(f"Could not auto-update role permissions on import: {e}")

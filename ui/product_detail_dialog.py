@@ -112,7 +112,7 @@ class ProductDetailDialog(QDialog):
         super().__init__()
         self.product_id = product_id
         self.setWindowTitle("Product Details")
-        self.setMinimumSize(600, 800)
+        self.setMinimumSize(600, 700)
         self.setModal(True)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
 
@@ -231,17 +231,21 @@ class ProductDetailDialog(QDialog):
 
         main_layout.addWidget(self.table)
 
-        # ----- Close Button -----
-        self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.accept)
-        self.btn_close.setFixedWidth(120)
-        main_layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+        # ----- Close Button REMOVED -----
+        # Close button ကို ဖယ်ရှားလိုက်ပါပြီ။ Esc key နဲ့ပဲ ပိတ်နိုင်ပါပြီ။
 
         self.setLayout(main_layout)
 
         # Load data and apply language
         self.load_product_data()
         self.retranslateUi()
+
+    # ---------- Keyboard shortcut ----------
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts"""
+        if event.key() == Qt.Key.Key_Escape:
+            self.accept()
+        super().keyPressEvent(event)
 
     # ---------- Language support ----------
     def get_lang(self):
@@ -264,7 +268,6 @@ class ProductDetailDialog(QDialog):
             for row, text in enumerate(self.property_my):
                 self.table_items[row].setText(text)
             self.table.setHorizontalHeaderLabels(["အကြောင်းအရာ", "တန်ဖိုး"])
-            self.btn_close.setText("ပိတ်ရန်")
             # Update image placeholder texts
             current_img_text = self.image_label.text()
             if current_img_text == "Loading image...":
@@ -281,7 +284,6 @@ class ProductDetailDialog(QDialog):
             for row, text in enumerate(self.property_keys):
                 self.table_items[row].setText(text)
             self.table.setHorizontalHeaderLabels(["Property", "Value"])
-            self.btn_close.setText("Close")
             # Restore image placeholder texts
             current_img_text = self.image_label.text()
             if current_img_text == "ပုံတင်နေသည်...":

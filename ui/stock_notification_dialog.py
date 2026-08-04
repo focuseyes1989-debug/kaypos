@@ -10,6 +10,7 @@ from models.database import connect_db
 from utils.language import lang
 from utils.currency import get_currency_symbol, format_money
 from utils.excel_exporter import ExcelExporter
+from utils.translations import tr
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.product_detail_dialog import ProductDetailDialog  # ✅ Import ProductDetailDialog
 from datetime import datetime
@@ -19,7 +20,7 @@ from loguru import logger
 class StockNotificationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Stock Alerts")
+        self.setWindowTitle(tr("stock_alerts_title"))
         self.setMinimumSize(900, 550)
         self.setModal(False)
         
@@ -53,15 +54,16 @@ class StockNotificationDialog(QDialog):
         
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by name, SKU or barcode...")
+        self.search_input.setPlaceholderText(tr("search_product_sku_barcode"))
         self.search_input.textChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.search_input, 2)
         
         # Status filter
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Status", "Out of Stock", "Low Stock"])
+        self.status_filter.addItems([tr("all_status"), tr("out_of_stock"), tr("low_stock")])
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(QLabel("Status:"))
+        self.status_label = QLabel(tr("status_label"))
+        filter_layout.addWidget(self.status_label)
         filter_layout.addWidget(self.status_filter, 1)
         
         filter_layout.addStretch()
@@ -128,21 +130,14 @@ class StockNotificationDialog(QDialog):
 
     def retranslateUi(self):
         """Update UI text when language changes"""
-        lang_code = lang.get_current()
-        if lang_code == "my":
-            self.btn_export.setText("📊 Excel ထုတ်မည်")
-            self.btn_export.setToolTip("စတော့သတိပေးချက်စာရင်းကို Excel ဖိုင်အဖြစ် ထုတ်ယူမည်")
-            self.search_input.setPlaceholderText("ပစ္စည်းအမည် / SKU / ဘားကုဒ်ဖြင့် ရှာရန်...")
-            self.status_filter.setItemText(0, "အားလုံး")
-            self.status_filter.setItemText(1, "ကုန်သွားပြီ")
-            self.status_filter.setItemText(2, "စတော့နည်းနေပြီ")
-        else:
-            self.btn_export.setText("📊 Export Excel")
-            self.btn_export.setToolTip("Export stock alerts to Excel file")
-            self.search_input.setPlaceholderText("Search by name, SKU or barcode...")
-            self.status_filter.setItemText(0, "All Status")
-            self.status_filter.setItemText(1, "Out of Stock")
-            self.status_filter.setItemText(2, "Low Stock")
+        self.setWindowTitle(tr("stock_alerts_title"))
+        self.btn_export.setText(f"📊 {tr('export_excel')}")
+        self.btn_export.setToolTip(tr("export_stock_alerts_tooltip"))
+        self.search_input.setPlaceholderText(tr("search_product_sku_barcode"))
+        self.status_label.setText(tr("status_label"))
+        self.status_filter.setItemText(0, tr("all_status"))
+        self.status_filter.setItemText(1, tr("out_of_stock"))
+        self.status_filter.setItemText(2, tr("low_stock"))
         
         # Update pagination text
         self.pagination._update_controls()
@@ -152,17 +147,10 @@ class StockNotificationDialog(QDialog):
 
     def update_table_headers(self):
         """Update table headers based on language"""
-        lang_code = lang.get_current()
-        if lang_code == "my":
-            self.table.setHorizontalHeaderLabels([
-                "ID", "ပစ္စည်းအမည်", "SKU", "လက်ကျန်", 
-                "သတိပေးပမာဏ", "အခြေအနေ", "ပြန်မှာသင့်ပမာဏ"
-            ])
-        else:
-            self.table.setHorizontalHeaderLabels([
-                "ID", "Product", "SKU", "Current Stock", 
-                "Low Stock Level", "Status", "Suggested Order"
-            ])
+        self.table.setHorizontalHeaderLabels([
+            "ID", tr("product"), tr("sku"), tr("current_stock"),
+            tr("low_stock_level"), tr("status"), tr("suggested_order")
+        ])
         
         # ✅ Keep ID column hidden
         self.table.setColumnHidden(0, True)
@@ -235,10 +223,10 @@ class StockNotificationDialog(QDialog):
                     continue
             
             # Status filter
-            if status_filter == "Out of Stock" or status_filter == "ကုန်သွားပြီ":
+            if status_filter == tr("out_of_stock"):
                 if status != "Out of Stock":
                     continue
-            elif status_filter == "Low Stock" or status_filter == "စတော့နည်းနေပြီ":
+            elif status_filter == tr("low_stock"):
                 if status != "Low Stock":
                     continue
             
@@ -265,13 +253,8 @@ class StockNotificationDialog(QDialog):
         """Populate table with filtered and paginated data"""
         self.table.setRowCount(len(rows))
         
-        lang_code = lang.get_current()
-        
         # Update label
-        if lang_code == "my":
-            self.label.setText(f"စတော့သတိပေးချက် - ပစ္စည်း {total_count} မျိုး")
-        else:
-            self.label.setText(f"Stock Alerts – {total_count} product(s)")
+        self.label.setText(tr("stock_alerts_count").format(count=total_count))
         
         for row_idx, row in enumerate(rows):
             product_id, name, sku, stock, low_stock, sold_by, status, suggested, price, category, barcode = row
@@ -304,11 +287,10 @@ class StockNotificationDialog(QDialog):
             
             # Column 5: Status
             status_display = status
-            if lang_code == "my":
-                if status == "Out of Stock":
-                    status_display = "ကုန်သွားပြီ"
-                elif status == "Low Stock":
-                    status_display = "စတော့နည်းနေပြီ"
+            if status == "Out of Stock":
+                status_display = tr("out_of_stock")
+            elif status == "Low Stock":
+                status_display = tr("low_stock")
             
             status_item = QTableWidgetItem(status_display)
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
@@ -359,10 +341,10 @@ class StockNotificationDialog(QDialog):
             
         except ValueError as e:
             logger.error(f"Invalid product ID: {e}")
-            QMessageBox.warning(self, "Error", "Could not open product details.")
+            QMessageBox.warning(self, tr("error"), tr("open_product_details_failed"))
         except Exception as e:
             logger.error(f"Error opening product detail: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to open product details: {str(e)}")
+            QMessageBox.warning(self, tr("error"), tr("open_product_details_error").format(e=str(e)))
 
     def adjust_product_column(self):
         """Adjust product column to show full product names"""
@@ -428,15 +410,13 @@ class StockNotificationDialog(QDialog):
     def export_to_excel(self):
         """Export stock alerts to Excel file"""
         if not hasattr(self, 'current_rows') or not self.current_rows:
-            QMessageBox.warning(self, "No Data", "There are no stock alerts to export.")
+            QMessageBox.warning(self, tr("no_data"), tr("no_stock_alerts_to_export"))
             return
-        
-        lang_code = lang.get_current()
-        
+
         file_path = ExcelExporter.save_file_dialog(
             self, 
             f"stock_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            "Export Stock Alerts" if lang_code != "my" else "စတော့သတိပေးချက်စာရင်း ထုတ်ရန်"
+            tr("export_stock_alerts")
         )
         if not file_path:
             return
@@ -450,22 +430,19 @@ class StockNotificationDialog(QDialog):
             
             wb = Workbook()
             ws = wb.active
-            ws.title = "Stock Alerts"
+            ws.title = tr("stock_alerts_title")
             
             # Title
             ws.merge_cells('A1:J1')
-            if lang_code == "my":
-                title_text = "စတော့သတိပေးချက်အစီရင်ခံစာ"
-            else:
-                title_text = "STOCK ALERT REPORT"
+            title_text = tr("stock_alert_report")
             ws['A1'] = title_text
             ws['A1'].font = Font(bold=True, size=14)
             ws['A1'].alignment = Alignment(horizontal="center")
             
             # Subtitle
-            ws['A2'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            ws['A2'] = f"{tr('generated')} {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ws['A2'].font = Font(size=10, color="7f8c8d")
-            ws['A3'] = f"Total Alerts: {len(rows)}"
+            ws['A3'] = f"{tr('total_alerts')} {len(rows)}"
             ws['A3'].font = Font(size=10, color="7f8c8d")
             
             # Filter info
@@ -473,9 +450,9 @@ class StockNotificationDialog(QDialog):
             status_filter = self.status_filter.currentText()
             filter_info = []
             if search_text:
-                filter_info.append(f"Search: {search_text}")
-            if status_filter and status_filter not in ["All Status", "အားလုံး"]:
-                filter_info.append(f"Status: {status_filter}")
+                filter_info.append(f"{tr('search')}: {search_text}")
+            if status_filter and status_filter != tr("all_status"):
+                filter_info.append(f"{tr('status')}: {status_filter}")
             if filter_info:
                 ws['A4'] = " | ".join(filter_info)
                 ws['A4'].font = Font(size=9, italic=True, color="7f8c8d")
@@ -483,15 +460,11 @@ class StockNotificationDialog(QDialog):
             else:
                 start_row = 5
             
-            # Headers
-            if lang_code == "my":
-                headers = ["ပစ္စည်းအမည်", "SKU", "ဘားကုဒ်", "အမျိုးအစား", 
-                          "လက်ကျန်", "သတိပေးပမာဏ", "အခြေအနေ", "ပြန်မှာသင့်ပမာဏ", 
-                          "စျေးနှုန်း", "စတော့တန်ဖိုး"]
-            else:
-                headers = ["Product Name", "SKU", "Barcode", "Category", 
-                          "Current Stock", "Low Stock Level", "Status", "Suggested Order", 
-                          "Price", "Stock Value"]
+            headers = [
+                tr("product_name"), tr("sku"), tr("barcode"), tr("category"),
+                tr("current_stock"), tr("low_stock_level"), tr("status"), tr("suggested_order"),
+                tr("price"), tr("stock_value")
+            ]
             
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=start_row, column=col, value=header)
@@ -517,7 +490,12 @@ class StockNotificationDialog(QDialog):
                 ws.cell(row=row_idx, column=4, value=category or "")
                 ws.cell(row=row_idx, column=5, value=stock_val)
                 ws.cell(row=row_idx, column=6, value=low_stock or 0)
-                ws.cell(row=row_idx, column=7, value=status or "")
+                status_display = status
+                if status == "Out of Stock":
+                    status_display = tr("out_of_stock")
+                elif status == "Low Stock":
+                    status_display = tr("low_stock")
+                ws.cell(row=row_idx, column=7, value=status_display or "")
                 ws.cell(row=row_idx, column=8, value=suggested or 0)
                 ws.cell(row=row_idx, column=9, value=format_money(price_val, symbol))
                 ws.cell(row=row_idx, column=10, value=format_money(stock_value, symbol))
@@ -543,21 +521,21 @@ class StockNotificationDialog(QDialog):
             
             # Summary section
             summary_row = len(rows) + start_row + 3
-            ws.cell(row=summary_row, column=1, value="SUMMARY").font = Font(bold=True, size=12)
+            ws.cell(row=summary_row, column=1, value=tr("summary")).font = Font(bold=True, size=12)
             
             summary_data = [
-                ("Total Products with Alerts", len(rows)),
-                ("Out of Stock", total_out_of_stock),
-                ("Low Stock", total_low_products),
-                ("Total Stock Value", format_money(total_stock_value, symbol)),
+                (tr("total_products_with_alerts"), len(rows)),
+                (tr("out_of_stock"), total_out_of_stock),
+                (tr("low_stock"), total_low_products),
+                (tr("total_stock_value"), format_money(total_stock_value, symbol)),
                 ("", ""),
-                ("Note: Suggested order = Low Stock Level × 2", "")
+                (tr("suggested_order_note"), "")
             ]
             
             for i, (label, value) in enumerate(summary_data):
                 row = summary_row + 2 + i
                 ws.cell(row=row, column=1, value=label).font = Font(bold=True)
-                if "Note:" in label or "မှတ်ချက်" in label:
+                if label == tr("suggested_order_note"):
                     ws.cell(row=row, column=1, value=label).font = Font(italic=True, color="7f8c8d")
                 else:
                     ws.cell(row=row, column=2, value=value)

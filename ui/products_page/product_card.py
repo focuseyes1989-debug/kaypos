@@ -1,55 +1,55 @@
 # ui/products_page/product_card.py
-from PyQt6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame
 from PyQt6.QtCore import pyqtSignal, QDate
+from PyQt6.QtGui import QPixmap
 from utils.currency import get_currency_symbol, format_money
 from models.database import connect_db
+from ui.widgets.summary_card_widget import SummaryCardWidget
 from loguru import logger
-
-
-class ClickableCard(QFrame):
-    clicked = pyqtSignal()
-
-    def mousePressEvent(self, event):
-        self.clicked.emit()
-        super().mousePressEvent(event)
+import os
 
 
 class ProductCards(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.cards = {}
-        self.card_frames = {}
+        self.card_widgets = {}
         self.setup_cards()
 
     def setup_cards(self):
         layout = QHBoxLayout()
-        layout.setSpacing(15)
+        layout.setSpacing(12)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        # ✅ Card definitions with SVG icon names
         card_definitions = [
-            ("Total Cost", "total_cost"),
-            ("Out of Stock", "out_stock"),
-            ("Low Stock", "low_stock"),
-            ("Expiring ≤7 Days", "expiring_soon"),
-            ("Expired", "expired")
+            ("Total Cost", "total_cost", "attach_money", "#2ecc71"),
+            ("Out of Stock", "out_stock", "warning", "#e74c3c"),
+            ("Low Stock", "low_stock", "inventory_2", "#f39c12"),
+            ("Expiring ≤7 Days", "expiring_soon", "clock", "#3498db"),
+            ("Expired", "expired", "close", "#95a5a6")
         ]
 
-        for title, key in card_definitions:
-            card = ClickableCard()
-            card.setObjectName("dashboardCard")
-            card_layout = QVBoxLayout()
-            title_label = QLabel(title)
-            title_label.setObjectName("cardTitle")
-            value_label = QLabel("0")
-            value_label.setObjectName("cardValue")
-            card_layout.addWidget(title_label)
-            card_layout.addWidget(value_label)
-            card.setLayout(card_layout)
-            card.title_label = title_label
-            self.card_frames[key] = card
-            self.cards[key] = value_label
-            layout.addWidget(card, 1)
+        for title, key, icon_name, color in card_definitions:
+            card = SummaryCardWidget(
+                title=title,
+                value="0",
+                icon=icon_name,
+                color=color,
+                icon_is_svg=True  # ✅ Use SVG icon
+            )
+            # Set fixed height for consistency
+            card.card.setFixedHeight(85)
+            card.card.setMinimumWidth(130)
+            
+            # Store reference
+            self.card_widgets[key] = card
+            self.cards[key] = card.value_label
+            
+            # Connect click event
             card.clicked.connect(lambda k=key: self.on_card_clicked(k))
+            
+            layout.addWidget(card, 1)
 
         self.setLayout(layout)
 
@@ -134,5 +134,5 @@ class ProductCards(QWidget):
         from utils.language import lang
         lang_code = lang.get_current()
         for key, (my_text, en_text) in translations.items():
-            if key in self.card_frames:
-                self.card_frames[key].title_label.setText(my_text if lang_code == "my" else en_text)
+            if key in self.card_widgets:
+                self.card_widgets[key].set_title(my_text if lang_code == "my" else en_text)

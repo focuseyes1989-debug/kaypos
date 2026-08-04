@@ -1,8 +1,8 @@
 
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 8, 0),
-    prodvers=(1, 0, 8, 0),
+    filevers=(1, 5, 9, 0),
+    prodvers=(1, 5, 9, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -18,12 +18,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'ZAY POS'),
             StringStruct(u'FileDescription', u'ZAY POS Launcher'),
-            StringStruct(u'FileVersion', u'1.0.8'),
+            StringStruct(u'FileVersion', u'1.5.9'),
             StringStruct(u'InternalName', u'ZAY_POS_Launcher'),
             StringStruct(u'LegalCopyright', u'ZAY POS'),
             StringStruct(u'OriginalFilename', u'ZAY_POS_Launcher.exe'),
             StringStruct(u'ProductName', u'ZAY POS Launcher'),
-            StringStruct(u'ProductVersion', u'1.0.8')
+            StringStruct(u'ProductVersion', u'1.5.9')
           ]
         )
       ]

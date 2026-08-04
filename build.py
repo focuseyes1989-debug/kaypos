@@ -13,8 +13,12 @@ import site
 from pathlib import Path
 from datetime import datetime
 
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 # Default version (will be overwritten by user input)
-APP_VERSION = "1.0.8"
+APP_VERSION = "1.5.9"
 APP_NAME = "ZAY_POS"
 
 def get_version_input():
@@ -139,16 +143,27 @@ def build_exe(version):
         print(f"⚠️ Icon not found: {icon_path}")
         icon_path = "NONE"
     
-    # Create spec file
+# Create spec file
     spec_content = f'''
 # -*- mode: python ; coding: utf-8 -*-
+
+import os
+import sys
+
+
+sqlite_binaries = []
+python_dll_dir = os.path.join(sys.base_prefix, 'DLLs')
+for sqlite_name in ('_sqlite3.pyd', 'sqlite3.dll'):
+    sqlite_path = os.path.join(python_dll_dir, sqlite_name)
+    if os.path.exists(sqlite_path):
+        sqlite_binaries.append((sqlite_path, '.'))
 
 block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=sqlite_binaries,
     datas=[
         ('assets', 'assets'),
         ('version.txt', '.'),
@@ -163,59 +178,7 @@ a = Analysis(
         'PyQt6.QtSql',
         'loguru',
         'sqlite3',
-        'matplotlib',
-        'matplotlib.pyplot',
-        'matplotlib.figure',
-        'matplotlib.backends',
-        'matplotlib.backends.backend_qtagg',
-        'matplotlib.font_manager',
-        'matplotlib.text',
-        'matplotlib.colors',
-        'matplotlib.lines',
-        'matplotlib.patches',
-        'matplotlib.axes',
-        'matplotlib.axis',
-        'matplotlib.ticker',
-        'matplotlib.scale',
-        'matplotlib.transforms',
-        'matplotlib.path',
-        'matplotlib.cm',
-        'matplotlib.collections',
-        'matplotlib.image',
-        'matplotlib.legend',
-        'matplotlib.gridspec',
-        'matplotlib.dates',
-        'matplotlib.backends.backend_agg',
-        'numpy',
-        'numpy._core',
-        'numpy._core._multiarray_umath',
-        'numpy._core.umath',
-        'numpy._core.multiarray',
-        'numpy._core.numeric',
-        'numpy._core.fromnumeric',
-        'numpy._core.shape_base',
-        'numpy._core._internal',
-        'numpy._core.arrayprint',
-        'numpy._core.defchararray',
-        'numpy._core.records',
-        'numpy._core.memmap',
-        'numpy._core.function_base',
-        'numpy._core._dtype',
-        'numpy._core._methods',
-        'numpy._core._asarray',
-        'numpy._core._ufunc_config',
-        'numpy._core._type_aliases',
-        'numpy._core._string_helpers',
-        'numpy._core._exceptions',
-        'numpy.version',
-        'numpy._globals',
-        'numpy._distributor_init',
-        'numpy._typing',
-        'numpy._typing._array_like',
-        'numpy._typing._dtype_like',
-        'numpy._typing._scalars',
-        'numpy._typing._shape',
-        'numpy._typing._ufunc',
+        '_sqlite3',
         'PIL',
         'PIL.Image',
         'PIL.ImageQt',
@@ -254,7 +217,6 @@ a = Analysis(
         'IPython',
         'jupyter',
         'notebook',
-        'matplotlib.tests',
         'setuptools',
         'pkg_resources',
     ],
@@ -265,14 +227,13 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
     name='{APP_NAME}',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    exclude_binaries=True,
+    strip=False,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -282,6 +243,15 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='{icon_path}' if '{icon_path}' != "NONE" else None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='{APP_NAME}',
 )
 '''
     
@@ -339,6 +309,8 @@ def build_launcher(version):
     # 🔥 Get the versioned folder path
     versioned_folder = Path(f'dist/{APP_NAME}_v{version}')
     versioned_folder.mkdir(parents=True, exist_ok=True)
+    version_txt_path = os.path.abspath('version.txt')
+    icon_path = os.path.abspath('assets/icons/app_icon.ico')
     
     print(f"📂 Target folder: {versioned_folder}")
     
@@ -357,7 +329,7 @@ def build_launcher(version):
     launcher_cmd = [
         sys.executable,
         '-m', 'PyInstaller',
-        '--onedir',
+        '--onefile',
         '--windowed',
         '--clean',
         '--noconfirm',
@@ -365,8 +337,8 @@ def build_launcher(version):
         f'--workpath=build/launcher',
         f'--specpath=build/launcher',
         '--name=ZAY_POS_Launcher',  # 🔥 Name for the exe
-        '--icon=assets/icons/app_icon.ico',
-        '--add-data=version.txt;.',
+        f'--icon={icon_path}',
+        f'--add-data={version_txt_path};.',
         # PyQt6
         '--hidden-import=PyQt6',
         '--hidden-import=PyQt6.QtWidgets',
@@ -389,7 +361,6 @@ def build_launcher(version):
         '--hidden-import=urllib3',
         '--hidden-import=urllib3.poolmanager',
         '--hidden-import=urllib3.response',
-        '--hidden-import=urllib3.request',
         # Common
         '--hidden-import=json',
         '--hidden-import=zipfile',
@@ -645,7 +616,9 @@ def main():
     copy_assets(version)
     
     # Build launcher (puts in same folder)
-    build_launcher(version)
+    if not build_launcher(version):
+        print("\n❌ Launcher build failed! Please check the error above.")
+        sys.exit(1)
     
     # Create antivirus info
     create_antivirus_info(version)

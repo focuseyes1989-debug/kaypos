@@ -1,21 +1,41 @@
-# ui/expense/expense_page.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox
-from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QIcon
+﻿# ui/expense/expense_page.py
+
+from loguru import logger
+logger.info("=== Loading ExpensePage from ui/expense/expense_page.py ===")
+
+import os  # âœ… Add this import
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, 
+    QTabWidget, QTableWidgetItem, QLabel, QComboBox,
+    QFrame
+)
+from PyQt6.QtCore import Qt, QDate, QSize
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.language import lang
-from ui.expense.expense_cards import ExpenseCards
-from ui.expense.expense_filters import ExpenseFilters
 from ui.expense.expense_table import ExpenseTable
 from ui.expense.expense_export import ExpenseExport
+from ui.expense.expense_chart import ExpenseChartWidget
+from ui.expense.expense_category_tab import ExpenseCategoryTab
 from ui.expense_dialog import ExpenseDialog
 from ui.expense_categories_dialog import ExpenseCategoriesDialog
 from ui.expense_budget_dialog import ExpenseBudgetDialog
 from ui.expense_notification_dialog import ExpenseNotificationDialog
 from ui.expense_comparison_dialog import ExpenseComparisonDialog
-from loguru import logger
-from PyQt6.QtWidgets import QTableWidgetItem
+
+# âœ… Import widgets
+from ui.widgets import (
+    DateRangeWidget,
+    ToastNotificationWidget,
+    LoadingSpinnerWidget,
+    SummaryCardWidget,
+    SearchWidget
+)
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.action_toolbar import ActionToolbar
+from ui.themes.theme_manager import theme_manager, is_dark_theme
 
 
 class ExpensePage(QWidget):
@@ -23,111 +43,366 @@ class ExpensePage(QWidget):
         super().__init__(parent)
         self.user_role = user_role
         
+        logger.info(f"ExpensePage initializing with user_role: {user_role}")
+        
         lang.language_changed.connect(self.on_language_changed)
+        theme_manager.theme_changed.connect(self.on_theme_changed)
+        
         self.setup_ui()
         self.load_initial_data()
+        
+        logger.info("ExpensePage initialized successfully")
+    
+    def on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self.apply_card_style()
+        # âœ… Update tab bar style and icons
+        self._apply_tab_bar_style()
+        self._update_tab_icons_color()
+    
+    def _get_themed_icon(self, icon_name, size=(16, 16)):
+        """Get themed SVG icon"""
+        try:
+            from ui.themes.theme_manager import get_themed_icon
+            return get_themed_icon(icon_name, size=size)
+        except:
+            return QIcon()
+    
+    def _apply_tab_bar_style(self):
+        """âœ… Apply tab bar style based on theme - matching sales summary page"""
+        is_dark = is_dark_theme()
+        
+        if is_dark:
+            self.tab_widget.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #40444b;
+                    border-radius: 6px;
+                    background-color: #2f3136;
+                }
+                QTabBar::tab {
+                    background-color: #2f3136;
+                    color: #b9bbbe;
+                    padding: 8px 16px;
+                    margin-right: 2px;
+                    border-top-left-radius: 4px;
+                    border-top-right-radius: 4px;
+                    border: none;
+                }
+                QTabBar::tab:selected {
+                    background-color: #40444b;
+                    color: #ffffff;
+                }
+                QTabBar::tab:hover {
+                    background-color: #36393f;
+                    color: #ffffff;
+                }
+                QTabBar::tab:!selected {
+                    background-color: #202225;
+                    color: #72767d;
+                }
+            """)
+        else:
+            self.tab_widget.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    background-color: #ffffff;
+                }
+                QTabBar::tab {
+                    background-color: #f8f9fa;
+                    color: #495057;
+                    padding: 8px 16px;
+                    margin-right: 2px;
+                    border-top-left-radius: 4px;
+                    border-top-right-radius: 4px;
+                    border: 1px solid #dee2e6;
+                    border-bottom: none;
+                }
+                QTabBar::tab:selected {
+                    background-color: #ffffff;
+                    color: #212529;
+                    border-bottom: 2px solid #5865f2;
+                }
+                QTabBar::tab:hover {
+                    background-color: #e9ecef;
+                    color: #212529;
+                }
+            """)
+        
+        # âœ… Update tab icons color
+        self._update_tab_icons_color()
+
+    def _update_tab_icons_color(self):
+        """âœ… Update all tab icons color based on theme"""
+        is_dark = is_dark_theme()
+        icon_color = "#ffffff" if is_dark else "#495057"
+        
+        for index in range(self.tab_widget.count()):
+            icon = self._load_colored_tab_icon(index)
+            self.tab_widget.setTabIcon(index, icon)
+
+    def _load_colored_tab_icon(self, index):
+        """âœ… Load SVG icon with color based on theme for tabs"""
+        # âœ… Tab Icons Mapping - matching sales summary pattern
+        tab_icons = {
+            0: "list_alt",      # List tab - list_alt.svg
+            1: "category",      # Categories tab - category.svg
+            2: "analytics"      # Charts tab - analytics.svg
+        }
+        
+        icon_name = tab_icons.get(index, "")
+        if not icon_name:
+            return QIcon()
+        
+        # Try SVG first, then PNG
+        paths = [
+            f"assets/icons/{icon_name}.svg",
+            f"assets/icons/{icon_name}.png",
+        ]
+        
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    pixmap = QPixmap(path)
+                    if not pixmap.isNull():
+                        # Scale to 20x20 for tab icon
+                        scaled = pixmap.scaled(
+                            20, 20,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation
+                        )
+                        
+                        # âœ… Color the icon based on theme
+                        is_dark = is_dark_theme()
+                        color_hex = "#ffffff" if is_dark else "#495057"
+                        
+                        # Create colored version
+                        colored = scaled.copy()
+                        painter = QPainter(colored)
+                        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+                        painter.fillRect(colored.rect(), QColor(color_hex))
+                        painter.end()
+                        
+                        return QIcon(colored)
+                except Exception as e:
+                    print(f"Could not load icon {path}: {e}")
+        
+        return QIcon()
     
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setSpacing(15)
         
-        # Cards
-        self.cards = ExpenseCards(self)
-        layout.addWidget(self.cards)
+        # ========== Cards (Using SummaryCardWidget with SVG icons) ==========
+        card_layout = QHBoxLayout()
+        card_layout.setSpacing(15)
         
-        # Date buttons
-        self.setup_date_buttons(layout)
+        # âœ… Total Expenses Card - with SVG icon
+        self.total_card = SummaryCardWidget(
+            title="Total Expenses",
+            value="0",
+            icon="ðŸ“Š",  # Fallback emoji
+            color="#e74c3c"
+        )
+        self.total_card.set_icon("total", size=(28, 28))  # SVG icon
+        card_layout.addWidget(self.total_card, 1)
         
-        # Filters
-        self.filters = ExpenseFilters(self)
-        self.filters.filter_changed.connect(self.on_filter_changed)
-        layout.addWidget(self.filters)
+        # âœ… This Month Card - with SVG icon
+        self.month_card = SummaryCardWidget(
+            title="This Month",
+            value="0",
+            icon="ðŸ“…",  # Fallback emoji
+            color="#f39c12"
+        )
+        self.month_card.set_icon("calendar_month", size=(28, 28))  # SVG icon
+        card_layout.addWidget(self.month_card, 1)
         
-        # Action buttons
-        self.setup_action_buttons(layout)
+        # âœ… Today Card - with SVG icon
+        self.today_card = SummaryCardWidget(
+            title="Today",
+            value="0",
+            icon="ðŸ“†",  # Fallback emoji
+            color="#3498db"
+        )
+        self.today_card.set_icon("today", size=(28, 28))  # SVG icon
+        card_layout.addWidget(self.today_card, 1)
+        
+        layout.addLayout(card_layout)
+        
+        # ========== Main Toolbar (Date + Buttons) ==========
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setSpacing(8)
+        
+        # âœ… DateRangeWidget
+        self.date_range = DateRangeWidget()
+        self.date_range.date_range_changed.connect(self.on_filter_changed)
+        toolbar_layout.addWidget(self.date_range)
+        
+        toolbar_layout.addStretch()
+        
+        # âœ… Add button - Primary with SVG icon
+        self.action_toolbar = ActionToolbar(self)
+        self.btn_add = self.action_toolbar.add_primary(" Add", self.add_expense, "add", width=86)
+        self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_expense, "edit", ModernButton.SECONDARY, width=86)
+        self.action_delete = self.action_toolbar.add_more_action("Delete", self.delete_expense, "delete")
+        self.action_toolbar.add_separator()
+        self.action_categories = self.action_toolbar.add_more_action("Categories", self.manage_categories, "category")
+        self.action_budget = self.action_toolbar.add_more_action("Budget", self.open_budget_dialog, "savings")
+        self.action_notifications = self.action_toolbar.add_more_action("Notifications", self.open_notification_settings, "notifications_active")
+        self.action_compare = self.action_toolbar.add_more_action("Compare", self.open_comparison_dialog, "swap_horiz")
+        self.action_toolbar.add_separator()
+        self.action_export_excel = self.action_toolbar.add_more_action("Export Excel", self.export_to_excel, "file_export")
+        self.action_export_category = self.action_toolbar.add_more_action("Export Category", self.export_category, "category")
+        self.action_export_monthly = self.action_toolbar.add_more_action("Export Monthly", self.export_monthly, "calendar_month")
+        self.action_toolbar.finalize()
+        toolbar_layout.addWidget(self.action_toolbar, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(toolbar_layout)
+        
+        # ========== TAB WIDGET with Colored SVG Icons ==========
+        logger.info("Creating tab widget for ExpensePage")
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
+        self.tab_widget.setMinimumHeight(450)
+        
+        # âœ… Tab names for retranslation
+        self.tab_names = {
+            0: "List",
+            1: "Categories",
+            2: "Charts"
+        }
+        
+        # âœ… Tab Icons Mapping
+        self.tab_icons = {
+            0: "list_alt",      # list_alt.svg
+            1: "category",      # category.svg
+            2: "analytics"      # analytics.svg
+        }
+        
+        # === Tab 1: List (Table) ===
+        self.table_tab = QWidget()
+        table_layout = QVBoxLayout(self.table_tab)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setSpacing(12)  # âœ… Increased spacing
+        
+        # âœ… Filter row inside List Tab - Compact layout with more padding
+        filter_layout = QHBoxLayout()
+        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(0, 8, 0, 8)  # âœ… Added top/bottom margin
+        
+        # SearchWidget - stretching 2 parts
+        self.search_widget = SearchWidget(
+            placeholder="Search by description or reference...",
+            show_label=True
+        )
+        self.search_widget.search_changed.connect(self.on_filter_changed)
+        filter_layout.addWidget(self.search_widget, 2)
+        
+        # âœ… Category filter - Compact with fixed widths
+        category_label = QLabel("Category:")
+        category_label.setFixedWidth(60)
+        filter_layout.addWidget(category_label)
+        
+        self.category_filter = QComboBox()
+        self.category_filter.addItem("All Categories")
+        self.category_filter.currentTextChanged.connect(self.on_filter_changed)
+        self.category_filter.setMaximumWidth(150)
+        self.category_filter.setMinimumWidth(100)
+        filter_layout.addWidget(self.category_filter, 1)
+        
+        filter_layout.addStretch()
+        table_layout.addLayout(filter_layout)
         
         # Table
         self.table = ExpenseTable(self)
         self.table.expense_selected.connect(self.on_expense_selected)
         self.table.expense_double_clicked.connect(self.on_expense_double_clicked)
-        layout.addWidget(self.table)
+        table_layout.addWidget(self.table)
+        
+        # âœ… Add tab with colored icon
+        self.tab_widget.addTab(self.table_tab, self._load_colored_tab_icon(0), self.tab_names[0])
+        
+        # === Tab 2: Categories ===
+        logger.info("Creating category breakdown tab for ExpensePage")
+        self.category_tab = ExpenseCategoryTab(self)
+        self.category_tab.category_selected.connect(self.on_category_selected_from_tab)
+        self.tab_widget.addTab(self.category_tab, self._load_colored_tab_icon(1), self.tab_names[1])
+        
+        # === Tab 3: Charts ===
+        logger.info("Creating chart tab for ExpensePage")
+        self.chart_tab = ExpenseChartWidget(self)
+        self.tab_widget.addTab(self.chart_tab, self._load_colored_tab_icon(2), self.tab_names[2])
+        
+        # âœ… Apply tab bar style for dark theme
+        self._apply_tab_bar_style()
+        
+        # âœ… Add some spacing between tab bar and content
+        self.tab_widget.setStyleSheet(self.tab_widget.styleSheet() + """
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+        """)
+        
+        layout.addWidget(self.tab_widget)
+        
+        # ========== Toast Notification ==========
+        self.toast = ToastNotificationWidget(self)
+        
+        # ========== Loading Spinner ==========
+        self.spinner = LoadingSpinnerWidget("Loading expenses...")
+        self.spinner.hide()
+        layout.addWidget(self.spinner)
         
         self.setLayout(layout)
-    
-    def setup_date_buttons(self, layout):
-        date_layout = QHBoxLayout()
-        date_layout.setSpacing(10)
-        
-        self.btn_today = QPushButton("Today")
-        self.btn_this_week = QPushButton("This Week")
-        self.btn_this_month = QPushButton("This Month")
-        self.btn_last_month = QPushButton("Last Month")
-        self.btn_this_year = QPushButton("This Year")
-        
-        self.btn_today.clicked.connect(lambda: self.set_date_range("today"))
-        self.btn_this_week.clicked.connect(lambda: self.set_date_range("week"))
-        self.btn_this_month.clicked.connect(lambda: self.set_date_range("month"))
-        self.btn_last_month.clicked.connect(lambda: self.set_date_range("last_month"))
-        self.btn_this_year.clicked.connect(lambda: self.set_date_range("year"))
-        
-        date_layout.addWidget(self.btn_today)
-        date_layout.addWidget(self.btn_this_week)
-        date_layout.addWidget(self.btn_this_month)
-        date_layout.addWidget(self.btn_last_month)
-        date_layout.addWidget(self.btn_this_year)
-        date_layout.addStretch()
-        
-        layout.addLayout(date_layout)
-    
-    def setup_action_buttons(self, layout):
-        btn_layout = QHBoxLayout()
-        
-        self.btn_add = QPushButton("Add Expense")
-        self.btn_edit = QPushButton("Edit")
-        self.btn_delete = QPushButton("Delete")
-        self.btn_categories = QPushButton("Manage Categories")
-        self.btn_budget = QPushButton("Budget Settings")
-        self.btn_notifications = QPushButton("🔔 Notifications")
-        self.btn_compare = QPushButton("📊 Compare")
-        self.btn_export_excel = QPushButton("📊 Export Excel")
-        self.btn_export_category = QPushButton("📁 Export Category")
-        self.btn_export_monthly = QPushButton("📅 Export Monthly")
-        
-        self.btn_add.clicked.connect(self.add_expense)
-        self.btn_edit.clicked.connect(self.edit_expense)
-        self.btn_delete.clicked.connect(self.delete_expense)
-        self.btn_categories.clicked.connect(self.manage_categories)
-        self.btn_budget.clicked.connect(self.open_budget_dialog)
-        self.btn_notifications.clicked.connect(self.open_notification_settings)
-        self.btn_compare.clicked.connect(self.open_comparison_dialog)
-        self.btn_export_excel.clicked.connect(self.export_to_excel)
-        self.btn_export_category.clicked.connect(self.export_category)
-        self.btn_export_monthly.clicked.connect(self.export_monthly)
-        
-        btn_layout.addWidget(self.btn_add)
-        btn_layout.addWidget(self.btn_edit)
-        btn_layout.addWidget(self.btn_delete)
-        btn_layout.addWidget(self.btn_categories)
-        btn_layout.addWidget(self.btn_budget)
-        btn_layout.addWidget(self.btn_notifications)
-        btn_layout.addWidget(self.btn_compare)
-        btn_layout.addWidget(self.btn_export_excel)
-        btn_layout.addWidget(self.btn_export_category)
-        btn_layout.addWidget(self.btn_export_monthly)
-        btn_layout.addStretch()
-        
-        layout.addLayout(btn_layout)
+        logger.info("ExpensePage UI setup complete")
     
     def load_initial_data(self):
-        self.filters.load_categories()
+        self.load_categories()
         self.load_expenses()
-        self.cards.update_totals()
+        self.update_cards()
         self.apply_card_style()
     
+    def load_categories(self):
+        """Load categories into filter"""
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM expense_categories ORDER BY name")
+        rows = cursor.fetchall()
+        self.category_filter.blockSignals(True)
+        current = self.category_filter.currentText()
+        self.category_filter.clear()
+        self.category_filter.addItem("All Categories")
+        for (name,) in rows:
+            self.category_filter.addItem(name)
+        idx = self.category_filter.findText(current)
+        if idx >= 0:
+            self.category_filter.setCurrentIndex(idx)
+        self.category_filter.blockSignals(False)
+        conn.close()
+    
+    def get_date_range(self):
+        """Get date range from DateRangeWidget"""
+        return self.date_range.get_from_date(), self.date_range.get_to_date()
+    
+    def get_search_text(self):
+        """Get search text from SearchWidget"""
+        return self.search_widget.get_text().lower()
+    
+    def get_category(self):
+        """Get selected category"""
+        return self.category_filter.currentText()
+    
+    def on_filter_changed(self):
+        """Handle filter changes"""
+        self.table.current_page = 1
+        self.load_expenses()
+    
     def load_expenses(self, page=1, page_size=50):
-        search_text = self.filters.get_search_text()
-        category = self.filters.get_category()
-        from_date, to_date = self.filters.get_date_range()
+        """Load expenses with pagination"""
+        self.spinner.start()
+        
+        search_text = self.get_search_text()
+        category = self.get_category()
+        from_date, to_date = self.get_date_range()
         symbol = get_currency_symbol()
         
         conn = connect_db()
@@ -160,10 +435,9 @@ class ExpensePage(QWidget):
         cursor.execute(data_query, params + [page_size, offset])
         rows = cursor.fetchall()
         
-        # Calculate total amount for current page
         total_amount = sum(row[5] for row in rows) if rows else 0
         
-        self.table.table.setRowCount(0)  # Clear table first
+        self.table.table.setRowCount(0)
         
         for row_idx, row_data in enumerate(rows):
             exp_id, exp_no, exp_date, cat, desc, amount, method, ref_no, notes = row_data
@@ -184,20 +458,65 @@ class ExpensePage(QWidget):
             
             cursor.execute("SELECT COUNT(*) FROM expense_attachments WHERE expense_id = ?", (exp_id,))
             att_count = cursor.fetchone()[0]
-            attachments_item = QTableWidgetItem(f"📎 {att_count}" if att_count > 0 else "")
+            attachments_item = QTableWidgetItem(f"ðŸ“Ž {att_count}" if att_count > 0 else "")
             attachments_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.table.setItem(row_idx, 9, attachments_item)
         
-        # Add summary row with total
         self.table.set_total_amount(total_amount)
         self.table.add_summary_row(len(rows), symbol)
         
         conn.close()
-        self.cards.update_totals()
+        
+        self.update_cards()
+        
+        # âœ… Refresh chart with main page date range
+        if hasattr(self, 'chart_tab'):
+            try:
+                self.chart_tab.set_date_range(from_date, to_date)
+                self.chart_tab.load_chart()
+            except Exception as e:
+                logger.error(f"Error refreshing chart: {e}")
+        
+        # âœ… Refresh category tab with main page date range
+        if hasattr(self, 'category_tab'):
+            try:
+                self.category_tab.set_date_range(from_date, to_date)
+                self.category_tab.load_data()
+            except Exception as e:
+                logger.error(f"Error refreshing category tab: {e}")
+        
+        self.spinner.stop()
     
-    def on_filter_changed(self):
-        self.table.current_page = 1
-        self.load_expenses()
+    def update_cards(self):
+        """Update summary cards"""
+        from_date, to_date = self.get_date_range()
+        symbol = get_currency_symbol()
+        
+        conn = connect_db()
+        cursor = conn.cursor()
+        
+        # Total Expenses
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
+        total_all = cursor.fetchone()[0]
+        self.total_card.set_value(format_money(total_all, symbol))
+        
+        # This Month
+        today = QDate.currentDate()
+        month_start = QDate(today.year(), today.month(), 1)
+        month_start_str = month_start.toString("yyyy-MM-dd")
+        month_end_str = today.toString("yyyy-MM-dd")
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date BETWEEN ? AND ?", 
+                      (month_start_str, month_end_str))
+        total_month = cursor.fetchone()[0]
+        self.month_card.set_value(format_money(total_month, symbol))
+        
+        # Today
+        today_str = today.toString("yyyy-MM-dd")
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date = ?", (today_str,))
+        total_today = cursor.fetchone()[0]
+        self.today_card.set_value(format_money(total_today, symbol))
+        
+        conn.close()
     
     def on_expense_selected(self, expense_id):
         self.table.selected_expense_id = expense_id
@@ -207,31 +526,22 @@ class ExpensePage(QWidget):
         dialog = ExpenseAttachmentDialog(expense_id, expense_no, self)
         dialog.exec()
     
-    def set_date_range(self, range_type):
-        today = QDate.currentDate()
+    def on_category_selected_from_tab(self, category):
+        """Handle category selection from category tab"""
+        self.tab_widget.setCurrentIndex(0)
         
-        if range_type == "today":
-            self.filters.from_date.setDate(today)
-            self.filters.to_date.setDate(today)
-        elif range_type == "week":
-            start = today.addDays(-(today.dayOfWeek() - 1))
-            end = start.addDays(6)
-            self.filters.from_date.setDate(start)
-            self.filters.to_date.setDate(end)
-        elif range_type == "month":
-            start = QDate(today.year(), today.month(), 1)
-            self.filters.from_date.setDate(start)
-            self.filters.to_date.setDate(today)
-        elif range_type == "last_month":
-            first_day_this = QDate(today.year(), today.month(), 1)
-            last_day_last = first_day_this.addDays(-1)
-            first_day_last = QDate(last_day_last.year(), last_day_last.month(), 1)
-            self.filters.from_date.setDate(first_day_last)
-            self.filters.to_date.setDate(last_day_last)
-        elif range_type == "year":
-            start = QDate(today.year(), 1, 1)
-            self.filters.from_date.setDate(start)
-            self.filters.to_date.setDate(today)
+        if category:
+            idx = self.category_filter.findText(category)
+            if idx >= 0:
+                self.category_filter.setCurrentIndex(idx)
+            else:
+                idx = self.category_filter.findText("All Categories")
+                if idx >= 0:
+                    self.category_filter.setCurrentIndex(idx)
+        else:
+            idx = self.category_filter.findText("All Categories")
+            if idx >= 0:
+                self.category_filter.setCurrentIndex(idx)
         
         self.on_filter_changed()
     
@@ -239,25 +549,23 @@ class ExpensePage(QWidget):
         dialog = ExpenseDialog(parent=self)
         if dialog.exec():
             self.load_expenses()
-            self.filters.load_categories()
-            self.cards.update_totals()
+            self.load_categories()
+            self.update_cards()
     
     def edit_expense(self):
         expense_id = self.table.get_selected_id()
         if not expense_id:
-            msg = "Please select an expense to edit."
-            QMessageBox.warning(self, "No Selection", msg)
+            QMessageBox.warning(self, "No Selection", "Please select an expense to edit.")
             return
         dialog = ExpenseDialog(expense_id, self)
         if dialog.exec():
             self.load_expenses()
-            self.cards.update_totals()
+            self.update_cards()
     
     def delete_expense(self):
         expense_id = self.table.get_selected_id()
         if not expense_id:
-            msg = "Please select an expense to delete."
-            QMessageBox.warning(self, "No Selection", msg)
+            QMessageBox.warning(self, "No Selection", "Please select an expense to delete.")
             return
         
         reply = QMessageBox.question(self, "Confirm Delete", "Delete this expense permanently?",
@@ -271,18 +579,25 @@ class ExpensePage(QWidget):
                 conn.commit()
                 self.table.clear_selection()
                 self.load_expenses()
-                self.cards.update_totals()
-                QMessageBox.information(self, "Deleted", "Expense deleted successfully.")
+                self.update_cards()
+                self.toast.show_toast("Expense deleted successfully.", "success")
             except Exception as e:
                 conn.rollback()
-                QMessageBox.critical(self, "Error", f"Could not delete: {e}")
+                self.toast.show_toast(f"Could not delete: {e}", "error")
             finally:
                 conn.close()
     
     def manage_categories(self):
+        """Open manage categories dialog"""
+        from ui.expense.expense_categories_dialog import ExpenseCategoriesDialog
         dialog = ExpenseCategoriesDialog(self)
+        dialog.categories_changed.connect(self._on_categories_changed)
         dialog.exec()
-        self.filters.load_categories()
+
+    def _on_categories_changed(self):
+        """Handle categories changed signal"""
+        self.load_categories()
+        self.load_expenses()
     
     def open_budget_dialog(self):
         dialog = ExpenseBudgetDialog(self)
@@ -297,22 +612,24 @@ class ExpensePage(QWidget):
         dialog.exec()
     
     def export_to_excel(self):
-        from_date, to_date = self.filters.get_date_range()
-        category = self.filters.get_category()
-        search_text = self.filters.get_search_text()
+        from_date, to_date = self.get_date_range()
+        category = self.get_category()
+        search_text = self.get_search_text()
         ExpenseExport.export_expense_report(self, from_date, to_date, category, search_text)
     
     def export_category(self):
-        from_date, to_date = self.filters.get_date_range()
+        from_date, to_date = self.get_date_range()
         ExpenseExport.export_category_report(self, from_date, to_date)
     
     def export_monthly(self):
-        from_date, to_date = self.filters.get_date_range()
+        from_date, to_date = self.get_date_range()
         ExpenseExport.export_monthly_report(self, from_date, to_date)
     
     def apply_card_style(self):
-        theme = self.get_current_theme()
-        self.cards.apply_style(theme)
+        """Update card styles when theme changes"""
+        self.total_card.update_theme()
+        self.month_card.update_theme()
+        self.today_card.update_theme()
     
     def get_current_theme(self):
         try:
@@ -326,55 +643,95 @@ class ExpensePage(QWidget):
             return "Light"
     
     def on_language_changed(self, lang_code):
+        logger.info(f"ExpensePage language changed to: {lang_code}")
         self.retranslateUi()
-        self.cards.retranslateUi(lang_code)
-        self.filters.retranslateUi(lang_code)
-        self.table.retranslateUi(lang_code)
         self.load_expenses()
-        self.cards.update_totals()
+        self.update_cards()
     
     def retranslateUi(self):
         lang_code = lang.get_current()
+        logger.info(f"ExpensePage retranslateUi: {lang_code}")
         
+        # Retranslate summary cards
         if lang_code == "my":
-            self.btn_today.setText("ယနေ့")
-            self.btn_this_week.setText("ဤတစ်ပတ်")
-            self.btn_this_month.setText("ဤလ")
-            self.btn_last_month.setText("ပြီးခဲ့သည့်လ")
-            self.btn_this_year.setText("ဤနှစ်")
-            self.btn_add.setText("အသုံးစရိတ်အသစ်")
-            self.btn_edit.setText("ပြင်ဆင်")
-            self.btn_delete.setText("ဖျက်")
-            self.btn_categories.setText("အမျိုးအစားများ")
-            self.btn_budget.setText("ဘတ်ဂျက်သတ်မှတ်ချက်များ")
-            self.btn_notifications.setText("🔔 သတိပေးချက်များ")
-            self.btn_compare.setText("📊 နှိုင်းယှဉ်မည်")
-            self.btn_export_excel.setText("📊 Excel ထုတ်မည်")
-            self.btn_export_category.setText("📁 အမျိုးအစားအလိုက်")
-            self.btn_export_monthly.setText("📅 လစဉ် Excel")
+            self.total_card.set_title("á€…á€¯á€…á€¯á€•á€±á€«á€„á€ºá€¸á€¡á€žá€¯á€¶á€¸á€…á€›á€­á€á€º")
+            self.month_card.set_title("á€šá€á€¯á€œá€¡á€á€½á€„á€ºá€¸")
+            self.today_card.set_title("á€šá€”á€±á€·")
+            
+            # Retranslate buttons
+            self.btn_add.setText(" á€¡á€žá€…á€º")
+            self.btn_edit.setText(" á€•á€¼á€„á€ºá€†á€„á€º")
+            
+            # Search placeholder
+            self.search_widget.search_input.setPlaceholderText("á€–á€±á€¬á€ºá€•á€¼á€á€»á€€á€º á€žá€­á€¯á€·á€™á€Ÿá€¯á€á€º á€€á€­á€¯á€¸á€€á€¬á€¸á€¡á€™á€¾á€á€ºá€–á€¼á€„á€·á€º á€›á€¾á€¬á€›á€”á€º...")
+            
+            # âœ… Tab titles - Myanmar
+            tab_titles_my = {
+                0: "á€…á€¬á€›á€„á€ºá€¸",
+                1: "á€¡á€™á€»á€­á€¯á€¸á€¡á€…á€¬á€¸á€™á€»á€¬á€¸",
+                2: "á€‡á€šá€¬á€¸á€™á€»á€¬á€¸"
+            }
+            for idx, title in tab_titles_my.items():
+                self.tab_widget.setTabText(idx, title)
         else:
-            self.btn_today.setText("Today")
-            self.btn_this_week.setText("This Week")
-            self.btn_this_month.setText("This Month")
-            self.btn_last_month.setText("Last Month")
-            self.btn_this_year.setText("This Year")
-            self.btn_add.setText("Add Expense")
-            self.btn_edit.setText("Edit")
-            self.btn_delete.setText("Delete")
-            self.btn_categories.setText("Manage Categories")
-            self.btn_budget.setText("Budget Settings")
-            self.btn_notifications.setText("🔔 Notifications")
-            self.btn_compare.setText("📊 Compare")
-            self.btn_export_excel.setText("📊 Export Excel")
-            self.btn_export_category.setText("📁 Export Category")
-            self.btn_export_monthly.setText("📅 Export Monthly")
+            self.total_card.set_title("Total Expenses")
+            self.month_card.set_title("This Month")
+            self.today_card.set_title("Today")
+            
+            # Retranslate buttons
+            self.btn_add.setText(" Add")
+            self.btn_edit.setText(" Edit")
+            
+            # Search placeholder
+            self.search_widget.search_input.setPlaceholderText("Search by description or reference...")
+            
+            # âœ… Tab titles - English
+            for idx, title in self.tab_names.items():
+                self.tab_widget.setTabText(idx, title)
         
-        self.cards.retranslateUi(lang_code)
-        self.filters.retranslateUi(lang_code)
+        self.action_delete.setText("Delete")
+        self.action_categories.setText("Categories")
+        self.action_budget.setText("Budget")
+        self.action_notifications.setText("Notifications")
+        self.action_compare.setText("Compare")
+        self.action_export_excel.setText("Export Excel")
+        self.action_export_category.setText("Export Category")
+        self.action_export_monthly.setText("Export Monthly")
+        if hasattr(self, "action_toolbar"):
+            self.action_toolbar.update_theme()
+        
+        # Retranslate widgets
+        self.search_widget.retranslateUi(lang_code)
+        self.date_range.retranslateUi(lang_code)
         self.table.retranslateUi(lang_code)
+        
+        # Update button icons for language change
+        self.btn_add.set_icon("add", size=(14, 14))
+        self.btn_edit.set_icon("edit", size=(14, 14))
+        
+        # âœ… Update tab icons color for language change
+        self._update_tab_icons_color()
+        
+        # Retranslate tabs
+        if hasattr(self, 'category_tab'):
+            try:
+                self.category_tab.retranslateUi()
+            except Exception as e:
+                logger.error(f"Error retranslating category tab: {e}")
+        
+        if hasattr(self, 'chart_tab'):
+            try:
+                self.chart_tab.retranslateUi()
+            except Exception as e:
+                logger.error(f"Error retranslating chart: {e}")
     
     def showEvent(self, event):
+        logger.info("ExpensePage showEvent called")
         self.load_expenses()
-        self.cards.update_totals()
+        self.update_cards()
         self.apply_card_style()
+        # âœ… Update tab icons when shown
+        self._apply_tab_bar_style()
         super().showEvent(event)
+
+

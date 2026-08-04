@@ -39,6 +39,7 @@ class DashboardFilters(QWidget):
         
         # Date pickers
         self.from_label = QLabel("From:")
+        self.from_label.setVisible(False)
         layout.addWidget(self.from_label)
         self.from_date = QDateEdit()
         self.from_date.setCalendarPopup(True)
@@ -47,6 +48,7 @@ class DashboardFilters(QWidget):
         layout.addWidget(self.from_date)
         
         self.to_label = QLabel("To:")
+        self.to_label.setVisible(False)
         layout.addWidget(self.to_label)
         self.to_date = QDateEdit()
         self.to_date.setCalendarPopup(True)

@@ -2,13 +2,19 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QMessageBox, QInputDialog, QHeaderView, QLineEdit,
-    QLabel, QSpinBox, QGroupBox
+    QLabel, QSpinBox, QGroupBox, QComboBox, QDateEdit, QFormLayout,
+    QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QDate
 from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.language import lang
 from utils.currency import format_money
+
+# ✅ ModernButton import
+from ui.widgets.modern_button import ModernButton
+# ✅ ModernSearchWidget import
+from ui.widgets.search_widget import ModernSearchWidget
 
 
 class ProductLocationDialog(QDialog):
@@ -20,7 +26,7 @@ class ProductLocationDialog(QDialog):
         self.product_id = product_id
         self.product_name = product_name
         self.setWindowTitle(f"Manage Locations - {product_name}")
-        self.setMinimumSize(700, 450)
+        self.setMinimumSize(750, 500)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -49,6 +55,7 @@ class ProductLocationDialog(QDialog):
         # Add location section
         add_group = QGroupBox("Add to Location")
         add_layout = QHBoxLayout()
+        add_layout.setSpacing(10)
         
         self.location_combo = QComboBox()
         self.location_combo.setMinimumWidth(150)
@@ -62,29 +69,83 @@ class ProductLocationDialog(QDialog):
         add_layout.addWidget(QLabel("Qty:"))
         add_layout.addWidget(self.qty_spin)
         
-        self.btn_add = QPushButton("Add to Location")
+        # ✅ ModernButton for Add
+        self.btn_add = ModernButton("Add to Location", ModernButton.PRIMARY)
+        self.btn_add.set_compact(True)
         self.btn_add.clicked.connect(self.add_to_location)
         add_layout.addWidget(self.btn_add)
         
         add_group.setLayout(add_layout)
         layout.addWidget(add_group)
         
-        # Buttons
+        # ✅ Buttons - ModernButton အကုန်သုံးပါ
         btn_layout = QHBoxLayout()
-        self.btn_edit = QPushButton("Edit")
+        btn_layout.setSpacing(10)
+        
+        # Edit button - Secondary style
+        self.btn_edit = ModernButton("Edit", ModernButton.SECONDARY)
+        self.btn_edit.set_compact(True)
         self.btn_edit.clicked.connect(self.edit_location)
-        self.btn_delete = QPushButton("Delete")
+        
+        # Delete button - Custom danger style (override with stylesheet)
+        self.btn_delete = ModernButton("Delete", ModernButton.TERTIARY)
+        self.btn_delete.set_compact(True)
+        self.btn_delete.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #e74c3c;
+                border: 1.5px solid #e74c3c;
+                border-radius: 6px;
+                padding: 5px 16px;
+                font-weight: 500;
+                font-size: 9pt;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #e74c3c;
+                color: white;
+            }
+            QPushButton:pressed {
+                background-color: #c0392b;
+                color: white;
+            }
+        """)
         self.btn_delete.clicked.connect(self.delete_location)
-        self.btn_move = QPushButton("Move Stock")
+        
+        # Move button - Custom warning style
+        self.btn_move = ModernButton("Move Stock", ModernButton.SECONDARY)
+        self.btn_move.set_compact(True)
+        self.btn_move.setStyleSheet("""
+            QPushButton {
+                background-color: #f39c12;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 5px 16px;
+                font-weight: 500;
+                font-size: 9pt;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #e67e22;
+            }
+            QPushButton:pressed {
+                background-color: #d35400;
+            }
+        """)
         self.btn_move.clicked.connect(self.move_stock)
-        self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.accept)
         
         btn_layout.addWidget(self.btn_edit)
         btn_layout.addWidget(self.btn_delete)
         btn_layout.addWidget(self.btn_move)
         btn_layout.addStretch()
+        
+        # Close button - Tertiary style
+        self.btn_close = ModernButton("Close", ModernButton.TERTIARY)
+        self.btn_close.set_compact(True)
+        self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
+        
         layout.addLayout(btn_layout)
         
         self.setLayout(layout)
@@ -107,24 +168,29 @@ class ProductLocationDialog(QDialog):
         if lang_code == "my":
             self.setWindowTitle(f"နေရာများ စီမံရန် - {self.product_name}")
             self.table.setHorizontalHeaderLabels(["ID", "နေရာ", "ပမာဏ", "အသုတ်အမှတ်", "သက်တမ်းကုန်ရက်"])
-            self.btn_add.setText("နေရာသို့ထည့်")
-            self.btn_edit.setText("ပြင်ဆင်")
-            self.btn_delete.setText("ဖျက်")
-            self.btn_move.setText("စတော့ရွှေ့ပြောင်း")
-            self.btn_close.setText("ပိတ်မည်")
+            self.btn_add.setText("➕ နေရာသို့ထည့်")
+            self.btn_edit.setText("✏️ ပြင်ဆင်")
+            self.btn_delete.setText("🗑️ ဖျက်")
+            self.btn_move.setText("🔄 စတော့ရွှေ့ပြောင်း")
+            self.btn_close.setText("✖️ ပိတ်မည်")
         else:
             self.setWindowTitle(f"Manage Locations - {self.product_name}")
             self.table.setHorizontalHeaderLabels(["ID", "Location", "Quantity", "Batch No", "Expiry Date"])
-            self.btn_add.setText("Add to Location")
-            self.btn_edit.setText("Edit")
-            self.btn_delete.setText("Delete")
-            self.btn_move.setText("Move Stock")
-            self.btn_close.setText("Close")
+            self.btn_add.setText("➕ Add to Location")
+            self.btn_edit.setText("✏️ Edit")
+            self.btn_delete.setText("🗑️ Delete")
+            self.btn_move.setText("🔄 Move Stock")
+            self.btn_close.setText("✖️ Close")
     
     def load_locations(self):
+        """Load locations from product_locations table"""
         conn = connect_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT warehouse FROM products WHERE warehouse IS NOT NULL AND warehouse != '' ORDER BY warehouse")
+        cursor.execute("""
+            SELECT DISTINCT location FROM product_locations 
+            WHERE location IS NOT NULL AND location != '' 
+            ORDER BY location
+        """)
         rows = cursor.fetchall()
         self.location_combo.clear()
         for (name,) in rows:
@@ -134,6 +200,7 @@ class ProductLocationDialog(QDialog):
         conn.close()
     
     def load_product_locations(self):
+        """Load product locations from database"""
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
@@ -168,6 +235,7 @@ class ProductLocationDialog(QDialog):
         self.locations_changed.emit()
     
     def add_to_location(self):
+        """Add stock to a location"""
         location = self.location_combo.currentData()
         qty = self.qty_spin.value()
         
@@ -220,6 +288,7 @@ class ProductLocationDialog(QDialog):
         self.load_product_locations()
     
     def edit_location(self):
+        """Edit location details"""
         current_row = self.table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a location to edit.")
@@ -232,7 +301,6 @@ class ProductLocationDialog(QDialog):
         current_expiry = self.table.item(current_row, 4).text()
         
         # Edit dialog
-        from PyQt6.QtWidgets import QDialog, QFormLayout, QLineEdit, QSpinBox, QDateEdit, QDialogButtonBox
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Location")
         dialog.setMinimumWidth(400)
@@ -247,7 +315,6 @@ class ProductLocationDialog(QDialog):
         expiry_edit = QDateEdit()
         expiry_edit.setCalendarPopup(True)
         if current_expiry:
-            from PyQt6.QtCore import QDate
             expiry_edit.setDate(QDate.fromString(current_expiry, "yyyy-MM-dd"))
         
         form_layout.addRow("Location:", location_edit)
@@ -255,10 +322,22 @@ class ProductLocationDialog(QDialog):
         form_layout.addRow("Batch No:", batch_edit)
         form_layout.addRow("Expiry Date:", expiry_edit)
         
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form_layout.addRow(buttons)
+        # Buttons - Using ModernButton
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(8)
+        button_layout.addStretch()
+        
+        btn_cancel = ModernButton("Cancel", ModernButton.TERTIARY)
+        btn_cancel.set_compact(True)
+        btn_cancel.clicked.connect(dialog.reject)
+        
+        btn_ok = ModernButton("Save", ModernButton.PRIMARY)
+        btn_ok.set_compact(True)
+        btn_ok.clicked.connect(dialog.accept)
+        
+        button_layout.addWidget(btn_cancel)
+        button_layout.addWidget(btn_ok)
+        form_layout.addRow(button_layout)
         
         dialog.setLayout(form_layout)
         
@@ -281,6 +360,7 @@ class ProductLocationDialog(QDialog):
             self.load_product_locations()
     
     def delete_location(self):
+        """Delete a location entry"""
         current_row = self.table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a location to delete.")
@@ -306,6 +386,7 @@ class ProductLocationDialog(QDialog):
             self.load_product_locations()
     
     def move_stock(self):
+        """Move stock from one location to another"""
         current_row = self.table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a location to move from.")
@@ -325,7 +406,6 @@ class ProductLocationDialog(QDialog):
             QMessageBox.warning(self, "No Location", "No other locations available to move to.")
             return
         
-        from PyQt6.QtWidgets import QInputDialog
         to_location, ok = QInputDialog.getItem(
             self,
             "Move Stock",

@@ -1,11 +1,13 @@
 # ui/sales_summary/categories_tab.py
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QLineEdit, QPushButton
+    QTableWidgetItem, QHeaderView, QProgressBar
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import format_money, get_currency_symbol
+from ui.widgets.search_widget import ModernSearchWidget
 
 
 class CategoriesTab(QWidget):
@@ -16,63 +18,38 @@ class CategoriesTab(QWidget):
         
         layout = QVBoxLayout()
         
-        # Search bar
+        # ✅ Search bar - ModernSearchWidget ကိုသုံးပါ
         search_layout = QHBoxLayout()
-        search_layout.addWidget(QLabel("🔍 Search:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search category name...")
-        self.search_input.textChanged.connect(self.filter_table)
-        self.search_input.setStyleSheet("""
-            QLineEdit {
-                padding: 6px 10px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                min-width: 200px;
-            }
-            QLineEdit:focus {
-                border-color: #5865f2;
-            }
-        """)
-        search_layout.addWidget(self.search_input)
+        self.search_widget = ModernSearchWidget("Search category name...")
+        self.search_widget.search_changed.connect(self.filter_table)
+        search_layout.addWidget(self.search_widget)
         search_layout.addStretch()
-        
-        self.clear_btn = self._create_clear_button()
-        search_layout.addWidget(self.clear_btn)
-        
         layout.addLayout(search_layout)
         
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(8)  # Increased from 6 to 8
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setDefaultSectionSize(50)
         layout.addWidget(self.table)
         
         self.setLayout(layout)
     
-    def _create_clear_button(self):
-        btn = QPushButton("✕ Clear")
-        btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
-        btn.clicked.connect(self.clear_search)
-        return btn
-    
-    def clear_search(self):
-        self.search_input.clear()
-    
-    def filter_table(self):
-        search_text = self.search_input.text().lower().strip()
+    def filter_table(self, text=None):
+        """Filter table based on search text"""
+        if text is None:
+            text = self.search_widget.get_text()
+        
+        search_text = text.lower().strip()
         
         if not search_text:
             self._display_data(self.full_data)
@@ -85,40 +62,143 @@ class CategoriesTab(QWidget):
         symbol = get_currency_symbol()
         lang_code = self.parent_page.get_lang() if self.parent_page else "en"
         
+        # Calculate max net sales for progress bar scaling
+        max_sales = max([row[3] for row in rows]) if rows else 0  # row[3] = net_sales
+        
         self.table.setRowCount(0)
         for row_data in rows:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(row_data[0] if row_data[0] else "Uncategorized"))
-            self.table.setItem(r, 1, QTableWidgetItem(str(row_data[1])))
-            self.table.setItem(r, 2, QTableWidgetItem(format_money(row_data[2], symbol)))
-            self.table.setItem(r, 3, QTableWidgetItem(format_money(row_data[3], symbol)))
-            profit = row_data[2] - row_data[3]
-            self.table.setItem(r, 4, QTableWidgetItem(format_money(profit, symbol)))
+            
+            category = row_data[0] if row_data[0] else "Uncategorized"
+            items_sold = row_data[1]
+            gross_sales = row_data[2]   # Gross Sales
+            net_sales = row_data[3]     # Net Sales
+            discount = row_data[4]      # Discount
+            cogs = row_data[5]          # COGS
+            profit = net_sales - cogs   # Gross Profit
+            
+            # Calculate percentage for progress bar (relative to max)
+            percentage = (net_sales / max_sales * 100) if max_sales > 0 else 0
+            
+            # Category
+            self.table.setItem(r, 0, QTableWidgetItem(category))
+            
+            # Items Sold
+            items_item = QTableWidgetItem(str(items_sold))
+            items_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(r, 1, items_item)
+            
+            # Gross Sales
+            gross_item = QTableWidgetItem(format_money(gross_sales, symbol))
+            gross_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if gross_sales > 0:
+                gross_item.setForeground(QColor(52, 152, 219))
+            self.table.setItem(r, 2, gross_item)
+            
+            # Net Sales
+            sales_item = QTableWidgetItem(format_money(net_sales, symbol))
+            sales_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if net_sales > 0:
+                sales_item.setForeground(QColor(46, 204, 113))
+            self.table.setItem(r, 3, sales_item)
+            
+            # Discount
+            discount_item = QTableWidgetItem(format_money(discount, symbol))
+            discount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if discount > 0:
+                discount_item.setForeground(QColor(231, 76, 60))
+            else:
+                discount_item.setForeground(QColor(149, 165, 166))
+            self.table.setItem(r, 4, discount_item)
+            
+            # Cost of Goods
+            cogs_item = QTableWidgetItem(format_money(cogs, symbol))
+            cogs_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if cogs > 0:
+                cogs_item.setForeground(QColor(231, 76, 60))
+            self.table.setItem(r, 5, cogs_item)
+            
+            # Gross Profit
+            profit_item = QTableWidgetItem(format_money(profit, symbol))
+            profit_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            if profit > 0:
+                profit_item.setForeground(QColor(46, 204, 113))
+            elif profit < 0:
+                profit_item.setForeground(QColor(231, 76, 60))
+            self.table.setItem(r, 6, profit_item)
+            
+            # Progress Bar
+            progress_widget = QWidget()
+            progress_layout = QHBoxLayout(progress_widget)
+            progress_layout.setContentsMargins(5, 2, 5, 2)
+            progress_layout.setSpacing(0)
+            
+            progress_bar = QProgressBar()
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(int(percentage))
+            progress_bar.setFormat("")
+            progress_bar.setTextVisible(False)
+            
+            # Color based on percentage
+            if percentage >= 80:
+                progress_bar.setStyleSheet("""
+                    QProgressBar::chunk {
+                        background-color: #e74c3c;
+                        border-radius: 3px;
+                    }
+                """)
+            elif percentage >= 50:
+                progress_bar.setStyleSheet("""
+                    QProgressBar::chunk {
+                        background-color: #f39c12;
+                        border-radius: 3px;
+                    }
+                """)
+            else:
+                progress_bar.setStyleSheet("""
+                    QProgressBar::chunk {
+                        background-color: #2ecc71;
+                        border-radius: 3px;
+                    }
+                """)
+            
+            progress_layout.addWidget(progress_bar)
+            self.table.setCellWidget(r, 7, progress_widget)
+            
+            # Set row height
+            self.table.setRowHeight(r, 50)
         
+        # Set headers based on language
         if lang_code == "my":
             self.table.setHorizontalHeaderLabels([
-                "အမျိုးအစား", "ရောင်းရသည့်အရေအတွက်", "စုစုပေါင်းရောင်းအား",
-                "ကုန်ကျစရိတ်", "အသားတင်အမြတ်"
+                "အမျိုးအစား", "ရောင်းရသည့်အရေအတွက်", 
+                "စုစုပေါင်းရောင်းအား (အကြမ်း)", "အသားတင်ရောင်းအား",
+                "လျှော့စျေး", "ကုန်ကျစရိတ်", 
+                "အသားတင်အမြတ်", "တိုးတက်မှု"
             ])
         else:
             self.table.setHorizontalHeaderLabels([
-                "Category", "Items Sold", "Net Sales", "Cost of Goods", "Gross Profit"
+                "Category", "Items Sold", "Gross Sales", "Net Sales",
+                "Discount", "Cost of Goods", "Gross Profit", "Progress"
             ])
     
     def load(self, from_date, to_date):
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT COALESCE(products.category, 'Uncategorized') as category,
-                   COALESCE(SUM(sale_items.qty), 0) as items_sold,
-                   COALESCE(SUM(sale_items.total), 0) as net_sales,
-                   COALESCE(SUM(products.cost * sale_items.qty), 0) as cogs
-            FROM sale_items
-            JOIN sales ON sale_items.sale_id = sales.id
-            LEFT JOIN products ON sale_items.product_name = products.name
-            WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
-            GROUP BY products.category
+            SELECT 
+                COALESCE(p.category, 'Uncategorized') as category,
+                COALESCE(SUM(si.qty), 0) as items_sold,
+                COALESCE(SUM(si.price * si.qty), 0) as gross_sales,
+                COALESCE(SUM(si.total) - SUM(s.discount_amount), 0) as net_sales,
+                COALESCE(SUM(s.discount_amount), 0) as total_discount,
+                COALESCE(SUM(p.cost * si.qty), 0) as cogs
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            LEFT JOIN products p ON si.product_name = p.name
+            WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
+            GROUP BY p.category
             ORDER BY net_sales DESC
         """, (from_date, to_date))
         rows = cursor.fetchall()
@@ -126,7 +206,7 @@ class CategoriesTab(QWidget):
         
         self.full_data = [list(row) for row in rows]
         
-        if self.search_input.text().strip():
+        if self.search_widget.get_text().strip():
             self.filter_table()
         else:
             self._display_data(self.full_data)
@@ -134,8 +214,12 @@ class CategoriesTab(QWidget):
     def retranslateUi(self):
         lang_code = self.parent_page.get_lang() if self.parent_page else "en"
         if lang_code == "my":
-            self.search_input.setPlaceholderText("အမျိုးအစားရှာရန်...")
-            self.clear_btn.setText("✕ ရှင်းမည်")
+            self.search_widget.retranslateUi("my")
         else:
-            self.search_input.setPlaceholderText("Search category name...")
-            self.clear_btn.setText("✕ Clear")
+            self.search_widget.retranslateUi("en")
+        
+        # Refresh display with new headers
+        if self.search_widget.get_text().strip():
+            self.filter_table()
+        else:
+            self._display_data(self.full_data)

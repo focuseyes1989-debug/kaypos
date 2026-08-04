@@ -6,7 +6,8 @@ from ui.settings.receipt_setting import ReceiptSettingWidget
 from ui.settings.regional_setting import RegionalSettingWidget
 from ui.settings.backup_reset_setting import BackupResetSettingWidget
 from ui.settings.users_setting import UsersSettingWidget
-from ui.settings.update_setting import UpdateSettingWidget  # New import
+from ui.settings.update_setting import UpdateSettingWidget
+from ui.settings.telegram_setting import TelegramSettingWidget
 from utils.language import lang
 from utils.permissions import PermissionManager, Permission
 from loguru import logger
@@ -39,6 +40,10 @@ class SettingsPage(QWidget):
         # Update Tab - Always visible (check for updates)
         self.update_tab = UpdateSettingWidget(user_id=user_id)
         self.tabs.addTab(self.update_tab, "")
+
+        # Telegram Tab - Always visible
+        self.telegram_tab = TelegramSettingWidget()
+        self.tabs.addTab(self.telegram_tab, "")
 
         # Backup Tab - Only show if user has backup permission
         if self.user_id and PermissionManager.user_has_permission(self.user_id, Permission.BACKUP):
@@ -92,6 +97,10 @@ class SettingsPage(QWidget):
             self.regional_tab.setToolTip("You don't have permission to edit settings")
             
             # Update tab - always enabled (checking for updates doesn't need permission)
+            # Disable Telegram settings tab
+            if hasattr(self, 'telegram_tab'):
+                self.telegram_tab.setEnabled(False)
+                self.telegram_tab.setToolTip("You don't have permission to edit Telegram settings")
             
             # If backup tab exists, disable it too
             if hasattr(self, 'backup_tab'):
@@ -110,6 +119,9 @@ class SettingsPage(QWidget):
         # Add Update tab
         tab_titles.append(("Update", "အပ်ဒိတ်"))
         
+        # Add Telegram tab
+        tab_titles.append(("Telegram", "Telegram"))
+
         # Add Backup tab title if exists
         if hasattr(self, 'backup_tab'):
             tab_titles.append(("Backup & Reset", "Backup နှင့် ပြန်လည်သတ်မှတ်ခြင်း"))
@@ -132,6 +144,8 @@ class SettingsPage(QWidget):
             self.regional_tab.retranslateUi()
         if hasattr(self, 'update_tab'):
             self.update_tab.retranslateUi()
+        if hasattr(self, 'telegram_tab'):
+            self.telegram_tab.retranslateUi()
         if hasattr(self, 'backup_tab'):
             self.backup_tab.retranslateUi()
         if hasattr(self, 'users_tab'):
@@ -156,5 +170,8 @@ class SettingsPage(QWidget):
         
         if hasattr(self, 'update_tab'):
             self.update_tab.load_current_version()
+
+        if hasattr(self, 'telegram_tab'):
+            self.telegram_tab.load_settings()
         
         super().showEvent(event)

@@ -5,8 +5,11 @@ from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import format_money
 from ui.reports.base_report_dialog import BaseReportDialog
+from ui.widgets.summary_card_widget import SummaryCardWidget
+from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from datetime import datetime
 import csv
+import os
 
 
 class ProfitLossWorker(QObject):
@@ -82,51 +85,185 @@ class ProfitLossWorker(QObject):
 
 class ProfitLossReportDialog(BaseReportDialog):
     def __init__(self, parent=None):
-        super().__init__("Profit & Loss Report", parent)
+        super().__init__(parent)
+        self._is_dark = is_dark_theme()
         self.create_content_area()
+        
+        # Connect theme change
+        theme_manager.theme_changed.connect(self._on_theme_changed)
         
         # Initial refresh
         self.refresh_report()
         self.retranslateUi()
     
+    def _on_theme_changed(self, theme_name):
+        """Handle theme change"""
+        self._is_dark = is_dark_theme()
+        self._apply_theme()
+    
+    def _apply_theme(self):
+        """Apply theme-aware styles"""
+        colors = get_theme_colors()
+        is_dark = is_dark_theme()
+        
+        # Update table style
+        if is_dark:
+            table_style = """
+                QTableWidget {
+                    background-color: #2f3136;
+                    alternate-background-color: #36393f;
+                    selection-background-color: #40444b;
+                    selection-color: #dcddde;
+                    gridline-color: #40444b;
+                    border: 1px solid #40444b;
+                    border-radius: 6px;
+                    color: #dcddde;
+                }
+                QTableWidget::item {
+                    padding: 8px 12px;
+                    color: #dcddde;
+                }
+                QTableWidget::item:selected {
+                    background-color: #40444b;
+                    color: #dcddde;
+                }
+                QHeaderView::section {
+                    background-color: #202225;
+                    padding: 8px 12px;
+                    border: none;
+                    border-bottom: 2px solid #40444b;
+                    font-weight: 600;
+                    font-size: 10pt;
+                    color: #b9bbbe;
+                }
+                QTableWidget::item:hover {
+                    background-color: #40444b;
+                }
+            """
+        else:
+            table_style = """
+                QTableWidget {
+                    background-color: white;
+                    alternate-background-color: #f8f9fa;
+                    selection-background-color: #e9ecef;
+                    selection-color: #212529;
+                    gridline-color: #dee2e6;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    color: #212529;
+                }
+                QTableWidget::item {
+                    padding: 8px 12px;
+                    color: #212529;
+                }
+                QTableWidget::item:selected {
+                    background-color: #e9ecef;
+                    color: #212529;
+                }
+                QHeaderView::section {
+                    background-color: #f8f9fa;
+                    padding: 8px 12px;
+                    border: none;
+                    border-bottom: 2px solid #dee2e6;
+                    font-weight: 600;
+                    font-size: 10pt;
+                    color: #2c3e50;
+                }
+                QTableWidget::item:hover {
+                    background-color: #f1f3f5;
+                }
+            """
+        self.table.setStyleSheet(table_style)
+        
+        # Update labels
+        for child in self.findChildren(QLabel):
+            child.setStyleSheet(f"color: {colors['text']};")
+    
     def create_content_area(self):
         """Create main content area with cards and table"""
-        # Summary cards layout
+        # Summary cards layout with SVG icons
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(12)
         
         # Sales Card
-        self.sales_card = self.create_card("Total Sales", "0", "#3498db")
+        self.sales_card = SummaryCardWidget(
+            title="Total Sales",
+            value="0",
+            icon="attach_money",
+            color="#3498db",
+            icon_is_svg=True
+        )
+        self.sales_card.set_icon("attach_money", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.sales_card, 1)
         
         # COGS Card
-        self.cogs_card = self.create_card("COGS", "0", "#e74c3c")
+        self.cogs_card = SummaryCardWidget(
+            title="COGS",
+            value="0",
+            icon="package",
+            color="#e74c3c",
+            icon_is_svg=True
+        )
+        self.cogs_card.set_icon("package", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.cogs_card, 1)
         
         # Gross Profit Card
-        self.gross_card = self.create_card("Gross Profit", "0", "#2ecc71")
+        self.gross_card = SummaryCardWidget(
+            title="Gross Profit",
+            value="0",
+            icon="trending_up",
+            color="#2ecc71",
+            icon_is_svg=True
+        )
+        self.gross_card.set_icon("trending_up", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.gross_card, 1)
         
         # Expenses Card
-        self.expenses_card = self.create_card("Operating Expenses", "0", "#e67e22")
+        self.expenses_card = SummaryCardWidget(
+            title="Operating Expenses",
+            value="0",
+            icon="money_off",
+            color="#e67e22",
+            icon_is_svg=True
+        )
+        self.expenses_card.set_icon("money_off", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.expenses_card, 1)
         
         # Net Profit Card
-        self.net_card = self.create_card("Net Profit", "0", "#9b59b6")
+        self.net_card = SummaryCardWidget(
+            title="Net Profit",
+            value="0",
+            icon="bar_chart",
+            color="#9b59b6",
+            icon_is_svg=True
+        )
+        self.net_card.set_icon("bar_chart", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.net_card, 1)
         
         # Margin Card
-        self.margin_card = self.create_card("Net Margin", "0%", "#1abc9c")
+        self.margin_card = SummaryCardWidget(
+            title="Net Margin",
+            value="0%",
+            icon="analytics",
+            color="#1abc9c",
+            icon_is_svg=True
+        )
+        self.margin_card.set_icon("analytics", is_svg=True, size=(24, 24))
         card_layout.addWidget(self.margin_card, 1)
         
         self.main_layout.insertLayout(2, card_layout)
         
-        # Summary table
+        # Summary table with theme support
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Metric", "Amount", "% of Sales", "Status", "Trend"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Apply initial theme
+        self._apply_theme()
+        
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -136,38 +273,6 @@ class ProfitLossReportDialog(BaseReportDialog):
         
         self.main_layout.insertWidget(3, self.table)
     
-    def create_card(self, title, amount, color):
-        """Create a summary card"""
-        card = QFrame()
-        card.setObjectName("reportCard")
-        card.setFrameStyle(QFrame.Shape.StyledPanel)
-        card.setMinimumHeight(100)
-        
-        layout = QVBoxLayout(card)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(5)
-        
-        title_label = QLabel(title)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        amount_label = QLabel(amount)
-        amount_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        amount_label.setStyleSheet(f"color: {color}; font-size: 20pt; font-weight: bold;")
-        
-        layout.addWidget(title_label)
-        layout.addWidget(amount_label)
-        
-        # Store references for updates
-        card.amount_label = amount_label
-        return card
-    
-    def update_card(self, card, amount, symbol=None):
-        """Update card amount"""
-        if symbol:
-            card.amount_label.setText(format_money(amount, symbol))
-        else:
-            card.amount_label.setText(str(amount))
-    
     def create_worker(self):
         """Create worker for background refresh"""
         from_date, to_date = self.get_date_range()
@@ -176,6 +281,7 @@ class ProfitLossReportDialog(BaseReportDialog):
     def update_ui_with_result(self, result):
         """Update UI with calculation result"""
         symbol = self.get_currency_symbol()
+        is_dark = is_dark_theme()
         
         total_sales = result['total_sales']
         total_cogs = result['total_cogs']
@@ -184,21 +290,26 @@ class ProfitLossReportDialog(BaseReportDialog):
         net_profit = result['net_profit']
         profit_margin = result['profit_margin']
         
+        # Color definitions
+        green_color = "#3ba55d" if is_dark else "#28a745"
+        red_color = "#ed4245" if is_dark else "#dc3545"
+        text_color = "#dcddde" if is_dark else "#212529"
+        
         # Update cards
-        self.update_card(self.sales_card, total_sales, symbol)
-        self.update_card(self.cogs_card, total_cogs, symbol)
-        self.update_card(self.gross_card, gross_profit, symbol)
-        self.update_card(self.expenses_card, total_expenses, symbol)
-        self.update_card(self.net_card, net_profit, symbol)
-        self.update_card(self.margin_card, f"{profit_margin:.1f}%")
+        self.sales_card.set_value(format_money(total_sales, symbol))
+        self.cogs_card.set_value(format_money(total_cogs, symbol))
+        self.gross_card.set_value(format_money(gross_profit, symbol))
+        self.expenses_card.set_value(format_money(total_expenses, symbol))
+        self.net_card.set_value(format_money(net_profit, symbol))
+        self.margin_card.set_value(f"{profit_margin:.1f}%")
         
         # Color coding for net profit
         if net_profit >= 0:
-            self.net_card.amount_label.setStyleSheet("color: #2ecc71; font-size: 20pt; font-weight: bold;")
-            self.margin_card.amount_label.setStyleSheet("color: #2ecc71; font-size: 20pt; font-weight: bold;")
+            self.net_card.set_color(green_color)
+            self.margin_card.set_color(green_color)
         else:
-            self.net_card.amount_label.setStyleSheet("color: #e74c3c; font-size: 20pt; font-weight: bold;")
-            self.margin_card.amount_label.setStyleSheet("color: #e74c3c; font-size: 20pt; font-weight: bold;")
+            self.net_card.set_color(red_color)
+            self.margin_card.set_color(red_color)
         
         # Update table
         data = [
@@ -213,22 +324,39 @@ class ProfitLossReportDialog(BaseReportDialog):
         
         self.table.setRowCount(len(data))
         for i, (metric, amount, percentage, status, trend) in enumerate(data):
-            self.table.setItem(i, 0, QTableWidgetItem(metric))
-            self.table.setItem(i, 1, QTableWidgetItem(format_money(amount, symbol)))
-            self.table.setItem(i, 2, QTableWidgetItem(f"{percentage:.1f}%"))
+            # Metric
+            metric_item = QTableWidgetItem(metric)
+            metric_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 0, metric_item)
             
+            # Amount
+            amount_item = QTableWidgetItem(format_money(amount, symbol))
+            amount_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 1, amount_item)
+            
+            # Percentage
+            percent_item = QTableWidgetItem(f"{percentage:.1f}%")
+            percent_item.setForeground(QColor(text_color))
+            self.table.setItem(i, 2, percent_item)
+            
+            # Status
             status_item = QTableWidgetItem(status)
-            if status == "Profit":
-                status_item.setForeground(QColor(46, 204, 113))
+            if status == "Profit" or status == "Income":
+                status_item.setForeground(QColor(green_color))
             elif status == "Loss":
-                status_item.setForeground(QColor(231, 76, 60))
+                status_item.setForeground(QColor(red_color))
+            else:
+                status_item.setForeground(QColor(text_color))
             self.table.setItem(i, 3, status_item)
             
+            # Trend
             trend_item = QTableWidgetItem(trend)
             if trend == "↑":
-                trend_item.setForeground(QColor(46, 204, 113))
+                trend_item.setForeground(QColor(green_color))
             elif trend == "↓":
-                trend_item.setForeground(QColor(231, 76, 60))
+                trend_item.setForeground(QColor(red_color))
+            else:
+                trend_item.setForeground(QColor(text_color))
             self.table.setItem(i, 4, trend_item)
     
     def export_to_excel(self):
@@ -321,15 +449,81 @@ class ProfitLossReportDialog(BaseReportDialog):
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
     
+    def refresh_report(self):
+        """Refresh the report with current date range"""
+        from_date, to_date = self.get_date_range()
+        
+        # Show loading state
+        loading_text = "Loading..."
+        self.sales_card.set_value(loading_text)
+        self.cogs_card.set_value(loading_text)
+        self.gross_card.set_value(loading_text)
+        self.expenses_card.set_value(loading_text)
+        self.net_card.set_value(loading_text)
+        self.margin_card.set_value(loading_text)
+        
+        worker = self.create_worker()
+        thread = QThread()
+        worker.moveToThread(thread)
+        
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        worker.result.connect(self.update_ui_with_result)
+        worker.error.connect(self.on_refresh_error)
+        
+        self.threads.append(thread)
+        self.workers.append(worker)
+        thread.start()
+    
     def retranslateUi(self):
         """Update UI text based on language"""
         lang = self.get_lang()
+        
         if lang == "my":
             self.setWindowTitle("အမြတ်အစွန်း အစီရင်ခံစာ")
-            self.btn_refresh.setText("ပြန်လည်")
-            self.btn_export_excel.setText("📊 Excel ထုတ်မည်")
-            self.btn_export_pdf.setText("📄 PDF ထုတ်မည်")
-            self.btn_close.setText("ပိတ်မည်")
+            self.btn_export.setText(" Excel ထုတ်မည်")
+            self.btn_close.setText(" ပိတ်မည်")
+            self.btn_refresh.setText(" ပြန်လည်")
+            
+            self.sales_card.set_title("စုစုပေါင်းရောင်းအား")
+            self.cogs_card.set_title("ကုန်ပစ္စည်းကုန်ကျစရိတ်")
+            self.gross_card.set_title("အသားတင်အမြတ်")
+            self.expenses_card.set_title("လည်ပတ်စရိတ်")
+            self.net_card.set_title("အသားတင်အမြတ်")
+            self.margin_card.set_title("အသားတင်အမြတ်ရာခိုင်နှုန်း")
+            
             self.table.setHorizontalHeaderLabels([
                 "အမျိုးအစား", "ပမာဏ", "ရောင်းအား၏ ရာခိုင်နှုန်း", "အခြေအနေ", "လမ်းကြောင်း"
             ])
+        else:
+            self.setWindowTitle("Profit & Loss Report")
+            self.btn_export.setText(" Export Excel")
+            self.btn_close.setText(" Close")
+            self.btn_refresh.setText(" Refresh")
+            
+            self.sales_card.set_title("Total Sales")
+            self.cogs_card.set_title("COGS")
+            self.gross_card.set_title("Gross Profit")
+            self.expenses_card.set_title("Operating Expenses")
+            self.net_card.set_title("Net Profit")
+            self.margin_card.set_title("Net Margin")
+            
+            self.table.setHorizontalHeaderLabels([
+                "Metric", "Amount", "% of Sales", "Status", "Trend"
+            ])
+        
+        # Update button icons
+        self.btn_export.set_icon("file_export", size=(16, 16))
+        self.btn_close.set_icon("close", size=(16, 16))
+        
+        # Update card icons
+        self.sales_card.set_icon("attach_money", is_svg=True, size=(24, 24))
+        self.cogs_card.set_icon("package", is_svg=True, size=(24, 24))
+        self.gross_card.set_icon("trending_up", is_svg=True, size=(24, 24))
+        self.expenses_card.set_icon("money_off", is_svg=True, size=(24, 24))
+        self.net_card.set_icon("bar_chart", is_svg=True, size=(24, 24))
+        self.margin_card.set_icon("analytics", is_svg=True, size=(24, 24))
+        
+        self._apply_theme()

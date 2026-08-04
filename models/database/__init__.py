@@ -1,4 +1,5 @@
 # models/database/__init__.py
+
 """
 Database module with connection pooling and ORM-like functionality.
 """
@@ -6,6 +7,8 @@ Database module with connection pooling and ORM-like functionality.
 import sqlite3
 import os
 from typing import Optional, List, Tuple, Any
+from loguru import logger
+from models.database.auto_fix import run_auto_fix, fix_missing_category_columns
 
 # Connection
 from models.database.connection import connect_db, DBContext, release_connection, close_all_connections
@@ -59,252 +62,137 @@ from models.database.auto_maintenance import (
     stop_auto_maintenance
 )
 
+# Recovery
+from models.database.recovery import DatabaseRecovery
+
 
 # ============================================================================
-# 🔥 ADDED: DatabaseManager class for backward compatibility
+# 🔥 SAFE DATABASE INITIALIZATION
 # ============================================================================
 
-class DatabaseManager:
+def safe_initialize_database() -> bool:
     """
-    Database manager for application.
-    Provides a unified interface for database operations.
+    Safely initialize database with error handling
+    
+    Returns:
+        bool: True if successful
     """
-    
-    def __init__(self, db_path: str):
-        """
-        Initialize database manager.
+    try:
+        logger.info("Initializing database...")
         
-        Args:
-            db_path: Path to database file
-        """
-        self.db_path = db_path
-        self._ensure_db_directory()
-    
-    def _ensure_db_directory(self):
-        """Ensure database directory exists."""
-        db_dir = os.path.dirname(self.db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-    
-    def get_connection(self) -> sqlite3.Connection:
-        """
-        Get a database connection.
+        # Check if database exists and is accessible
+        db_path = "database/pos.db"
+        db_dir = os.path.dirname(db_path)
+        os.makedirs(db_dir, exist_ok=True)
         
-        Returns:
-            sqlite3.Connection: Database connection
-        """
-        from models.database.connection import connect_db
-        return connect_db(self.db_path)
-    
-    def release_connection(self, conn: sqlite3.Connection):
-        """
-        Release a database connection.
-        
-        Args:
-            conn: Database connection to release
-        """
-        from models.database.connection import release_connection
-        release_connection(conn)
-    
-    def execute_query(self, query: str, params: tuple = ()) -> List[Tuple]:
-        """
-        Execute a query and return results.
-        
-        Args:
-            query: SQL query
-            params: Query parameters
-            
-        Returns:
-            List[Tuple]: Query results
-        """
-        conn = self.get_connection()
+        # Try to create tables
         try:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            result = cursor.fetchall()
-            conn.commit()
-            return result
-        finally:
-            self.release_connection(conn)
-    
-    def execute_one(self, query: str, params: tuple = ()) -> Optional[Tuple]:
-        """
-        Execute a query and return one result.
-        
-        Args:
-            query: SQL query
-            params: Query parameters
-            
-        Returns:
-            Optional[Tuple]: Single query result
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            result = cursor.fetchone()
-            conn.commit()
-            return result
-        finally:
-            self.release_connection(conn)
-    
-    def execute_update(self, query: str, params: tuple = ()) -> int:
-        """
-        Execute an update query.
-        
-        Args:
-            query: SQL query
-            params: Query parameters
-            
-        Returns:
-            int: Last row id
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            conn.commit()
-            return cursor.lastrowid
-        finally:
-            self.release_connection(conn)
-    
-    def execute_many(self, query: str, params_list: list) -> int:
-        """
-        Execute a query with multiple parameters.
-        
-        Args:
-            query: SQL query
-            params_list: List of parameter tuples
-            
-        Returns:
-            int: Number of affected rows
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.executemany(query, params_list)
-            conn.commit()
-            return cursor.rowcount
-        finally:
-            self.release_connection(conn)
-    
-    def execute_script(self, script: str) -> None:
-        """
-        Execute a SQL script.
-        
-        Args:
-            script: SQL script
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.executescript(script)
-            conn.commit()
-        finally:
-            self.release_connection(conn)
-    
-    def get_table_names(self) -> List[str]:
-        """
-        Get all table names.
-        
-        Returns:
-            List[str]: List of table names
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            return [row[0] for row in cursor.fetchall()]
-        finally:
-            self.release_connection(conn)
-    
-    def table_exists(self, table_name: str) -> bool:
-        """
-        Check if a table exists.
-        
-        Args:
-            table_name: Table name to check
-            
-        Returns:
-            bool: True if table exists
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (table_name,)
-            )
-            return cursor.fetchone() is not None
-        finally:
-            self.release_connection(conn)
-    
-    def get_table_info(self, table_name: str) -> List[Tuple]:
-        """
-        Get table column information.
-        
-        Args:
-            table_name: Table name
-            
-        Returns:
-            List[Tuple]: Table information
-        """
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            return cursor.fetchall()
-        finally:
-            self.release_connection(conn)
-    
-    def backup_database(self, backup_path: str) -> bool:
-        """
-        Backup the database.
-        
-        Args:
-            backup_path: Path to backup file
-            
-        Returns:
-            bool: True if backup successful
-        """
-        import shutil
-        try:
-            # Ensure backup directory exists
-            backup_dir = os.path.dirname(backup_path)
-            if backup_dir and not os.path.exists(backup_dir):
-                os.makedirs(backup_dir, exist_ok=True)
-            
-            shutil.copy2(self.db_path, backup_path)
-            return True
+            create_tables()
+            logger.info("✅ Database tables created/verified")
         except Exception as e:
-            print(f"Backup failed: {e}")
-            return False
-    
-    def vacuum(self) -> None:
-        """Optimize database with VACUUM."""
-        conn = self.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("VACUUM")
-            conn.commit()
-        finally:
-            self.release_connection(conn)
-    
-    def close(self) -> None:
-        """Close all database connections."""
-        from models.database.connection import close_all_connections
-        close_all_connections()
-    
-    def get_db_size(self) -> int:
-        """
-        Get database file size.
+            logger.error(f"❌ Failed to create tables: {e}")
+            
+            # Try to fix missing columns
+            try:
+                fix_missing_columns()
+                logger.info("✅ Fixed missing columns")
+            except Exception as e2:
+                logger.error(f"❌ Failed to fix columns: {e2}")
+                
+                # Try emergency recovery
+                try:
+                    recovery = DatabaseRecovery()
+                    success, message = recovery.auto_recover()
+                    if success:
+                        logger.info(f"✅ {message}")
+                        return True
+                except Exception as e3:
+                    logger.error(f"❌ Emergency recovery failed: {e3}")
+                
+                return False
         
-        Returns:
-            int: Size in bytes
-        """
-        if os.path.exists(self.db_path):
-            return os.path.getsize(self.db_path)
-        return 0
+        # ✅ Update category stats after tables are created
+        if False:
+            logger.info("✅ Category stats updated after initialization")
+        if False:
+            logger.warning("Category stats update deferred")
+        
+        # ✅ RUN AUTO-FIX for category columns
+        if False:
+            logger.info("✅ Auto-fix completed")
+        if False:
+            logger.warning("Auto-fix deferred")
+        
+        # ✅ Check and run migrations
+        try:
+            check_and_run_migrations()
+        except Exception as e:
+            logger.warning(f"Migration warning: {e}")
+        
+        # ✅ AUTO-UPDATE: AI Pages Permission
+        try:
+            from utils.permissions import update_role_permissions_in_db
+            update_role_permissions_in_db()
+            logger.info("✅ AI Pages permission auto-updated")
+        except Exception as e:
+            logger.warning(f"Could not auto-update AI Pages permission: {e}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        return False
+
+
+def initialize_database_with_fallback():
+    """
+    Initialize database with fallback options
+    """
+    # First attempt
+    if safe_initialize_database():
+        return True
+    
+    # Second attempt: Try to fix schema
+    try:
+        from models.database.connection import DBContext
+        
+        with DBContext() as conn:
+            cursor = conn.cursor()
+            
+            # Check if categories table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='categories'")
+            if cursor.fetchone():
+                # Check columns
+                cursor.execute("PRAGMA table_info(categories)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'slug' not in columns:
+                    logger.info("Adding missing slug column...")
+                    cursor.execute("ALTER TABLE categories ADD COLUMN slug TEXT UNIQUE")
+                    conn.commit()
+                    
+                    # Update slugs
+                    cursor.execute("""
+                        UPDATE categories SET 
+                        slug = LOWER(REPLACE(REPLACE(REPLACE(REPLACE(
+                            TRIM(name), ' ', '-'), '(', ''), ')', ''), '/', '-'))
+                        WHERE slug IS NULL
+                    """)
+                    conn.commit()
+                    
+                    # Handle duplicates
+                    cursor.execute("""
+                        UPDATE categories SET slug = slug || '-' || id 
+                        WHERE slug IN (SELECT slug FROM categories GROUP BY slug HAVING COUNT(*) > 1)
+                    """)
+                    conn.commit()
+                    
+                    logger.info("✅ Added slug column and updated data")
+                    return True
+    except Exception as e:
+        logger.error(f"❌ Fallback fix failed: {e}")
+    
+    return False
 
 
 # Backward compatibility
@@ -354,4 +242,10 @@ __all__ = [
     
     # 🔥 Added
     'DatabaseManager',
+    'safe_initialize_database',
+    'initialize_database_with_fallback',
+    'DatabaseRecovery',
+    
+    'run_auto_fix',
+    'fix_missing_category_columns',
 ]

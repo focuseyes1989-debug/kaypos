@@ -543,9 +543,17 @@ class ReceiptsPage(QWidget):
                                 SET current_balance = CASE
                                     WHEN COALESCE(current_balance, 0) - ? < 0 THEN 0
                                     ELSE COALESCE(current_balance, 0) - ?
+                                END,
+                                credit_balance = CASE
+                                    WHEN COALESCE(credit_balance, 0) - ? < 0 THEN 0
+                                    ELSE COALESCE(credit_balance, 0) - ?
                                 END
                                 WHERE id = ?
-                            """, (balance_to_remove, balance_to_remove, customer_id))
+                            """, (
+                                balance_to_remove, balance_to_remove,
+                                balance_to_remove, balance_to_remove,
+                                customer_id,
+                            ))
 
                         cursor.execute("""
                             UPDATE credit_sales

@@ -1,16 +1,17 @@
 # ui/products_page/products_page.py
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMessageBox, QLabel,
-    QFileDialog
+    QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor
 from models.database import connect_db
 from ui.products_page.product_filters import ProductFilters
 from ui.products_page.product_card import ProductCards
 from ui.products_page.product_table import ProductTable
 from ui.products_page.product_service import ProductService
-from ui.product_form_dialog import ProductFormDialog
-from ui.manage_categories_dialog import ManageCategoriesDialog
+from ui.products_page.product_form_dialog import ProductFormDialog
+from ui.products_page.manage_categories_dialog import ManageCategoriesDialog
+from ui.products_page.manage_category_groups_dialog import ManageCategoryGroupsDialog
 from ui.print_barcode_dialog import PrintBarcodeDialog
 from utils.language import lang
 from utils.currency import get_currency_symbol, format_money
@@ -18,11 +19,16 @@ from utils.excel_exporter import ExcelExporter
 from utils.permissions import PermissionManager, Permission
 from loguru import logger
 from datetime import datetime
-import csv
+from ui.categories.category_list_dialog import CategoryListDialog
+
+from ui.widgets.modern_button import ModernButton
+from ui.widgets.action_toolbar import ActionToolbar
+from ui.themes.theme_manager import theme_manager
+import os
 
 
 class ProductsPage(QWidget):
-    categories_changed = pyqtSignal()  # Signal for category changes
+    categories_changed = pyqtSignal()
     
     def __init__(self, user_role=None, user_id=None, parent=None):
         super().__init__(parent)
@@ -32,7 +38,6 @@ class ProductsPage(QWidget):
         self.current_page = 1
         self.items_per_page = 50
         self.selected_product_id = None
-
         self.service = ProductService(self)
         self.setup_ui()
         self.load_categories()
@@ -40,25 +45,26 @@ class ProductsPage(QWidget):
         self.update_cards()
 
         lang.language_changed.connect(self.retranslateUi)
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+        self.destroyed.connect(lambda *_: self._disconnect_theme_signal())
         self.retranslateUi()
         
-        # Apply permissions to buttons
         self.apply_permissions()
 
-    def apply_permissions(self):
-        """Apply permissions to buttons based on user role"""
-        if self.user_id:
-            if not PermissionManager.user_has_permission(self.user_id, Permission.EDIT_PRODUCT):
-                self.btn_edit.setEnabled(False)
-                self.btn_edit.setToolTip("You don't have permission to edit products")
-            
-            if not PermissionManager.user_has_permission(self.user_id, Permission.DELETE_PRODUCT):
-                self.btn_delete.setEnabled(False)
-                self.btn_delete.setToolTip("You don't have permission to delete products")
-            
-            if not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):
-                self.btn_add.setEnabled(False)
-                self.btn_add.setToolTip("You don't have permission to add products")
+    def _on_theme_changed(self, theme_name):
+        if hasattr(self, "action_toolbar"):
+            self.action_toolbar.update_theme()
+
+    def _disconnect_theme_signal(self):
+        try:
+            theme_manager.theme_changed.disconnect(self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _refresh_inventory_page_if_loaded(self):
+        inventory_page = getattr(self.window(), "inventory_page", None)
+        if inventory_page is not None and hasattr(inventory_page, "refresh_all"):
+            inventory_page.refresh_all()
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
@@ -70,41 +76,24 @@ class ProductsPage(QWidget):
 
         # Top bar: filters and buttons
         top_layout = QHBoxLayout()
+        top_layout.setSpacing(6)  # âœ… Spacing á€€á€­á€¯ á€œá€»á€¾á€±á€¬á€·á€á€»á€œá€­á€¯á€€á€ºá€•á€«
+        
+        # âœ… ProductFilters - stretch á€™á€•á€±á€¸á€á€±á€¬á€·á€•á€«
         self.filters = ProductFilters(self)
         self.filters.filter_changed.connect(self.on_filter_changed)
-        self.filters.barcode_scanned.connect(self.on_barcode_scanned)
+        top_layout.addWidget(self.filters)  # âœ… stretch á€–á€šá€ºá€œá€­á€¯á€€á€ºá€•á€«
 
-        self.btn_add = QPushButton("Add Item")
-        self.btn_edit = QPushButton("Edit")
-        self.btn_delete = QPushButton("Delete")
-        self.btn_manage_cat = QPushButton("Manage Categories")
-        self.btn_print_barcode = QPushButton("Print Barcode")
-        
-        # Export Buttons
-        self.btn_export_list = QPushButton("📊 Export Excel")
-        self.btn_export_list.clicked.connect(self.export_products_to_excel)
-        
-        self.btn_export_price = QPushButton("💰 Export Price List")
-        self.btn_export_price.clicked.connect(self.export_price_list_to_excel)
-        
-        self.btn_export_barcode = QPushButton("📱 Export Barcode Data")
-        self.btn_export_barcode.clicked.connect(self.export_barcode_data_to_excel)
-
-        self.btn_add.clicked.connect(self.open_add_dialog)
-        self.btn_edit.clicked.connect(self.edit_product)
-        self.btn_delete.clicked.connect(self.delete_product)
-        self.btn_manage_cat.clicked.connect(self.open_manage_categories)
-        self.btn_print_barcode.clicked.connect(self.print_barcode)
-
-        top_layout.addWidget(self.filters)
-        top_layout.addWidget(self.btn_add)
-        top_layout.addWidget(self.btn_edit)
-        top_layout.addWidget(self.btn_delete)
-        top_layout.addWidget(self.btn_manage_cat)
-        top_layout.addWidget(self.btn_print_barcode)
-        top_layout.addWidget(self.btn_export_list)
-        top_layout.addWidget(self.btn_export_price)
-        top_layout.addWidget(self.btn_export_barcode)
+        self.action_toolbar = ActionToolbar(self)
+        self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=112)
+        self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_product, "edit", ModernButton.SECONDARY, width=86)
+        self.action_delete = self.action_toolbar.add_more_action("Delete", self.delete_product, "delete")
+        self.action_toolbar.add_separator()
+        self.action_manage_cat = self.action_toolbar.add_more_action("Manage Categories", self.open_manage_categories, "category")
+        self.action_manage_groups = self.action_toolbar.add_more_action("Manage Groups", self.open_manage_groups, "groups")
+        self.action_print_barcode = self.action_toolbar.add_more_action("Print Barcode", self.print_barcode, "barcode")
+        self.action_toolbar.add_separator()
+        self.action_toolbar.finalize()
+        top_layout.addWidget(self.action_toolbar)
         main_layout.addLayout(top_layout)
 
         # Product table
@@ -113,29 +102,81 @@ class ProductsPage(QWidget):
         self.table.service_selected.connect(self.on_service_selected)
         main_layout.addWidget(self.table)
 
-        # Bottom bar
+        # Bottom bar: Export Buttons (Excel + CSV)
         bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(6)  # âœ… Spacing á€€á€­á€¯ á€œá€»á€¾á€±á€¬á€·á€á€»á€œá€­á€¯á€€á€ºá€•á€«
+        
         self.total_label = QLabel("Total Products: 0")
-        self.btn_export = QPushButton("Export CSV")
-        self.btn_import = QPushButton("Import CSV")
-        self.btn_export.clicked.connect(self.export_products)
-        self.btn_import.clicked.connect(self.import_products)
+        
+        self.action_export_list = self.action_toolbar.add_more_action("Export Excel", self.export_products_to_excel, "file_export")
+        self.action_export_price = self.action_toolbar.add_more_action("Export Price List", self.export_price_list_to_excel, "attach_money")
+        self.action_export_barcode = self.action_toolbar.add_more_action("Export Barcode Data", self.export_barcode_data_to_excel, "barcode")
+        self.action_export = self.action_toolbar.add_more_action("Export CSV", self.export_products, "upload_file")
+        self.action_import = self.action_toolbar.add_more_action("Import CSV", self.import_products, "download_done")
+        
         bottom_layout.addWidget(self.total_label)
         bottom_layout.addStretch()
-        bottom_layout.addWidget(self.btn_export)
-        bottom_layout.addWidget(self.btn_import)
         main_layout.addLayout(bottom_layout)
 
         self.setLayout(main_layout)
 
+    def _set_button_icon(self, button, icon_name, size=18):
+        """Set SVG icon for a button"""
+        try:
+            icon_paths = [
+                f"assets/icons/{icon_name}.svg",
+                f"assets/icons/{icon_name}.png",
+            ]
+            
+            for path in icon_paths:
+                if os.path.exists(path):
+                    pixmap = QPixmap(path)
+                    if not pixmap.isNull():
+                        scaled = pixmap.scaled(
+                            size, size,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation
+                        )
+                        # Color the icon for the button
+                        colored = scaled.copy()
+                        painter = QPainter(colored)
+                        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+                        
+                        # Check button type for color
+                        if hasattr(button, '_style') and button._style == "primary":
+                            painter.fillRect(colored.rect(), QColor("white"))
+                        else:
+                            painter.fillRect(colored.rect(), QColor("#5865f2"))
+                        painter.end()
+                        
+                        icon = QIcon(colored)
+                        button.setIcon(icon)
+                        button.setIconSize(Qt.QSize(size, size))
+                        return
+        except Exception as e:
+            logger.debug(f"Could not set icon {icon_name}: {e}")
+
+    def apply_permissions(self):
+        """Apply permissions to buttons based on user role"""
+        if self.user_id:
+            if not PermissionManager.user_has_permission(self.user_id, Permission.EDIT_PRODUCT):
+                self.btn_edit.setEnabled(False)
+                self.btn_edit.setToolTip("You don't have permission to edit products")
+            
+            if not PermissionManager.user_has_permission(self.user_id, Permission.DELETE_PRODUCT):
+                self.action_delete.setEnabled(False)
+                self.action_delete.setToolTip("You don't have permission to delete products")
+            
+            if not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):
+                self.btn_add.setEnabled(False)
+                self.btn_add.setToolTip("You don't have permission to add products")
+
     def on_card_filter(self, key):
-        """Card နှိပ်လိုက်ရင် filter သတ်မှတ်ပြီး products ပြန်တင်မယ်"""
+        self.filters.reset()
         if key == "total_cost":
             self.current_filter = None
-            self.filters.reset()
         else:
             self.current_filter = key
-        
         self.current_page = 1
         self.apply_filter()
 
@@ -151,7 +192,7 @@ class ProductsPage(QWidget):
             main_window.sales_page.product_grid.barcode_scanned.emit(keyword)
 
     def apply_filter(self):
-        if self.current_filter == "out_of_stock":
+        if self.current_filter == "out_stock":
             rows, total = self.service.filter_by_type(
                 'out_of_stock', self.current_page, self.items_per_page
             )
@@ -188,7 +229,7 @@ class ProductsPage(QWidget):
 
     def update_total_label(self, count):
         if lang.get_current() == "my":
-            self.total_label.setText(f"စုစုပေါင်းပစ္စည်း: {count}")
+            self.total_label.setText(f"á€…á€¯á€…á€¯á€•á€±á€«á€„á€ºá€¸á€•á€…á€¹á€…á€Šá€ºá€¸: {count}")
         else:
             self.total_label.setText(f"Total Products: {count}")
 
@@ -199,7 +240,6 @@ class ProductsPage(QWidget):
         self.selected_product_id = prod_id
 
     def open_add_dialog(self):
-        # Check permission
         if self.user_id and not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):
             QMessageBox.warning(self, "Access Denied", "You don't have permission to add products.")
             return
@@ -211,19 +251,15 @@ class ProductsPage(QWidget):
             self.load_products()
             self.update_cards()
             main_window = self.window()
-            if hasattr(main_window, 'inventory_page'):
-                main_window.inventory_page.refresh_all()
+            self._refresh_inventory_page_if_loaded()
             if hasattr(main_window, 'current_user'):
                 self.service.log_activity(main_window.current_user["id"], main_window.current_user["username"],
                                          "Add Product", f"Product: {product_name}")
-            # Emit signal to update sales page categories
             self.categories_changed.emit()
-            # Refresh current stock tab categories
             self.refresh_current_stock_categories()
             logger.info("New product added")
 
     def edit_product(self):
-        # Check permission
         if self.user_id and not PermissionManager.user_has_permission(self.user_id, Permission.EDIT_PRODUCT):
             QMessageBox.warning(self, "Access Denied", "You don't have permission to edit products.")
             return
@@ -244,17 +280,14 @@ class ProductsPage(QWidget):
             self.load_products()
             self.update_cards()
             main_window = self.window()
-            if hasattr(main_window, 'inventory_page'):
-                main_window.inventory_page.refresh_all()
+            self._refresh_inventory_page_if_loaded()
             if hasattr(main_window, 'current_user'):
                 self.service.log_activity(main_window.current_user["id"], main_window.current_user["username"],
                                          "Edit Product", f"Product: {product_name}")
-            # Refresh current stock tab categories
             self.refresh_current_stock_categories()
             logger.info(f"Product edited: ID {prod_id}")
 
     def delete_product(self):
-        # Check permission
         if self.user_id and not PermissionManager.user_has_permission(self.user_id, Permission.DELETE_PRODUCT):
             QMessageBox.warning(self, "Access Denied", "You don't have permission to delete products.")
             return
@@ -286,9 +319,7 @@ class ProductsPage(QWidget):
             self.load_categories()
             self.load_products()
             self.update_cards()
-            if hasattr(main_window, 'inventory_page'):
-                main_window.inventory_page.refresh_all()
-            # Refresh current stock tab categories
+            self._refresh_inventory_page_if_loaded()
             self.refresh_current_stock_categories()
 
     def print_barcode(self):
@@ -312,31 +343,38 @@ class ProductsPage(QWidget):
             QMessageBox.warning(self, "Error", "Product not found.")
 
     def open_manage_categories(self):
-        dialog = ManageCategoriesDialog()
-        # Connect signal to refresh categories in products page
+        """Open enhanced category management dialog"""
+        dialog = CategoryListDialog(self)
         dialog.categories_changed.connect(self.on_categories_changed)
-        if dialog.exec():
-            self.load_categories()
-            self.load_products()
-            self.update_cards()
-            # Emit signal to notify main window (which will forward to sales page)
-            self.categories_changed.emit()
-            # Refresh current stock tab categories
-            self.refresh_current_stock_categories()
-            logger.info("Categories managed")
-
-    def on_categories_changed(self):
-        """Called when categories are added/edited/deleted"""
+        dialog.exec()
         self.load_categories()
         self.load_products()
         self.update_cards()
-        # Emit signal to update sales page
         self.categories_changed.emit()
-        # Refresh current stock tab categories
+
+    def open_manage_groups(self):
+        dialog = ManageCategoryGroupsDialog(self)
+        dialog.groups_changed.connect(self.on_groups_changed)
+        dialog.exec()
+        self.load_categories()
+        self.load_products()
+        self.update_cards()
+        self.categories_changed.emit()
+
+    def on_groups_changed(self):
+        self.load_categories()
+        self.load_products()
+        self.update_cards()
+        self.categories_changed.emit()
+
+    def on_categories_changed(self):
+        self.load_categories()
+        self.load_products()
+        self.update_cards()
+        self.categories_changed.emit()
         self.refresh_current_stock_categories()
 
     def refresh_current_stock_categories(self):
-        """Refresh current stock tab categories filter"""
         main_window = self.window()
         if hasattr(main_window, 'inventory_page'):
             inventory = main_window.inventory_page
@@ -356,16 +394,10 @@ class ProductsPage(QWidget):
         self.load_categories()
         self.load_products()
         self.update_cards()
-        main_window = self.window()
-        if hasattr(main_window, 'inventory_page'):
-            main_window.inventory_page.refresh_all()
-        # Refresh current stock tab categories
+        self._refresh_inventory_page_if_loaded()
         self.refresh_current_stock_categories()
 
-    # ========== EXCEL EXPORT FUNCTIONS ==========
-    
     def get_all_products_data(self):
-        """Get all products data for export"""
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
@@ -379,85 +411,78 @@ class ProductsPage(QWidget):
         return rows
 
     def export_products_to_excel(self):
-        """Export complete product list to Excel"""
         lang_code = lang.get_current()
-        
         file_path = ExcelExporter.save_file_dialog(
             self, 
             f"product_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            "Export Product List" if lang_code != "my" else "ပစ္စည်းစာရင်း ထုတ်ရန်"
+            "Export Product List" if lang_code != "my" else "á€•á€…á€¹á€…á€Šá€ºá€¸á€…á€¬á€›á€„á€ºá€¸ á€‘á€¯á€á€ºá€›á€”á€º"
         )
         if not file_path:
             return
-        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment
-            
             rows = self.get_all_products_data()
             symbol = get_currency_symbol()
-            
             wb = Workbook()
             ws = wb.active
             ws.title = "Products"
-            
-            # Title
-            ws.merge_cells('A1:J1')
+            ws.merge_cells('A1:K1')
             ws['A1'] = "PRODUCT LIST REPORT"
             ws['A1'].font = Font(bold=True, size=14)
             ws['A1'].alignment = Alignment(horizontal="center")
-            
             ws['A2'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ws['A2'].font = Font(size=10, color="7f8c8d")
             ws['A3'] = f"Total Products: {len(rows)}"
             ws['A3'].font = Font(size=10, color="7f8c8d")
-            
-            # Headers
             if lang_code == "my":
-                headers = ["SKU", "ပစ္စည်းအမည်", "အမျိုးအစား", "ဘားကုဒ်", 
-                          "ရောင်းဈေး", "ကုန်ကျစရိတ်", "ကျန်", 
-                          "သတိပေးပမာဏ", "ရောင်းပုံစံ", "သက်တမ်းကုန်ရက်"]
+                headers = ["SKU", "á€•á€…á€¹á€…á€Šá€ºá€¸á€¡á€™á€Šá€º", "á€¡á€™á€»á€­á€¯á€¸á€¡á€…á€¬á€¸", "á€¡á€¯á€•á€ºá€…á€¯", "á€˜á€¬á€¸á€€á€¯á€’á€º", 
+                          "á€›á€±á€¬á€„á€ºá€¸á€ˆá€±á€¸", "á€€á€¯á€”á€ºá€€á€»á€…á€›á€­á€á€º", "á€€á€»á€”á€º", 
+                          "á€žá€á€­á€•á€±á€¸á€•á€™á€¬á€", "á€›á€±á€¬á€„á€ºá€¸á€•á€¯á€¶á€…á€¶", "á€žá€€á€ºá€á€™á€ºá€¸á€€á€¯á€”á€ºá€›á€€á€º"]
             else:
-                headers = ["SKU", "Product Name", "Category", "Barcode", 
+                headers = ["SKU", "Product Name", "Category", "Category Group", "Barcode", 
                           "Selling Price", "Cost", "Stock", 
                           "Low Stock Alert", "Sold By", "Expiry Date"]
-            
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=5, column=col, value=header)
                 cell.font = Font(bold=True, color="FFFFFF")
                 cell.fill = PatternFill(start_color="2c3e50", end_color="2c3e50", fill_type="solid")
                 cell.alignment = Alignment(horizontal="center")
-            
             total_stock = 0
             total_stock_value = 0
             total_cost_value = 0
-            
             for row_idx, row_data in enumerate(rows, start=6):
                 pid, sku, name, category, barcode, price, cost, stock, low_stock, sold_by, expire_date = row_data
-                
+                conn = connect_db()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT cg.name 
+                    FROM categories c
+                    LEFT JOIN category_groups cg ON c.group_id = cg.id
+                    WHERE c.name = ?
+                """, (category,))
+                group_row = cursor.fetchone()
+                conn.close()
+                category_group = group_row[0] if group_row and group_row[0] else ""
                 price_val = float(price) if price else 0
                 cost_val = float(cost) if cost else 0
                 stock_val = int(stock) if stock else 0
-                
                 stock_value = price_val * stock_val
                 cost_value = cost_val * stock_val
-                
                 ws.cell(row=row_idx, column=1, value=sku or "")
                 ws.cell(row=row_idx, column=2, value=name or "")
                 ws.cell(row=row_idx, column=3, value=category or "")
-                ws.cell(row=row_idx, column=4, value=barcode or "")
-                ws.cell(row=row_idx, column=5, value=format_money(price_val, symbol))
-                ws.cell(row=row_idx, column=6, value=format_money(cost_val, symbol))
-                ws.cell(row=row_idx, column=7, value=stock_val)
-                ws.cell(row=row_idx, column=8, value=low_stock or 0)
-                ws.cell(row=row_idx, column=9, value=sold_by or "Each")
-                ws.cell(row=row_idx, column=10, value=expire_date or "")
-                
+                ws.cell(row=row_idx, column=4, value=category_group or "")
+                ws.cell(row=row_idx, column=5, value=barcode or "")
+                ws.cell(row=row_idx, column=6, value=format_money(price_val, symbol))
+                ws.cell(row=row_idx, column=7, value=format_money(cost_val, symbol))
+                ws.cell(row=row_idx, column=8, value=stock_val)
+                ws.cell(row=row_idx, column=9, value=low_stock or 0)
+                ws.cell(row=row_idx, column=10, value=sold_by or "Each")
+                ws.cell(row=row_idx, column=11, value=expire_date or "")
                 total_stock += stock_val
                 total_stock_value += stock_value
                 total_cost_value += cost_value
-            
-            # Summary rows
             summary_row = len(rows) + 7
             ws.cell(row=summary_row, column=6, value="TOTAL STOCK VALUE:").font = Font(bold=True)
             ws.cell(row=summary_row, column=7, value=format_money(total_stock_value, symbol))
@@ -467,34 +492,27 @@ class ProductsPage(QWidget):
             ws.cell(row=summary_row + 2, column=7, value=format_money(total_stock_value - total_cost_value, symbol))
             ws.cell(row=summary_row + 3, column=6, value="TOTAL QUANTITY:").font = Font(bold=True)
             ws.cell(row=summary_row + 3, column=7, value=total_stock)
-            
-            # Auto adjust columns
-            for col in range(1, 11):
-                ws.column_dimensions[chr(64 + col)].width = 18
+            for col in range(1, 12):
+                col_letter = chr(64 + col) if col <= 26 else f"A{chr(64 + col - 26)}"
+                ws.column_dimensions[col_letter].width = 18
             ws.column_dimensions['B'].width = 30
-            
             wb.save(file_path)
             ExcelExporter.show_success_message(self, file_path)
-            
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
 
     def export_price_list_to_excel(self):
-        """Export price list (only name, SKU, price) to Excel"""
         lang_code = lang.get_current()
-        
         file_path = ExcelExporter.save_file_dialog(
             self, 
             f"price_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            "Export Price List" if lang_code != "my" else "စျေးနှုန်းစာရင်း ထုတ်ရန်"
+            "Export Price List" if lang_code != "my" else "á€…á€»á€±á€¸á€”á€¾á€¯á€”á€ºá€¸á€…á€¬á€›á€„á€ºá€¸ á€‘á€¯á€á€ºá€›á€”á€º"
         )
         if not file_path:
             return
-        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment
-            
             conn = connect_db()
             cursor = conn.cursor()
             cursor.execute("""
@@ -504,74 +522,56 @@ class ProductsPage(QWidget):
             """)
             rows = cursor.fetchall()
             conn.close()
-            
             symbol = get_currency_symbol()
-            
             wb = Workbook()
             ws = wb.active
             ws.title = "Price List"
-            
-            # Title
             ws.merge_cells('A1:F1')
             ws['A1'] = "PRICE LIST REPORT"
             ws['A1'].font = Font(bold=True, size=14)
             ws['A1'].alignment = Alignment(horizontal="center")
-            
             ws['A2'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ws['A2'].font = Font(size=10, color="7f8c8d")
             ws['A3'] = f"Total Products: {len(rows)}"
             ws['A3'].font = Font(size=10, color="7f8c8d")
-            
-            # Headers
             if lang_code == "my":
-                headers = ["SKU", "ပစ္စည်းအမည်", "အမျိုးအစား", "စျေးနှုန်း", "ရောင်းပုံစံ", "ဘားကုဒ်"]
+                headers = ["SKU", "á€•á€…á€¹á€…á€Šá€ºá€¸á€¡á€™á€Šá€º", "á€¡á€™á€»á€­á€¯á€¸á€¡á€…á€¬á€¸", "á€…á€»á€±á€¸á€”á€¾á€¯á€”á€ºá€¸", "á€›á€±á€¬á€„á€ºá€¸á€•á€¯á€¶á€…á€¶", "á€˜á€¬á€¸á€€á€¯á€’á€º"]
             else:
                 headers = ["SKU", "Product Name", "Category", "Price", "Sold By", "Barcode"]
-            
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=5, column=col, value=header)
                 cell.font = Font(bold=True, color="FFFFFF")
                 cell.fill = PatternFill(start_color="2c3e50", end_color="2c3e50", fill_type="solid")
                 cell.alignment = Alignment(horizontal="center")
-            
             for row_idx, row_data in enumerate(rows, start=6):
                 sku, name, category, price, sold_by, barcode = row_data
                 price_val = float(price) if price else 0
-                
                 ws.cell(row=row_idx, column=1, value=sku or "")
                 ws.cell(row=row_idx, column=2, value=name or "")
                 ws.cell(row=row_idx, column=3, value=category or "")
                 ws.cell(row=row_idx, column=4, value=format_money(price_val, symbol))
                 ws.cell(row=row_idx, column=5, value=sold_by or "Each")
                 ws.cell(row=row_idx, column=6, value=barcode or "")
-            
-            # Auto adjust columns
             for col in range(1, 7):
                 ws.column_dimensions[chr(64 + col)].width = 18
             ws.column_dimensions['B'].width = 30
-            
             wb.save(file_path)
             ExcelExporter.show_success_message(self, file_path)
-            
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
 
     def export_barcode_data_to_excel(self):
-        """Export barcode data for label printing to Excel"""
         lang_code = lang.get_current()
-        
         file_path = ExcelExporter.save_file_dialog(
             self, 
             f"barcode_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            "Export Barcode Data" if lang_code != "my" else "ဘားကုဒ်ဒေတာ ထုတ်ရန်"
+            "Export Barcode Data" if lang_code != "my" else "á€˜á€¬á€¸á€€á€¯á€’á€ºá€’á€±á€á€¬ á€‘á€¯á€á€ºá€›á€”á€º"
         )
         if not file_path:
             return
-        
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment
-            
             conn = connect_db()
             cursor = conn.cursor()
             cursor.execute("""
@@ -582,63 +582,47 @@ class ProductsPage(QWidget):
             """)
             rows = cursor.fetchall()
             conn.close()
-            
             symbol = get_currency_symbol()
-            
             wb = Workbook()
             ws = wb.active
             ws.title = "Barcode Data"
-            
-            # Title
             ws.merge_cells('A1:E1')
             ws['A1'] = "BARCODE DATA REPORT"
             ws['A1'].font = Font(bold=True, size=14)
             ws['A1'].alignment = Alignment(horizontal="center")
-            
             ws['A2'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             ws['A2'].font = Font(size=10, color="7f8c8d")
             ws['A3'] = f"Total Products with Barcode: {len(rows)}"
             ws['A3'].font = Font(size=10, color="7f8c8d")
             ws['A4'] = "NOTE: This file can be used for barcode label printing"
             ws['A4'].font = Font(size=9, italic=True, color="7f8c8d")
-            
-            # Headers
             if lang_code == "my":
-                headers = ["SKU", "ပစ္စည်းအမည်", "ဘားကုဒ်", "စျေးနှုန်း", "အမျိုးအစား"]
+                headers = ["SKU", "á€•á€…á€¹á€…á€Šá€ºá€¸á€¡á€™á€Šá€º", "á€˜á€¬á€¸á€€á€¯á€’á€º", "á€…á€»á€±á€¸á€”á€¾á€¯á€”á€ºá€¸", "á€¡á€™á€»á€­á€¯á€¸á€¡á€…á€¬á€¸"]
             else:
                 headers = ["SKU", "Product Name", "Barcode", "Price", "Category"]
-            
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=6, column=col, value=header)
                 cell.font = Font(bold=True, color="FFFFFF")
                 cell.fill = PatternFill(start_color="2c3e50", end_color="2c3e50", fill_type="solid")
                 cell.alignment = Alignment(horizontal="center")
-            
             for row_idx, row_data in enumerate(rows, start=7):
                 sku, name, barcode, price, category = row_data
                 price_val = float(price) if price else 0
-                
                 ws.cell(row=row_idx, column=1, value=sku or "")
                 ws.cell(row=row_idx, column=2, value=name or "")
                 ws.cell(row=row_idx, column=3, value=barcode or "")
                 ws.cell(row=row_idx, column=4, value=format_money(price_val, symbol))
                 ws.cell(row=row_idx, column=5, value=category or "")
-            
-            # Tips section
             tips_row = len(rows) + 8
             ws.cell(row=tips_row, column=1, value="BARCODE FORMAT TIPS:").font = Font(bold=True, size=11)
             ws.cell(row=tips_row + 1, column=1, value="- Code128: Supports alphanumeric, variable length")
             ws.cell(row=tips_row + 2, column=1, value="- EAN13: 13 digits, for retail products")
             ws.cell(row=tips_row + 3, column=1, value="- UPC-A: 12 digits, for North American products")
-            
-            # Auto adjust columns
             for col in range(1, 6):
                 ws.column_dimensions[chr(64 + col)].width = 18
             ws.column_dimensions['B'].width = 30
-            
             wb.save(file_path)
             ExcelExporter.show_success_message(self, file_path)
-            
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
 
@@ -648,29 +632,23 @@ class ProductsPage(QWidget):
         self.table.retranslateUi()
 
         if lang.get_current() == "my":
-            self.btn_add.setText("ပစ္စည်းအသစ်")
-            self.btn_edit.setText("ပြင်မည်")
-            self.btn_delete.setText("ဖျက်မည်")
-            self.btn_manage_cat.setText("အမျိုးအစားများ")
-            self.btn_print_barcode.setText("ဘားကုဒ်ထုတ်မည်")
-            self.btn_export_list.setText("📊 Excel ထုတ်မည်")
-            self.btn_export_price.setText("💰 စျေးနှုန်းစာရင်း")
-            self.btn_export_barcode.setText("📱 ဘားကုဒ်ဒေတာ")
-            self.btn_export.setText("CSV ထုတ်မည်")
-            self.btn_import.setText("CSV သွင်းမည်")
+            self.btn_add.setText(" Add Item")
+            self.btn_edit.setText(" Edit")
         else:
-            self.btn_add.setText("Add Item")
-            self.btn_edit.setText("Edit")
-            self.btn_delete.setText("Delete")
-            self.btn_manage_cat.setText("Manage Categories")
-            self.btn_print_barcode.setText("Print Barcode")
-            self.btn_export_list.setText("📊 Export Excel")
-            self.btn_export_price.setText("💰 Export Price List")
-            self.btn_export_barcode.setText("📱 Export Barcode Data")
-            self.btn_export.setText("Export CSV")
-            self.btn_import.setText("Import CSV")
+            self.btn_add.setText(" Add Item")
+            self.btn_edit.setText(" Edit")
 
+        self.action_delete.setText("Delete")
+        self.action_manage_cat.setText("Manage Categories")
+        self.action_manage_groups.setText("Manage Groups")
+        self.action_print_barcode.setText("Print Barcode")
+        self.action_export_list.setText("Export Excel")
+        self.action_export_price.setText("Export Price List")
+        self.action_export_barcode.setText("Export Barcode Data")
+        self.action_export.setText("Export CSV")
+        self.action_import.setText("Import CSV")
     def showEvent(self, event):
         self.load_products()
         self.update_cards()
         super().showEvent(event)
+
