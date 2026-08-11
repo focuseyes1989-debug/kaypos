@@ -64,6 +64,10 @@ _SQLITE_MASTER_EXISTS_RE = re.compile(
     r"^\s*SELECT\s+name\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*['\"]table['\"]\s+AND\s+name\s*=\s*\?\s*;?\s*$",
     re.IGNORECASE,
 )
+_SQLITE_MASTER_EXISTS_LITERAL_RE = re.compile(
+    r"^\s*SELECT\s+name\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*['\"]table['\"]\s+AND\s+name\s*=\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*;?\s*$",
+    re.IGNORECASE,
+)
 _SQLITE_MASTER_TABLE_LIMIT_RE = re.compile(
     r"^\s*SELECT\s+name\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*['\"]table['\"]\s+LIMIT\s+1\s*;?\s*$",
     re.IGNORECASE,
@@ -269,6 +273,14 @@ def _adapt_sqlite_metadata_query(sql):
             FROM information_schema.tables
             WHERE table_schema = CURRENT_SCHEMA()
               AND table_name = ?
+        """
+    literal_table = _SQLITE_MASTER_EXISTS_LITERAL_RE.match(text)
+    if literal_table:
+        return f"""
+            SELECT table_name AS name
+            FROM information_schema.tables
+            WHERE table_schema = CURRENT_SCHEMA()
+              AND table_name = '{literal_table.group(1)}'
         """
     if _SQLITE_MASTER_TABLE_LIMIT_RE.match(text):
         return """

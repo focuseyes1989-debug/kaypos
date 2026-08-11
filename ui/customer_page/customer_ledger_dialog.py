@@ -638,7 +638,12 @@ class CustomerLedgerDialog(QDialog):
                         has_adjustments = True
                     else:
                         has_adjustments = False
-            except:
+            except Exception as exc:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                logger.debug(f"Credit adjustments lookup skipped: {exc}")
                 has_adjustments = False
 
             # Check if writeoffs table exists
@@ -673,7 +678,12 @@ class CustomerLedgerDialog(QDialog):
                         has_writeoffs = True
                     else:
                         has_writeoffs = False
-            except:
+            except Exception as exc:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                logger.debug(f"Credit write-offs lookup skipped: {exc}")
                 has_writeoffs = False
 
             # Collect all entries
@@ -908,6 +918,10 @@ class CustomerLedgerDialog(QDialog):
             self.table.resizeColumnsToContents()
 
         except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             conn.close()
             logger.error(f"Error loading ledger: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to load ledger: {e}")
