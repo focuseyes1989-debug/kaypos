@@ -952,34 +952,31 @@ class ServerManagerWindow(QMainWindow):
             return
         process = QProcess(self)
         process.setProgram("powershell")
-        process.setArguments(["-NoProfile", "-Command", f"{command} -Name '{service}'"])
+        process.setArguments(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", f"{command} -Name '{service}' -ErrorAction Stop"])
         process.readyReadStandardOutput.connect(
             lambda: self.append_server_output(bytes(process.readAllStandardOutput()).decode(errors="ignore"))
         )
         process.readyReadStandardError.connect(
             lambda: self.append_server_output(bytes(process.readAllStandardError()).decode(errors="ignore"))
         )
-        process.finished.connect(lambda: self.append_server_output(f"{command} completed for {service}."))
+        process.finished.connect(
+            lambda exit_code, _status, cmd=command, svc=service: self._postgres_service_finished(cmd, svc, exit_code)
+        )
         self.postgres_process = process
         process.start()
 
     def restart_postgres_service(self) -> None:
-        service = self.pg_service_input.text().strip()
-        if not service:
-            QMessageBox.warning(self, "Missing Service Name", "Enter the PostgreSQL service name.")
+        self.run_postgres_service_command("Restart-Service")
+
+    def _postgres_service_finished(self, command: str, service: str, exit_code: int) -> None:
+        if exit_code == 0:
+            self.append_server_output(f"{command} completed for {service}.")
             return
-        process = QProcess(self)
-        process.setProgram("powershell")
-        process.setArguments(["-NoProfile", "-Command", f"Restart-Service -Name '{service}'"])
-        process.readyReadStandardOutput.connect(
-            lambda: self.append_server_output(bytes(process.readAllStandardOutput()).decode(errors="ignore"))
+
+        self.append_server_output(
+            f"{command} failed for {service} (exit code {exit_code}). "
+            "Run Server Manager as Administrator, then try again."
         )
-        process.readyReadStandardError.connect(
-            lambda: self.append_server_output(bytes(process.readAllStandardError()).decode(errors="ignore"))
-        )
-        process.finished.connect(lambda: self.append_server_output(f"Restart-Service completed for {service}."))
-        self.postgres_process = process
-        process.start()
 
     def refresh_activity(self) -> None:
         try:
