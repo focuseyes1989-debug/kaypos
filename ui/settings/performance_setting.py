@@ -72,7 +72,7 @@ class PerformanceSettingWidget(QWidget):
 
     def _apply_low_end_defaults(self, checked):
         if checked:
-            self.page_size_spin.setValue(24)
+            self.page_size_spin.setValue(25)
             self.debounce_spin.setValue(450)
             self.thumbnail_quality_combo.setCurrentIndex(self.thumbnail_quality_combo.findData("low"))
             self.youtube_enabled_check.setChecked(False)
@@ -98,7 +98,7 @@ class PerformanceSettingWidget(QWidget):
         self.low_end_check.blockSignals(True)
         self.low_end_check.setChecked(low_end)
         self.low_end_check.blockSignals(False)
-        self.page_size_spin.setValue(int(values.get("performance_product_page_size") or (24 if low_end else 50)))
+        self.page_size_spin.setValue(int(values.get("performance_product_page_size") or 25))
         self.debounce_spin.setValue(int(values.get("performance_search_debounce_ms") or (450 if low_end else 300)))
         quality = values.get("performance_thumbnail_quality") or ("low" if low_end else "normal")
         quality_index = self.thumbnail_quality_combo.findData(quality)

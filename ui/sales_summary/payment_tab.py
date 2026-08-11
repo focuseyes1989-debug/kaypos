@@ -10,6 +10,12 @@ from models.database import connect_db
 from utils.currency import format_money, get_currency_symbol
 
 
+def _as_float(value):
+    if value is None:
+        return 0.0
+    return float(value)
+
+
 class PaymentTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -103,7 +109,7 @@ class PaymentTab(QWidget):
         theme_colors = self._get_theme_colors()
         
         # Calculate max amount for progress bar scaling
-        max_amount = max([row[2] for row in self.full_data]) if self.full_data else 0
+        max_amount = max([_as_float(row[2]) for row in self.full_data]) if self.full_data else 0
         
         self.table.setRowCount(0)
         total_count = 0
@@ -111,6 +117,7 @@ class PaymentTab(QWidget):
         
         for row_data in self.full_data:
             ptype, count, amount = row_data
+            amount = _as_float(amount)
             r = self.table.rowCount()
             self.table.insertRow(r)
             

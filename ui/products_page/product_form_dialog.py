@@ -61,14 +61,14 @@ class ProductFormDialog(QDialog):
             self.btn_save.set_icon("save", size=(16, 16))
         if hasattr(self, 'btn_cancel'):
             self.btn_cancel.set_icon("close", size=(16, 16))
-        if hasattr(self, 'btn_speech'):
-            self.btn_speech.set_icon("speech_to_text", size=(16, 16))
-        if hasattr(self, 'btn_speech_desc'):
-            self.btn_speech_desc.set_icon("speech_to_text", size=(16, 16))
         if hasattr(self, 'btn_browse'):
             self.btn_browse.set_icon("folder_open", size=(16, 16))
         if hasattr(self, 'btn_manage_variants'):
             self.btn_manage_variants.set_icon("inventory_2", size=(16, 16))
+        if hasattr(self, 'btn_manage_wholesale'):
+            self.btn_manage_wholesale.set_icon("attach_money", size=(16, 16))
+        if hasattr(self, 'btn_manage_restaurant_options'):
+            self.btn_manage_restaurant_options.set_icon("settings", size=(16, 16))
     
     def focus_name(self):
         """Focus on name field"""
@@ -101,11 +101,9 @@ class ProductFormDialog(QDialog):
             self.btn_browse.setText(" ပုံရွေးရန်")
             self.btn_cancel.setText(" မလုပ်တော့ပါ")
             self.btn_save.setText(" သိမ်းဆည်းမည်")
-            self.btn_speech_desc.setText(" အသံဖြင့်ရိုက်ရန်")
             self.sold_by_combo.setItemText(0, "အလုံး")
             self.sold_by_combo.setItemText(1, "ဝန်ဆောင်မှု")
             self.sold_by_combo.setItemText(2, "အမျိုးကွဲများ")
-            self.language_label.setText("အသံဘာသာစကား:")
             self.name_input.setPlaceholderText("ပစ္စည်းအမည်ထည့်ပါ...")
             self.barcode_input.setPlaceholderText("ဘားကုဒ်စကင်ဖတ်ပါ...")
             self.info_label.setText("📌 ပစ္စည်းစတော့အကြောင်း မှတ်ချက်")
@@ -117,23 +115,36 @@ class ProductFormDialog(QDialog):
             self.label_description.setText("Description")
             self.label_sold_by.setText("Sold By")
             self.label_price.setText("Price")
+            if hasattr(self, 'label_units'):
+                self.label_units.setText("Pack Setup")
+            if hasattr(self, 'label_wholesale'):
+                self.label_wholesale.setText("Pack Price/Barcode")
+            if hasattr(self, 'label_variants'):
+                self.label_variants.setText("Variants")
+            if hasattr(self, 'label_restaurant_options'):
+                self.label_restaurant_options.setText("Restaurant Options")
             self.label_low_stock.setText("Low Stock Alert")
             self.label_image.setText("Product Image")
             self.btn_browse.setText(" Browse Image")
             self.btn_cancel.setText(" Cancel")
             self.btn_save.setText(" Save Product")
-            self.btn_speech_desc.setText(" Speak Description")
+            if hasattr(self, 'btn_manage_wholesale'):
+                self.btn_manage_wholesale.setText(" Manage")
+            if hasattr(self, 'btn_manage_variants'):
+                self.btn_manage_variants.setText(" Manage")
+            if hasattr(self, 'btn_manage_restaurant_options'):
+                self.btn_manage_restaurant_options.setText(" Manage")
             self.sold_by_combo.setItemText(0, "Each")
             self.sold_by_combo.setItemText(1, "Service")
             self.sold_by_combo.setItemText(2, "Variants")
-            self.language_label.setText("Speech Language:")
+            if self.sold_by_combo.count() > 3:
+                self.sold_by_combo.setItemText(3, "Restaurant")
             self.name_input.setPlaceholderText("Enter product name...")
             self.barcode_input.setPlaceholderText("Scan barcode...")
             self.info_label.setText("📌 Stock notes and information")
         
-        # Update speech tooltips
-        current_lang = self.language_combo.currentData()
-        self.handlers.update_speech_tooltips(current_lang)
+        if self.sold_by_combo.count() > 3:
+            self.sold_by_combo.setItemText(3, "Restaurant")
         
         # Update sold by info
         self.handlers.toggle_service_fields()

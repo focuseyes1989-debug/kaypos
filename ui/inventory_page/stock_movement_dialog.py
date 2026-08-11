@@ -29,7 +29,7 @@ class StockMovementDialog(QDialog):
         super().__init__(parent)
         self.product_id = product_id
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle("Stock Movements")

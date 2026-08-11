@@ -287,11 +287,11 @@ class AICustomerInsights:
                         c.phone,
                         c.total_spent,
                         c.total_visit,
-                        COALESCE(MAX(s.created_at), '') as last_order,
+                        COALESCE(CAST(MAX(s.created_at) AS TEXT), '') as last_order,
                         COUNT(s.id) as total_orders
                     FROM customers c
                     LEFT JOIN sales s ON c.id = s.customer_id AND s.status = 'completed'
-                    GROUP BY c.id
+                    GROUP BY c.id, c.name, c.phone, c.total_spent, c.total_visit
                     HAVING MAX(s.created_at) < ? OR MAX(s.created_at) IS NULL
                     ORDER BY MAX(s.created_at) ASC
                     LIMIT 20

@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from models.database import connect_db
 from utils.language import lang
 from ui.responsive_utils import get_supported_resolution_options, parse_resolution
+from utils.sale_mode import get_sale_mode, save_sale_mode
 
 
 class PaymentTypeDialog(QDialog):
@@ -230,6 +231,12 @@ class GeneralSettingWidget(QWidget):
         self.resolution_combo = QComboBox()
         self._load_resolution_options()
         appearance_layout.addRow("Resolution:", self.resolution_combo)
+
+        self.sale_mode_combo = QComboBox()
+        self.sale_mode_combo.addItem("Retail Sale", "retail")
+        self.sale_mode_combo.addItem("Restaurant Mode", "restaurant")
+        self.sale_mode_combo.addItem("Both", "both")
+        appearance_layout.addRow("POS Sale Mode:", self.sale_mode_combo)
         
         self.follow_system_theme_check = QCheckBox("Follow system theme")
         self.follow_system_theme_check.toggled.connect(self.on_follow_system_toggled)
@@ -394,6 +401,11 @@ class GeneralSettingWidget(QWidget):
             self.resolution_combo.setCurrentIndex(0)
         conn.close()
 
+        sale_mode = get_sale_mode()
+        index = self.sale_mode_combo.findData(sale_mode)
+        if index >= 0:
+            self.sale_mode_combo.setCurrentIndex(index)
+
     def save_settings(self):
         main_window = self.window()
         if hasattr(main_window, "show_loading"):
@@ -429,6 +441,7 @@ class GeneralSettingWidget(QWidget):
         
         conn.commit()
         conn.close()
+        save_sale_mode(self.sale_mode_combo.currentData() or "retail")
         if hasattr(main_window, "update_loading"):
             main_window.update_loading("General settings saved.", 100)
         if hasattr(main_window, "hide_loading"):

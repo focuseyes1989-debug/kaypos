@@ -21,7 +21,8 @@ from PyQt6.QtGui import QPixmap
 
 from loguru import logger
 
-from models.database import connect_db
+from models.database import connect_db, safe_initialize_postgres_pilot_database
+from utils.db_compat import is_postgres_backend
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.widgets.action_toolbar import ActionToolbar
 from ui.widgets.modern_button import ModernButton
@@ -42,6 +43,10 @@ class DiscountPage(QWidget):
         theme_manager.theme_changed.connect(self.update_theme)
 
     def _ensure_table(self):
+        if is_postgres_backend():
+            safe_initialize_postgres_pilot_database()
+            return
+
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""

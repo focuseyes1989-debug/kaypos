@@ -16,7 +16,7 @@ class LowStockTab(QWidget):
         super().__init__(parent)
         self.parent_page = parent
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()

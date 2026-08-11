@@ -24,7 +24,7 @@ class ItemsTab(QWidget):
         self.full_data = []
         self.filtered_data = []
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         
         layout = QVBoxLayout()
         
@@ -480,9 +480,9 @@ class ItemsTab(QWidget):
                 COALESCE(SUM(si.total) - SUM(s.discount_amount) - SUM(p.cost * si.qty), 0) as gross_profit
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
-            GROUP BY si.product_name
+            GROUP BY si.product_name, COALESCE(p.category, 'Uncategorized')
             ORDER BY net_sales DESC
         """
         

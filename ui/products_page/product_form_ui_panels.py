@@ -29,96 +29,58 @@ class ProductFormUIPanels(ProductFormUIBase):
         left_panel.setStyleSheet(ProductFormUIStyles.get_left_panel_style(colors))
         
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(15, 15, 15, 15)
-        left_layout.setSpacing(4)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setSpacing(2)
         
         grid = QGridLayout()
-        grid.setVerticalSpacing(6)
-        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(10)
         grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnMinimumWidth(0, 130)
         
         row = 0
-        
-        # Row 0: Product Name
-        row = self._add_name_row(dialog, grid, row, colors)
-        
-        # Row 1: Category
-        row = self._add_category_row(dialog, grid, row, colors)
-        
-        # Row 2: Barcode
-        row = self._add_barcode_row(dialog, grid, row, colors)
-        
-        # Row 3: Sold By
+
+        row = self._add_section_header(grid, row, "Basic")
         row = self._add_sold_by_row(dialog, grid, row, colors)
         
-        # Row 4: Price
-        row = self._add_price_row(dialog, grid, row, colors)
-        
-        # Row 5: Low Stock Alert
-        row = self._add_low_stock_row(dialog, grid, row, colors)
+        row = self._add_name_row(dialog, grid, row, colors)
+        row = self._add_category_row(dialog, grid, row, colors)
+        row = self._add_barcode_row(dialog, grid, row, colors)
 
-        # Row 6: Variants
+        row = self._add_section_header(grid, row, "Sales & Stock")
+        row = self._add_price_row(dialog, grid, row, colors)
+        row = self._add_low_stock_row(dialog, grid, row, colors)
+        row = self._add_unit_conversion_row(dialog, grid, row, colors)
+        row = self._add_wholesale_row(dialog, grid, row, colors)
+        row = self._add_restaurant_options_row(dialog, grid, row, colors)
+
+        row = self._add_section_header(grid, row, "Optional")
         row = self._add_variants_row(dialog, grid, row, colors)
-        
-        # Row 7: Description
         row = self._add_description_row(dialog, grid, row, colors)
         
-        # Row 8: Product Image
-        row = self._add_image_row(dialog, grid, row, colors)
-        
-        # Row 8: Info label
         dialog.info_label = InfoLabel("Stock notes and information")
         dialog.info_label.setStyleSheet(ProductFormUIStyles.get_info_label_style(colors, is_dark))
         grid.addWidget(QLabel(""), row, 0)
         grid.addWidget(dialog.info_label, row, 1)
         row += 1
         
-        # Row 9: Language selection
-        row = self._add_language_row(dialog, grid, row, colors)
-        
         left_layout.addLayout(grid)
         return left_panel
+
+    def _add_section_header(self, grid, row, text):
+        """Add a compact section label."""
+        label = QLabel(text.upper())
+        label.setStyleSheet(ProductFormUIStyles.get_section_label_style(get_theme_colors()))
+        grid.addWidget(label, row, 0, 1, 2)
+        return row + 1
     
     def _add_name_row(self, dialog, grid, row, colors):
-        """Add product name row"""
+        """Add product name row."""
         dialog.label_name = self._create_label_with_icon("label.svg", "Product Name", colors)
-        
-        name_widget = QWidget()
-        name_layout = QHBoxLayout(name_widget)
-        name_layout.setContentsMargins(0, 0, 0, 0)
-        name_layout.setSpacing(4)
-        
         dialog.name_input = self._create_lineedit("Enter product name...", colors)
-        name_layout.addWidget(dialog.name_input)
-        
-        dialog.btn_speech = ModernButton("", ModernButton.PRIMARY)
-        dialog.btn_speech.setFixedSize(32, 32)
-        dialog.btn_speech.set_compact(True)
-        # ✅ FIX: Add button_type="speech" as third argument
-        self._setup_button_icon(dialog.btn_speech, "speech_to_text.svg", "speech")
-        dialog.btn_speech.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-size: 12px;
-                padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #1a6e9e;
-            }
-            QPushButton:checked {
-                background-color: #1a6e9e;
-            }
-        """)
-        name_layout.addWidget(dialog.btn_speech)
-        
+
         grid.addWidget(dialog.label_name, row, 0)
-        grid.addWidget(name_widget, row, 1)
+        grid.addWidget(dialog.name_input, row, 1)
         return row + 1
     
     def _add_category_row(self, dialog, grid, row, colors):
@@ -145,9 +107,105 @@ class ProductFormUIPanels(ProductFormUIBase):
         dialog.sold_by_combo.addItem("Each", "Each")
         dialog.sold_by_combo.addItem("Service", "Service")
         dialog.sold_by_combo.addItem("Variants", "Variants")
+        dialog.sold_by_combo.addItem("Restaurant", "Restaurant")
         dialog.sold_by_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
         grid.addWidget(dialog.label_sold_by, row, 0)
         grid.addWidget(dialog.sold_by_combo, row, 1)
+        return row + 1
+
+    def _add_restaurant_options_row(self, dialog, grid, row, colors):
+        """Add restaurant modifier controls."""
+        dialog.label_restaurant_options = self._create_label_with_icon("receipt_long.svg", "Restaurant Options", colors)
+
+        restaurant_widget = QWidget()
+        dialog.restaurant_options_widget = restaurant_widget
+        restaurant_layout = QVBoxLayout(restaurant_widget)
+        restaurant_layout.setContentsMargins(0, 0, 0, 0)
+        restaurant_layout.setSpacing(4)
+
+        dialog.restaurant_modifiers_table = QTableWidget(0, 4)
+        dialog.restaurant_modifiers_table.setHorizontalHeaderLabels(["Group", "Option", "Type", "Price +"])
+        dialog.restaurant_modifiers_table.setVisible(False)
+        dialog.restaurant_modifiers_table.verticalHeader().setVisible(False)
+        header = dialog.restaurant_modifiers_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+
+        dialog.restaurant_summary_label = QLabel("Restaurant modifiers not set")
+        dialog.restaurant_summary_label.setStyleSheet(f"""
+            QLabel {{
+                color: {colors['text_secondary']};
+                font-size: 9pt;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 6px;
+                padding: 6px 9px;
+            }}
+        """)
+        restaurant_layout.addWidget(dialog.restaurant_summary_label)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.addStretch()
+        dialog.btn_manage_restaurant_options = ModernButton(" Manage", ModernButton.SECONDARY)
+        dialog.btn_manage_restaurant_options.set_icon("settings", size=(16, 16))
+        dialog.btn_manage_restaurant_options.set_compact(True)
+        dialog.btn_manage_restaurant_options.setMinimumSize(104, 34)
+        dialog.btn_manage_restaurant_options.setFixedHeight(34)
+        dialog.btn_manage_restaurant_options.setStyleSheet(dialog.btn_manage_restaurant_options.styleSheet() + """
+            QPushButton {
+                padding: 3px 12px;
+                font-size: 9.5pt;
+            }
+        """)
+        buttons_layout.addWidget(dialog.btn_manage_restaurant_options)
+        restaurant_layout.addLayout(buttons_layout)
+
+        grid.addWidget(dialog.label_restaurant_options, row, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(restaurant_widget, row, 1)
+        return row + 1
+
+    def _add_unit_conversion_row(self, dialog, grid, row, colors):
+        """Add base/pack unit conversion controls."""
+        dialog.label_units = self._create_label_with_icon("inventory_2.svg", "Pack Setup", colors)
+
+        units_widget = QWidget()
+        dialog.units_widget = units_widget
+        units_layout = QGridLayout(units_widget)
+        units_layout.setContentsMargins(0, 0, 0, 0)
+        units_layout.setHorizontalSpacing(8)
+        units_layout.setVerticalSpacing(2)
+
+        base_hint = QLabel("Stock unit")
+        pack_hint = QLabel("Pack name")
+        size_hint = QLabel("Qty/pack")
+        for col, hint in enumerate((base_hint, pack_hint, size_hint)):
+            hint.setStyleSheet(ProductFormUIStyles.get_field_hint_style(colors))
+            units_layout.addWidget(hint, 0, col)
+
+        dialog.base_unit_input = self._create_lineedit("bottle / pcs", colors)
+        dialog.base_unit_input.setText("pcs")
+        dialog.base_unit_input.setToolTip("Smallest counted stock unit, e.g. bottle/pcs.")
+        units_layout.addWidget(dialog.base_unit_input, 1, 0)
+
+        dialog.pack_unit_input = self._create_lineedit("card / box", colors)
+        dialog.pack_unit_input.setToolTip("Optional larger unit bought or sold as a pack.")
+        units_layout.addWidget(dialog.pack_unit_input, 1, 1)
+
+        dialog.pack_size_input = QSpinBox()
+        dialog.pack_size_input.setRange(1, 999999)
+        dialog.pack_size_input.setValue(1)
+        dialog.pack_size_input.setToolTip("How many base units are inside one pack.")
+        dialog.pack_size_input.setStyleSheet(ProductFormUIStyles.get_spinbox_style(colors))
+        units_layout.addWidget(dialog.pack_size_input, 1, 2)
+        units_layout.setColumnStretch(0, 2)
+        units_layout.setColumnStretch(1, 2)
+        units_layout.setColumnStretch(2, 1)
+
+        grid.addWidget(dialog.label_units, row, 0)
+        grid.addWidget(units_widget, row, 1)
         return row + 1
     
     def _add_price_row(self, dialog, grid, row, colors):
@@ -186,6 +244,62 @@ class ProductFormUIPanels(ProductFormUIBase):
         grid.addWidget(dialog.low_stock_input, row, 1)
         return row + 1
 
+    def _add_wholesale_row(self, dialog, grid, row, colors):
+        """Add wholesale price tier controls."""
+        dialog.label_wholesale = self._create_label_with_icon("attach_money.svg", "Wholesale", colors)
+
+        wholesale_widget = QWidget()
+        dialog.wholesale_widget = wholesale_widget
+        wholesale_layout = QVBoxLayout(wholesale_widget)
+        wholesale_layout.setContentsMargins(0, 0, 0, 0)
+        wholesale_layout.setSpacing(4)
+
+        dialog.wholesale_table = QTableWidget(0, 6)
+        dialog.wholesale_table.setHorizontalHeaderLabels(["Min Qty", "Unit", "Unit Qty", "Barcode", "Unit Price", "Note"])
+        dialog.wholesale_table.setVisible(False)
+        dialog.wholesale_table.verticalHeader().setVisible(False)
+        header = dialog.wholesale_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+
+        dialog.wholesale_summary_label = QLabel("Pack/wholesale barcode not set")
+        dialog.wholesale_summary_label.setStyleSheet(f"""
+            QLabel {{
+                color: {colors['text_secondary']};
+                font-size: 9pt;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 6px;
+                padding: 6px 9px;
+            }}
+        """)
+        wholesale_layout.addWidget(dialog.wholesale_summary_label)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.addStretch()
+        dialog.btn_manage_wholesale = ModernButton(" Manage", ModernButton.SECONDARY)
+        dialog.btn_manage_wholesale.set_icon("attach_money", size=(16, 16))
+        dialog.btn_manage_wholesale.set_compact(True)
+        dialog.btn_manage_wholesale.setMinimumSize(104, 34)
+        dialog.btn_manage_wholesale.setFixedHeight(34)
+        dialog.btn_manage_wholesale.setStyleSheet(dialog.btn_manage_wholesale.styleSheet() + """
+            QPushButton {
+                padding: 3px 12px;
+                font-size: 9.5pt;
+            }
+        """)
+        buttons_layout.addWidget(dialog.btn_manage_wholesale)
+        wholesale_layout.addLayout(buttons_layout)
+
+        grid.addWidget(dialog.label_wholesale, row, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(wholesale_widget, row, 1)
+        return row + 1
+
     def _add_variants_row(self, dialog, grid, row, colors):
         """Add product variants table."""
         dialog.label_variants = self._create_label_with_icon("inventory_2.svg", "Variants", colors)
@@ -212,7 +326,7 @@ class ProductFormUIPanels(ProductFormUIBase):
         dialog.variants_table.setStyleSheet(ProductFormUIStyles.get_table_style(colors))
         dialog.variants_table.setVisible(False)
 
-        dialog.variants_summary_label = QLabel("No variants added")
+        dialog.variants_summary_label = QLabel("Variants not set")
         dialog.variants_summary_label.setStyleSheet(f"""
             QLabel {{
                 color: {colors['text_secondary']};
@@ -220,7 +334,7 @@ class ProductFormUIPanels(ProductFormUIBase):
                 background: transparent;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                padding: 8px 10px;
+                padding: 6px 9px;
             }}
         """)
         variants_layout.addWidget(dialog.variants_summary_label)
@@ -228,10 +342,17 @@ class ProductFormUIPanels(ProductFormUIBase):
         buttons_layout = QHBoxLayout()
         buttons_layout.setContentsMargins(0, 0, 0, 0)
         buttons_layout.addStretch()
-        dialog.btn_manage_variants = ModernButton(" Manage Variants", ModernButton.SECONDARY)
+        dialog.btn_manage_variants = ModernButton(" Manage", ModernButton.SECONDARY)
         dialog.btn_manage_variants.set_icon("inventory_2", size=(16, 16))
         dialog.btn_manage_variants.set_compact(True)
-        dialog.btn_manage_variants.setFixedHeight(30)
+        dialog.btn_manage_variants.setMinimumSize(104, 34)
+        dialog.btn_manage_variants.setFixedHeight(34)
+        dialog.btn_manage_variants.setStyleSheet(dialog.btn_manage_variants.styleSheet() + """
+            QPushButton {
+                padding: 3px 12px;
+                font-size: 9.5pt;
+            }
+        """)
         buttons_layout.addWidget(dialog.btn_manage_variants)
         variants_layout.addLayout(buttons_layout)
 
@@ -240,55 +361,16 @@ class ProductFormUIPanels(ProductFormUIBase):
         return row + 1
     
     def _add_description_row(self, dialog, grid, row, colors):
-        """Add description row with speech button"""
+        """Add description row."""
         dialog.label_description = self._create_label_with_icon("description.svg", "Description", colors)
-        
-        desc_widget = QWidget()
-        desc_layout = QVBoxLayout(desc_widget)
-        desc_layout.setContentsMargins(0, 0, 0, 0)
-        desc_layout.setSpacing(3)
-        
+
         dialog.description_input = QTextEdit()
-        dialog.description_input.setMaximumHeight(60)
+        dialog.description_input.setMaximumHeight(48)
         dialog.description_input.setPlaceholderText("Enter product description...")
         dialog.description_input.setStyleSheet(ProductFormUIStyles.get_textedit_style(colors))
-        desc_layout.addWidget(dialog.description_input)
-        
-        desc_button_layout = QHBoxLayout()
-        desc_button_layout.setContentsMargins(0, 0, 0, 0)
-        
-        dialog.btn_speech_desc = ModernButton("Speak Description", ModernButton.SECONDARY)
-        dialog.btn_speech_desc.setFixedSize(150, 30)
-        dialog.btn_speech_desc.set_compact(True)
-        # ✅ FIX: Add button_type="speech" as third argument
-        self._setup_button_icon(dialog.btn_speech_desc, "speech_to_text.svg", "speech")
-        dialog.btn_speech_desc.setStyleSheet("""
-            QPushButton {
-                background-color: #2ecc71;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-size: 10pt;
-                padding: 4px 12px;
-                min-height: 24px;
-            }
-            QPushButton:hover {
-                background-color: #27ae60;
-            }
-            QPushButton:pressed {
-                background-color: #1e8449;
-            }
-            QPushButton:checked {
-                background-color: #1e8449;
-            }
-        """)
-        
-        desc_button_layout.addStretch()
-        desc_button_layout.addWidget(dialog.btn_speech_desc)
-        desc_layout.addLayout(desc_button_layout)
-        
+
         grid.addWidget(dialog.label_description, row, 0, Qt.AlignmentFlag.AlignTop)
-        grid.addWidget(desc_widget, row, 1)
+        grid.addWidget(dialog.description_input, row, 1)
         return row + 1
     
     def _add_image_row(self, dialog, grid, row, colors):
@@ -310,41 +392,19 @@ class ProductFormUIPanels(ProductFormUIBase):
         self._setup_button_icon(dialog.btn_browse, "folder_open.svg", "browse")
         dialog.btn_browse.setStyleSheet("""
             QPushButton {
-                padding: 5px 14px;
+                padding: 3px 12px;
                 font-size: 10pt;
-                min-height: 24px;
+                min-height: 0px;
             }
         """)
+        dialog.btn_browse.setMinimumSize(112, 34)
+        dialog.btn_browse.setFixedHeight(34)
         
         image_layout.addWidget(dialog.image_input)
         image_layout.addWidget(dialog.btn_browse)
         
         grid.addWidget(dialog.label_image, row, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(image_widget, row, 1)
-        return row + 1
-    
-    def _add_language_row(self, dialog, grid, row, colors):
-        """Add language selection row"""
-        lang_widget = QWidget()
-        lang_layout = QHBoxLayout(lang_widget)
-        lang_layout.setContentsMargins(0, 2, 0, 2)
-        lang_layout.setSpacing(6)
-        
-        dialog.language_label = QLabel("Speech Language:")
-        dialog.language_label.setStyleSheet(f"font-weight: 500; color: {colors['text']}; font-size: 9pt;")
-        
-        dialog.language_combo = QComboBox()
-        dialog.language_combo.addItem("🇲🇲 မြန်မာ", "my")
-        dialog.language_combo.addItem("🇬🇧 English", "en")
-        dialog.language_combo.setCurrentIndex(0)
-        dialog.language_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
-        
-        lang_layout.addWidget(dialog.language_label)
-        lang_layout.addWidget(dialog.language_combo)
-        lang_layout.addStretch()
-        
-        grid.addWidget(QLabel(""), row, 0)
-        grid.addWidget(lang_widget, row, 1)
         return row + 1
     
     def _setup_right_panel(self, dialog, colors):
@@ -382,12 +442,14 @@ class ProductFormUIPanels(ProductFormUIBase):
         # Image preview
         dialog.image_preview = QLabel()
         dialog.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dialog.image_preview.setMinimumHeight(150)
-        dialog.image_preview.setMaximumHeight(200)
+        dialog.image_preview.setMinimumHeight(130)
+        dialog.image_preview.setMaximumHeight(170)
         dialog.image_preview.setStyleSheet(ProductFormUIStyles.get_image_preview_style(colors, is_dark))
         dialog.image_preview.setText("No Image\n\nSelect an image to preview")
         dialog.image_preview.setWordWrap(True)
         right_layout.addWidget(dialog.image_preview, 1)
+
+        self._add_image_picker_to_panel(dialog, right_layout, colors)
         
         # Product info section
         info_frame = QFrame()
@@ -429,3 +491,35 @@ class ProductFormUIPanels(ProductFormUIBase):
         right_layout.addStretch()
         
         return right_panel
+
+    def _add_image_picker_to_panel(self, dialog, layout, colors):
+        """Add compact image file controls below the preview."""
+        dialog.label_image = QLabel("Product Image")
+        dialog.label_image.setStyleSheet(ProductFormUIStyles.get_label_style(colors))
+        layout.addWidget(dialog.label_image)
+
+        image_widget = QWidget()
+        image_layout = QHBoxLayout(image_widget)
+        image_layout.setContentsMargins(0, 0, 0, 0)
+        image_layout.setSpacing(6)
+
+        dialog.image_input = QLineEdit()
+        dialog.image_input.setReadOnly(True)
+        dialog.image_input.setPlaceholderText("No image selected")
+        dialog.image_input.setStyleSheet(ProductFormUIStyles.get_readonly_input_style(colors))
+
+        dialog.btn_browse = ModernButton("Browse", ModernButton.SECONDARY)
+        dialog.btn_browse.set_compact(True)
+        dialog.btn_browse.setMinimumSize(112, 34)
+        dialog.btn_browse.setFixedHeight(34)
+        self._setup_button_icon(dialog.btn_browse, "folder_open.svg", "browse")
+        dialog.btn_browse.setStyleSheet(dialog.btn_browse.styleSheet() + """
+            QPushButton {
+                padding: 3px 12px;
+                font-size: 9.5pt;
+            }
+        """)
+
+        image_layout.addWidget(dialog.image_input, 1)
+        image_layout.addWidget(dialog.btn_browse)
+        layout.addWidget(image_widget)

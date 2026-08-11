@@ -66,6 +66,8 @@ class CashierUI(QMainWindow):
         self.btn_customer_display: Any = None
         self.btn_open_cashdrawer: Any = None
         self.btn_checkout: Any = None
+        self.btn_hold_sale: Any = None
+        self.btn_resume_sale: Any = None
         self.btn_expense: Any = None
         self.btn_clear_cart: Any = None
         self.btn_toggle_details: Any = None
@@ -443,10 +445,29 @@ class CashierUI(QMainWindow):
         self.btn_checkout.setFixedHeight(100)
         self.btn_checkout.clicked.connect(self._checkout)
 
+        hold_resume_widget = QWidget()
+        hold_resume_layout = QVBoxLayout(hold_resume_widget)
+        hold_resume_layout.setContentsMargins(0, 0, 0, 0)
+        hold_resume_layout.setSpacing(6)
+
+        self.btn_hold_sale = ModernButton(" Hold", ModernButton.SECONDARY)
+        self.btn_hold_sale.set_text_only(True)
+        self.btn_hold_sale.setFixedHeight(47)
+        self.btn_hold_sale.clicked.connect(self._hold_sale)
+
+        self.btn_resume_sale = ModernButton(" Resume", ModernButton.SECONDARY)
+        self.btn_resume_sale.set_icon("history", size=(18, 18))
+        self.btn_resume_sale.setFixedHeight(47)
+        self.btn_resume_sale.clicked.connect(self._resume_sale)
+
+        hold_resume_layout.addWidget(self.btn_hold_sale)
+        hold_resume_layout.addWidget(self.btn_resume_sale)
+
         action_layout = QHBoxLayout()
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(6)
         action_layout.addWidget(self.payment_widget, 1)
+        action_layout.addWidget(hold_resume_widget, 1)
         action_layout.addWidget(self.btn_checkout, 2)
         layout.addLayout(action_layout)
 
@@ -603,7 +624,19 @@ class CashierUI(QMainWindow):
         self.btn_checkout.set_icon("payment", size=(24, 24))
         self.btn_checkout.setFixedHeight(60)
         self.btn_checkout.clicked.connect(self._checkout)
-        button_layout.addWidget(self.btn_checkout, 4)
+        button_layout.addWidget(self.btn_checkout, 3)
+
+        self.btn_hold_sale = ModernButton(" Hold", ModernButton.SECONDARY)
+        self.btn_hold_sale.set_text_only(True)
+        self.btn_hold_sale.setFixedHeight(60)
+        self.btn_hold_sale.clicked.connect(self._hold_sale)
+        button_layout.addWidget(self.btn_hold_sale, 1)
+
+        self.btn_resume_sale = ModernButton(" Resume", ModernButton.SECONDARY)
+        self.btn_resume_sale.set_icon("history", size=(18, 18))
+        self.btn_resume_sale.setFixedHeight(60)
+        self.btn_resume_sale.clicked.connect(self._resume_sale)
+        button_layout.addWidget(self.btn_resume_sale, 1)
         
         # ✅ Expense Button (1 part) - Theme-aware
         self.btn_expense = ModernButton("", ModernButton.SECONDARY)
@@ -909,6 +942,8 @@ class CashierUI(QMainWindow):
         self._add_shortcut("F9", self.set_cash_sale)
         self._add_shortcut("F10", self.set_credit_sale)
         self._add_shortcut("F12", self._checkout)
+        self._add_shortcut("Ctrl+H", self._hold_sale)
+        self._add_shortcut("Ctrl+Shift+H", self._resume_sale)
         self._add_shortcut("Ctrl+Backspace", self._clear_cart)
         self._add_shortcut("Ctrl+Delete", self.remove_last_cart_item)
         self._add_shortcut("Ctrl+D", self._toggle_customer_display)
@@ -988,6 +1023,10 @@ class CashierUI(QMainWindow):
         self.options_widget.cash_radio.setToolTip(tr("cash_sale_shortcut"))
         self.options_widget.credit_radio.setToolTip(tr("credit_sale_shortcut"))
         self.btn_checkout.setToolTip(f"{tr('checkout_shortcut')} | Ctrl+E: Expense")
+        if self.btn_hold_sale:
+            self.btn_hold_sale.setToolTip("Hold current sale (Ctrl+H)")
+        if self.btn_resume_sale:
+            self.btn_resume_sale.setToolTip("Resume held sale (Ctrl+Shift+H)")
         self.cart_widget.clear_btn.setToolTip(tr("clear_cart_shortcut"))
         self.cart_widget.setToolTip(tr("remove_selected_cart_item_shortcut"))
         if self.btn_customer_display:
@@ -1013,6 +1052,16 @@ class CashierUI(QMainWindow):
         """Checkout"""
         if self.checkout_handler:
             self.checkout_handler.checkout()
+
+    def _hold_sale(self):
+        """Hold current sale"""
+        if self.checkout_handler:
+            self.checkout_handler.hold_sale()
+
+    def _resume_sale(self):
+        """Resume a held sale"""
+        if self.checkout_handler:
+            self.checkout_handler.resume_sale()
 
     def _open_receipts_dialog(self):
         """Open the receipts page in a cashier-sized dialog."""
@@ -1487,6 +1536,10 @@ class CashierUI(QMainWindow):
             self.btn_open_cashdrawer.update_theme()
         if hasattr(self, 'btn_checkout') and self.btn_checkout:
             self.btn_checkout.update_theme()
+        if hasattr(self, 'btn_hold_sale') and self.btn_hold_sale:
+            self.btn_hold_sale.update_theme()
+        if hasattr(self, 'btn_resume_sale') and self.btn_resume_sale:
+            self.btn_resume_sale.update_theme()
         if hasattr(self, 'btn_receipts') and self.btn_receipts:
             self.btn_receipts.update_theme()
         if hasattr(self, 'btn_backup') and self.btn_backup:
@@ -1559,6 +1612,13 @@ class CashierUI(QMainWindow):
             if self.btn_backup:
                 self.btn_backup.setText("Backup")
                 self.btn_backup.setToolTip("Backup database")
+
+        if self.btn_hold_sale:
+            self.btn_hold_sale.setText(" Hold")
+            self.btn_hold_sale.setToolTip("Hold current sale (Ctrl+H)")
+        if self.btn_resume_sale:
+            self.btn_resume_sale.setText(" Resume")
+            self.btn_resume_sale.setToolTip("Resume held sale (Ctrl+Shift+H)")
         
         if hasattr(self, 'product_grid') and self.product_grid:
             self.product_grid.retranslateUi()

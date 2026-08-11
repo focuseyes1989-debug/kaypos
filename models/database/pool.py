@@ -10,6 +10,7 @@ import threading
 import weakref
 from queue import Queue, Empty
 from loguru import logger
+from utils.db_compat import database_url, is_postgres_backend
 
 # 🔥 Dynamic DB_NAME based on execution context
 def get_db_path():
@@ -46,6 +47,20 @@ class ConnectionPool:
         """Create initial connections."""
         try:
             # 🔥 Ensure database directory exists
+            if is_postgres_backend():
+                if not database_url():
+                    logger.warning("PostgreSQL backend selected, but no ZAY_POS_DATABASE_URL/DATABASE_URL is configured yet")
+                    self._initialized = True
+                    return
+                try:
+                    conn = self._create_connection()
+                    self._pool.put(conn)
+                    logger.info(f"PostgreSQL connection pool initialized with {self._pool.qsize()} connection(s)")
+                except Exception as e:
+                    logger.warning(f"Failed to create initial PostgreSQL connection: {e}")
+                self._initialized = True
+                return
+
             db_dir = os.path.dirname(DB_NAME)
             os.makedirs(db_dir, exist_ok=True)
             
@@ -82,6 +97,19 @@ class ConnectionPool:
     def _create_connection(self):
         """Create a new database connection."""
         try:
+            if is_postgres_backend():
+                from models.database.postgres_adapter import connect_postgres
+
+                url = database_url()
+                if not url:
+                    raise RuntimeError(
+                        "ZAY_POS_DB_BACKEND=postgres requires ZAY_POS_DATABASE_URL or DATABASE_URL."
+                    )
+                conn = connect_postgres(url)
+                conn.execute("SELECT 1").fetchone()
+                logger.debug("New PostgreSQL database connection created")
+                return conn
+
             db_dir = os.path.dirname(DB_NAME)
             os.makedirs(db_dir, exist_ok=True)
             
@@ -309,5 +337,5 @@ def is_connection_healthy(conn):
             return False
         conn.execute("SELECT 1").fetchone()
         return True
-    except (sqlite3.OperationalError, sqlite3.DatabaseError, AttributeError):
+    except Exception:
         return False

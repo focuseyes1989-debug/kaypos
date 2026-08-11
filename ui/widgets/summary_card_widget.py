@@ -7,7 +7,7 @@ WITH PROGRESS BAR
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QProgressBar
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QPoint, QPointF, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QSize
 from PyQt6.QtGui import QColor, QLinearGradient, QBrush, QPainter, QPen, QFont, QPixmap, QIcon
 from loguru import logger
 import os
@@ -38,15 +38,12 @@ class SummaryCardWidget(QWidget):
         self._show_progress = show_progress
         self._progress_value = progress_value
         self._progress_max = progress_max
+        self._comparison_text = ""
+        self._comparison_direction = "neutral"
         
         # ✅ Load SVG icon if needed
         if self._icon_is_svg:
             self._load_svg_icon()
-        
-        # Animation for card lift effect
-        self._hover_animation = QPropertyAnimation(self)
-        self._hover_animation.setDuration(200)
-        self._hover_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         
         self.setup_ui()
         
@@ -411,14 +408,17 @@ class SummaryCardWidget(QWidget):
             self.value_label.setStyleSheet("""
                 QLabel {
                     color: white;
-                    font-size: 17pt;
+                    font-size: 15pt;
                     font-weight: 700;
                     background: transparent;
                     border: none;
-                    padding: 0px;
+                    padding: 3px 0px 1px 0px;
                     margin: 0px;
                 }
             """)
+
+        if hasattr(self, 'comparison_label'):
+            self._apply_comparison_style()
         
         if hasattr(self, 'icon_container'):
             self.icon_container.setStyleSheet("""
@@ -474,15 +474,15 @@ class SummaryCardWidget(QWidget):
     def setup_ui(self):
         # Card frame
         self.card = ModernGradientCard(self._gradient_colors, self._color)
-        self.card.setFixedHeight(112 if self._show_progress else 92)
+        self.card.setFixedHeight(140 if self._show_progress else 120)
         self.card.setMinimumWidth(140)
         self.card.setCursor(Qt.CursorShape.PointingHandCursor)
         
         self._apply_theme()
         
         card_layout = QVBoxLayout(self.card)
-        card_layout.setSpacing(6)
-        card_layout.setContentsMargins(14, 10, 14, 10)
+        card_layout.setSpacing(4)
+        card_layout.setContentsMargins(14, 8, 14, 8)
         
         # Top section: Icon and Title (horizontal layout)
         top_layout = QHBoxLayout()
@@ -546,16 +546,17 @@ class SummaryCardWidget(QWidget):
         
         self.value_label = QLabel(str(self._display_value))
         self.value_label.setObjectName("cardValue")
-        self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.value_label.setWordWrap(True)
+        self.value_label.setMinimumHeight(34)
         self.value_label.setStyleSheet("""
             QLabel {
                 color: white;
-                font-size: 17pt;
+                font-size: 15pt;
                 font-weight: 700;
                 background: transparent;
                 border: none;
-                padding: 0px;
+                padding: 3px 0px 1px 0px;
                 margin: 0px;
             }
         """)
@@ -563,6 +564,20 @@ class SummaryCardWidget(QWidget):
         value_layout.addWidget(self.value_label)
         
         card_layout.addLayout(value_layout)
+
+        comparison_layout = QHBoxLayout()
+        comparison_layout.setSpacing(0)
+        comparison_layout.addStretch()
+
+        self.comparison_label = QLabel()
+        self.comparison_label.setObjectName("cardComparison")
+        self.comparison_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.comparison_label.setFixedHeight(19)
+        self.comparison_label.setVisible(False)
+        self._apply_comparison_style()
+
+        comparison_layout.addWidget(self.comparison_label)
+        card_layout.addLayout(comparison_layout)
         
         # ✅ Progress Bar (if enabled)
         if self._show_progress:
@@ -618,19 +633,11 @@ class SummaryCardWidget(QWidget):
     
     def _on_enter(self, event):
         self._is_hovered = True
-        self._hover_animation.setTargetObject(self.card)
-        self._hover_animation.setPropertyName(b"pos")
-        self._hover_animation.setStartValue(self.card.pos())
-        self._hover_animation.setEndValue(QPoint(self.card.pos().x(), self.card.pos().y() - 4))
-        self._hover_animation.start()
+        self.card.update()
     
     def _on_leave(self, event):
         self._is_hovered = False
-        self._hover_animation.setTargetObject(self.card)
-        self._hover_animation.setPropertyName(b"pos")
-        self._hover_animation.setStartValue(self.card.pos())
-        self._hover_animation.setEndValue(QPoint(self.card.pos().x(), self.card.pos().y() + 4))
-        self._hover_animation.start()
+        self.card.update()
     
     # ========== Public Methods ==========
     
@@ -710,6 +717,39 @@ class SummaryCardWidget(QWidget):
         self._show_progress = visible
         if hasattr(self, 'progress_bar'):
             self.progress_bar.setVisible(visible)
+
+    def set_comparison(self, text="", direction="neutral"):
+        """Set a compact comparison label under the card value."""
+        self._comparison_text = str(text or "")
+        self._comparison_direction = direction if direction in ("up", "down", "neutral") else "neutral"
+        if hasattr(self, 'comparison_label'):
+            self.comparison_label.setText(self._comparison_text)
+            self.comparison_label.setVisible(bool(self._comparison_text))
+            self._apply_comparison_style()
+
+    def _apply_comparison_style(self):
+        if not hasattr(self, 'comparison_label'):
+            return
+        if self._comparison_direction == "up":
+            bg = "rgba(46, 204, 113, 0.22)"
+            fg = "#d9ffe8"
+        elif self._comparison_direction == "down":
+            bg = "rgba(231, 76, 60, 0.24)"
+            fg = "#ffe0dc"
+        else:
+            bg = "rgba(255, 255, 255, 0.16)"
+            fg = "rgba(255, 255, 255, 0.82)"
+        self.comparison_label.setStyleSheet(f"""
+            QLabel {{
+                color: {fg};
+                background-color: {bg};
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 9px;
+                padding: 1px 8px;
+                font-size: 8pt;
+                font-weight: 700;
+            }}
+        """)
     
     def update_theme(self):
         """Manually update theme"""

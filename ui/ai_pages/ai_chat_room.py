@@ -59,6 +59,7 @@ class AIChatRoom(QWidget):
         self._message_history = []
         self._recent_prompts = []
         self._cancel_requested = False
+        self._last_status = "Ready"
         self._setup_ui()
         
         # Welcome message
@@ -116,15 +117,6 @@ class AIChatRoom(QWidget):
         quick_layout = QHBoxLayout()
         quick_layout.setSpacing(8)
         quick_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-        self.status_label = QLabel("Ready")
-        self.status_label.setMinimumWidth(72)
-        self.status_label.setStyleSheet(f"""
-            color: {colors.get('text_secondary', '#636e72')};
-            font-size: 9pt;
-            background: transparent;
-        """)
-        quick_layout.addWidget(self.status_label)
 
         self.recent_combo = QComboBox()
         self.recent_combo.addItem("Recent prompts")
@@ -264,8 +256,7 @@ class AIChatRoom(QWidget):
         self._send_message()
 
     def _set_chat_status(self, text):
-        if hasattr(self, "status_label"):
-            self.status_label.setText(text)
+        self._last_status = text
 
     def _message_timestamp(self):
         return datetime.now().strftime("%H:%M")
@@ -938,11 +929,12 @@ I can help you with:
         """Update theme"""
         colors = get_theme_colors()
         self.setStyleSheet(f"background-color: {colors.get('bg', '#f5f6fa')};")
-        if hasattr(self, "status_label"):
-            self.status_label.setStyleSheet(f"""
-                color: {colors.get('text_secondary', '#636e72')};
-                font-size: 9pt;
-                background: transparent;
+        if hasattr(self, "input_frame"):
+            self.input_frame.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {colors.get('card_bg', '#ffffff')};
+                    border-top: 1px solid {colors.get('border', '#e0e0e0')};
+                }}
             """)
         if hasattr(self, "input_field"):
             self.input_field.setStyleSheet(f"""
@@ -972,6 +964,9 @@ I can help you with:
         
         for button in self.findChildren(ModernButton):
             button.update_theme()
+
+        for message in self.findChildren(CopyableMessageFrame):
+            message.update_theme()
     
     def refresh(self):
         """Refresh page"""

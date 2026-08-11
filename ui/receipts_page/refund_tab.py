@@ -127,7 +127,7 @@ class RefundTab(QWidget):
         self.pagination.set_current_page(1)
         self.load_refunded_sales()
     
-    def load_refunded_sales(self, from_date=None, to_date=None, page=1, page_size=50):
+    def load_refunded_sales(self, from_date=None, to_date=None, page=1, page_size=25):
         """Load refunded sales - ✅ FIXED: Use sale_items for total"""
         symbol = get_currency_symbol()
         search_text = self.search_widget.get_text()
@@ -178,7 +178,7 @@ class RefundTab(QWidget):
                 WHERE s.status = 'refunded'
                   AND date(s.created_at) BETWEEN ? AND ?
                   AND (s.invoice_no LIKE ? OR c.name LIKE ?)
-                GROUP BY s.id
+                GROUP BY s.id, s.invoice_no, s.created_at, c.name, s.payment_type
                 ORDER BY s.created_at DESC
                 LIMIT ? OFFSET ?
             """, (from_date, to_date, like, like, page_size, offset))
@@ -196,7 +196,7 @@ class RefundTab(QWidget):
                 LEFT JOIN sale_items si ON s.id = si.sale_id
                 WHERE s.status = 'refunded'
                   AND date(s.created_at) BETWEEN ? AND ?
-                GROUP BY s.id
+                GROUP BY s.id, s.invoice_no, s.created_at, c.name, s.payment_type
                 ORDER BY s.created_at DESC
                 LIMIT ? OFFSET ?
             """, (from_date, to_date, page_size, offset))
@@ -272,7 +272,7 @@ class RefundTab(QWidget):
                     WHERE s.status = 'refunded'
                       AND date(s.created_at) BETWEEN ? AND ?
                       AND (s.invoice_no LIKE ? OR c.name LIKE ?)
-                    GROUP BY s.id
+                    GROUP BY s.id, s.invoice_no, s.created_at, c.name, s.payment_type
                     ORDER BY s.created_at DESC
                 """, (from_date, to_date, like, like))
             else:
@@ -288,7 +288,7 @@ class RefundTab(QWidget):
                     LEFT JOIN sale_items si ON s.id = si.sale_id
                     WHERE s.status = 'refunded'
                       AND date(s.created_at) BETWEEN ? AND ?
-                    GROUP BY s.id
+                    GROUP BY s.id, s.invoice_no, s.created_at, c.name, s.payment_type
                     ORDER BY s.created_at DESC
                 """, (from_date, to_date))
             return cursor.fetchall()

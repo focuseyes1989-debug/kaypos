@@ -1,277 +1,215 @@
-# ui/ai_pages/ai_dashboard/dashboard_charts.py
-"""
-Charts for AI Dashboard with Myanmar Font Support
-"""
+"""Qt chart widgets for the AI Dashboard."""
 
-import matplotlib
-matplotlib.use('QtAgg')
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-from matplotlib.font_manager import FontProperties
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
-from PyQt6.QtCore import Qt
-import warnings
-import logging
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
-# Import DashboardUtils
-from ui.ai_pages.ai_dashboard.dashboard_utils import DashboardUtils
-
-# Suppress all matplotlib font warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib.font_manager")
-logging.getLogger('matplotlib').setLevel(logging.ERROR)
-logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
-
-# Matplotlib အတွက် မြန်မာ Font Config
-plt.rcParams['font.sans-serif'] = ['Pyidaungsu', 'DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
-# Suppress font weight warnings
-plt.rcParams['font.weight'] = 'normal'
-plt.rcParams['axes.titleweight'] = 'normal'
-plt.rcParams['axes.labelweight'] = 'normal'
+from ui.themes.theme_manager import get_theme_colors
+from utils.currency import format_money
 
 
 class DashboardCharts:
-    """Chart manager for dashboard"""
-    
+    """Chart manager for dashboard."""
+
     def __init__(self, parent):
         self.parent = parent
-        self.sales_figure = None
-        self.sales_canvas = None
-        self.category_figure = None
-        self.category_canvas = None
         self.sales_frame = None
         self.category_frame = None
-    
+        self.sales_chart = None
+        self.category_chart = None
+
     def setup(self, colors):
-        """Setup charts"""
         charts_container = QFrame()
-        charts_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        charts_container.setMinimumHeight(280)
+        charts_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        charts_container.setFixedHeight(300)
         charts_container.setStyleSheet("background-color: transparent;")
-        
+
         charts_layout = QHBoxLayout(charts_container)
         charts_layout.setContentsMargins(0, 0, 0, 0)
         charts_layout.setSpacing(12)
-        
-        # Sales Chart (2/3)
-        self.sales_frame, self.sales_figure, self.sales_canvas = self._create_chart_frame(
-            "trending_up", "Daily Sales Trend", colors, (8, 2.8), 200
+
+        self.sales_frame, self.sales_chart = self._create_chart_frame(
+            "Daily Sales Trend",
+            _DailySalesChart(),
+            colors,
         )
         charts_layout.addWidget(self.sales_frame, 2)
-        
-        # Category Chart (1/3)
-        self.category_frame, self.category_figure, self.category_canvas = self._create_chart_frame(
-            "bar_chart", "Sales by Category", colors, (4, 2.8), 200
+
+        self.category_frame, self.category_chart = self._create_chart_frame(
+            "Sales by Category",
+            _HorizontalValueChart(),
+            colors,
         )
         charts_layout.addWidget(self.category_frame, 1)
-        
+
         return charts_container
-    
-    def _create_chart_frame(self, icon_name, title, colors, figsize, min_height):
-        """Create a chart frame with title"""
-        from ui.ai_pages.ai_dashboard.dashboard_icons import DashboardIcons
-        
+
+    def _create_chart_frame(self, title, chart_widget, colors):
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._apply_frame_style(frame, colors)
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        chart_widget.set_title(title)
+        layout.addWidget(chart_widget)
+
+        return frame, chart_widget
+
+    def update_sales_chart(self, daily_data):
+        if self.sales_chart:
+            rows = [(row[0], float(row[2] or 0)) for row in daily_data or []]
+            self.sales_chart.set_data(rows)
+
+    def update_category_chart(self, category_data):
+        if self.category_chart:
+            rows = [(row[0] or "Uncategorized", float(row[2] or 0)) for row in category_data or []]
+            self.category_chart.set_data(rows)
+
+    def update_theme(self):
+        colors = get_theme_colors()
+        for frame in (self.sales_frame, self.category_frame):
+            if frame:
+                self._apply_frame_style(frame, colors)
+        for chart in (self.sales_chart, self.category_chart):
+            if chart:
+                chart.update()
+
+    def _apply_frame_style(self, frame, colors):
         frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {colors.get('card_bg', '#ffffff')};
-                border-radius: 12px;
-                padding: 6px;
+                border: 1px solid {colors.get('border', '#dde2e8')};
+                border-radius: 8px;
             }}
         """)
-        
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(2)
-        
-        # Title with icon
-        title_layout = QHBoxLayout()
-        title_layout.setSpacing(6)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Icon Size 24x24
-        title_icon = DashboardIcons.create_svg_icon(icon_name, (24, 24))
-        title_icon.setFixedSize(24, 24)
-        title_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_icon.setStyleSheet("""
-            background-color: transparent;
-            margin: 0px;
-            padding: 0px;
-        """)
-        title_layout.addWidget(title_icon)
-        
-        title_label = QLabel(title)
-        title_label.setStyleSheet(f"""
-            font-size: 11pt;
-            font-weight: bold;
-            color: {colors.get('text', '#2d3436')};
-            background-color: transparent;
-            margin: 0px;
-            padding: 0px;
-        """)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        title_layout.addWidget(title_label)
-        title_layout.addStretch()
-        
-        layout.addLayout(title_layout)
-        
-        figure = Figure(figsize=figsize, dpi=100)
-        canvas = FigureCanvas(figure)
-        canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        canvas.setMinimumHeight(min_height)
-        layout.addWidget(canvas)
-        
-        return frame, figure, canvas
-    
-    def update_sales_chart(self, daily_data):
-        """Update sales chart"""
-        if not self.sales_figure:
-            return
-        
-        theme = DashboardUtils.get_theme_colors()
-        
-        self.sales_figure.clear()
-        self.sales_figure.patch.set_facecolor(theme['figure_bg'])
-        self.sales_figure.subplots_adjust(left=0.08, right=0.95, top=0.88, bottom=0.18)
-        
-        ax = self.sales_figure.add_subplot(111)
-        ax.set_facecolor(theme['axes_bg'])
-        ax.set_title('Daily Sales Trend', fontsize=10, fontweight='normal', color=theme['text'])
-        
-        if daily_data and len(daily_data) > 0:
-            dates = [d[0] for d in daily_data]
-            sales = [float(d[2]) for d in daily_data]
-            
-            bars = ax.bar(dates, sales, width=0.7, color='#3498DB', alpha=0.85,
-                         edgecolor='#3498DB', linewidth=0, capstyle='round')
-            
-            if sales:
-                max_val = max(sales) if sales else 1
-                for bar, val in zip(bars, sales):
-                    if val > 0 and max_val > 0:
-                        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.02 * max_val,
-                               f'{val:,.0f}', ha='center', va='bottom', fontsize=7,
-                               color=theme['text_secondary'], weight='normal')
-            
-            ax.set_ylabel('Sales (Ks)', fontsize=8, color=theme['text_secondary'])
-            ax.tick_params(colors=theme['text_secondary'], labelsize=7)
-            
-            if len(dates) > 10:
-                ax.tick_params(axis='x', rotation=45)
-            
-            if len(dates) > 15:
-                step = max(1, len(dates) // 10)
-                xticks = dates[::step]
-                ax.set_xticks(xticks)
-                ax.set_xticklabels(xticks, rotation=45, ha='right')
-        else:
-            ax.text(0.5, 0.5, 'No Data Available', ha='center', va='center',
-                   transform=ax.transAxes, fontsize=12, color=theme['text_secondary'])
-        
-        for spine in ax.spines.values():
-            spine.set_color(theme['border'])
-        
-        self.sales_figure.tight_layout()
-        self.sales_canvas.draw()
-    
-    def update_category_chart(self, category_data):
-        """Update category chart - Myanmar text support with Pyidaungsu only"""
-        if not self.category_figure:
-            return
-        
-        theme = DashboardUtils.get_theme_colors()
-        colors = DashboardUtils.get_vibrant_colors(8)
-        
-        # Myanmar Font Properties - Pyidaungsu သာ သုံးပါ
-        mm_font = FontProperties(family=['Pyidaungsu'], size=10)
-        mm_font_bold = FontProperties(family=['Pyidaungsu'], size=9)
-        # Fallback font
-        fallback_font = FontProperties(family=['DejaVu Sans'], size=10)
 
-        self.category_figure.clear()
-        self.category_figure.patch.set_facecolor(theme['figure_bg'])
-        self.category_figure.subplots_adjust(left=0.28, right=0.92, top=0.88, bottom=0.12)
-        
-        ax = self.category_figure.add_subplot(111)
-        ax.set_facecolor(theme['axes_bg'])
-        ax.set_title('Sales by Category', fontsize=10, fontweight='normal', color=theme['text'])
-        
-        if category_data and len(category_data) > 0:
-            categories = [c[0] or 'Uncategorized' for c in category_data]
-            totals = [float(c[2]) for c in category_data]
-            
-            filtered = [(cat, val) for cat, val in zip(categories, totals) if val > 0]
-            
-            if filtered:
-                sorted_data = sorted(filtered, key=lambda x: x[1], reverse=True)
-                cats, vals = zip(*sorted_data)
-                
-                bars = ax.barh(cats, vals, color=colors[:len(cats)], alpha=0.85,
-                              edgecolor=colors[:len(cats)], linewidth=0, height=0.65)
-                
-                # Category names with Pyidaungsu font
-                ax.set_yticks(range(len(cats)))
-                try:
-                    ax.set_yticklabels(cats, fontproperties=mm_font, color=theme['text_secondary'])
-                except:
-                    ax.set_yticklabels(cats, fontproperties=fallback_font, color=theme['text_secondary'])
-                
-                max_val = max(vals) if vals else 1
-                for bar, val in zip(bars, vals):
-                    try:
-                        ax.text(bar.get_width() + (max_val * 0.01), bar.get_y() + bar.get_height()/2,
-                               f'  {val:,.0f} Ks', ha='left', va='center',
-                               color=theme['text_secondary'], fontproperties=mm_font_bold)
-                    except:
-                        ax.text(bar.get_width() + (max_val * 0.01), bar.get_y() + bar.get_height()/2,
-                               f'  {val:,.0f} Ks', ha='left', va='center',
-                               color=theme['text_secondary'], fontproperties=fallback_font)
-                
-                total = sum(vals)
-                for bar, val in zip(bars, vals):
-                    pct = (val / total * 100) if total > 0 else 0
-                    if pct > 8:
-                        try:
-                            ax.text(bar.get_width() * 0.35, bar.get_y() + bar.get_height()/2,
-                                   f'{pct:.1f}%', ha='center', va='center',
-                                   color='white', fontproperties=mm_font_bold)
-                        except:
-                            ax.text(bar.get_width() * 0.35, bar.get_y() + bar.get_height()/2,
-                                   f'{pct:.1f}%', ha='center', va='center',
-                                   color='white', fontproperties=fallback_font)
-                
-                ax.set_xlabel('Sales (Ks)', fontsize=9, color=theme['text_secondary'])
-                ax.tick_params(colors=theme['text_secondary'], labelsize=8)
-                ax.invert_yaxis()
-        else:
-            ax.text(0.5, 0.5, 'No Data Available', ha='center', va='center',
-                   transform=ax.transAxes, fontsize=12, color=theme['text_secondary'])
-        
-        for spine in ax.spines.values():
-            spine.set_color(theme['border'])
-        
-        self.category_figure.tight_layout()
-        self.category_canvas.draw()
-    
-    def update_theme(self):
-        """Update charts theme"""
-        from ui.themes.theme_manager import get_theme_colors
 
+class _BaseChart(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._title = ""
+        self._data = []
+        self.setMinimumHeight(230)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def set_title(self, title):
+        self._title = title
+
+    def set_data(self, data):
+        self._data = data
+        self.update()
+
+    def _palette(self):
         colors = get_theme_colors()
-        frame_style = f"""
-            QFrame {{
-                background-color: {colors.get('card_bg', '#ffffff')};
-                border-radius: 12px;
-                padding: 6px;
-            }}
-        """
-        for frame in (self.sales_frame, self.category_frame):
-            if frame:
-                frame.setStyleSheet(frame_style)
-        if self.sales_canvas:
-            self.sales_canvas.draw_idle()
-        if self.category_canvas:
-            self.category_canvas.draw_idle()
+        return {
+            "bg": QColor(colors.get("card_bg", colors.get("bg", "#ffffff"))),
+            "text": QColor(colors.get("text", "#212529")),
+            "muted": QColor(colors.get("text_secondary", "#6c757d")),
+            "primary": QColor(colors.get("primary", "#5865f2")),
+            "accent": QColor(colors.get("success", "#2ecc71")),
+            "grid": QColor(colors.get("border", "#dde2e8")),
+        }
+
+    def _draw_title(self, painter, rect, palette):
+        title_font = QFont(self.font())
+        title_font.setPointSize(11)
+        title_font.setBold(True)
+        painter.setFont(title_font)
+        painter.setPen(palette["text"])
+        painter.drawText(rect.left(), rect.top(), rect.width(), 24, Qt.AlignmentFlag.AlignLeft, self._title)
+
+    def _draw_empty(self, painter, rect, palette):
+        painter.setFont(self.font())
+        painter.setPen(palette["muted"])
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "No Data Available")
+
+
+class _DailySalesChart(_BaseChart):
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        palette = self._palette()
+        painter.fillRect(self.rect(), palette["bg"])
+        rect = self.rect().adjusted(12, 10, -12, -12)
+        self._draw_title(painter, rect, palette)
+
+        chart_rect = rect.adjusted(0, 42, 0, -18)
+        if not self._data:
+            self._draw_empty(painter, chart_rect, palette)
+            return
+
+        data = self._data[-14:]
+        max_value = max(value for _, value in data) or 1
+        gap = 6
+        bar_width = max(8, (chart_rect.width() - gap * (len(data) - 1)) / max(1, len(data)))
+
+        painter.setPen(QPen(palette["grid"], 1))
+        for i in range(4):
+            y = chart_rect.top() + (chart_rect.height() * i / 3)
+            painter.drawLine(chart_rect.left(), int(y), chart_rect.right(), int(y))
+
+        for index, (label, value) in enumerate(data):
+            x = chart_rect.left() + index * (bar_width + gap)
+            height = (value / max_value) * max(1, chart_rect.height() - 22)
+            y = chart_rect.bottom() - height
+
+            color = palette["primary"] if index == len(data) - 1 else palette["accent"]
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawRoundedRect(QRectF(x, y, bar_width, height), 4, 4)
+
+            if value > 0 and bar_width > 22:
+                painter.setPen(palette["muted"])
+                painter.drawText(int(x - 8), int(y - 18), int(bar_width + 16), 16, Qt.AlignmentFlag.AlignCenter, format_money(value))
+
+            painter.setPen(palette["muted"])
+            short_label = str(label)[5:] if len(str(label)) >= 10 else str(label)
+            painter.drawText(int(x - 4), chart_rect.bottom() + 4, int(bar_width + 8), 16, Qt.AlignmentFlag.AlignCenter, short_label)
+
+
+class _HorizontalValueChart(_BaseChart):
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        palette = self._palette()
+        painter.fillRect(self.rect(), palette["bg"])
+        rect = self.rect().adjusted(12, 10, -12, -12)
+        self._draw_title(painter, rect, palette)
+
+        chart_rect = rect.adjusted(0, 42, 0, 0)
+        data = [(name, value) for name, value in self._data[:8] if value > 0]
+        if not data:
+            self._draw_empty(painter, chart_rect, palette)
+            return
+
+        max_value = max(value for _, value in data) or 1
+        row_height = max(24, min(36, chart_rect.height() // max(1, len(data))))
+        label_width = min(150, max(90, chart_rect.width() // 3))
+        bar_left = chart_rect.left() + label_width + 10
+        bar_width_max = max(50, chart_rect.right() - bar_left - 74)
+
+        painter.setFont(self.font())
+        for index, (name, value) in enumerate(data):
+            y = chart_rect.top() + index * row_height
+            if y + row_height > chart_rect.bottom():
+                break
+
+            painter.setPen(palette["text"])
+            label = painter.fontMetrics().elidedText(str(name), Qt.TextElideMode.ElideRight, label_width)
+            painter.drawText(chart_rect.left(), y, label_width, row_height, Qt.AlignmentFlag.AlignVCenter, label)
+
+            width = int((value / max_value) * bar_width_max)
+            color = palette["primary"] if index % 2 == 0 else palette["accent"]
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawRoundedRect(QRectF(bar_left, y + 7, max(3, width), max(8, row_height - 14)), 4, 4)
+
+            painter.setPen(palette["muted"])
+            painter.drawText(bar_left + width + 8, y, 70, row_height, Qt.AlignmentFlag.AlignVCenter, format_money(value))

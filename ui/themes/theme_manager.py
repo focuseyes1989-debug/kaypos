@@ -355,7 +355,7 @@ def apply_font():
     """Apply scaled font to the application"""
     app = QApplication.instance()
     if isinstance(app, QApplication):
-        font_size = get_scaled_font_size(9)
+        font_size = get_scaled_font_size(10)
         font = QFont(get_preferred_font_family(), font_size)
         app.setFont(font)
         return font

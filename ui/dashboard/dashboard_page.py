@@ -581,7 +581,7 @@ class DashboardPage(QWidget):
         cursor.execute("""
             SELECT COALESCE(SUM(products.cost * sale_items.qty), 0)
             FROM sale_items
-            JOIN products ON sale_items.product_name = products.name
+            JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             JOIN sales ON sale_items.sale_id = sales.id
             WHERE sales.status='completed' 
               AND date(sales.created_at) BETWEEN ? AND ?
@@ -594,8 +594,33 @@ class DashboardPage(QWidget):
         self._update_card_value(self.gross_profit_card, gross_profit, symbol, True, profit_color)
         
         cursor.execute("""
-            SELECT COALESCE(SUM(balance_amount), 0) FROM credit_sales 
-            WHERE status != 'paid' AND balance_amount > 0
+            WITH customer_debt AS (
+                SELECT
+                    COALESCE(c.current_balance, 0) AS current_balance,
+                    COALESCE((
+                        SELECT SUM(cs.balance_amount)
+                        FROM credit_sales cs
+                        WHERE cs.customer_id = c.id
+                          AND cs.balance_amount > 0
+                          AND LOWER(COALESCE(cs.status, '')) != 'refunded'
+                    ), 0) AS credit_sales_balance
+                FROM customers c
+                WHERE COALESCE(c.current_balance, 0) > 0
+                   OR EXISTS (
+                       SELECT 1
+                       FROM credit_sales cs
+                       WHERE cs.customer_id = c.id
+                         AND cs.balance_amount > 0
+                         AND LOWER(COALESCE(cs.status, '')) != 'refunded'
+                   )
+            )
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN current_balance > credit_sales_balance THEN current_balance
+                    ELSE credit_sales_balance
+                END
+            ), 0)
+            FROM customer_debt
         """)
         outstanding = cursor.fetchone()[0]
         outstanding_color = "#e74c3c" if outstanding > 0 else "#2ecc71"
@@ -627,7 +652,7 @@ class DashboardPage(QWidget):
         self.update_backup_status()
         self.table_widget.populate(from_date, to_date)
         
-        if hasattr(self, 'ai_assistant'):
+        if hasattr(self, 'ai_assistant') and self.isVisible():
             self.ai_assistant.load_insights()
     
     def update_backup_status(self):
@@ -691,9 +716,9 @@ class DashboardPage(QWidget):
         self.update_financial_cards(from_date, to_date)
         self.update_backup_status()
         
-        if hasattr(self, 'ai_assistant'):
+        if hasattr(self, 'ai_assistant') and self.isVisible():
             self.ai_assistant.load_insights()
     
     def showEvent(self, event):
-        self.refresh_dashboard()
         super().showEvent(event)
+        self.refresh_dashboard()

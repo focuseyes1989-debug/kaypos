@@ -217,7 +217,7 @@ class CreditTab(QWidget):
         self.pagination.set_current_page(1)
         self.load_credit_receipts()
     
-    def load_credit_receipts(self, from_date=None, to_date=None, page=1, page_size=50):
+    def load_credit_receipts(self, from_date=None, to_date=None, page=1, page_size=25):
         """Load credit receipts with date range from parent"""
         symbol = get_currency_symbol()
         search_text = self.search_widget.get_text()

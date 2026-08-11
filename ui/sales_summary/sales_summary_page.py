@@ -8,6 +8,7 @@ from PyQt6.QtGui import QIcon, QColor, QPixmap
 from ui.sales_summary.base_sales_summary import BaseSalesSummary
 from ui.sales_summary.top_items_tab import TopItemsTab
 from ui.sales_summary.items_tab import ItemsTab
+from ui.sales_summary.wholesale_items_tab import WholesaleItemsTab
 from ui.sales_summary.categories_tab import CategoriesTab
 from ui.sales_summary.category_parents_tab import CategoryParentsTab
 from ui.sales_summary.category_groups_tab import CategoryGroupsTab
@@ -15,7 +16,7 @@ from ui.sales_summary.payment_tab import PaymentTab
 from utils.language import lang
 from utils.excel_exporter import ExcelExporter
 from models.database import connect_db
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Import widgets
 from ui.widgets import (
@@ -28,6 +29,7 @@ from ui.widgets import (
 )
 from ui.themes.theme_manager import theme_manager, is_dark_theme
 from utils.currency import get_currency_symbol, format_money
+from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 import os
 
 
@@ -120,21 +122,23 @@ class SalesSummaryPage(BaseSalesSummary):
         # ========== Tabs ==========
         self.tabs = QTabWidget()
         self.tab_names = {
-            0: "Top 20 Sales by Item",
-            1: "Sales by Item",
-            2: "Sales by Category",
-            3: "Sales by Parent Category",
-            4: "Sales by Category Group",
-            5: "Sales by Payment Type"
+            0: "Top 20 Items",
+            1: "Items",
+            2: "Wholesale Items",
+            3: "Category",
+            4: "Parent Category",
+            5: "Groups",
+            6: "Payment Types"
         }
         
         self.tab_icons = {
             0: "leaderboard",
             1: "list_alt",
-            2: "grid_view",
-            3: "folder_open",
-            4: "group_work",
-            5: "payments"
+            2: "label",
+            3: "grid_view",
+            4: "folder_open",
+            5: "group_work",
+            6: "payments"
         }
         
         self.top_items_tab = TopItemsTab(self)
@@ -142,18 +146,21 @@ class SalesSummaryPage(BaseSalesSummary):
         
         self.items_tab = ItemsTab(self)
         self.tabs.addTab(self.items_tab, self._load_colored_tab_icon(1), self.tab_names[1])
+
+        self.wholesale_items_tab = WholesaleItemsTab(self)
+        self.tabs.addTab(self.wholesale_items_tab, self._load_colored_tab_icon(2), self.tab_names[2])
         
         self.categories_tab = CategoriesTab(self)
-        self.tabs.addTab(self.categories_tab, self._load_colored_tab_icon(2), self.tab_names[2])
+        self.tabs.addTab(self.categories_tab, self._load_colored_tab_icon(3), self.tab_names[3])
         
         self.category_parents_tab = CategoryParentsTab(self)
-        self.tabs.addTab(self.category_parents_tab, self._load_colored_tab_icon(3), self.tab_names[3])
+        self.tabs.addTab(self.category_parents_tab, self._load_colored_tab_icon(4), self.tab_names[4])
         
         self.category_groups_tab = CategoryGroupsTab(self)
-        self.tabs.addTab(self.category_groups_tab, self._load_colored_tab_icon(4), self.tab_names[4])
+        self.tabs.addTab(self.category_groups_tab, self._load_colored_tab_icon(5), self.tab_names[5])
         
         self.payment_tab = PaymentTab(self)
-        self.tabs.addTab(self.payment_tab, self._load_colored_tab_icon(5), self.tab_names[5])
+        self.tabs.addTab(self.payment_tab, self._load_colored_tab_icon(6), self.tab_names[6])
 
         self._apply_tab_bar_style()
 
@@ -322,6 +329,7 @@ class SalesSummaryPage(BaseSalesSummary):
         try:
             self.top_items_tab.load(from_date, to_date, lang_code)
             self.items_tab.load(from_date, to_date)
+            self.wholesale_items_tab.load(from_date, to_date)
             self.categories_tab.load(from_date, to_date)
             self.category_parents_tab.load(from_date, to_date)
             self.category_groups_tab.load(from_date, to_date)
@@ -338,12 +346,40 @@ class SalesSummaryPage(BaseSalesSummary):
     # ============================================================
     # ✅ FIXED: update_summary_cards() - Using sale_items for totals
     # ============================================================
+    def _format_card_comparison(self, current, previous):
+        current = float(current or 0)
+        previous = float(previous or 0)
+        if previous == 0:
+            if current == 0:
+                return "No change", "neutral"
+            return "New vs prev", "up"
+        change = ((current - previous) / abs(previous)) * 100
+        if abs(change) < 0.1:
+            return "0% vs prev", "neutral"
+        arrow = "↑" if change > 0 else "↓"
+        direction = "up" if change > 0 else "down"
+        return f"{arrow} {abs(change):.1f}% vs prev", direction
+
+    def _set_card_comparison(self, card, current, previous):
+        if hasattr(card, "set_comparison"):
+            text, direction = self._format_card_comparison(current, previous)
+            card.set_comparison(text, direction)
+
+    def _get_previous_period(self, from_date, to_date):
+        start = datetime.strptime(from_date, "%Y-%m-%d").date()
+        end = datetime.strptime(to_date, "%Y-%m-%d").date()
+        period_days = max(1, (end - start).days + 1)
+        previous_to = start - timedelta(days=1)
+        previous_from = previous_to - timedelta(days=period_days - 1)
+        return previous_from.isoformat(), previous_to.isoformat()
+
     def update_summary_cards(self, from_date, to_date):
         """Update summary cards with data - ✅ FIXED: Show Net Sales (after discount) with K/M/B formatting"""
         try:
             symbol = get_currency_symbol()
             conn = connect_db()
             cursor = conn.cursor()
+            prev_from_date, prev_to_date = self._get_previous_period(from_date, to_date)
             
             # ✅ Total Net Sales = SUM(si.total) - SUM(COALESCE(s.discount_amount, 0))
             cursor.execute("""
@@ -385,14 +421,59 @@ class SalesSummaryPage(BaseSalesSummary):
                     COALESCE(SUM(si.total) - SUM(COALESCE(s.discount_amount, 0)), 0) as net_sales
                 FROM sale_items si
                 JOIN sales s ON si.sale_id = s.id
-                LEFT JOIN products p ON si.product_name = p.name
+                LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
                 WHERE s.status = 'completed' 
                 AND date(s.created_at) BETWEEN ? AND ?
-                GROUP BY p.category
+                GROUP BY COALESCE(p.category, 'Uncategorized')
                 ORDER BY net_sales DESC
                 LIMIT 1
             """, (from_date, to_date))
             top_category_row = cursor.fetchone()
+
+            cursor.execute("""
+                SELECT 
+                    COALESCE(SUM(si.total), 0) as total_sales_before_discount,
+                    COALESCE(SUM(COALESCE(s.discount_amount, 0)), 0) as total_discount
+                FROM sale_items si
+                JOIN sales s ON si.sale_id = s.id
+                WHERE s.status = 'completed' 
+                AND date(s.created_at) BETWEEN ? AND ?
+            """, (prev_from_date, prev_to_date))
+            prev_row = cursor.fetchone()
+            prev_total_before_discount = prev_row[0] if prev_row else 0
+            prev_total_discount = prev_row[1] if prev_row else 0
+            prev_total_sales = prev_total_before_discount - prev_total_discount
+
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM sales 
+                WHERE status = 'completed' 
+                AND date(created_at) BETWEEN ? AND ?
+            """, (prev_from_date, prev_to_date))
+            prev_total_orders = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT COALESCE(SUM(discount_amount), 0) 
+                FROM sales 
+                WHERE status = 'completed' 
+                AND date(created_at) BETWEEN ? AND ?
+            """, (prev_from_date, prev_to_date))
+            prev_total_discount_amount = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT 
+                    COALESCE(p.category, 'Uncategorized') as category,
+                    COALESCE(SUM(si.total) - SUM(COALESCE(s.discount_amount, 0)), 0) as net_sales
+                FROM sale_items si
+                JOIN sales s ON si.sale_id = s.id
+                LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
+                WHERE s.status = 'completed' 
+                AND date(s.created_at) BETWEEN ? AND ?
+                GROUP BY COALESCE(p.category, 'Uncategorized')
+                ORDER BY net_sales DESC
+                LIMIT 1
+            """, (prev_from_date, prev_to_date))
+            prev_top_category_row = cursor.fetchone()
             
             conn.close()
             
@@ -403,6 +484,7 @@ class SalesSummaryPage(BaseSalesSummary):
                 currency_symbol=symbol, 
                 is_currency=True
             )
+            self._set_card_comparison(self.total_sales_card, total_sales, prev_total_sales)
             
             # 2. Total Orders - just number with K/M/B formatting
             self.total_orders_card.set_value(
@@ -410,6 +492,7 @@ class SalesSummaryPage(BaseSalesSummary):
                 currency_symbol=None, 
                 is_currency=False
             )
+            self._set_card_comparison(self.total_orders_card, total_orders, prev_total_orders)
             
             # 3. Average Order - with currency symbol and K/M/B formatting
             avg_order = total_sales / total_orders if total_orders > 0 else 0
@@ -418,6 +501,8 @@ class SalesSummaryPage(BaseSalesSummary):
                 currency_symbol=symbol, 
                 is_currency=True
             )
+            prev_avg_order = prev_total_sales / prev_total_orders if prev_total_orders > 0 else 0
+            self._set_card_comparison(self.avg_order_card, avg_order, prev_avg_order)
             
             # 4. Total Discount - with currency symbol and K/M/B formatting
             self.total_discount_card.set_value(
@@ -425,6 +510,7 @@ class SalesSummaryPage(BaseSalesSummary):
                 currency_symbol=symbol, 
                 is_currency=True
             )
+            self._set_card_comparison(self.total_discount_card, total_discount_amount, prev_total_discount_amount)
             
             # 5. Top Category - no formatting needed (string value)
             if top_category_row:
@@ -432,6 +518,14 @@ class SalesSummaryPage(BaseSalesSummary):
             else:
                 self.top_category_card.set_value_raw("—")
                 
+            if hasattr(self.top_category_card, "set_comparison"):
+                if prev_top_category_row:
+                    prev_category = prev_top_category_row[0]
+                    direction = "neutral" if top_category_row and top_category_row[0] == prev_category else "up"
+                    self.top_category_card.set_comparison(f"Prev: {prev_category}", direction)
+                else:
+                    self.top_category_card.set_comparison("No previous data", "neutral")
+
         except Exception as e:
             print(f"Error updating summary cards: {e}")
 
@@ -467,6 +561,17 @@ class SalesSummaryPage(BaseSalesSummary):
             }
             for idx, title in tab_titles_my.items():
                 self.tabs.setTabText(idx, title)
+            compact_titles = {
+                0: "Top 20",
+                1: "Items",
+                2: "Wholesale",
+                3: "Category",
+                4: "Parent",
+                5: "Groups",
+                6: "Payment",
+            }
+            for idx, title in compact_titles.items():
+                self.tabs.setTabText(idx, title)
         else:
             self.total_sales_card.set_title("Total Sales")
             self.total_orders_card.set_title("Total Orders")
@@ -480,6 +585,7 @@ class SalesSummaryPage(BaseSalesSummary):
         # Retranslate tabs
         self.top_items_tab.retranslateUi()
         self.items_tab.retranslateUi()
+        self.wholesale_items_tab.retranslateUi()
         self.categories_tab.retranslateUi()
         self.category_parents_tab.retranslateUi()
         self.category_groups_tab.retranslateUi()
@@ -519,20 +625,24 @@ class SalesSummaryPage(BaseSalesSummary):
             # Tab 2: Products Detail
             ws2 = wb.create_sheet("Products Detail")
             self._export_products_detail(ws2, from_date, to_date, symbol, lang_code)
+
+            # Tab 3: Wholesale Items
+            ws_wholesale = wb.create_sheet("Wholesale Items")
+            self._export_wholesale_items(ws_wholesale, from_date, to_date, symbol, lang_code)
             
-            # Tab 3: Categories
+            # Tab 4: Categories
             ws3 = wb.create_sheet("Categories")
             self._export_categories(ws3, from_date, to_date, symbol, lang_code)
             
-            # Tab 4: Parent Categories
+            # Tab 5: Parent Categories
             ws4 = wb.create_sheet("Parent Categories")
             self._export_parent_categories(ws4, from_date, to_date, symbol, lang_code)
             
-            # Tab 5: Category Groups
+            # Tab 6: Category Groups
             ws5 = wb.create_sheet("Category Groups")
             self._export_category_groups(ws5, from_date, to_date, symbol, lang_code)
             
-            # Tab 6: Payment Types
+            # Tab 7: Payment Types
             ws6 = wb.create_sheet("Payment Types")
             self._export_payment(ws6, from_date, to_date, symbol, lang_code)
             
@@ -601,9 +711,9 @@ class SalesSummaryPage(BaseSalesSummary):
                 COALESCE(SUM(si.qty * si.price) - SUM(s.discount_amount) - SUM(p.cost * si.qty), 0) as gross_profit
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
-            GROUP BY si.product_name
+            GROUP BY si.product_name, COALESCE(p.category, 'Uncategorized')
             ORDER BY si.product_name
         """, (from_date, to_date))
         rows = cursor.fetchall()
@@ -660,6 +770,100 @@ class SalesSummaryPage(BaseSalesSummary):
         for col in range(1, 9):
             ws.column_dimensions[chr(64 + col)].width = 18
 
+    def _export_wholesale_items(self, ws, from_date, to_date, symbol, lang_code):
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        conn = connect_db()
+        cursor = conn.cursor()
+        ensure_wholesale_sale_item_columns(cursor)
+        conn.commit()
+        cursor.execute("""
+            SELECT
+                si.product_name,
+                COALESCE(c.name, p.category, 'Uncategorized') as category,
+                CASE
+                    WHEN COALESCE(si.wholesale_tier_min_qty, 0) > 0
+                    THEN CAST(si.wholesale_tier_min_qty AS TEXT) || '+ ' || COALESCE(si.wholesale_unit_label, '')
+                    ELSE 'Wholesale'
+                END as tier,
+                COALESCE(SUM(si.qty), 0) as qty,
+                COALESCE(MAX(si.wholesale_regular_price), 0) as regular_price,
+                COALESCE(MIN(si.price), 0) as wholesale_price,
+                COALESCE(SUM(si.wholesale_savings), 0) as savings,
+                COALESCE(SUM(si.total), 0) as net_sales,
+                COUNT(DISTINCT si.sale_id) as transactions
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE s.status = 'completed'
+              AND date(s.created_at) BETWEEN ? AND ?
+              AND COALESCE(si.wholesale_savings, 0) > 0
+            GROUP BY
+                si.product_name,
+                COALESCE(c.name, p.category, 'Uncategorized'),
+                CASE
+                    WHEN COALESCE(si.wholesale_tier_min_qty, 0) > 0
+                    THEN CAST(si.wholesale_tier_min_qty AS TEXT) || '+ ' || COALESCE(si.wholesale_unit_label, '')
+                    ELSE 'Wholesale'
+                END
+            ORDER BY savings DESC, net_sales DESC
+        """, (from_date, to_date))
+        rows = cursor.fetchall()
+        conn.close()
+
+        ws.merge_cells('A1:I1')
+        ws['A1'] = "WHOLESALE ITEMS"
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = Alignment(horizontal="center")
+        ws['A2'] = f"Period: {from_date} to {to_date}"
+        ws['A3'] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        if lang_code == "my":
+            headers = [
+                "ပစ္စည်း", "အမျိုးအစား", "Wholesale Tier", "Qty",
+                "ပုံမှန်ဈေး", "Wholesale ဈေး", "သက်သာငွေ", "Net Sales", "Transactions"
+            ]
+        else:
+            headers = [
+                "Item", "Category", "Tier", "Qty", "Regular Price",
+                "Wholesale Price", "Saved", "Net Sales", "Transactions"
+            ]
+
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=5, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="2c3e50", end_color="2c3e50", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+
+        total_qty = total_savings = total_net = total_transactions = 0
+        for row_idx, row_data in enumerate(rows, start=6):
+            name, category, tier, qty, regular, wholesale, savings, net, transactions = row_data
+            ws.cell(row=row_idx, column=1, value=name)
+            ws.cell(row=row_idx, column=2, value=category)
+            ws.cell(row=row_idx, column=3, value=tier)
+            ws.cell(row=row_idx, column=4, value=qty)
+            ws.cell(row=row_idx, column=5, value=format_money(regular, symbol))
+            ws.cell(row=row_idx, column=6, value=format_money(wholesale, symbol))
+            ws.cell(row=row_idx, column=7, value=format_money(savings, symbol))
+            ws.cell(row=row_idx, column=8, value=format_money(net, symbol))
+            ws.cell(row=row_idx, column=9, value=transactions)
+            total_qty += qty
+            total_savings += savings
+            total_net += net
+            total_transactions += transactions
+
+        summary_row = len(rows) + 7
+        ws.cell(row=summary_row, column=1, value="TOTAL").font = Font(bold=True)
+        ws.cell(row=summary_row, column=4, value=total_qty)
+        ws.cell(row=summary_row, column=7, value=format_money(total_savings, symbol))
+        ws.cell(row=summary_row, column=8, value=format_money(total_net, symbol))
+        ws.cell(row=summary_row, column=9, value=total_transactions)
+
+        widths = [32, 20, 16, 12, 18, 18, 18, 18, 14]
+        for idx, width in enumerate(widths, start=1):
+            ws.column_dimensions[chr(64 + idx)].width = width
+
     def _export_categories(self, ws, from_date, to_date, symbol, lang_code):
         from openpyxl.styles import Font, PatternFill, Alignment
         
@@ -676,9 +880,9 @@ class SalesSummaryPage(BaseSalesSummary):
                 COALESCE(SUM(p.cost * si.qty), 0) as cogs
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             WHERE s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?
-            GROUP BY p.category
+                GROUP BY COALESCE(p.category, 'Uncategorized')
             ORDER BY net_sales DESC
         """, (from_date, to_date))
         rows = cursor.fetchall()
@@ -750,7 +954,7 @@ class SalesSummaryPage(BaseSalesSummary):
                 COALESCE(SUM(p.cost * si.qty), 0) as cogs
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN categories pc ON c.parent_id = pc.id
             WHERE s.status = 'completed' 
@@ -827,7 +1031,7 @@ class SalesSummaryPage(BaseSalesSummary):
                 COALESCE(SUM(p.cost * si.qty), 0) as cogs
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             LEFT JOIN categories c ON p.category = c.name
             LEFT JOIN category_groups cg ON c.group_id = cg.id
             WHERE s.status = 'completed' 

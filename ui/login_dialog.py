@@ -134,7 +134,7 @@ class LoginDialog(QDialog):
         logo_layout.addWidget(logo_container, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Title
-        title_label = QLabel("ZAY POS")
+        title_label = QLabel("KAY Point of Sales")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("""
             font-size: 20pt; 
@@ -233,7 +233,7 @@ class LoginDialog(QDialog):
         right_layout.addStretch()
 
         # ========== Footer at bottom ==========
-        footer_label = QLabel("© 2026 ZAY POS. All rights reserved.")
+        footer_label = QLabel("© 2026 KAY Point of Sales. All rights reserved.")
         footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_label.setStyleSheet("""
             font-size: 8pt;

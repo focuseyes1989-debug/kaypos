@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont, QIcon, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 import os
@@ -23,7 +24,7 @@ class ReceiptDetailDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle("Receipt Details")
-        self.setMinimumSize(700, 550)
+        self.setMinimumSize(820, 550)
         self.setModal(True)
         
         # Set window icon
@@ -195,12 +196,13 @@ class ReceiptDetailDialog(QDialog):
 
         # Items table
         self.items_table = QTableWidget()
-        self.items_table.setColumnCount(4)
-        self.items_table.setHorizontalHeaderLabels(["Product", "Qty", "Price", "Total"])
+        self.items_table.setColumnCount(5)
+        self.items_table.setHorizontalHeaderLabels(["Product", "Qty", "Price", "Total", "Wholesale Saving"])
         self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.items_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.items_table.setAlternatingRowColors(True)
         
@@ -215,7 +217,16 @@ class ReceiptDetailDialog(QDialog):
 
         # Populate items
         self.items_table.setRowCount(len(items))
-        for row, (name, qty, price, total) in enumerate(items):
+        for row, item in enumerate(items):
+            name = item[0]
+            qty = item[1]
+            price = item[2]
+            total = item[3]
+            regular_price = float(item[4] or 0) if len(item) > 4 else 0
+            wholesale_savings = float(item[5] or 0) if len(item) > 5 else 0
+            tier_min_qty = int(item[6] or 0) if len(item) > 6 else 0
+            unit_label = item[7] if len(item) > 7 else ""
+
             # Product
             name_item = QTableWidgetItem(name)
             name_item.setForeground(QColor(text_color))
@@ -235,6 +246,20 @@ class ReceiptDetailDialog(QDialog):
             total_item = QTableWidgetItem(format_money(total, symbol))
             total_item.setForeground(QColor(green_color))
             self.items_table.setItem(row, 3, total_item)
+
+            # Wholesale saving
+            if regular_price > float(price or 0) and wholesale_savings > 0:
+                tier_label = f"{tier_min_qty}+ {unit_label}".strip() if tier_min_qty else "Applied"
+                saving_text = (
+                    f"{tier_label} | Regular {format_money(regular_price, symbol)} | "
+                    f"Saved {format_money(wholesale_savings, symbol)}"
+                )
+                saving_item = QTableWidgetItem(saving_text)
+                saving_item.setForeground(QColor(green_color))
+            else:
+                saving_item = QTableWidgetItem("-")
+                saving_item.setForeground(QColor(text_color))
+            self.items_table.setItem(row, 4, saving_item)
 
         main_layout.addWidget(self.items_table)
 
@@ -425,6 +450,8 @@ class ReceiptDetailDialog(QDialog):
         """Load regular sale data"""
         conn = connect_db()
         cursor = conn.cursor()
+        ensure_wholesale_sale_item_columns(cursor)
+        conn.commit()
         
         cursor.execute("""
             SELECT s.invoice_no, s.created_at, s.total, s.payment, s.change_amount,
@@ -441,7 +468,11 @@ class ReceiptDetailDialog(QDialog):
 
         # Fetch sale items
         cursor.execute("""
-            SELECT product_name, qty, price, total
+            SELECT product_name, qty, price, total,
+                   COALESCE(wholesale_regular_price, 0),
+                   COALESCE(wholesale_savings, 0),
+                   COALESCE(wholesale_tier_min_qty, 0),
+                   COALESCE(wholesale_unit_label, '')
             FROM sale_items
             WHERE sale_id = ?
         """, (self.sale_id,))
@@ -454,6 +485,8 @@ class ReceiptDetailDialog(QDialog):
         """Load credit sale data from credit_sales table"""
         conn = connect_db()
         cursor = conn.cursor()
+        ensure_wholesale_sale_item_columns(cursor)
+        conn.commit()
         
         # Get credit sale directly from credit_sales table
         cursor.execute("""
@@ -480,7 +513,11 @@ class ReceiptDetailDialog(QDialog):
         if result and result[0]:
             # Get items from sale_items using sale_id
             cursor.execute("""
-                SELECT product_name, qty, price, total
+                SELECT product_name, qty, price, total,
+                       COALESCE(wholesale_regular_price, 0),
+                       COALESCE(wholesale_savings, 0),
+                       COALESCE(wholesale_tier_min_qty, 0),
+                       COALESCE(wholesale_unit_label, '')
                 FROM sale_items
                 WHERE sale_id = ?
             """, (result[0],))

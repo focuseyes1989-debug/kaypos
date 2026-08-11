@@ -3,8 +3,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QCom
 from PyQt6.QtCore import Qt, QDate, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
@@ -13,12 +13,11 @@ import numpy as np
 import os
 import logging
 import warnings
+from utils.matplotlib_fonts import configure_myanmar_matplotlib_font
 
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
-plt.rcParams["font.weight"] = "normal"
-plt.rcParams["axes.titleweight"] = "normal"
-plt.rcParams["axes.labelweight"] = "normal"
+configure_myanmar_matplotlib_font()
 
 # ✅ Import theme
 from ui.themes.theme_manager import theme_manager, is_dark_theme
@@ -545,7 +544,7 @@ class ExpenseChartWidget(QWidget):
         ax = self.fig.add_subplot(111)
         is_dark = self.is_dark_theme()
         
-        ax.text(0.5, 0.5, f"📊\n{message}", 
+        ax.text(0.5, 0.5, message,
                ha='center', va='center', fontsize=14, fontweight='normal',
                color='white' if is_dark else '#e74c3c')
         ax.set_xticks([])

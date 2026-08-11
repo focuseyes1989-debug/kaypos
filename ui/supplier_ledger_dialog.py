@@ -407,7 +407,7 @@ class SupplierLedgerDialog(QDialog):
         """Handle page change - display current page of entries"""
         self.display_entries(page, page_size)
 
-    def display_entries(self, page=1, page_size=50):
+    def display_entries(self, page=1, page_size=25):
         """Display entries for current page with theme-aware styling"""
         if not self.all_entries:
             self.table.setRowCount(0)

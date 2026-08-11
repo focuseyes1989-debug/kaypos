@@ -63,22 +63,28 @@ class AIPagesPage(QWidget):
         # ============================================================
         # TAB 3: AI Analytics 🆕
         # ============================================================
-        analytics_tab = self._create_analytics_tab()
+        self.analytics_tab = self._create_analytics_tab()
         analytics_icon = self._load_colored_icon("analytics")
-        self.tabs.addTab(analytics_tab, analytics_icon, "Analytics")
+        self.tabs.addTab(self.analytics_tab, analytics_icon, "Analytics")
         
         # ============================================================
         # TAB 4: AI Tools
         # ============================================================
-        tools_tab = self._create_tools_tab()
+        self.tools_tab = self._create_tools_tab()
         tools_icon = self._load_colored_icon("smart_toy")
-        self.tabs.addTab(tools_tab, tools_icon, "AI Tools")
+        self.tabs.addTab(self.tools_tab, tools_icon, "AI Tools")
         
         main_layout.addWidget(self.tabs)
         
         # Connect theme change
         from ui.themes.theme_manager import theme_manager
         theme_manager.theme_changed.connect(self._on_theme_changed)
+
+    def _format_ks(self, value):
+        try:
+            return f"{float(value):,.0f} Ks"
+        except (TypeError, ValueError):
+            return "0 Ks"
     
     def _load_colored_icon(self, icon_name, size=20):
         """
@@ -279,6 +285,23 @@ class AIPagesPage(QWidget):
         header_layout.addLayout(title_stack, stretch=1)
         
         header_layout.addStretch()
+
+        self.analytics_status_label = QLabel("Not refreshed yet")
+        self.analytics_status_label.setStyleSheet(f"""
+            font-size: 9pt;
+            color: {colors.get('text_secondary', '#636e72')};
+            background: transparent;
+        """)
+        header_layout.addWidget(self.analytics_status_label)
+
+        refresh_all_btn = ModernButton("Refresh All", ModernButton.SECONDARY)
+        refresh_all_btn.set_icon("refresh", size=(16, 16))
+        refresh_all_btn.setCheckable(False)
+        refresh_all_btn.setAutoExclusive(False)
+        refresh_all_btn.setFixedSize(124, 36)
+        refresh_all_btn.clicked.connect(self._refresh_all_analytics)
+        self.analytics_refresh_all_btn = refresh_all_btn
+        header_layout.addWidget(self.analytics_refresh_all_btn)
         
         # Export button
         export_btn = ModernButton("📥 Export", ModernButton.PRIMARY)
@@ -292,6 +315,29 @@ class AIPagesPage(QWidget):
         header_layout.addWidget(self.analytics_export_btn)
         
         layout.addWidget(header_frame)
+
+        self.analytics_metric_grid = QGridLayout()
+        self.analytics_metric_grid.setSpacing(12)
+        self.analytics_metric_grid.setContentsMargins(0, 0, 0, 0)
+        self.analytics_metric_labels = {}
+        metrics = [
+            ("sales", "Total Sales", "0 Ks", "#5865f2"),
+            ("transactions", "Transactions", "0", "#1abc9c"),
+            ("avg_ticket", "Avg Ticket", "0 Ks", "#faa81a"),
+            ("profit", "Profit", "0 Ks", "#3ba55c"),
+            ("stock_alerts", "Stock Alerts", "0", "#ed4245"),
+            ("churn", "At-risk Customers", "0", "#9b59b6"),
+        ]
+        for index, (key, title, value, accent) in enumerate(metrics):
+            row = index // 3
+            col = index % 3
+            self.analytics_metric_grid.addWidget(
+                self._create_analytics_metric_card(key, title, value, accent),
+                row,
+                col
+            )
+            self.analytics_metric_grid.setColumnStretch(col, 1)
+        layout.addLayout(self.analytics_metric_grid)
         
         # ============================================================
         # ANALYTICS GRID
@@ -333,6 +379,43 @@ class AIPagesPage(QWidget):
         layout.addWidget(scroll)
         
         return widget
+
+    def _create_analytics_metric_card(self, key, title, value, accent):
+        colors = get_theme_colors()
+        frame = QFrame()
+        frame.setObjectName("analyticsMetricCard")
+        frame.setMinimumHeight(92)
+        frame.setStyleSheet(f"""
+            QFrame#analyticsMetricCard {{
+                background-color: {colors.get('card_bg', '#ffffff')};
+                border: 1px solid {colors.get('border', '#dee2e6')};
+                border-left: 4px solid {accent};
+                border-radius: 8px;
+            }}
+        """)
+
+        card_layout = QVBoxLayout(frame)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(6)
+
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"""
+            font-size: 18pt;
+            font-weight: 800;
+            color: {colors.get('text', '#212529')};
+            background: transparent;
+        """)
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"""
+            font-size: 9pt;
+            font-weight: 600;
+            color: {colors.get('text_secondary', '#6c757d')};
+            background: transparent;
+        """)
+        card_layout.addWidget(value_label)
+        card_layout.addWidget(title_label)
+        self.analytics_metric_labels[key] = value_label
+        return frame
 
     def _style_analytics_card(self, frame: QFrame, min_height: int = 220):
         colors = get_theme_colors()
@@ -379,6 +462,21 @@ class AIPagesPage(QWidget):
         button.setAutoExclusive(False)
         button.setFixedHeight(32)
         button.setMinimumWidth(104)
+
+    def _set_analytics_metric(self, key, value):
+        if hasattr(self, 'analytics_metric_labels') and key in self.analytics_metric_labels:
+            self.analytics_metric_labels[key].setText(str(value))
+
+    def _mark_analytics_refreshed(self):
+        if hasattr(self, 'analytics_status_label'):
+            self.analytics_status_label.setText(f"Updated {datetime.now().strftime('%H:%M')}")
+
+    def _refresh_all_analytics(self):
+        self._refresh_customer_segments()
+        self._refresh_inventory_recommendations()
+        self._refresh_sales_analytics()
+        self._refresh_churn_customers()
+        self._mark_analytics_refreshed()
     
     def _create_insights_widget(self):
         """Create customer insights widget"""
@@ -639,6 +737,7 @@ class AIPagesPage(QWidget):
                 self.customer_segments_label.setText(text)
             else:
                 self.customer_segments_label.setText("📋 No customer data available yet.\nStart making sales to see customer insights!")
+            self._mark_analytics_refreshed()
                 
         except Exception as e:
             logger.error(f"Failed to refresh customer segments: {e}")
@@ -650,6 +749,7 @@ class AIPagesPage(QWidget):
             from ui.ai_pages.ai_inventory_recommendation import AIInventoryRecommendation
             
             recommendations = AIInventoryRecommendation.get_reorder_recommendations()
+            self._set_analytics_metric("stock_alerts", len(recommendations))
             
             if recommendations:
                 text = ""
@@ -672,6 +772,7 @@ class AIPagesPage(QWidget):
                 self.inventory_label.setText(text)
             else:
                 self.inventory_label.setText("✅ All products have sufficient stock!\nNo reorder recommendations at this time.")
+            self._mark_analytics_refreshed()
                 
         except Exception as e:
             logger.error(f"Failed to refresh inventory: {e}")
@@ -702,6 +803,10 @@ class AIPagesPage(QWidget):
             
             if report and report.get('summary'):
                 summary = report['summary']
+                self._set_analytics_metric("sales", self._format_ks(summary.get('total_sales', 0)))
+                self._set_analytics_metric("transactions", summary.get('total_transactions', 0))
+                self._set_analytics_metric("avg_ticket", self._format_ks(summary.get('avg_transaction', 0)))
+                self._set_analytics_metric("profit", self._format_ks(summary.get('total_profit', 0)))
                 text = f"📊 **{period} Sales Summary**\n\n"
                 text += f"💰 Total Sales: **{summary['total_sales']:,.0f} Ks**\n"
                 text += f"📋 Transactions: {summary['total_transactions']}\n"
@@ -723,7 +828,12 @@ class AIPagesPage(QWidget):
                 
                 self.sales_analytics_label.setText(text)
             else:
+                self._set_analytics_metric("sales", "0 Ks")
+                self._set_analytics_metric("transactions", "0")
+                self._set_analytics_metric("avg_ticket", "0 Ks")
+                self._set_analytics_metric("profit", "0 Ks")
                 self.sales_analytics_label.setText(f"📋 No sales data for {period}")
+            self._mark_analytics_refreshed()
                 
         except Exception as e:
             logger.error(f"Failed to refresh sales analytics: {e}")
@@ -735,6 +845,7 @@ class AIPagesPage(QWidget):
             from ui.ai_pages.ai_customer_insights import AICustomerInsights
             
             churn_customers = AICustomerInsights.get_churn_risk_customers(90)
+            self._set_analytics_metric("churn", len(churn_customers))
             
             if churn_customers:
                 text = "⚠️ Customers at risk of churning (90+ days inactive):\n\n"
@@ -750,6 +861,7 @@ class AIPagesPage(QWidget):
                 self.churn_label.setText(text)
             else:
                 self.churn_label.setText("✅ No customers at risk of churning!\nAll customers are active.")
+            self._mark_analytics_refreshed()
                 
         except Exception as e:
             logger.error(f"Failed to refresh churn customers: {e}")
@@ -1241,6 +1353,30 @@ class AIPagesPage(QWidget):
             self.chat_room.input_field.setFocus()
             return
 
+    def _rebuild_themed_tabs(self):
+        if not hasattr(self, 'tabs'):
+            return
+
+        current_index = self.tabs.currentIndex()
+
+        analytics_icon = self._load_colored_icon("analytics")
+        old_analytics = getattr(self, 'analytics_tab', None)
+        self.analytics_tab = self._create_analytics_tab()
+        self.tabs.removeTab(2)
+        self.tabs.insertTab(2, self.analytics_tab, analytics_icon, "Analytics")
+        if old_analytics:
+            old_analytics.deleteLater()
+
+        tools_icon = self._load_colored_icon("smart_toy")
+        old_tools = getattr(self, 'tools_tab', None)
+        self.tools_tab = self._create_tools_tab()
+        self.tabs.removeTab(3)
+        self.tabs.insertTab(3, self.tools_tab, tools_icon, "AI Tools")
+        if old_tools:
+            old_tools.deleteLater()
+
+        self.tabs.setCurrentIndex(min(current_index, self.tabs.count() - 1))
+
     def update_theme(self):
         """Update theme for AI Pages"""
         colors = get_theme_colors()
@@ -1260,13 +1396,12 @@ class AIPagesPage(QWidget):
         # Update chat room
         if hasattr(self, 'chat_room'):
             self.chat_room.update_theme()
+
+        self._rebuild_themed_tabs()
         
         # Update all ModernButtons
         for button in self.findChildren(ModernButton):
             button.update_theme()
-
-        if hasattr(self, 'tools_grid_layout'):
-            self._populate_tools_grid()
     
     def refresh(self):
         """Refresh AI Pages data"""

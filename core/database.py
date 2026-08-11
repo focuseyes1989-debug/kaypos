@@ -21,6 +21,7 @@ from models.database import (
 )
 from models.database.recovery import DatabaseRecovery
 from models.database.auto_fix import run_auto_fix
+from utils.db_compat import database_url, is_postgres_backend
 
 
 def initialize_database(db_path: str) -> dict:
@@ -35,6 +36,26 @@ def initialize_database(db_path: str) -> dict:
     logger.info("=" * 60)
     
     try:
+        if is_postgres_backend():
+            logger.info("PostgreSQL backend selected; initializing app schema")
+            if not database_url():
+                raise RuntimeError("ZAY_POS_DATABASE_URL or DATABASE_URL is required for PostgreSQL backend.")
+            if not safe_initialize_database():
+                raise RuntimeError("PostgreSQL schema initialization failed")
+
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            conn.close()
+            return {
+                "backend": "postgres",
+                "mode": "postgres_app",
+                "current_version": "postgres-app",
+                "applied": [],
+                "pending": [],
+            }
+
         db_dir = os.path.dirname(db_path)
         
         # Ensure directory exists

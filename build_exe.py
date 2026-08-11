@@ -163,6 +163,7 @@ a = Analysis(
     binaries=sqlite_binaries,
     datas=[
         ('assets', 'assets'),
+        ('qt.conf', '.'),
         ('version.txt', '.'),
         ('updater/version_manager.py', 'updater'),
     ],

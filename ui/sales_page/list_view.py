@@ -55,7 +55,8 @@ class ListItemWidget(QFrame):
         layout.addWidget(self.name_label)
         
         symbol = get_currency_symbol()
-        if sold_by and sold_by.lower() == "service":
+        sold_by_mode = str(sold_by or "").lower()
+        if sold_by_mode == "service":
             price_text = "Service"
         else:
             price_text = format_money(price, symbol)
@@ -66,9 +67,12 @@ class ListItemWidget(QFrame):
         self.price_label.setStyleSheet(f"color: {colors['text_secondary']};")
         layout.addWidget(self.price_label)
         
-        if sold_by and sold_by.lower() == "service":
+        if sold_by_mode == "service":
             stock_text = "N/A"
             stock_color = "#3498db"
+        elif sold_by_mode == "restaurant":
+            stock_text = "Menu"
+            stock_color = "#16a085"
         else:
             stock_text = str(stock)
             if stock == 0:
@@ -118,8 +122,11 @@ class ListItemWidget(QFrame):
     
     @staticmethod
     def _get_status(sold_by, stock, low_stock):
-        if sold_by and sold_by.lower() == "service":
+        sold_by_mode = str(sold_by or "").lower()
+        if sold_by_mode == "service":
             return "Service", "#3498db"
+        if sold_by_mode == "restaurant":
+            return "Menu", "#16a085"
         if stock == 0:
             return "Out", "#e74c3c"
         if stock <= low_stock:
@@ -226,7 +233,8 @@ class ListViewWidget(QScrollArea):
             name, price, stock, sold_by = product
             price = float(price) if price else 0.0
             
-            if sold_by and sold_by.lower() == "service":
+            sold_by_mode = str(sold_by or "").lower()
+            if sold_by_mode == "service":
                 # ✅ FIXED: max value increased from 1,000,000 to 999,999,999
                 manual_price, ok = get_numeric_input_value(
                     self,
@@ -240,6 +248,9 @@ class ListViewWidget(QScrollArea):
                 if ok:
                     self.service_selected.emit(prod_id, name, manual_price)
             else:
+                if sold_by_mode == "restaurant":
+                    self.product_selected.emit(prod_id, name, price, max(int(stock or 0), 999999))
+                    return
                 if stock <= 0:
                     self._show_message("Out of Stock", f"{name} is out of stock.", QMessageBox.Icon.Warning)
                     return

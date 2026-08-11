@@ -86,6 +86,8 @@ class Application:
 
         # Create QApplication
         self.app = QApplication(sys.argv)
+        from utils.touch_scroll import install_global_touch_scrolling
+        install_global_touch_scrolling(self.app)
         
         # Initialize database
         try:
@@ -121,6 +123,7 @@ class Application:
         
         # Load fonts
         self.load_fonts()
+        self.load_matplotlib_fonts()
         
         # Load theme
         saved_theme = self.load_theme()
@@ -178,6 +181,16 @@ class Application:
                     font_path = os.path.join(fonts_path, filename)
                     QFontDatabase.addApplicationFont(font_path)
                     logger.debug(f"Loaded font: {filename}")
+
+    def load_matplotlib_fonts(self):
+        """Load Myanmar-capable fonts for Matplotlib charts."""
+        try:
+            from utils.matplotlib_fonts import configure_myanmar_matplotlib_font
+
+            font_family = configure_myanmar_matplotlib_font()
+            logger.debug(f"Matplotlib font loaded: {font_family}")
+        except Exception as e:
+            logger.debug(f"Matplotlib font setup skipped: {e}")
     
     def load_theme(self) -> str:
         """Load saved theme from database."""
@@ -196,7 +209,9 @@ class Application:
     
     def set_application_font(self):
         """Set application font."""
-        if "Noto Sans Myanmar" in QFontDatabase.families():
+        if "Myanmar Text" in QFontDatabase.families():
+            self.app.setFont(QFont("Myanmar Text", 10))
+        elif "Noto Sans Myanmar" in QFontDatabase.families():
             self.app.setFont(QFont("Noto Sans Myanmar", 10))
         else:
             self.app.setFont(QFont("Segoe UI", 10))
@@ -248,17 +263,6 @@ class Application:
         self._load_user_info = user_info
         self._load_error = None
         
-        # Define steps with progress, status, message
-        steps = [
-            (0, "Starting...", "Initializing application..."),
-            (10, "Loading database...", "Connecting to database..."),
-            (30, "Loading main window...", "Creating main window..."),
-            (50, "Loading dashboard...", "Building dashboard..."),
-            (70, "Loading services...", "Starting background services..."),
-            (85, "Preloading pages...", "Preloading frequently used pages..."),
-            (100, "Ready", "Application is ready!"),
-        ]
-        
         # Send initial progress
         self._signals.progress.emit(0)
         self._signals.status.emit("Starting...")
@@ -269,7 +273,7 @@ class Application:
         # Start async loading with QTimer
         self._load_timer = QTimer()
         self._load_timer.timeout.connect(self._load_main_window_step)
-        self._load_timer.start(150)  # 150ms interval for smoother loading
+        self._load_timer.start(25)
     
     def _load_main_window_step(self):
         """
@@ -281,12 +285,9 @@ class Application:
         
         # Define steps with progress, status, message
         steps = [
-            (0, "Starting...", "Initializing application..."),
-            (10, "Loading database...", "Connecting to database..."),
-            (30, "Loading main window...", "Creating main window..."),
-            (50, "Loading dashboard...", "Building dashboard..."),
-            (70, "Loading services...", "Starting background services..."),
-            (85, "Preloading pages...", "Preloading frequently used pages..."),
+            (15, "Preparing...", "Preparing application shell..."),
+            (45, "Loading main window...", "Creating main window..."),
+            (85, "Finalizing...", "Applying startup settings..."),
             (100, "Ready", "Application is ready!"),
         ]
         
@@ -300,8 +301,8 @@ class Application:
                 self._signals.log.emit(f"⏳ {status}")
                 self.app.processEvents()
                 
-                # Step 2 (index 2): Create MainWindow
-                if self._load_step == 2:
+                # Step 1: Create MainWindow
+                if self._load_step == 1:
                     logger.info("Creating MainWindow with lazy loading support...")
                     self.main_window = MainWindow(self._load_user_info)
                     self._signals.log.emit("✅ MainWindow created with lazy loading")
@@ -364,11 +365,6 @@ class Application:
     
     def _on_loading_finished(self):
         """Loading finished - show main window"""
-        if self.main_window:
-            self.main_window.showMaximized()
-            logger.info("MainWindow displayed with lazy loading support")
-            self.app.processEvents()
-
         # Close loading dialog
         if self._loading:
             if self.main_window:
@@ -379,10 +375,28 @@ class Application:
         # Show main window
         if self.main_window:
             self.main_window.showMaximized()
+            QTimer.singleShot(0, self._load_initial_page_after_show)
+            QTimer.singleShot(3000, self._start_background_services_after_show)
             logger.info("✅ MainWindow displayed with lazy loading support")
         
         self.app.processEvents()
     
+    def _load_initial_page_after_show(self):
+        """Load the default page after the first main-window paint."""
+        try:
+            if self.main_window and hasattr(self.main_window, "load_initial_page"):
+                self.main_window.load_initial_page()
+        except Exception as e:
+            logger.warning(f"Initial page load after show failed: {e}")
+
+    def _start_background_services_after_show(self):
+        """Start optional services after startup UI is already usable."""
+        try:
+            if self.main_window and hasattr(self.main_window, "_start_background_services"):
+                self.main_window._start_background_services()
+        except Exception as e:
+            logger.warning(f"Background services after show failed: {e}")
+
     def _on_loading_error(self, error_msg):
         """Handle loading error"""
         # Close loading dialog

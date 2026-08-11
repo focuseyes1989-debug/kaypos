@@ -60,7 +60,7 @@ class CustomerDisplayWindow(QWidget):
             | Qt.WindowType.CustomizeWindowHint
             | Qt.WindowType.FramelessWindowHint
         )
-        self.setMinimumSize(820, 520)
+        self.setMinimumSize(640, 420)
         self.setup_ui()
         self.apply_theme_style()
         set_default_geometry(self)
@@ -74,16 +74,16 @@ class CustomerDisplayWindow(QWidget):
 
     def setup_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(18, 16, 18, 18)
-        root.setSpacing(14)
+        root.setContentsMargins(12, 10, 12, 12)
+        root.setSpacing(10)
 
         self.header_frame = QFrame()
         header_layout = QHBoxLayout(self.header_frame)
-        header_layout.setContentsMargins(14, 10, 14, 10)
-        header_layout.setSpacing(14)
+        header_layout.setContentsMargins(12, 8, 12, 8)
+        header_layout.setSpacing(12)
 
         self.logo_label = QLabel()
-        self.logo_label.setFixedSize(72, 52)
+        self.logo_label.setFixedSize(64, 46)
         self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(self.logo_label)
 
@@ -102,12 +102,12 @@ class CustomerDisplayWindow(QWidget):
 
         columns = QHBoxLayout()
         columns.setContentsMargins(0, 0, 0, 0)
-        columns.setSpacing(14)
+        columns.setSpacing(10)
 
         self.youtube_frame = QFrame()
         self.youtube_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         youtube_layout = QVBoxLayout(self.youtube_frame)
-        youtube_layout.setContentsMargins(10, 10, 10, 10)
+        youtube_layout.setContentsMargins(8, 8, 8, 8)
         youtube_layout.setSpacing(0)
         web_view_class = self._web_view_class() if self.performance_settings.customer_display_youtube_enabled else None
         if web_view_class:
@@ -132,10 +132,10 @@ class CustomerDisplayWindow(QWidget):
         columns.addWidget(self.youtube_frame, youtube_stretch)
 
         self.cart_frame = QFrame()
-        self.cart_frame.setMinimumWidth(330)
+        self.cart_frame.setMinimumWidth(300)
         self.cart_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         cart_layout = QVBoxLayout(self.cart_frame)
-        cart_layout.setContentsMargins(12, 12, 12, 12)
+        cart_layout.setContentsMargins(10, 10, 10, 10)
         cart_layout.setSpacing(0)
         self.cart_display = CartDisplayWidget(self)
         cart_layout.addWidget(self.cart_display)
@@ -325,8 +325,8 @@ class CustomerDisplayWindow(QWidget):
             pixmap = QPixmap(logo_path)
             if not pixmap.isNull():
                 self.logo_label.setPixmap(pixmap.scaled(
-                    68,
-                    48,
+                    60,
+                    42,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 ))

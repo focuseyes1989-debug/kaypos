@@ -406,9 +406,9 @@ class ReceiptsTab(QWidget):
                 page = 1
             
             try:
-                page_size = int(page_size) if page_size is not None else 50
+                page_size = int(page_size) if page_size is not None else 25
             except (ValueError, TypeError):
-                page_size = 50
+                page_size = 25
             
             # Set pagination
             try:
@@ -434,7 +434,7 @@ class ReceiptsTab(QWidget):
                 LEFT JOIN customers c ON s.customer_id = c.id
                 LEFT JOIN sale_items si ON s.id = si.sale_id
                 {where_clause}
-                GROUP BY s.id
+                GROUP BY s.id, s.invoice_no, s.created_at, s.payment, s.change_amount, c.name, s.payment_type
                 ORDER BY s.created_at DESC
                 LIMIT ? OFFSET ?
             """
@@ -731,8 +731,9 @@ class ReceiptsTab(QWidget):
             main_window = self.window()
             if hasattr(main_window, 'check_stock_alerts'):
                 main_window.check_stock_alerts()
-            if hasattr(main_window, 'customers_page'):
-                main_window.customers_page.load_customers()
+            customers_page = getattr(main_window, "customers_page", None)
+            if customers_page is not None and hasattr(customers_page, "load_customers"):
+                customers_page.load_customers()
 
             self.load_sales()
 
@@ -822,7 +823,7 @@ class ReceiptsTab(QWidget):
                   {search_condition}
                   {payment_condition}
                   {customer_condition}
-                GROUP BY s.id
+                GROUP BY s.id, s.invoice_no, s.created_at, s.payment, s.change_amount, c.name, s.payment_type
                 ORDER BY s.created_at DESC
             """
             
@@ -959,7 +960,7 @@ class ReceiptsTab(QWidget):
                   {search_condition}
                   {payment_condition}
                   {customer_condition}
-                GROUP BY s.id
+                GROUP BY s.id, s.invoice_no, s.created_at, s.payment, s.change_amount, c.name, s.payment_type, s.discount_amount
                 ORDER BY s.created_at DESC
             """
             

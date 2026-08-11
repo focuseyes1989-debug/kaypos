@@ -51,7 +51,7 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QProgressBar, QTextEdit, QMessageBox,
     QFrame, QGroupBox, QDialog, QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, qInstallMessageHandler
 pyqtProperty = None
 try:
     pyqt_property_module = importlib.import_module('PyQt6.QtCore')
@@ -63,6 +63,34 @@ from PyQt6.QtGui import QFont, QIcon, QPixmap, QColor, QLinearGradient, QBrush, 
 # Configuration
 GITHUB_REPO = "focuseyes1989-debug/ZAY_POS"
 APP_NAME = "ZAY_POS"
+
+
+def qt_message_handler(_msg_type, _context, message):
+    """Hide harmless Qt warnings that confuse users during startup."""
+    if "SetProcessDpiAwarenessContext() failed" in message:
+        return
+    if "DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2" in message:
+        return
+    print(f"Qt: {message}")
+
+
+qInstallMessageHandler(qt_message_handler)
+
+
+def apply_launcher_font(app):
+    """Use bundled Myanmar Text as the launcher UI font when available."""
+    fonts_dir = Path(get_app_dir()) / "assets" / "fonts"
+    font_path = fonts_dir / "mmrtext.ttf"
+    if font_path.exists():
+        QFontDatabase.addApplicationFont(str(font_path))
+
+    families = set(QFontDatabase.families())
+    if "Myanmar Text" in families:
+        app.setFont(QFont("Myanmar Text", 10))
+    elif "Noto Sans Myanmar" in families:
+        app.setFont(QFont("Noto Sans Myanmar", 10))
+    else:
+        app.setFont(QFont("Segoe UI", 10))
 
 
 def get_app_dir():
@@ -1676,6 +1704,7 @@ def main():
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
     app = QApplication(sys.argv)
+    apply_launcher_font(app)
     
     # Set application style
     app.setStyle('Fusion')

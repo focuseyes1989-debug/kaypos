@@ -8,6 +8,7 @@ from PyQt6.QtGui import QPainter, QFont, QFontMetrics, QPixmap, QPageLayout, QPa
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.receipt_template import build_receipt_text_lines, load_receipt_template_settings
+from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 from loguru import logger
 
 
@@ -222,8 +223,14 @@ def print_receipt(parent, sale_id):
         
         invoice_no, created_at, total, payment, change, payment_type, discount_amt, customer_name = sale
         
+        ensure_wholesale_sale_item_columns(cursor)
+        conn.commit()
         cursor.execute("""
-            SELECT product_name, qty, price, total
+            SELECT product_name, qty, price, total,
+                   COALESCE(wholesale_regular_price, 0),
+                   COALESCE(wholesale_savings, 0),
+                   COALESCE(wholesale_tier_min_qty, 0),
+                   COALESCE(wholesale_unit_label, '')
             FROM sale_items
             WHERE sale_id = ?
         """, (sale_id,))

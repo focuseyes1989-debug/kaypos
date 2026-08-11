@@ -73,7 +73,7 @@ class ActivityLogPage(QWidget):
     def on_page_changed(self, page: int, page_size: int):
         self.load_logs(page, page_size)
 
-    def load_logs(self, page=1, page_size=50):
+    def load_logs(self, page=1, page_size=25):
         username_filter = self.search_user.text().strip()
         action_filter = self.action_combo.currentText()
         from_date = self.from_date.date().toString("yyyy-MM-dd")

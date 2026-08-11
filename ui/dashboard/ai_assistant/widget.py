@@ -76,6 +76,7 @@ class AIAssistantWidget(QFrame):
         self._current_date_range = "Today"
         self._search_text = ""
         self._is_closing = False
+        self._has_loaded_once = False
         
         self._insight_builder = InsightBuilder(self._is_dark)
         self._setup_ui()
@@ -84,17 +85,12 @@ class AIAssistantWidget(QFrame):
         # Auto-refresh timer
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.load_insights)
-        self.refresh_timer.start(self._refresh_interval)
         
         # Notification timer
-        self._notification_timer = QTimer()
+        self._notification_timer = QTimer(self)
         self._notification_timer.timeout.connect(self._check_notifications)
-        self._notification_timer.start(NOTIFICATION_INTERVAL)
         
         theme_manager.theme_changed.connect(self._on_theme_changed)
-        
-        # Initial load with animation
-        QTimer.singleShot(100, self._load_with_animation)
     
     def closeEvent(self, event):
         self._is_closing = True
@@ -103,6 +99,23 @@ class AIAssistantWidget(QFrame):
         if self._notification_timer.isActive():
             self._notification_timer.stop()
         super().closeEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self.refresh_timer.isActive():
+            self.refresh_timer.start(self._refresh_interval)
+        if not self._notification_timer.isActive():
+            self._notification_timer.start(NOTIFICATION_INTERVAL)
+        if not self._has_loaded_once:
+            self._has_loaded_once = True
+            QTimer.singleShot(100, self._load_with_animation)
+
+    def hideEvent(self, event):
+        if self.refresh_timer.isActive():
+            self.refresh_timer.stop()
+        if self._notification_timer.isActive():
+            self._notification_timer.stop()
+        super().hideEvent(event)
     
     # ============================================================
     # UI SETUP

@@ -8,7 +8,7 @@ from models.database import connect_db
 @dataclass(frozen=True)
 class PerformanceSettings:
     low_end_mode: bool = True
-    product_page_size: int = 24
+    product_page_size: int = 25
     search_debounce_ms: int = 450
     thumbnail_quality: str = "low"
     customer_display_youtube_enabled: bool = False
@@ -57,7 +57,7 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
         values = {}
 
     low_end = _bool(values.get("performance_low_end_mode"), True)
-    default_page_size = 24 if low_end else 50
+    default_page_size = 25
     default_debounce = 450 if low_end else 300
     default_quality = "low" if low_end else "normal"
 

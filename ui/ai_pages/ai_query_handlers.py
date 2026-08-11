@@ -114,7 +114,7 @@ class QueryHandlers:
                 FROM credit_sales cs
                 JOIN customers c ON cs.customer_id = c.id
                 WHERE cs.status = 'pending'
-                GROUP BY cs.customer_id
+                GROUP BY cs.customer_id, c.name
                 ORDER BY outstanding DESC
                 LIMIT 10
             """)

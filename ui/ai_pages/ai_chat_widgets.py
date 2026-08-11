@@ -4,7 +4,7 @@ Custom widgets for AI Chat Room
 """
 
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.widgets.modern_button import ModernButton
@@ -217,14 +217,51 @@ class CopyableMessageFrame(QFrame):
         """Copy message text to clipboard"""
         clipboard = QApplication.clipboard()
         clipboard.setText(self._text)
-        
-        # Show feedback
-        parent_widget = self.parent()
-        while parent_widget and not hasattr(parent_widget, 'status_label'):
-            parent_widget = parent_widget.parent()
-        if parent_widget and hasattr(parent_widget, 'status_label'):
-            parent_widget.status_label.setText("✅ Copied to clipboard!")
-            QTimer.singleShot(2000, lambda: parent_widget.status_label.setText("● Ready"))
+
+    def update_theme(self):
+        colors = get_theme_colors()
+
+        if self.is_user:
+            self.setStyleSheet("""
+                QFrame {
+                    background-color: #5865f2;
+                    border-radius: 16px;
+                    padding: 8px 14px;
+                    max-width: 500px;
+                }
+            """)
+            self.text_label.setStyleSheet("""
+                color: white;
+                font-size: 10.5pt;
+                background: transparent;
+                padding: 0px;
+                line-height: 1.3;
+            """)
+        else:
+            self.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {colors.get('card_bg', '#f0f0f0')};
+                    border-radius: 12px;
+                    padding: 12px 16px;
+                }}
+            """)
+            self.text_label.setStyleSheet(f"""
+                color: {colors.get('text', '#2d3436')};
+                font-size: 11pt;
+                background: transparent;
+            """)
+
+        for label in self.findChildren(QLabel):
+            if label is self.text_label:
+                continue
+            label.setStyleSheet(f"""
+                color: {'rgba(255, 255, 255, 0.78)' if self.is_user else colors.get('text_secondary', '#636e72')};
+                font-size: 8pt;
+                background: transparent;
+            """)
+
+        for button in self.findChildren(ModernButton):
+            button.update_theme()
     
     def get_text(self):
         return self._text

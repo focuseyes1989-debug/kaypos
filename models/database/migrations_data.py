@@ -666,5 +666,60 @@ MIGRATIONS = [
             DROP TABLE IF EXISTS category_activity_log;
             DROP INDEX IF EXISTS idx_categories_slug_unique;
         """
+    ),
+    Migration(
+        version="1.13.0",
+        name="Restaurant order audit columns",
+        description="Add normalized Restaurant Mode audit/status columns and indexes",
+        up_sql="""
+            ALTER TABLE restaurant_orders ADD COLUMN opened_at TIMESTAMP;
+            ALTER TABLE restaurant_orders ADD COLUMN cancelled_at TIMESTAMP;
+            ALTER TABLE restaurant_order_items ADD COLUMN status TEXT DEFAULT 'active';
+            ALTER TABLE restaurant_order_items ADD COLUMN kitchen_status TEXT DEFAULT 'draft';
+            ALTER TABLE restaurant_order_items ADD COLUMN sent_quantity REAL DEFAULT 0;
+            ALTER TABLE restaurant_order_items ADD COLUMN cancelled_quantity REAL DEFAULT 0;
+            ALTER TABLE restaurant_order_items ADD COLUMN updated_at TIMESTAMP;
+            ALTER TABLE restaurant_kitchen_ticket_items ADD COLUMN preparing_at TIMESTAMP;
+            ALTER TABLE restaurant_kitchen_ticket_items ADD COLUMN ready_at TIMESTAMP;
+            ALTER TABLE restaurant_kitchen_ticket_items ADD COLUMN served_at TIMESTAMP;
+            ALTER TABLE restaurant_kitchen_ticket_items ADD COLUMN cancelled_at TIMESTAMP;
+            CREATE INDEX IF NOT EXISTS idx_restaurant_orders_type_status ON restaurant_orders(order_type, status, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_restaurant_order_items_status ON restaurant_order_items(order_id, status, kitchen_status);
+            CREATE INDEX IF NOT EXISTS idx_restaurant_kitchen_ticket_items_status ON restaurant_kitchen_ticket_items(ticket_id, status);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_restaurant_orders_type_status;
+            DROP INDEX IF EXISTS idx_restaurant_order_items_status;
+            DROP INDEX IF EXISTS idx_restaurant_kitchen_ticket_items_status;
+        """
+    ),
+    Migration(
+        version="1.14.0",
+        name="Restaurant stable order line ids",
+        description="Track Restaurant cart lines with stable ids so kitchen tickets keep valid item links",
+        up_sql="""
+            ALTER TABLE restaurant_order_items ADD COLUMN line_id TEXT;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_order_items_line
+            ON restaurant_order_items(order_id, line_id);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_restaurant_order_items_line;
+        """
+    ),
+    Migration(
+        version="1.15.0",
+        name="Restaurant sale settlement links",
+        description="Link settled Restaurant orders back to the completed sale and receipt",
+        up_sql="""
+            ALTER TABLE restaurant_orders ADD COLUMN sale_id INTEGER;
+            ALTER TABLE restaurant_orders ADD COLUMN invoice_no TEXT;
+            ALTER TABLE restaurant_orders ADD COLUMN settled_total REAL DEFAULT 0;
+            ALTER TABLE restaurant_orders ADD COLUMN payment_amount REAL DEFAULT 0;
+            ALTER TABLE restaurant_orders ADD COLUMN change_amount REAL DEFAULT 0;
+            ALTER TABLE restaurant_orders ADD COLUMN payment_type TEXT;
+        """,
+        down_sql="""
+            -- SQLite cannot drop added columns without rebuilding the table.
+        """
     )
 ]

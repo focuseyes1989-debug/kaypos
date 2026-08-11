@@ -60,14 +60,14 @@ class ProductFormUI(ProductFormUIPanels):
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Add Product" if product_id is None else "Edit Product")
-        dialog.resize(850, 680)
-        dialog.setMinimumWidth(800)
+        dialog.resize(900, 680)
+        dialog.setMinimumWidth(820)
         dialog.setMinimumHeight(620)
-        dialog.setMaximumHeight(750)
+        dialog.setMaximumHeight(760)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Setup header
         self._setup_header(main_layout, product_id, colors)
@@ -140,14 +140,14 @@ class ProductFormUI(ProductFormUIPanels):
         """Setup the main content with two columns"""
         content_widget = QWidget()
         content_layout = QHBoxLayout(content_widget)
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(12)
         content_layout.setContentsMargins(0, 0, 0, 0)
         
         left_panel = self._setup_left_panel(dialog, colors)
         right_panel = self._setup_right_panel(dialog, colors)
         
-        content_layout.addWidget(left_panel, 2)
-        content_layout.addWidget(right_panel, 1)
+        content_layout.addWidget(left_panel, 5)
+        content_layout.addWidget(right_panel, 2)
         
         return content_widget
     
@@ -238,14 +238,14 @@ class ProductFormUI(ProductFormUIPanels):
             d.btn_save.set_icon("save", size=(16, 16))
         if hasattr(d, 'btn_cancel'):
             d.btn_cancel.set_icon("close", size=(16, 16))
-        if hasattr(d, 'btn_speech'):
-            d.btn_speech.set_icon("speech_to_text", size=(16, 16))
-        if hasattr(d, 'btn_speech_desc'):
-            d.btn_speech_desc.set_icon("speech_to_text", size=(16, 16))
         if hasattr(d, 'btn_browse'):
             d.btn_browse.set_icon("folder_open", size=(16, 16))
         if hasattr(d, 'btn_manage_variants'):
             d.btn_manage_variants.set_icon("inventory_2", size=(16, 16))
+        if hasattr(d, 'btn_manage_wholesale'):
+            d.btn_manage_wholesale.set_icon("attach_money", size=(16, 16))
+        if hasattr(d, 'btn_manage_restaurant_options'):
+            d.btn_manage_restaurant_options.set_icon("settings", size=(16, 16))
     
     def _update_input_styles(self, dialog, colors):
         """Update input field styles"""
@@ -255,6 +255,12 @@ class ProductFormUI(ProductFormUIPanels):
             dialog.barcode_input.setStyleSheet(ProductFormUIStyles.get_input_style(colors))
         if hasattr(dialog, 'image_input'):
             dialog.image_input.setStyleSheet(ProductFormUIStyles.get_readonly_input_style(colors))
+        if hasattr(dialog, 'base_unit_input'):
+            dialog.base_unit_input.setStyleSheet(ProductFormUIStyles.get_input_style(colors))
+        if hasattr(dialog, 'pack_unit_input'):
+            dialog.pack_unit_input.setStyleSheet(ProductFormUIStyles.get_input_style(colors))
+        if hasattr(dialog, 'pack_size_input'):
+            dialog.pack_size_input.setStyleSheet(ProductFormUIStyles.get_spinbox_style(colors))
         if hasattr(dialog, 'price_input'):
             dialog.price_input.setStyleSheet(ProductFormUIStyles.get_spinbox_style(colors))
         if hasattr(dialog, 'low_stock_input'):
@@ -265,10 +271,12 @@ class ProductFormUI(ProductFormUIPanels):
             dialog.category_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
         if hasattr(dialog, 'sold_by_combo'):
             dialog.sold_by_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
-        if hasattr(dialog, 'language_combo'):
-            dialog.language_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
+        if hasattr(dialog, 'restaurant_modifiers_table'):
+            dialog.restaurant_modifiers_table.setStyleSheet(ProductFormUIStyles.get_table_style(colors))
         if hasattr(dialog, 'variants_table'):
             dialog.variants_table.setStyleSheet(ProductFormUIStyles.get_table_style(colors))
+        if hasattr(dialog, 'wholesale_table'):
+            dialog.wholesale_table.setStyleSheet(ProductFormUIStyles.get_table_style(colors))
     
     def _store_references(self, dialog):
         """Store references to UI elements in dialog"""

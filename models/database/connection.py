@@ -8,6 +8,7 @@ import sys
 import sqlite3
 from loguru import logger
 from models.database.pool import ConnectionPool, _pool
+from utils.db_compat import database_url, is_postgres_backend
 
 # 🔥 Dynamic database path
 def get_db_path():
@@ -61,6 +62,18 @@ def connect_db():
         # 🔥 Try direct connection as fallback
         try:
             logger.info("Attempting direct connection...")
+            if is_postgres_backend():
+                from models.database.postgres_adapter import connect_postgres
+
+                url = database_url()
+                if not url:
+                    raise RuntimeError(
+                        "ZAY_POS_DB_BACKEND=postgres requires ZAY_POS_DATABASE_URL or DATABASE_URL."
+                    )
+                conn = connect_postgres(url)
+                conn.execute("SELECT 1").fetchone()
+                logger.info("Created direct PostgreSQL connection (fallback)")
+                return conn
             conn = sqlite3.connect(DB_NAME, timeout=60, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys = ON")
@@ -109,6 +122,11 @@ def verify_database_integrity():
     try:
         conn = connect_db()
         cursor = conn.cursor()
+        if is_postgres_backend():
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            conn.close()
+            return bool(result)
         cursor.execute("PRAGMA integrity_check")
         result = cursor.fetchone()
         conn.close()

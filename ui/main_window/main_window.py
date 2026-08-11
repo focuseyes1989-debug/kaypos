@@ -1,6 +1,6 @@
 # ui/main_window/main_window.py
 """
-ZAY POS Lite - Main Window with Lazy Loading
+KAY Point of Sales - Main Window with Lazy Loading
 Sajiwa POS Style Layout with Modern Sidebar Navigation
 (Standard Window - Frameless မဟုတ်သော Version)
 """
@@ -22,9 +22,9 @@ from loguru import logger
 from datetime import datetime
 
 
-class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHandlers):
+class MainWindow(MainWindowUI):
     """
-    ZAY POS Lite ၏ အဓိက Window ဖြစ်ပါသည်။
+    KAY Point of Sales ၏ အဓိက Window ဖြစ်ပါသည်။
     Lazy Loading ကို အသုံးပြုထားပြီး Page များကို လိုအပ်မှသာ Load လုပ်ပါသည်။
     
     Sajiwa POS စတိုင်လ်အတိုင်း ပြင်ဆင်ထားပြီး -
@@ -58,7 +58,7 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
             current_user (dict): လက်ရှိ login ဝင်ထားသော သုံးစွဲသူ၏ အချက်အလက်
                 {'id': 1, 'username': 'admin', 'role': 'admin'}
         """
-        super().__init__()
+        QMainWindow.__init__(self)
         
         # ------------------------------------------------------------
         # ၁. အခြေခံ အချက်အလက်များ သတ်မှတ်ခြင်း
@@ -165,7 +165,7 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
         # ------------------------------------------------------------
         # ၁၄. Theme ကို Settings မှ အသုံးပြုခြင်း
         # ------------------------------------------------------------
-        self.apply_theme_from_settings()
+        self.apply_theme_from_settings(refresh_widgets=False)
         
         # ------------------------------------------------------------
         # ၁၅. Theme Manager နှင့် ချိတ်ဆက်ခြင်း
@@ -191,6 +191,10 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
 
     def _start_background_services(self) -> None:
         """Start non-critical services after the main window has appeared."""
+        if getattr(self, "_background_services_started", False):
+            return
+
+        self._background_services_started = True
         try:
             from utils.auto_backup import AutoBackupManager
             from utils.customer_display_server import start_customer_display_server
@@ -217,6 +221,7 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
 
             logger.info("Background services started")
         except Exception as e:
+            self._background_services_started = False
             logger.warning(f"Background services startup failed: {e}")
 
     def _preload_initial_pages(self) -> None:
@@ -242,12 +247,12 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
         try:
             version_manager = VersionManager()
             version = version_manager.get_current_version()
-            self.setWindowTitle(f"ZAY POS Lite v{version}")
-            logger.info(f"Window title set: ZAY POS Lite v{version}")
+            self.setWindowTitle(f"KAY Point of Sales v{version}")
+            logger.info(f"Window title set: KAY Point of Sales v{version}")
         except Exception as e:
             logger.warning(f"Could not get version for window title: {e}")
-            self.setWindowTitle("ZAY POS Lite")
-            logger.info("Window title set: ZAY POS Lite (no version)")
+            self.setWindowTitle("KAY Point of Sales")
+            logger.info("Window title set: KAY Point of Sales (no version)")
 
     def setFixedWindowTitle(self) -> None:
         """
@@ -546,3 +551,15 @@ class MainWindow(MainWindowUI, MainWindowMenus, MainWindowActions, MainWindowHan
         dialog.setEscapeButton(no_button)
         dialog.exec()
         return dialog.clickedButton() == yes_button
+
+
+def _install_main_window_mixins() -> None:
+    """Attach pure-Python mixin methods without adding PyQt multiple inheritance."""
+    for mixin in (MainWindowMenus, MainWindowActions, MainWindowHandlers):
+        for name, value in mixin.__dict__.items():
+            if name.startswith("__") or hasattr(MainWindow, name):
+                continue
+            setattr(MainWindow, name, value)
+
+
+_install_main_window_mixins()

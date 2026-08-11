@@ -354,7 +354,7 @@ class CustomersPage(QWidget):
         except Exception as e:
             ExcelExporter.show_error_message(self, e)
 
-    def load_customers(self, page=1, page_size=50):
+    def load_customers(self, page=1, page_size=25):
         try:
             symbol = get_currency_symbol()
             search_text = self.search_widget.get_text().lower()

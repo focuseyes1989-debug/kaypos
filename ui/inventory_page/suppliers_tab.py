@@ -17,7 +17,7 @@ class SuppliersTab(QWidget):
         self.parent_page = parent
         self.selected_supplier_id = None
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()

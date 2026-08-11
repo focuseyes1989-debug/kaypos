@@ -1,30 +1,13 @@
 # ui/sales_summary/top_items_tab.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QTabWidget
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QFont, QPainter, QColor, QPen
 from models.database import connect_db
 from utils.currency import format_money
 from utils.language import lang
 from utils.system_theme import system_theme
-import matplotlib
-matplotlib.use('QtAgg')
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-import os
-import platform
-import logging
-import warnings
-
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
-plt.rcParams["font.weight"] = "normal"
-plt.rcParams["axes.titleweight"] = "normal"
-plt.rcParams["axes.labelweight"] = "normal"
-
 # ✅ Import theme manager
-from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
+from ui.themes.theme_manager import theme_manager, get_theme_colors
 
 
 class TopItemsTab(QWidget):
@@ -33,9 +16,7 @@ class TopItemsTab(QWidget):
         self.parent_page = parent
         self.full_data = []
         self.current_theme = "Light"
-        
-        # Setup Myanmar font for matplotlib
-        self._setup_myanmar_font()
+        self._chart_enabled = True
         
         layout = QVBoxLayout()
         
@@ -45,9 +26,10 @@ class TopItemsTab(QWidget):
         # Chart tab
         self.chart_tab = QWidget()
         chart_layout = QVBoxLayout()
-        self.figure = Figure(figsize=(8, 6), dpi=100)
-        self.canvas = FigureCanvas(self.figure)
-        chart_layout.addWidget(self.canvas)
+        self.figure = None
+        self.canvas = None
+        self.chart_widget = _TopItemsBarChart(self)
+        chart_layout.addWidget(self.chart_widget)
         self.chart_tab.setLayout(chart_layout)
         self.view_tabs.addTab(self.chart_tab, "Chart")
         
@@ -80,13 +62,9 @@ class TopItemsTab(QWidget):
         
         # Connect theme change signal from system_theme
         system_theme.theme_changed.connect(self.on_theme_changed)
-        
-        # ✅ Connect theme manager signal for auto refresh
         theme_manager.theme_changed.connect(self.on_theme_manager_changed)
-        
-        # Load current theme
         self.current_theme = self._get_current_theme()
-    
+
     def _get_current_theme(self):
         """Get current theme from database"""
         try:
@@ -111,149 +89,6 @@ class TopItemsTab(QWidget):
         self.current_theme = theme_name
         # ✅ No style to update - just update chart
         self.update_chart()
-    
-    def _setup_myanmar_font(self):
-        """Setup Myanmar font for matplotlib with proper encoding"""
-        try:
-            # Common Myanmar font paths for different OS
-            font_paths = []
-            
-            if platform.system() == "Windows":
-                font_paths = [
-                    "C:/Windows/Fonts/Padauk.ttf",
-                    "C:/Windows/Fonts/NotoSansMyanmar-Regular.ttf",
-                    "C:/Windows/Fonts/MyanmarText.ttf",
-                    "C:/Windows/Fonts/Pyidaungsu.ttf",
-                    "C:/Windows/Fonts/MyanmarSans.ttf",
-                    "C:/Windows/Fonts/mmrtext.ttf",
-                ]
-            elif platform.system() == "Darwin":  # macOS
-                font_paths = [
-                    "/Library/Fonts/Padauk.ttf",
-                    "/System/Library/Fonts/Supplemental/NotoSansMyanmar.ttf",
-                ]
-            else:  # Linux
-                font_paths = [
-                    "/usr/share/fonts/truetype/padauk/Padauk.ttf",
-                    "/usr/share/fonts/truetype/noto/NotoSansMyanmar-Regular.ttf",
-                    "/usr/share/fonts/truetype/myanmar/Padauk.ttf",
-                    "/usr/local/share/fonts/Padauk.ttf",
-                ]
-            
-            # Try to find and load Myanmar font
-            loaded = False
-            for path in font_paths:
-                if os.path.exists(path):
-                    try:
-                        fm.fontManager.addfont(path)
-                        prop = fm.FontProperties(fname=path)
-                        font_name = prop.get_name()
-                        plt.rcParams['font.family'] = font_name
-                        plt.rcParams['font.size'] = 9
-                        print(f"Loaded Myanmar font: {path} (name: {font_name})")
-                        loaded = True
-                        break
-                    except Exception as e:
-                        print(f"Failed to load font {path}: {e}")
-            
-            if not loaded:
-                font_list = fm.findSystemFonts(fontpaths=None, fontext='ttf')
-                myanmar_fonts = []
-                for f in font_list:
-                    f_lower = f.lower()
-                    if any(name in f_lower for name in ['padauk', 'myanmar', 'notosansmyanmar', 'pyidaungsu', 'mmrtext']):
-                        myanmar_fonts.append(f)
-                
-                if myanmar_fonts:
-                    try:
-                        fm.fontManager.addfont(myanmar_fonts[0])
-                        prop = fm.FontProperties(fname=myanmar_fonts[0])
-                        font_name = prop.get_name()
-                        plt.rcParams['font.family'] = font_name
-                        plt.rcParams['font.size'] = 9
-                        print(f"Loaded Myanmar font: {myanmar_fonts[0]} (name: {font_name})")
-                        loaded = True
-                    except Exception as e:
-                        print(f"Failed to load font: {e}")
-            
-            if not loaded:
-                plt.rcParams['font.family'] = 'sans-serif'
-                plt.rcParams['font.size'] = 9
-                print("Using default font for charts")
-                
-        except Exception as e:
-            print(f"Could not setup Myanmar font: {e}")
-            plt.rcParams['font.family'] = 'sans-serif'
-            plt.rcParams['font.size'] = 9
-    
-    def get_theme_colors(self):
-        """Get theme colors for chart"""
-        theme = self.current_theme.lower()
-        
-        if theme == "dark":
-            return {
-                'bg_color': '#2f3136',
-                'text_color': '#ffffff',
-                'grid_color': '#40444b',
-                'bar_colors': plt.cm.viridis,
-                'axis_color': '#b9bbbe'
-            }
-        elif theme == "light gray":
-            return {
-                'bg_color': '#f0f0f0',
-                'text_color': '#333333',
-                'grid_color': '#d0d0d0',
-                'bar_colors': plt.cm.viridis,
-                'axis_color': '#666666'
-            }
-        elif theme == "ubuntu":
-            return {
-                'bg_color': '#f6f6f6',
-                'text_color': '#333333',
-                'grid_color': '#dddddd',
-                'bar_colors': plt.cm.Oranges,
-                'axis_color': '#666666'
-            }
-        elif theme == "ubuntu dark":
-            return {
-                'bg_color': '#2c2c2c',
-                'text_color': '#ffffff',
-                'grid_color': '#404040',
-                'bar_colors': plt.cm.Oranges_r,
-                'axis_color': '#b0b0b0'
-            }
-        elif theme == "windows xp":
-            return {
-                'bg_color': '#d4d0c8',
-                'text_color': '#000000',
-                'grid_color': '#b0a8a0',
-                'bar_colors': plt.cm.Set3,
-                'axis_color': '#000000'
-            }
-        elif theme == "pyqt6 dark":
-            return {
-                'bg_color': '#1e1e1e',
-                'text_color': '#ffffff',
-                'grid_color': '#3c3c3c',
-                'bar_colors': plt.cm.Purples_r,
-                'axis_color': '#999999'
-            }
-        elif theme == "pyqt6 light":
-            return {
-                'bg_color': '#fafafa',
-                'text_color': '#000000',
-                'grid_color': '#d0d0d0',
-                'bar_colors': plt.cm.Blues,
-                'axis_color': '#666666'
-            }
-        else:  # Light (default)
-            return {
-                'bg_color': '#ffffff',
-                'text_color': '#212529',
-                'grid_color': '#dee2e6',
-                'bar_colors': plt.cm.viridis,
-                'axis_color': '#495057'
-            }
     
     def load(self, from_date, to_date, lang_code):
         """Load data and update both table and chart"""
@@ -302,119 +137,20 @@ class TopItemsTab(QWidget):
             self.table.setHorizontalHeaderLabels(["Product Name", "Net Sales"])
     
     def update_chart(self):
-        """Update the chart with current data - sorted descending with theme colors"""
-        self.figure.clear()
-        
-        # Get theme colors
-        colors = self.get_theme_colors()
-        
-        # Create subplot with theme background
-        ax = self.figure.add_subplot(111)
-        ax.set_facecolor(colors['bg_color'])
-        self.figure.patch.set_facecolor(colors['bg_color'])
-        
-        # ✅ Check if no data available
-        if not self.full_data:
-            # Display "No Data Available" message
-            lang_code = lang.get_current()
-            if lang_code == "my":
-                message = "ဒေတာမရှိပါ"
-            else:
-                message = "No Data Available"
-            
-            ax.text(0.5, 0.5, message, 
-                   ha='center', va='center', 
-                   fontsize=16, fontweight='normal',
-                   color=colors['text_color'],
-                   transform=ax.transAxes)
-            ax.set_xlim(0, 1)
-            ax.set_ylim(0, 1)
-            ax.axis('off')  # Hide axes
-            
-            # Adjust layout and redraw
-            self.figure.tight_layout(pad=2.0)
-            self.canvas.draw()
-            return
-        
-        # Extract data - already sorted descending from query
-        names = [row[0] for row in self.full_data]
-        values = [row[1] for row in self.full_data]
-        
-        # Get language
-        lang_code = lang.get_current()
-        
-        # Create horizontal bar chart
-        # Reverse to show highest at top
-        names_rev = names[::-1]
-        values_rev = values[::-1]
-        
-        # Use theme color map
-        color_map = colors['bar_colors']
-        bar_colors = color_map([i/len(values_rev) for i in range(len(values_rev))])
-        
-        # Create bars
-        bars = ax.barh(names_rev, values_rev, color=bar_colors, height=0.7)
-        
-        # Add value labels at the end of bars
-        for bar, value in zip(bars, values_rev):
-            width = bar.get_width()
-            if lang_code == "my":
-                label = f"{format_money(value)}"
-            else:
-                label = f"{format_money(value)}"
-            
-            ax.text(width * 1.02, bar.get_y() + bar.get_height()/2, label,
-                   ha='left', va='center', fontsize=8, fontweight='normal',
-                   color=colors['text_color'])
-        
-        # Set labels and title with theme colors
-        if lang_code == "my":
-            ax.set_xlabel("အသားတင်ရောင်းအား (ကျပ်)", fontsize=10, fontweight='normal', color=colors['text_color'])
-            ax.set_ylabel("ပစ္စည်းအမည်", fontsize=10, fontweight='normal', color=colors['text_color'])
-            ax.set_title("ထိပ်ဆုံးရောင်းအားရှိပစ္စည်း ၂၀", fontsize=12, fontweight='normal', color=colors['text_color'])
-        else:
-            ax.set_xlabel("Net Sales", fontsize=10, fontweight='normal', color=colors['text_color'])
-            ax.set_ylabel("Product Name", fontsize=10, fontweight='normal', color=colors['text_color'])
-            ax.set_title("Top 20 Sales by Item (Net)", fontsize=12, fontweight='normal', color=colors['text_color'])
-        
-        # Set tick colors
-        ax.tick_params(axis='y', labelsize=8, colors=colors['text_color'])
-        ax.tick_params(axis='x', labelsize=9, colors=colors['text_color'])
-        
-        # Format x-axis as currency
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format_money(x) if x > 0 else ''))
-        
-        # Add grid with theme color
-        ax.grid(axis='x', alpha=0.3, linestyle='--', color=colors['grid_color'])
-        ax.set_axisbelow(True)
-        
-        # Set x-axis limit with some padding
-        max_value = max(values) if values else 0
-        ax.set_xlim(0, max_value * 1.25 if max_value > 0 else 10)
-        
-        # Set spine colors
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_color(colors['grid_color'])
-        ax.spines['bottom'].set_color(colors['grid_color'])
-        
-        # Adjust layout with more space for y-axis labels
-        self.figure.tight_layout(pad=2.0)
-        
-        # Redraw canvas
-        self.canvas.draw()
+        """Update the chart with current data."""
+        if hasattr(self, "chart_widget"):
+            self.chart_widget.set_data(self.full_data)
     
     def retranslateUi(self):
         """Retranslate UI"""
         lang_code = lang.get_current()
         if lang_code == "my":
-            self.view_tabs.setTabText(0, "ဇယား")
-            self.view_tabs.setTabText(1, "စာရင်း")
+            self.view_tabs.setTabText(0, "Chart")
+            self.view_tabs.setTabText(1, "Table")
         else:
             self.view_tabs.setTabText(0, "Chart")
             self.view_tabs.setTabText(1, "Table")
         
-        # Update table
         self._update_table(lang_code)
         self.update_chart()
     
@@ -425,5 +161,81 @@ class TopItemsTab(QWidget):
         super().showEvent(event)
 
 
-# ✅ EXPORT - Import လုပ်လို့ရအောင်
+class _TopItemsBarChart(QWidget):
+    """Lightweight Qt chart for top item sales."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data = []
+        self.setMinimumHeight(420)
+
+    def set_data(self, data):
+        self._data = [(str(name or ""), float(value or 0)) for name, value in data]
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        colors = get_theme_colors()
+        text_color = QColor(colors.get("text", "#212529"))
+        muted_color = QColor(colors.get("text_secondary", "#6c757d"))
+        bar_color = QColor(colors.get("primary", "#5865f2"))
+        grid_color = QColor(colors.get("border", "#dee2e6"))
+
+        rect = self.rect().adjusted(18, 18, -18, -18)
+        painter.fillRect(self.rect(), QColor(colors.get("card_bg", colors.get("bg", "#ffffff"))))
+
+        title_font = QFont(self.font())
+        title_font.setPointSize(11)
+        title_font.setBold(True)
+        painter.setFont(title_font)
+        painter.setPen(text_color)
+        painter.drawText(rect.left(), rect.top(), rect.width(), 24, Qt.AlignmentFlag.AlignLeft, "Top 20 Sales by Item")
+
+        chart_rect = rect.adjusted(0, 38, 0, 0)
+        if not self._data:
+            painter.setFont(self.font())
+            painter.setPen(muted_color)
+            painter.drawText(chart_rect, Qt.AlignmentFlag.AlignCenter, "No Data Available")
+            return
+
+        max_value = max(value for _, value in self._data) or 1
+        row_height = max(24, min(38, chart_rect.height() // max(1, len(self._data))))
+        label_width = min(260, max(150, chart_rect.width() // 3))
+        bar_area_left = chart_rect.left() + label_width + 12
+        bar_area_width = max(80, chart_rect.right() - bar_area_left - 100)
+
+        painter.setFont(self.font())
+        for index, (name, value) in enumerate(self._data[:20]):
+            y = chart_rect.top() + index * row_height
+            if y + row_height > chart_rect.bottom():
+                break
+
+            painter.setPen(text_color)
+            elided_name = painter.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, label_width)
+            painter.drawText(chart_rect.left(), y, label_width, row_height, Qt.AlignmentFlag.AlignVCenter, elided_name)
+
+            bar_width = int((value / max_value) * bar_area_width)
+            bar_rect = QRectF(bar_area_left, y + 7, max(3, bar_width), max(8, row_height - 14))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(bar_color)
+            painter.drawRoundedRect(bar_rect, 4, 4)
+
+            painter.setPen(QPen(grid_color, 1))
+            painter.drawLine(bar_area_left, y + row_height - 1, chart_rect.right(), y + row_height - 1)
+
+            painter.setPen(text_color)
+            painter.drawText(
+                bar_area_left + bar_width + 8,
+                y,
+                92,
+                row_height,
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                format_money(value),
+            )
+
+
 __all__ = ['TopItemsTab']
+

@@ -254,7 +254,7 @@ class SalesSummaryPage(QWidget):
                    COALESCE(SUM(sale_items.total) - SUM(products.cost * sale_items.qty), 0) as gross_profit
             FROM sale_items
             JOIN sales ON sale_items.sale_id = sales.id
-            LEFT JOIN products ON sale_items.product_name = products.name
+            LEFT JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
             GROUP BY sale_items.product_name
             ORDER BY sale_items.product_name
@@ -329,7 +329,7 @@ class SalesSummaryPage(QWidget):
                    COALESCE(SUM(products.cost * sale_items.qty), 0) as cogs
             FROM sale_items
             JOIN sales ON sale_items.sale_id = sales.id
-            LEFT JOIN products ON sale_items.product_name = products.name
+            LEFT JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
             GROUP BY products.category
             ORDER BY net_sales DESC
@@ -608,7 +608,7 @@ class SalesSummaryPage(QWidget):
                    COALESCE(SUM(sale_items.total) - SUM(products.cost * sale_items.qty), 0) as gross_profit
             FROM sale_items
             JOIN sales ON sale_items.sale_id = sales.id
-            LEFT JOIN products ON sale_items.product_name = products.name
+            LEFT JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
             GROUP BY sale_items.product_name
             ORDER BY sale_items.product_name
@@ -739,7 +739,7 @@ class SalesSummaryPage(QWidget):
                    COALESCE(SUM(products.cost * sale_items.qty), 0) as cogs
             FROM sale_items
             JOIN sales ON sale_items.sale_id = sales.id
-            LEFT JOIN products ON sale_items.product_name = products.name
+            LEFT JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             WHERE sales.status = 'completed' AND date(sales.created_at) BETWEEN ? AND ?
             GROUP BY products.category
             ORDER BY net_sales DESC

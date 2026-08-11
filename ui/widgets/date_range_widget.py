@@ -18,7 +18,7 @@ class DatePickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Select Date")
         self.setModal(True)
-        self.setFixedSize(480, 480)
+        self.setFixedSize(480, 520)
         
         # Set Today as default if no initial date provided
         if initial_from is None:
@@ -292,18 +292,22 @@ class DatePickerDialog(QDialog):
         self.btn_today = ModernButton("Today", ModernButton.SECONDARY)
         self.btn_today.set_icon("today", size=(18, 18))
         self.btn_today.set_compact(True)
+        self._set_button_height(self.btn_today)
         
         self.btn_week = ModernButton("This Week", ModernButton.SECONDARY)
         self.btn_week.set_icon("calendar", size=(18, 18))
         self.btn_week.set_compact(True)
+        self._set_button_height(self.btn_week)
         
         self.btn_month = ModernButton("This Month", ModernButton.SECONDARY)
         self.btn_month.set_icon("calendar_month", size=(18, 18))
         self.btn_month.set_compact(True)
+        self._set_button_height(self.btn_month)
         
         self.btn_year = ModernButton("This Year", ModernButton.SECONDARY)
         self.btn_year.set_icon("date", size=(18, 18))
         self.btn_year.set_compact(True)
+        self._set_button_height(self.btn_year)
         
         self.btn_today.clicked.connect(lambda: self._set_quick_range("today"))
         self.btn_week.clicked.connect(lambda: self._set_quick_range("week"))
@@ -326,10 +330,12 @@ class DatePickerDialog(QDialog):
         self.btn_prev_month = ModernButton("", ModernButton.TERTIARY)
         self.btn_prev_month.set_icon("arrow_circle_left", size=(18, 18))
         self.btn_prev_month.set_compact(True)
+        self.btn_prev_month.setFixedSize(32, 32)
         
         self.btn_next_month = ModernButton("", ModernButton.TERTIARY)
         self.btn_next_month.set_icon("arrow_circle_right", size=(18, 18))
         self.btn_next_month.set_compact(True)
+        self.btn_next_month.setFixedSize(32, 32)
         
         # Month ComboBox
         self.month_combo = QComboBox()
@@ -399,14 +405,17 @@ class DatePickerDialog(QDialog):
         self.btn_clear = ModernButton("Clear", ModernButton.SECONDARY)
         self.btn_clear.set_icon("close", size=(18, 18))
         self.btn_clear.set_compact(True)
+        self._set_button_height(self.btn_clear)
         
         self.btn_cancel = ModernButton("Cancel", ModernButton.SECONDARY)
         self.btn_cancel.set_icon("cancel", size=(18, 18))
         self.btn_cancel.set_compact(True)
+        self._set_button_height(self.btn_cancel)
         
         self.btn_apply = ModernButton("Apply", ModernButton.PRIMARY)
         self.btn_apply.set_icon("check_circle", size=(18, 18))
         self.btn_apply.set_compact(True)
+        self._set_button_height(self.btn_apply)
         
         self.btn_clear.clicked.connect(self._clear_selection)
         self.btn_cancel.clicked.connect(self.reject)
@@ -419,6 +428,11 @@ class DatePickerDialog(QDialog):
         main_layout.addLayout(action_layout)
 
         self.setLayout(main_layout)
+
+    def _set_button_height(self, button, minimum=32, maximum=36):
+        """Keep compact icon buttons from clipping text descenders."""
+        button.setMinimumHeight(minimum)
+        button.setMaximumHeight(maximum)
     
     def _on_month_changed(self, index):
         """Handle month combo box change"""
@@ -749,16 +763,20 @@ class DateRangeWidget(QWidget):
         self.choose_btn = ModernButton("Choose Date", ModernButton.PRIMARY)
         self.choose_btn.set_icon("calendar", size=(18, 18))
         self.choose_btn.set_compact(True)
+        self.choose_btn.setMinimumHeight(32)
+        self.choose_btn.setMaximumHeight(36)
         self.choose_btn.clicked.connect(self.show_date_picker)
         main_layout.addWidget(self.choose_btn)
 
         # --- Selected Date Display ---
         self.date_display = QLabel("No date selected")
         self.date_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.date_display.setMinimumHeight(32)
         main_layout.addWidget(self.date_display)
         
         main_layout.addStretch()
         self.setLayout(main_layout)
+        self.setMinimumHeight(36)
     
     def show_date_picker(self):
         """Open the date picker dialog"""

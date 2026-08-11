@@ -139,7 +139,7 @@ class DiscountTab(QWidget):
         self.pagination.set_current_page(1)
         self.load_discounted_receipts()
     
-    def load_discounted_receipts(self, from_date=None, to_date=None, page=1, page_size=50):
+    def load_discounted_receipts(self, from_date=None, to_date=None, page=1, page_size=25):
         """Load discounted receipts with date range from parent"""
         symbol = get_currency_symbol()
         search_text = self.search_widget.get_text()

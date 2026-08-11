@@ -264,6 +264,7 @@ class CartWidget(CashierCartWidget):
             item_widget = CartItemWidget(row, item, self)
             item_widget.qty_changed.connect(self._on_qty_changed)
             item_widget.remove_requested.connect(self._on_remove_requested)
+            item_widget.location_change_requested.connect(self.change_item_location)
             self.items_layout.insertWidget(self.items_layout.count() - 1, item_widget)
             self._item_widgets.append(item_widget)
 

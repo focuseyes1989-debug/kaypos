@@ -31,6 +31,8 @@ class CashierApplication:
         self.app.setApplicationName("ZAY POS Cashier Mode")
         self.app.setWindowIcon(QIcon("assets/icons/app_icon.ico"))
         self.app.setQuitOnLastWindowClosed(True)
+        from utils.touch_scroll import install_global_touch_scrolling
+        install_global_touch_scrolling(self.app)
 
         if not self._check_database():
             return 1
@@ -155,7 +157,9 @@ class CashierApplication:
         apply_theme(self.app, self._load_saved_theme())
 
     def _set_application_font(self):
-        if "Noto Sans Myanmar" in QFontDatabase.families():
+        if "Myanmar Text" in QFontDatabase.families():
+            self.app.setFont(QFont("Myanmar Text", 10))
+        elif "Noto Sans Myanmar" in QFontDatabase.families():
             self.app.setFont(QFont("Noto Sans Myanmar", 10))
         else:
             self.app.setFont(QFont("Segoe UI", 10))

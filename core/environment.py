@@ -30,12 +30,8 @@ def setup_environment():
     os.environ["QT_SCALE_FACTOR_ROUNDING_POLICY"] = "Round"
     
     # ✅ Windows DPI awareness
-    if sys.platform == 'win32':
-        try:
-            import ctypes
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except:
-            pass
+    # Qt 6 sets Windows DPI awareness when QApplication is created. Calling
+    # the Windows DPI API here can make Qt print an Access is denied warning.
 
 
 def setup_matplotlib():

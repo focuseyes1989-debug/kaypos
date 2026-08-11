@@ -25,6 +25,8 @@ from ui.main_window.status_bar import StatusBar
 from ui.widgets.loading_overlay import LoadingOverlay
 from ui.responsive_utils import parse_resolution
 from models.database import connect_db
+from utils.sale_mode import get_sale_mode, is_sale_page_enabled
+from utils.db_compat import is_postgres_backend
 from loguru import logger
 
 
@@ -55,6 +57,7 @@ class MainWindowUI(QMainWindow):
     inventory_page: Optional[Any] = None
     receipts_page: Optional[Any] = None
     sales_page: Optional[Any] = None
+    restaurant_page: Optional[Any] = None
     customers_page: Optional[Any] = None
     expense_page: Optional[Any] = None
     discount_page: Optional[Any] = None
@@ -175,6 +178,7 @@ class MainWindowUI(QMainWindow):
             (3, "Inventory", self._build_inventory_page, "inventory"),
             (4, "Receipts", self._build_receipts_page, "receipts"),
             (5, "Sales", self._build_sales_page, "sales"),
+            (10, "Restaurant", self._build_restaurant_page, "sales"),
             (6, "Customers", self._build_customers_page, "customers"),
             (7, "Expense", self._build_expense_page, "expense"),
         ]
@@ -214,7 +218,13 @@ class MainWindowUI(QMainWindow):
         # ============================================================
         # DEFAULT PAGE - Sales (index 5)
         # ============================================================
-        self.switch_to_page(5)
+        self._initial_page_index = self._get_initial_page_index()
+        if self._initial_page_index is not None:
+            initial_widget = self._lazy_widgets.get(self._initial_page_index)
+            if initial_widget and self.pages:
+                self.pages.setCurrentWidget(initial_widget)
+                self._update_sidebar_buttons(self._initial_page_index)
+                self._update_page_title(self._initial_page_index)
         
         # Theme manager connection
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -227,6 +237,23 @@ class MainWindowUI(QMainWindow):
         
         logger.info("MainWindow UI setup complete - with Lazy Loading, SVG Icons, and QSplitter")
         logger.info("Sidebar default state: EXPANDED")
+
+    def _get_initial_page_index(self) -> Optional[int]:
+        """Choose the first page to show without forcing it to load during startup."""
+        preferred = 10 if get_sale_mode() == "restaurant" else 5
+        if preferred in self._lazy_widgets and is_sale_page_enabled(preferred):
+            return preferred
+        if 5 in self._lazy_widgets and is_sale_page_enabled(5):
+            return 5
+        if 10 in self._lazy_widgets and is_sale_page_enabled(10):
+            return 10
+        return next(iter(self._lazy_widgets), None)
+
+    def load_initial_page(self) -> None:
+        """Load the initial page after the main window is visible."""
+        index = getattr(self, "_initial_page_index", None)
+        if index is not None:
+            self.switch_to_page(index)
 
     def show_loading(self, message: str = "Loading...", progress: Optional[int] = None) -> None:
         if self.status_bar:
@@ -250,9 +277,16 @@ class MainWindowUI(QMainWindow):
         try:
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT OR IGNORE INTO settings (key, value) VALUES ('window_resolution', '1366x768')"
-            )
+            if is_postgres_backend():
+                cursor.execute("""
+                    INSERT INTO settings (key, value)
+                    VALUES ('window_resolution', '1366x768')
+                    ON CONFLICT (key) DO NOTHING
+                """)
+            else:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO settings (key, value) VALUES ('window_resolution', '1366x768')"
+                )
             cursor.execute("SELECT value FROM settings WHERE key='window_resolution'")
             row = cursor.fetchone()
             conn.commit()
@@ -334,6 +368,12 @@ class MainWindowUI(QMainWindow):
         page = SalesPage()
         self.sales_page = page
         return page
+
+    def _build_restaurant_page(self) -> QWidget:
+        from ui.restaurant_page import RestaurantPage
+        page = RestaurantPage()
+        self.restaurant_page = page
+        return page
     
     def _build_customers_page(self) -> QWidget:
         from ui.customer_page import CustomersPage
@@ -404,6 +444,7 @@ class MainWindowUI(QMainWindow):
             3: "Inventory",
             4: "Receipts",
             5: "Sales",
+            10: "Restaurant",
             6: "Customers",
             7: "Expense",
         }
@@ -420,6 +461,7 @@ class MainWindowUI(QMainWindow):
             3: "inventory_page",
             4: "receipts_page",
             5: "sales_page",
+            10: "restaurant_page",
             6: "customers_page",
             7: "expense_page",
         }
@@ -430,6 +472,7 @@ class MainWindowUI(QMainWindow):
     
     def _get_allowed_pages_for_role(self, user_id: int) -> List[int]:
         allowed = []
+        sale_mode = get_sale_mode()
         page_permissions = {
             5: "sales",
             0: "dashboard",
@@ -439,11 +482,12 @@ class MainWindowUI(QMainWindow):
             8: "ai_pages",
             3: "inventory",
             4: "receipts",
+            10: "sales",
             6: "customers",
             7: "expense",
         }
         for index, perm in page_permissions.items():
-            if PermissionManager.user_can_view_page(user_id, perm):
+            if PermissionManager.user_can_view_page(user_id, perm) and is_sale_page_enabled(index, sale_mode):
                 allowed.append(index)
         return allowed
 
@@ -522,6 +566,18 @@ class MainWindowUI(QMainWindow):
             for btn in self.sidebar.sidebar_buttons:
                 page_idx = btn.property("page_index")
                 btn.setVisible(page_idx in allowed_pages)
+
+        current_index = None
+        if self.pages:
+            current_widget = self.pages.currentWidget()
+            for page_index, lazy_widget in self._lazy_widgets.items():
+                if lazy_widget is current_widget:
+                    current_index = page_index
+                    break
+        if current_index is not None and current_index not in allowed_pages and allowed_pages:
+            target_index = self._get_initial_page_index()
+            if target_index in allowed_pages:
+                self.switch_to_page(target_index)
 
     # ============================================================
     # THEME UPDATE

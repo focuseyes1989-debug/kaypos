@@ -10,6 +10,7 @@ from PyQt6.QtGui import QIcon
 from models.database import connect_db, close_all_connections
 from utils.language import lang
 from utils.permissions import PermissionManager, Permission
+from utils.db_compat import is_postgres_backend, table_columns, table_exists
 from loguru import logger
 import os
 import sys
@@ -36,6 +37,43 @@ DB_PATH = get_db_path()
 PRODUCT_IMAGES_DIR = os.path.join(os.path.dirname(DB_PATH), 'product_images')
 BACKUP_DB_NAME = "pos.db"
 BACKUP_IMAGES_DIR = "product_images"
+POSTGRES_RESTORE_TABLES = [
+    "app_metadata",
+    "settings",
+    "migrations",
+    "migration_history",
+    "category_groups",
+    "categories",
+    "category_stats",
+    "category_activity_log",
+    "customers",
+    "payment_types",
+    "locations",
+    "products",
+    "product_discounts",
+    "product_variants",
+    "product_locations",
+    "sales",
+    "sale_items",
+    "cash_drawer",
+    "payments",
+    "credit_sales",
+    "credit_payments",
+    "credit_adjustments",
+    "credit_transactions",
+    "expense_categories",
+    "expenses",
+    "expense_budgets",
+    "expense_notification_settings",
+    "expense_alerts_log",
+    "expense_attachments",
+    "expiry_alerts_log",
+    "user_roles",
+    "users",
+]
+POSTGRES_COLUMN_ALIASES = {
+    "payment_types": {"is_active": "active"},
+}
 
 # Log the path for debugging
 logger.info(f"Database path: {DB_PATH}")
@@ -644,10 +682,167 @@ def _restore_database_file(backup_path, db_path=DB_PATH):
         raise last_error
 
 
+def _extract_backup_database(backup_path, tmp_dir):
+    if zipfile.is_zipfile(backup_path):
+        with zipfile.ZipFile(backup_path, "r") as archive:
+            names = set(archive.namelist())
+            db_member = BACKUP_DB_NAME if BACKUP_DB_NAME in names else None
+            if not db_member:
+                db_candidates = [name for name in names if name.lower().endswith(".db")]
+                db_member = db_candidates[0] if db_candidates else None
+            if not db_member:
+                raise FileNotFoundError("Backup package does not contain a database file.")
+            archive.extractall(tmp_dir)
+            return os.path.join(tmp_dir, db_member), os.path.join(tmp_dir, BACKUP_IMAGES_DIR)
+
+    extracted_db = os.path.join(tmp_dir, BACKUP_DB_NAME)
+    shutil.copy2(backup_path, extracted_db)
+    return extracted_db, None
+
+
+def _copy_extracted_images(extracted_images, product_images_dir):
+    os.makedirs(product_images_dir, exist_ok=True)
+    if not extracted_images or not os.path.isdir(extracted_images):
+        return 0
+
+    copied = 0
+    for root, _, files in os.walk(extracted_images):
+        for filename in files:
+            src = os.path.join(root, filename)
+            rel = os.path.relpath(src, extracted_images)
+            dst = os.path.join(product_images_dir, rel)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
+            copied += 1
+    logger.info(f"Restored {copied} product image(s)")
+    return copied
+
+
+def _sqlite_table_columns(cursor, table_name):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+
+def _reset_postgres_sequence(cursor, table_name):
+    if "id" not in table_columns(cursor, table_name):
+        return
+    cursor.execute("SELECT pg_get_serial_sequence(%s, 'id')", (table_name,))
+    row = cursor.fetchone()
+    if not row or not row[0]:
+        return
+    cursor.execute(
+        f"SELECT setval(%s, COALESCE((SELECT MAX(id) FROM {table_name}), 0) + 1, false)",
+        (row[0],),
+    )
+
+
+def _import_sqlite_table_to_postgres(sqlite_cursor, pg_cursor, table_name):
+    sqlite_cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    )
+    if not sqlite_cursor.fetchone() or not table_exists(pg_cursor, table_name):
+        return 0
+
+    source_columns = _sqlite_table_columns(sqlite_cursor, table_name)
+    target_columns = table_columns(pg_cursor, table_name)
+    aliases = POSTGRES_COLUMN_ALIASES.get(table_name, {})
+    column_pairs = [
+        (source_column, aliases.get(source_column, source_column))
+        for source_column in source_columns
+    ]
+    column_pairs = [
+        (source_column, target_column)
+        for source_column, target_column in column_pairs
+        if target_column in target_columns
+    ]
+    if not column_pairs:
+        return 0
+
+    order_clause = " ORDER BY id" if "id" in source_columns else ""
+    sqlite_cursor.execute(f"SELECT * FROM {table_name}{order_clause}")
+    rows = sqlite_cursor.fetchall()
+    if not rows:
+        return 0
+
+    target_column_names = [target_column for _, target_column in column_pairs]
+    source_indexes = [source_columns.index(source_column) for source_column, _ in column_pairs]
+    values = [tuple(row[index] for index in source_indexes) for row in rows]
+    placeholders = ", ".join(["%s"] * len(target_column_names))
+    pg_cursor.executemany(
+        f"INSERT INTO {table_name} ({', '.join(target_column_names)}) VALUES ({placeholders})",
+        values,
+    )
+    logger.info(f"Imported {len(values)} row(s) into PostgreSQL table: {table_name}")
+    return len(values)
+
+
+def _restore_backup_package_to_postgres(backup_path, product_images_dir=PRODUCT_IMAGES_DIR):
+    """Restore a legacy SQLite backup package into the PostgreSQL pilot schema."""
+    if not os.path.exists(backup_path):
+        raise FileNotFoundError(f"Backup file not found: {backup_path}")
+
+    from models.database import connect_db, safe_initialize_postgres_pilot_database
+
+    _force_close_all_connections()
+    if not safe_initialize_postgres_pilot_database():
+        raise RuntimeError("PostgreSQL schema initialization failed before restore.")
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
+        source_db, extracted_images = _extract_backup_database(backup_path, tmp_dir)
+        _validate_database_file(source_db, allow_empty=True)
+        _fix_image_paths_for_restore(source_db, product_images_dir)
+
+        sqlite_conn = sqlite3.connect(source_db)
+        pg_conn = connect_db()
+        try:
+            sqlite_cursor = sqlite_conn.cursor()
+            pg_cursor = pg_conn.cursor()
+
+            restore_tables = [
+                table for table in POSTGRES_RESTORE_TABLES
+                if table_exists(pg_cursor, table)
+            ]
+            if restore_tables:
+                pg_cursor.execute(
+                    f"TRUNCATE TABLE {', '.join(restore_tables)} RESTART IDENTITY CASCADE"
+                )
+
+            imported = {}
+            for table in POSTGRES_RESTORE_TABLES:
+                imported[table] = _import_sqlite_table_to_postgres(
+                    sqlite_cursor,
+                    pg_cursor,
+                    table,
+                )
+
+            for table in POSTGRES_RESTORE_TABLES:
+                if table_exists(pg_cursor, table):
+                    _reset_postgres_sequence(pg_cursor, table)
+
+            pg_conn.commit()
+            logger.info(f"PostgreSQL restore imported rows: {imported}")
+        except Exception:
+            try:
+                pg_conn.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            sqlite_conn.close()
+            pg_conn.close()
+
+        _copy_extracted_images(extracted_images, product_images_dir)
+
+
 def _restore_backup_package(backup_path, db_path=DB_PATH, product_images_dir=PRODUCT_IMAGES_DIR):
     """Restore backup package and fix image paths."""
     if not os.path.exists(backup_path):
         raise FileNotFoundError(f"Backup file not found: {backup_path}")
+
+    if is_postgres_backend():
+        _restore_backup_package_to_postgres(backup_path, product_images_dir)
+        return
     
     # Step 1: Force close ALL connections
     logger.info("Step 1: Closing all database connections...")
@@ -922,7 +1117,7 @@ class FactoryResetWorker(QThread):
                 ('shop_phone', ''), ('shop_address', ''), ('shop_footer_message', ''),
                 ('customer_display_youtube_url', ''),
                 ('performance_low_end_mode', '1'),
-                ('performance_product_page_size', '24'),
+                ('performance_product_page_size', '25'),
                 ('performance_search_debounce_ms', '450'),
                 ('performance_thumbnail_quality', 'low'),
                 ('performance_customer_display_youtube_enabled', '0'),

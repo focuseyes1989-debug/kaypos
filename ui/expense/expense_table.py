@@ -15,7 +15,7 @@ class ExpenseTable(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self.selected_expense_id = None
         self.total_amount = 0
         self.setup_ui()

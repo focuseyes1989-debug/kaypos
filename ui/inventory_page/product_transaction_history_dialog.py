@@ -24,7 +24,7 @@ class ProductTransactionHistoryDialog(QDialog):
         self.product_id = product_id
         self.product_name = product_name
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle(f"Transaction History - {product_name}")

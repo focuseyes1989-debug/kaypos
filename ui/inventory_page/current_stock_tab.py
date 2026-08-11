@@ -21,7 +21,7 @@ class CurrentStockTab(QWidget):
         super().__init__(parent)
         self.parent_page = parent
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self.selected_product_id = None
         self.selected_product_name = None
         self._is_dark = is_dark_theme()
@@ -113,8 +113,8 @@ class CurrentStockTab(QWidget):
         self.stock_table = QTableWidget()
         self.stock_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stock_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.stock_table.verticalHeader().setDefaultSectionSize(52)
-        self.stock_table.verticalHeader().setMinimumSectionSize(48)
+        self.stock_table.verticalHeader().setDefaultSectionSize(58)
+        self.stock_table.verticalHeader().setMinimumSectionSize(54)
         self.stock_table.verticalHeader().setVisible(True)
         self.stock_table.setAlternatingRowColors(True)
         
@@ -150,6 +150,47 @@ class CurrentStockTab(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(widget, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        return container
+
+    def _thumbnail_cell_widget(self, image_path):
+        container = QWidget()
+        container.setStyleSheet("background: transparent; border: none;")
+        layout = QGridLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        image_label = QLabel()
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_label.setFixedSize(50, 50)
+        image_label.setScaledContents(False)
+        image_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                border: none;
+                color: #95a5a6;
+                font-size: 7pt;
+            }
+        """)
+
+        try:
+            from ui.products_page.product_table import load_thumbnail
+            thumb = load_thumbnail(image_path or "", 50)
+        except Exception:
+            thumb = None
+
+        if thumb and not thumb.isNull():
+            image_label.setPixmap(thumb.scaled(
+                50,
+                50,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            ))
+            image_label.setText("")
+        else:
+            image_label.setText("No\nImg")
+            image_label.setWordWrap(True)
+
+        layout.addWidget(image_label, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
         return container
 
     def _get_themed_icon(self, icon_name, size=(16, 16)):
@@ -213,7 +254,7 @@ class CurrentStockTab(QWidget):
 
     def on_cell_clicked(self, row, column):
         id_item = self.stock_table.item(row, 0)
-        name_item = self.stock_table.item(row, 1)
+        name_item = self.stock_table.item(row, 2)
         if id_item:
             try:
                 self.selected_product_id = int(id_item.text())
@@ -420,6 +461,13 @@ class CurrentStockTab(QWidget):
                 "Cost Price", "Selling Price", "Stock Value", "Low Stock Level",
                 "Status", "Last Updated", "Location"
             ]
+
+        image_col = 1
+        name_col = 2
+        low_stock_col = 10
+        status_col = 11
+        if len(main_headers) > image_col and main_headers[image_col] != "Image":
+            main_headers.insert(image_col, "Image")
         
         # ✅ Add History header
         headers = main_headers + (["မှတ်တမ်း"] if lang == "my" else ["History"])
@@ -427,10 +475,18 @@ class CurrentStockTab(QWidget):
         self.stock_table.setHorizontalHeaderLabels(headers)
         
         self.stock_table.setColumnHidden(0, True)
+        self.stock_table.setColumnHidden(low_stock_col, True)
+        self.stock_table.setColumnHidden(status_col, True)
         
         header = self.stock_table.horizontalHeader()
-        for col in range(1, len(headers) - 1):
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(image_col, QHeaderView.ResizeMode.Fixed)
+        self.stock_table.setColumnWidth(image_col, 66)
+        header.setSectionResizeMode(name_col, QHeaderView.ResizeMode.Stretch)
+        self.stock_table.setColumnWidth(name_col, 280)
+        for col in range(3, len(headers) - 1):
+            if col in (low_stock_col, status_col):
+                continue
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         
         history_col = len(headers) - 1
         header.setSectionResizeMode(history_col, QHeaderView.ResizeMode.Fixed)
@@ -473,6 +529,7 @@ class CurrentStockTab(QWidget):
             SELECT 
                 p.id, 
                 p.name, 
+                COALESCE(p.image, '') as image,
                 p.sku, 
                 p.barcode, 
                 p.category,
@@ -505,45 +562,48 @@ class CurrentStockTab(QWidget):
         for row in rows:
             prod_id = row[0]
             name = row[1]
-            sku = row[2]
-            barcode = row[3]
-            category = row[4]
-            stock = row[5]
-            cost = row[6]
-            price = row[7]
-            stock_value = row[8]
-            low_stock = row[9]
-            sold_by = row[10]
-            status = row[11]
-            last_upd = row[12]
-            locations = row[13]
+            image_path = row[2]
+            sku = row[3]
+            barcode = row[4]
+            category = row[5]
+            stock = row[6]
+            cost = row[7]
+            price = row[8]
+            stock_value = row[9]
+            low_stock = row[10]
+            sold_by = row[11]
+            status = row[12]
+            last_upd = row[13]
+            locations = row[14]
             
             r = self.stock_table.rowCount()
             self.stock_table.insertRow(r)
-            self.stock_table.setRowHeight(r, 52)
+            self.stock_table.setRowHeight(r, 58)
             
             # ✅ Use PyQt6 default colors
             id_item = QTableWidgetItem(str(prod_id))
             self.stock_table.setItem(r, 0, id_item)
+
+            self.stock_table.setCellWidget(r, 1, self._thumbnail_cell_widget(image_path))
             
             name_item = QTableWidgetItem(str(name) if name else "")
-            self.stock_table.setItem(r, 1, name_item)
+            self.stock_table.setItem(r, 2, name_item)
             
-            self.stock_table.setItem(r, 2, QTableWidgetItem(str(sku) if sku else ""))
-            self.stock_table.setItem(r, 3, QTableWidgetItem(str(barcode) if barcode else ""))
-            self.stock_table.setItem(r, 4, QTableWidgetItem(str(category) if category else ""))
+            self.stock_table.setItem(r, 3, QTableWidgetItem(str(sku) if sku else ""))
+            self.stock_table.setItem(r, 4, QTableWidgetItem(str(barcode) if barcode else ""))
+            self.stock_table.setItem(r, 5, QTableWidgetItem(str(category) if category else ""))
             
             stock_item = QTableWidgetItem(str(stock))
             if stock == 0:
                 stock_item.setForeground(QColor("#dc3545"))  # Red
             elif stock <= low_stock:
                 stock_item.setForeground(QColor("#f39c12"))  # Orange
-            self.stock_table.setItem(r, 5, stock_item)
+            self.stock_table.setItem(r, 6, stock_item)
             
-            self.stock_table.setItem(r, 6, QTableWidgetItem(format_money(cost)))
-            self.stock_table.setItem(r, 7, QTableWidgetItem(format_money(price)))
-            self.stock_table.setItem(r, 8, QTableWidgetItem(format_money(stock_value)))
-            self.stock_table.setItem(r, 9, QTableWidgetItem(str(low_stock)))
+            self.stock_table.setItem(r, 7, QTableWidgetItem(format_money(cost)))
+            self.stock_table.setItem(r, 8, QTableWidgetItem(format_money(price)))
+            self.stock_table.setItem(r, 9, QTableWidgetItem(format_money(stock_value)))
+            self.stock_table.setItem(r, 10, QTableWidgetItem(str(low_stock)))
             
             status_item = QTableWidgetItem(str(status))
             if status == "Out of Stock" or status == "ကုန်သွားပြီ":
@@ -552,9 +612,9 @@ class CurrentStockTab(QWidget):
                 status_item.setForeground(QColor("#f39c12"))
             else:
                 status_item.setForeground(QColor("#28a745"))
-            self.stock_table.setItem(r, 10, status_item)
+            self.stock_table.setItem(r, 11, status_item)
             
-            self.stock_table.setItem(r, 11, QTableWidgetItem(str(last_upd) if last_upd else ""))
+            self.stock_table.setItem(r, 12, QTableWidgetItem(str(last_upd) if last_upd else ""))
             
             locations_str = str(locations) if locations else ""
             if locations_str:
@@ -567,7 +627,7 @@ class CurrentStockTab(QWidget):
                         unique_locs.append(loc)
                 locations_str = ', '.join(unique_locs)
             
-            self.stock_table.setItem(r, 12, QTableWidgetItem(locations_str))
+            self.stock_table.setItem(r, 13, QTableWidgetItem(locations_str))
             
             # ✅ History button (keep styled for functionality)
             btn_history = QPushButton()
@@ -593,7 +653,7 @@ class CurrentStockTab(QWidget):
                 }
             """)
             btn_history.clicked.connect(lambda checked, pid=prod_id, pname=name: self.show_transaction_history(pid, pname))
-            self.stock_table.setCellWidget(r, 13, self._centered_cell_widget(btn_history))
+            self.stock_table.setCellWidget(r, 14, self._centered_cell_widget(btn_history))
 
     def show_transaction_history(self, product_id, product_name):
         dialog = ProductTransactionHistoryDialog(product_id, product_name, self)

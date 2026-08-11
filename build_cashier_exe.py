@@ -59,6 +59,7 @@ a = Analysis(
     binaries=sqlite_binaries,
     datas=[
         ('assets', 'assets'),
+        ('qt.conf', '.'),
         ('version.txt', '.'),
     ],
     hiddenimports=hiddenimports,

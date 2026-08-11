@@ -20,7 +20,7 @@ class PurchaseHistoryTab(QWidget):
         super().__init__(parent)
         self.parent_page = parent
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
@@ -167,7 +167,11 @@ class PurchaseHistoryTab(QWidget):
             query += " AND po.payment_status = ?"
             params.append(status_filter)
         
-        query += " GROUP BY po.id ORDER BY po.order_date DESC"
+        query += """
+            GROUP BY po.id, po.po_no, s.name, po.total_amount, po.payment_status,
+                     po.order_date, po.received_by, po.notes
+            ORDER BY po.order_date DESC
+        """
         
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -339,7 +343,8 @@ class PurchaseHistoryTab(QWidget):
                 po.received_by,
                 po.notes
             {base_query}
-            GROUP BY po.id
+            GROUP BY po.id, po.po_no, s.name, po.total_amount, po.payment_status,
+                     po.order_date, po.received_by, po.notes
             ORDER BY po.order_date DESC
             LIMIT ? OFFSET ?
         """

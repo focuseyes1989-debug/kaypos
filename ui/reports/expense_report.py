@@ -18,7 +18,7 @@ class ExpenseReportWorker(QObject):
     error = pyqtSignal(str)
     result = pyqtSignal(dict)
     
-    def __init__(self, from_date, to_date, category=None, page=1, page_size=50):
+    def __init__(self, from_date, to_date, category=None, page=1, page_size=25):
         super().__init__()
         self.from_date = from_date
         self.to_date = to_date
@@ -96,7 +96,7 @@ class ExpenseReportTab(QWidget):
         self._is_loading = False
         self._current_data = None
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self.total_items = 0
         self._is_dark = is_dark_theme()
         
@@ -352,7 +352,7 @@ class ExpenseReportTab(QWidget):
         category = self.category_filter.currentText()
         self.refresh(from_date, to_date, category, self.current_page, self.page_size)
     
-    def refresh(self, from_date, to_date, category=None, page=1, page_size=50):
+    def refresh(self, from_date, to_date, category=None, page=1, page_size=25):
         if self._is_loading:
             return
         

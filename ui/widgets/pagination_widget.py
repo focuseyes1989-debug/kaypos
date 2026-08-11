@@ -14,7 +14,7 @@ class PaginationWidget(QWidget):
         super().__init__(parent)
         self._total_items = 0
         self._current_page = 1
-        self._page_size = 50  # ✅ int
+        self._page_size = 25  # ✅ int
         self._total_pages = 1
         self._page_buttons = []
 
@@ -407,9 +407,9 @@ class PaginationWidget(QWidget):
             try:
                 size = int(size)
             except ValueError:
-                size = 50
+                size = 25
         elif not isinstance(size, int):
-            size = 50
+            size = 25
         
         if size != self._page_size:
             self._page_size = size
@@ -433,7 +433,7 @@ class PaginationWidget(QWidget):
         self.page_changed.emit(self._current_page, self._page_size)
 
     def _on_page_size_changed(self, value: str):
-        self.set_page_size(int(value) if value else 50)
+        self.set_page_size(int(value) if value else 25)
 
     def _prev_page(self):
         if self._current_page > 1:

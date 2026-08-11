@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QMessageBox
 from PyQt6.QtCore import pyqtSignal
 from ui.settings.general_setting import GeneralSettingWidget
 from ui.settings.receipt_setting import ReceiptSettingWidget
+from ui.settings.restaurant_setting import RestaurantSettingWidget
 from ui.settings.regional_setting import RegionalSettingWidget
 from ui.settings.backup_reset_setting import BackupResetSettingWidget
 from ui.settings.users_setting import UsersSettingWidget
@@ -32,6 +33,10 @@ class SettingsPage(QWidget):
         # Receipt Settings Tab - Always visible
         self.receipt_tab = ReceiptSettingWidget()
         self.tabs.addTab(self.receipt_tab, "")
+
+        # Restaurant Settings Tab - Always visible
+        self.restaurant_tab = RestaurantSettingWidget()
+        self.tabs.addTab(self.restaurant_tab, "")
         
         # Regional Settings Tab - Always visible
         self.regional_tab = RegionalSettingWidget()
@@ -91,6 +96,10 @@ class SettingsPage(QWidget):
             # Disable Receipt Settings tab
             self.receipt_tab.setEnabled(False)
             self.receipt_tab.setToolTip("You don't have permission to edit settings")
+
+            # Disable Restaurant Settings tab
+            self.restaurant_tab.setEnabled(False)
+            self.restaurant_tab.setToolTip("You don't have permission to edit settings")
             
             # Disable Regional Settings tab
             self.regional_tab.setEnabled(False)
@@ -116,6 +125,9 @@ class SettingsPage(QWidget):
         tab_titles.append(("Receipt Setting", "ပြေစာသတ်မှတ်ချက်"))
         tab_titles.append(("Regional Settings", "ဒေသဆိုင်ရာသတ်မှတ်ချက်များ"))
         
+        if hasattr(self, 'restaurant_tab'):
+            tab_titles.insert(2, ("Restaurant Setting", "Restaurant Setting"))
+
         # Add Update tab
         tab_titles.append(("Update", "အပ်ဒိတ်"))
         
@@ -140,6 +152,8 @@ class SettingsPage(QWidget):
             self.general_tab.retranslateUi()
         if hasattr(self, 'receipt_tab'):
             self.receipt_tab.retranslateUi()
+        if hasattr(self, 'restaurant_tab'):
+            self.restaurant_tab.retranslateUi()
         if hasattr(self, 'regional_tab'):
             self.regional_tab.retranslateUi()
         if hasattr(self, 'update_tab'):
@@ -163,6 +177,10 @@ class SettingsPage(QWidget):
         
         if hasattr(self, 'receipt_tab'):
             self.receipt_tab.load_receipt_settings()
+
+        if hasattr(self, 'restaurant_tab'):
+            self.restaurant_tab.load_settings()
+            self.restaurant_tab.load_tables()
         
         if hasattr(self, 'regional_tab'):
             self.regional_tab.load_currency_setting()

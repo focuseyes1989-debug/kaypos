@@ -340,7 +340,7 @@ class ReceiptsPage(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export receipt range: {e}")
 
-    def load_sales(self, page=1, page_size=50):
+    def load_sales(self, page=1, page_size=25):
         symbol = get_currency_symbol()
         search_text = self.search_input.text().strip()
         from_date = self.from_date.date().toString("yyyy-MM-dd")
@@ -571,8 +571,9 @@ class ReceiptsPage(QWidget):
             main_window = self.window()
             if hasattr(main_window, 'check_stock_alerts'):
                 main_window.check_stock_alerts()
-            if hasattr(main_window, 'customers_page'):
-                main_window.customers_page.load_customers()
+            customers_page = getattr(main_window, "customers_page", None)
+            if customers_page is not None and hasattr(customers_page, "load_customers"):
+                customers_page.load_customers()
 
             # Reload the table to update display
             self.load_sales()

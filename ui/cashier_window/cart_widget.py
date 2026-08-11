@@ -30,6 +30,7 @@ from ui.themes.theme_manager import (
 )
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.numeric_keypad_dialog import NumericKeypadDialog, get_numeric_input_value
+from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier, get_price_tier_by_barcode
 
 # Backup file path
 CART_BACKUP_FILE = "temp/cart_backup.json"
@@ -257,6 +258,7 @@ class CartItemWidget(QFrame):
     
     qty_changed = pyqtSignal(int, int)  # row, new_qty
     remove_requested = pyqtSignal(int)  # row
+    location_change_requested = pyqtSignal(int)  # row
     
     def __init__(self, row: int, item: Dict[str, Any], parent=None):
         super().__init__(parent)
@@ -334,6 +336,18 @@ class CartItemWidget(QFrame):
             border: none;
         """)
         left_layout.addWidget(self.price_label)
+
+        if self.item.get("wholesale_tier_id"):
+            min_qty = self.item.get("wholesale_min_qty") or ""
+            unit_label = self.item.get("wholesale_unit_label") or "qty"
+            self.wholesale_label = QLabel(f"Wholesale {min_qty}+ {unit_label}")
+            self.wholesale_label.setStyleSheet("""
+                font-size: 8pt;
+                color: #16a085;
+                background: transparent;
+                border: none;
+            """)
+            left_layout.addWidget(self.wholesale_label)
 
         discount_percent = float(
             self.item.get("expiry_discount_percent")
@@ -436,6 +450,10 @@ class CartItemWidget(QFrame):
         info_action = cast(QAction, menu.addAction(f"📦 {self.item['name']}"))
         info_action.setEnabled(False)
         menu.addSeparator()
+        if not self.item.get("is_service", False) and not self.item.get("variant_id"):
+            location_action = cast(QAction, menu.addAction("Change Location/Batch"))
+            location_action.triggered.connect(lambda: self.location_change_requested.emit(self.row))
+            menu.addSeparator()
         delete_action = cast(QAction, menu.addAction("🗑️ Delete"))
         delete_action.triggered.connect(self._on_delete_clicked)
         menu.exec(self.mapToGlobal(position))
@@ -1260,8 +1278,89 @@ class CartWidget(QWidget):
         })
         self.refresh_table()
 
+    def _get_wholesale_tier(self, product_id: int, qty: int) -> Optional[Dict[str, Any]]:
+        conn = connect_db()
+        cursor = conn.cursor()
+        try:
+            ensure_wholesale_schema(cursor)
+            return get_best_price_tier(cursor, product_id, qty)
+        except Exception as e:
+            logger.debug(f"Wholesale tier lookup failed for product {product_id}: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def _apply_wholesale_price(self, item: Dict[str, Any]) -> None:
+        if item.get("is_service", False) or item.get("variant_id"):
+            return
+        product_id = int(item.get("id") or 0)
+        qty = int(item.get("qty") or 0)
+        if product_id <= 0 or qty <= 0:
+            return
+
+        regular_price = float(
+            item.get("price_before_wholesale")
+            or item.get("base_unit_price")
+            or item.get("original_price")
+            or item.get("price")
+            or 0
+        )
+        item["price_before_wholesale"] = regular_price
+        tier = self._get_wholesale_tier(product_id, qty)
+        if tier and float(tier.get("unit_price") or 0) > 0:
+            item["price"] = float(tier["unit_price"])
+            item["wholesale_tier_id"] = tier.get("id")
+            item["wholesale_min_qty"] = tier.get("min_qty")
+            item["wholesale_unit_label"] = tier.get("unit_label") or ""
+            item["wholesale_unit_multiplier"] = tier.get("unit_multiplier") or tier.get("min_qty")
+            item["wholesale_note"] = tier.get("note") or ""
+        else:
+            item["price"] = regular_price
+            for key in (
+                "wholesale_tier_id",
+                "wholesale_min_qty",
+                "wholesale_unit_label",
+                "wholesale_unit_multiplier",
+                "wholesale_note",
+            ):
+                item.pop(key, None)
+
+    def _apply_wholesale_prices(self) -> None:
+        for item in self.cart:
+            self._apply_wholesale_price(item)
+
+    def _add_product_quantity(self, product_id: int, name: str, price: float, stock_available: int, quantity: int) -> None:
+        quantity = max(1, int(quantity or 1))
+        for item in self.cart:
+            if item["id"] == product_id and not item.get("variant_id") and not item.get("is_service", False):
+                new_qty = item["qty"] + quantity
+                if new_qty > stock_available:
+                    QMessageBox.warning(self, "Stock Insufficient", f"Only {stock_available} left.")
+                    return
+                item["qty"] = new_qty
+                self._apply_wholesale_price(item)
+                self.refresh_table()
+                return
+        if stock_available < quantity:
+            QMessageBox.warning(self, "Out of Stock", f"Only {stock_available} left for {name}.")
+            return
+        self.add_product(product_id, name, price, stock_available)
+        if self.cart and self.cart[-1].get("id") == product_id and not self.cart[-1].get("variant_id"):
+            self.cart[-1]["qty"] = quantity
+            self._apply_wholesale_price(self.cart[-1])
+            self.refresh_table()
+
     def add_product(self, product_id: int, name: str, price: float, stock_available: int):
         """Add a regular product"""
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COALESCE(sold_by, 'Each') FROM products WHERE id = ?", (product_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row and str(row[0] or "").lower() == "restaurant":
+            self.add_restaurant_product(product_id, name, price, [])
+            return
+
         variants = self._get_active_variants(product_id)
         if variants:
             variant = self._select_variant(name, variants)
@@ -1283,13 +1382,17 @@ class CartWidget(QWidget):
         elif discount_percent > 0:
             unit_price = max(0.0, unit_price * (1 - min(discount_percent, 100) / 100.0))
 
+        current_location_id = None
         for item in self.cart:
-            if item["id"] == product_id and not item.get("variant_id") and not item.get("is_service", False) and not item.get("location_id"):
+            same_product = item["id"] == product_id and not item.get("variant_id") and not item.get("is_service", False)
+            same_location = item.get("location_id") == current_location_id
+            if same_product and same_location:
                 new_qty = item["qty"] + 1
                 if new_qty > stock_available:
                     QMessageBox.warning(self, "Stock Insufficient", f"Only {stock_available} left.")
                     return
                 item["qty"] = new_qty
+                self._apply_wholesale_price(item)
                 self.refresh_table()
                 return
         if stock_available < 1:
@@ -1299,11 +1402,13 @@ class CartWidget(QWidget):
             "id": product_id,
             "name": name,
             "price": unit_price,
+            "price_before_wholesale": unit_price,
+            "base_unit_price": float(price),
             "original_price": float(price),
             "qty": 1,
             "is_service": False,
-            "location": location,
-            "location_id": location_info.get("id") if location_info else None,
+            "location": "Auto FIFO" if location_info else location,
+            "location_id": None,
             "batch_no": location_info.get("batch_no") if location_info else "",
             "expire_date": location_info.get("expire_date") if location_info else "",
             "expiry_discount_enabled": discount_info.get("source") == "expiry",
@@ -1331,6 +1436,47 @@ class CartWidget(QWidget):
             "qty": 1,
             "is_service": True,
             "location": None
+        })
+        self._apply_wholesale_price(self.cart[-1])
+        self.refresh_table()
+
+    def add_restaurant_product(self, product_id: int, name: str, price: float, modifiers=None, kitchen_note=""):
+        """Add a restaurant menu item with its selected cooking modifiers."""
+        modifiers = modifiers or []
+        kitchen_note = str(kitchen_note or "").strip()
+        modifier_names = [str(mod.get("name") or "").strip() for mod in modifiers if str(mod.get("name") or "").strip()]
+        modifier_key = "|".join(sorted(modifier_names))
+        price_delta = sum(float(mod.get("price_delta") or 0) for mod in modifiers)
+        unit_price = float(price or 0) + price_delta
+        display_name = name
+        if modifier_names:
+            display_name = f"{name} ({', '.join(modifier_names)})"
+
+        for item in self.cart:
+            same_item = (
+                item["id"] == product_id
+                and item.get("is_restaurant", False)
+                and item.get("modifier_key", "") == modifier_key
+                and str(item.get("kitchen_note") or "").strip() == kitchen_note
+            )
+            if same_item:
+                item["qty"] += 1
+                self.refresh_table()
+                return
+
+        self.cart.append({
+            "id": product_id,
+            "name": display_name,
+            "base_name": name,
+            "price": unit_price,
+            "original_price": float(price or 0),
+            "qty": 1,
+            "is_service": True,
+            "is_restaurant": True,
+            "restaurant_modifiers": modifiers,
+            "modifier_key": modifier_key,
+            "kitchen_note": kitchen_note,
+            "location": None,
         })
         self.refresh_table()
     
@@ -1374,6 +1520,184 @@ class CartWidget(QWidget):
             "expiry_discount_end_date": discount_end or "",
             "clearance_note": clearance_note or "",
         }
+
+    def _get_location_options(self, product_id: int) -> List[Dict[str, Any]]:
+        """Get selectable location/batch rows for manual cart override."""
+        conn = connect_db()
+        cursor = conn.cursor()
+        try:
+            try:
+                cursor.execute("""
+                    SELECT id, location, quantity, expire_date, batch_no,
+                           COALESCE(expiry_discount_enabled, 0),
+                           COALESCE(expiry_discount_percent, 0),
+                           COALESCE(expiry_discount_start_date, ''),
+                           COALESCE(expiry_discount_end_date, ''),
+                           COALESCE(clearance_note, '')
+                    FROM product_locations
+                    WHERE product_id = ? AND quantity > 0
+                    ORDER BY
+                        CASE WHEN expire_date IS NULL OR expire_date = '' THEN 1 ELSE 0 END,
+                        expire_date ASC,
+                        last_updated ASC,
+                        id ASC
+                """, (product_id,))
+            except Exception:
+                cursor.execute("""
+                    SELECT id, location, quantity, expire_date, batch_no, 0, 0, '', '', ''
+                    FROM product_locations
+                    WHERE product_id = ? AND quantity > 0
+                    ORDER BY
+                        CASE WHEN expire_date IS NULL OR expire_date = '' THEN 1 ELSE 0 END,
+                        expire_date ASC,
+                        last_updated ASC,
+                        id ASC
+                """, (product_id,))
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        options = []
+        for row in rows:
+            loc_id, location, qty, expire_date, batch_no, discount_enabled, discount_percent, discount_start, discount_end, clearance_note = row
+            options.append({
+                "id": loc_id,
+                "location": location or "",
+                "quantity": int(qty or 0),
+                "expire_date": expire_date or "",
+                "batch_no": batch_no or "",
+                "expiry_discount_enabled": bool(discount_enabled),
+                "expiry_discount_percent": float(discount_percent or 0),
+                "expiry_discount_start_date": discount_start or "",
+                "expiry_discount_end_date": discount_end or "",
+                "clearance_note": clearance_note or "",
+            })
+        return options
+
+    def change_item_location(self, row: int):
+        """Let the cashier override FIFO with an exact location/batch."""
+        if row < 0 or row >= len(self.cart):
+            return
+
+        item = self.cart[row]
+        if item.get("is_service", False) or item.get("variant_id"):
+            QMessageBox.information(self, "Location", "This item does not use location stock.")
+            return
+
+        options = self._get_location_options(int(item["id"]))
+        if not options:
+            QMessageBox.information(self, "Location", "No location stock is available for this product.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Change Location/Batch")
+        dialog.setModal(True)
+        dialog.resize(560, 340)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        hint = QLabel("Default uses Auto FIFO. Select a row only when you need a specific location or batch.")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        table = QTableWidget(len(options) + 1, 5)
+        table.setHorizontalHeaderLabels(["Mode", "Location", "Batch", "Expiry", "Available"])
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+        auto_item = QTableWidgetItem("Auto FIFO")
+        auto_item.setData(Qt.ItemDataRole.UserRole, None)
+        table.setItem(0, 0, auto_item)
+        table.setItem(0, 1, QTableWidgetItem("System selects by expiry/FIFO"))
+        table.setItem(0, 2, QTableWidgetItem("-"))
+        table.setItem(0, 3, QTableWidgetItem("-"))
+        table.setItem(0, 4, QTableWidgetItem("-"))
+
+        selected_row = 0
+        current_location_id = item.get("location_id")
+        for index, option in enumerate(options, start=1):
+            mode_item = QTableWidgetItem("Manual")
+            mode_item.setData(Qt.ItemDataRole.UserRole, option["id"])
+            table.setItem(index, 0, mode_item)
+            table.setItem(index, 1, QTableWidgetItem(option["location"] or "-"))
+            table.setItem(index, 2, QTableWidgetItem(option["batch_no"] or "-"))
+            table.setItem(index, 3, QTableWidgetItem(option["expire_date"] or "-"))
+            table.setItem(index, 4, QTableWidgetItem(str(option["quantity"])))
+            if current_location_id == option["id"]:
+                selected_row = index
+
+        table.selectRow(selected_row)
+        layout.addWidget(table)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        selected_items = table.selectedItems()
+        if not selected_items:
+            return
+        selected = table.item(table.currentRow(), 0).data(Qt.ItemDataRole.UserRole)
+
+        if selected is None:
+            best = self._get_best_location(int(item["id"]))
+            item["location_id"] = None
+            item["location"] = "Auto FIFO" if best else ""
+            item["batch_no"] = best.get("batch_no") if best else ""
+            item["expire_date"] = best.get("expire_date") if best else ""
+            item["expiry_discount_enabled"] = bool(best and best.get("expiry_discount_enabled"))
+            item["expiry_discount_percent"] = float(best.get("expiry_discount_percent", 0) if best else 0)
+            item["expiry_discount_start_date"] = best.get("expiry_discount_start_date", "") if best else ""
+            item["expiry_discount_end_date"] = best.get("expiry_discount_end_date", "") if best else ""
+            item["clearance_note"] = best.get("clearance_note", "") if best else ""
+        else:
+            option = next((opt for opt in options if opt["id"] == selected), None)
+            if not option:
+                return
+            if option["quantity"] < int(item.get("qty") or 0):
+                QMessageBox.warning(
+                    self,
+                    "Stock Insufficient",
+                    f"Only {option['quantity']} available in the selected location/batch.",
+                )
+                return
+            item["location_id"] = option["id"]
+            item["location"] = option["location"]
+            item["batch_no"] = option["batch_no"]
+            item["expire_date"] = option["expire_date"]
+            item["expiry_discount_enabled"] = option["expiry_discount_enabled"]
+            item["expiry_discount_percent"] = option["expiry_discount_percent"]
+            item["expiry_discount_start_date"] = option["expiry_discount_start_date"]
+            item["expiry_discount_end_date"] = option["expiry_discount_end_date"]
+            item["clearance_note"] = option["clearance_note"]
+
+        discount_info = self._get_best_discount(int(item["id"]), item if item.get("location_id") else self._get_best_location(int(item["id"])))
+        original_price = float(item.get("original_price") or item.get("base_unit_price") or item.get("price") or 0)
+        item["price"] = original_price
+        discount_percent = float(discount_info.get("percent", 0))
+        if discount_info.get("source") == "promo" and discount_info.get("type") == "manual_price":
+            manual_price = float(discount_info.get("manual_price") or 0)
+            if manual_price > 0 and manual_price < original_price:
+                discount_percent = ((original_price - manual_price) / original_price) * 100.0 if original_price > 0 else 0.0
+                item["price"] = manual_price
+        elif discount_percent > 0:
+            item["price"] = max(0.0, original_price * (1 - min(discount_percent, 100) / 100.0))
+        item["expiry_discount_enabled"] = discount_info.get("source") == "expiry"
+        item["expiry_discount_percent"] = discount_percent if discount_info.get("source") == "expiry" else 0
+        item["promo_discount_enabled"] = discount_info.get("source") == "promo"
+        item["promo_discount_percent"] = discount_percent if discount_info.get("source") == "promo" else 0
+        item["discount_source"] = discount_info.get("source", "")
+        item["price_before_wholesale"] = item["price"]
+
+        self._apply_wholesale_price(item)
+        self.refresh_table()
 
     def _get_active_product_discount(self, product_id: int) -> Dict[str, Any]:
         conn = connect_db()
@@ -1459,6 +1783,28 @@ class CartWidget(QWidget):
 
         conn = connect_db()
         cursor = conn.cursor()
+        try:
+            tier = get_price_tier_by_barcode(cursor, keyword)
+        except Exception:
+            tier = None
+        if tier:
+            cursor.execute("""
+                SELECT id, name, price, stock, sold_by
+                FROM products
+                WHERE id = ?
+            """, (tier["product_id"],))
+            product = cursor.fetchone()
+            conn.close()
+            if not product:
+                QMessageBox.warning(self, "Not Found", "Wholesale unit product was not found.")
+                return
+            pid, name, price, stock, sold_by = product
+            if sold_by and str(sold_by).lower().startswith("service"):
+                QMessageBox.warning(self, "Invalid Unit", "Service products cannot use wholesale unit barcodes.")
+                return
+            quantity = int(tier.get("unit_multiplier") or tier.get("min_qty") or 1)
+            self._add_product_quantity(int(pid), str(name), float(price or 0), int(stock or 0), quantity)
+            return
         cursor.execute("""
             SELECT p.id, p.name, p.price, p.sold_by,
                    v.id, v.size, v.color, v.sku, v.barcode, v.price, v.stock, v.low_stock, v.image
@@ -1589,6 +1935,7 @@ class CartWidget(QWidget):
                     QMessageBox.warning(self, "Stock Insufficient", f"Only {batch_qty} left in this batch.")
                     return
                 item["qty"] = new_qty
+                self._apply_wholesale_price(item)
                 self.refresh_table()
                 return
 
@@ -1606,6 +1953,8 @@ class CartWidget(QWidget):
             "id": product_id,
             "name": name,
             "price": unit_price,
+            "price_before_wholesale": unit_price,
+            "base_unit_price": original_price,
             "original_price": original_price,
             "qty": 1,
             "is_service": False,
@@ -1619,10 +1968,12 @@ class CartWidget(QWidget):
             "expiry_discount_end_date": discount_end or "",
             "clearance_note": clearance_note or "",
         })
+        self._apply_wholesale_price(self.cart[-1])
         self.refresh_table()
     
     def refresh_table(self):
         """Refresh the cart display"""
+        self._apply_wholesale_prices()
         for widget in self._item_widgets:
             self.items_layout.removeWidget(widget)
             widget.deleteLater()
@@ -1641,6 +1992,7 @@ class CartWidget(QWidget):
             item_widget = CartItemWidget(row, item, self)
             item_widget.qty_changed.connect(self._on_qty_changed)
             item_widget.remove_requested.connect(self._on_remove_requested)
+            item_widget.location_change_requested.connect(self.change_item_location)
             self.items_layout.insertWidget(self.items_layout.count() - 1, item_widget)
             self._item_widgets.append(item_widget)
         
@@ -1652,6 +2004,7 @@ class CartWidget(QWidget):
         """Handle quantity change from item widget"""
         if 0 <= row < len(self.cart):
             self.cart[row]["qty"] = new_qty
+            self._apply_wholesale_price(self.cart[row])
             self._update_subtotal()
             self.cart_changed.emit()
             save_cart_to_file(self.cart)
@@ -1704,6 +2057,7 @@ class CartWidget(QWidget):
                 self._on_remove_requested(row)
             else:
                 self.cart[row]["qty"] = value
+                self._apply_wholesale_price(self.cart[row])
                 if row < len(self._item_widgets):
                     self._item_widgets[row].update_qty(value)
                 self._update_subtotal()

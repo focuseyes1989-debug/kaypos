@@ -195,6 +195,32 @@ class ProductFormUIStyles:
                     font-weight: 500;
                 }
             """
+
+    @staticmethod
+    def get_section_label_style(colors):
+        return f"""
+            QLabel {{
+                color: {colors['text_secondary']};
+                font-size: 8.5pt;
+                font-weight: 700;
+                letter-spacing: 0px;
+                background: transparent;
+                border: none;
+                padding: 6px 0px 2px 0px;
+            }}
+        """
+
+    @staticmethod
+    def get_field_hint_style(colors):
+        return f"""
+            QLabel {{
+                color: {colors['text_secondary']};
+                font-size: 8pt;
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }}
+        """
     
     @staticmethod
     def get_details_label_style(colors):

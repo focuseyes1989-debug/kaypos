@@ -5,6 +5,13 @@ from PyQt6.QtGui import QPixmap
 from models.database import connect_db
 from utils.currency import format_money
 from utils.translations import tr
+from utils.unit_conversion import (
+    get_product_unit_settings,
+    normalize_unit_settings,
+    to_base_quantity,
+    to_base_unit_cost,
+    unit_combo_items,
+)
 from datetime import datetime
 import os
 
@@ -17,6 +24,7 @@ class StockInHandlers:
         self.all_products = []
         self.current_product_id = None
         self.current_variant_id = None
+        self.current_unit_settings = normalize_unit_settings()
     
     def setup_signals(self):
         """Connect all signals"""
@@ -24,6 +32,9 @@ class StockInHandlers:
         d.si_unit_cost.valueChanged.connect(self.update_total)
         d.si_qty.valueChanged.connect(self.update_total)
         d.si_qty.valueChanged.connect(self.update_current_stock_after_qty)
+        if hasattr(d, "si_unit"):
+            d.si_unit.currentIndexChanged.connect(self.update_total)
+            d.si_unit.currentIndexChanged.connect(self.update_current_stock_after_qty)
         d.btn_save.clicked.connect(self.save)
         d.si_location.currentIndexChanged.connect(self.on_location_changed)
         d.si_product.currentIndexChanged.connect(self.update_product_info)
@@ -138,8 +149,10 @@ class StockInHandlers:
         if product_id is None:
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
+            self.update_unit_selector(None)
             return
         self.load_product_variants(product_id)
+        self.update_unit_selector(product_id)
         
         conn = connect_db()
         cursor = conn.cursor()
@@ -185,6 +198,47 @@ class StockInHandlers:
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     
+    def update_unit_selector(self, product_id):
+        """Refresh stock-in unit choices for the selected product."""
+        d = self.dialog
+        if not hasattr(d, "si_unit"):
+            return
+        settings = normalize_unit_settings()
+        if product_id is not None:
+            conn = connect_db()
+            cursor = conn.cursor()
+            settings = get_product_unit_settings(cursor, product_id)
+            conn.close()
+        self.current_unit_settings = settings
+        previous = d.si_unit.currentData()
+        d.si_unit.blockSignals(True)
+        d.si_unit.clear()
+        for label, value in unit_combo_items(settings):
+            d.si_unit.addItem(label, value)
+        idx = d.si_unit.findData(previous)
+        d.si_unit.setCurrentIndex(idx if idx >= 0 else 0)
+        d.si_unit.blockSignals(False)
+        self.update_total()
+
+    def _selected_stock_in_unit(self):
+        if hasattr(self.dialog, "si_unit"):
+            return self.dialog.si_unit.currentData() or "base"
+        return "base"
+
+    def _stock_in_base_qty(self):
+        return to_base_quantity(
+            self.dialog.si_qty.value(),
+            self._selected_stock_in_unit(),
+            self.current_unit_settings,
+        )
+
+    def _stock_in_base_cost(self):
+        return to_base_unit_cost(
+            self.dialog.si_unit_cost.value(),
+            self._selected_stock_in_unit(),
+            self.current_unit_settings,
+        )
+
     def update_current_stock(self):
         """Update the current stock label based on selected product"""
         d = self.dialog
@@ -216,7 +270,7 @@ class StockInHandlers:
         if product_id is None:
             return
         
-        qty = d.si_qty.value()
+        qty = self._stock_in_base_qty()
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("SELECT stock FROM products WHERE id = ?", (product_id,))
@@ -313,7 +367,7 @@ class StockInHandlers:
         product_id = d.si_product.currentData()
         if product_id is None:
             return
-        qty = d.si_qty.value()
+        qty = self._stock_in_base_qty()
         variant_id = self._selected_variant_id()
         conn = connect_db()
         cursor = conn.cursor()
@@ -457,8 +511,10 @@ class StockInHandlers:
             QMessageBox.warning(self.dialog, tr("error"), tr("valid_product_required"))
             return
         
-        qty = d.si_qty.value()
-        unit_cost = d.si_unit_cost.value()
+        entered_qty = d.si_qty.value()
+        entered_unit_cost = d.si_unit_cost.value()
+        qty = self._stock_in_base_qty()
+        unit_cost = self._stock_in_base_cost()
         batch_no = d.si_batch_no.text().strip()
         expire = d.si_expiry.date().toString("yyyy-MM-dd")
         received_by = d.si_received_by.text().strip()
@@ -546,7 +602,7 @@ class StockInHandlers:
                 if not po_no_input:
                     po_no_input = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
                 order_date = d.si_date.date().toString("yyyy-MM-dd")
-                total_amount = qty * unit_cost
+                total_amount = entered_qty * entered_unit_cost
                 cursor.execute("""
                     INSERT INTO purchase_orders 
                     (po_no, supplier_id, order_date, total_amount, status, payment_status, received_by, notes)

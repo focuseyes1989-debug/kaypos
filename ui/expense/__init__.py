@@ -9,7 +9,6 @@ from ui.expense.expense_cards import ExpenseCards
 from ui.expense.expense_filters import ExpenseFilters
 from ui.expense.expense_table import ExpenseTable
 from ui.expense.expense_export import ExpenseExport
-from ui.expense.expense_chart import ExpenseChartWidget
 from ui.expense.expense_category_tab import ExpenseCategoryTab
 
 # Category management components
@@ -32,3 +31,10 @@ __all__ = [
     'EditCategoryDialog',
     'ExpenseCategoriesDialog',
 ]
+
+
+def __getattr__(name):
+    if name == 'ExpenseChartWidget':
+        from ui.expense.expense_chart import ExpenseChartWidget
+        return ExpenseChartWidget
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

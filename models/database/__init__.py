@@ -9,6 +9,7 @@ import os
 from typing import Optional, List, Tuple, Any
 from loguru import logger
 from models.database.auto_fix import run_auto_fix, fix_missing_category_columns
+from utils.db_compat import is_postgres_backend
 
 # Connection
 from models.database.connection import connect_db, DBContext, release_connection, close_all_connections
@@ -79,6 +80,8 @@ def safe_initialize_database() -> bool:
     """
     try:
         logger.info("Initializing database...")
+        if is_postgres_backend():
+            return safe_initialize_postgres_app_database()
         
         # Check if database exists and is accessible
         db_path = "database/pos.db"
@@ -142,6 +145,31 @@ def safe_initialize_database() -> bool:
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")
         return False
+
+
+def safe_initialize_postgres_app_database() -> bool:
+    """Initialize the PostgreSQL app schema.
+
+    SQLite remains supported, but PostgreSQL mode should create all core POS
+    tables used by retail, inventory, credit, expenses, and Restaurant Mode.
+    """
+    try:
+        from models.database.postgres_schema import ensure_postgres_app_schema
+
+        with DBContext() as conn:
+            cursor = conn.cursor()
+            ensure_postgres_app_schema(cursor)
+            conn.commit()
+        logger.info("PostgreSQL app schema created/verified")
+        return True
+    except Exception as exc:
+        logger.error(f"PostgreSQL schema initialization failed: {exc}")
+        return False
+
+
+def safe_initialize_postgres_pilot_database() -> bool:
+    """Backward-compatible wrapper for older Restaurant smoke-test code."""
+    return safe_initialize_postgres_app_database()
 
 
 def initialize_database_with_fallback():
@@ -243,6 +271,8 @@ __all__ = [
     # 🔥 Added
     'DatabaseManager',
     'safe_initialize_database',
+    'safe_initialize_postgres_app_database',
+    'safe_initialize_postgres_pilot_database',
     'initialize_database_with_fallback',
     'DatabaseRecovery',
     

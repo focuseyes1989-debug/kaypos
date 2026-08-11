@@ -21,6 +21,12 @@ def qt_message_handler(_msg_type, _context, message):
     
     if "QPropertyAnimation::setPropertyName" in message:
         return
+
+    if "SetProcessDpiAwarenessContext() failed" in message:
+        return
+
+    if "DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2" in message:
+        return
     
     # Print all other messages
     print(f"Qt: {message}")
@@ -34,6 +40,11 @@ def signal_handler(_signum, _frame):
 
 def main():
     """Main entry point."""
+    try:
+        from utils.env_loader import load_project_env
+        load_project_env()
+    except Exception:
+        pass
     # ✅ Install custom Qt message handler to filter warnings
     qInstallMessageHandler(qt_message_handler)
     

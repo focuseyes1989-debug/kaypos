@@ -34,7 +34,7 @@ class CategoryCostDialog(QDialog):
         
         # Pagination variables
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         
         # Theme state
         self._is_dark = is_dark_theme()

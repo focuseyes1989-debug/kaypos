@@ -264,12 +264,13 @@ class DashboardTable(QFrame):
         
         for row in rows:
             sale_date, daily_gross, daily_refunds, daily_discount = row
+            sale_date_text = sale_date.isoformat() if hasattr(sale_date, "isoformat") else str(sale_date)
             daily_net = daily_gross - daily_refunds
             
             cursor.execute("""
                 SELECT COALESCE(SUM(products.cost * sale_items.qty), 0)
                 FROM sale_items
-                JOIN products ON sale_items.product_name = products.name
+                JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
                 JOIN sales ON sale_items.sale_id = sales.id
                 WHERE date(sales.created_at) = ? 
                   AND sales.status='completed'
@@ -289,7 +290,7 @@ class DashboardTable(QFrame):
             self.table.setRowHeight(r, 55)
             
             # Date
-            date_item = QTableWidgetItem(sale_date)
+            date_item = QTableWidgetItem(sale_date_text)
             date_item.setForeground(QColor(text_color))
             font = date_item.font()
             font.setBold(True)

@@ -2,6 +2,7 @@
 from enum import Enum
 from models.database import connect_db
 from loguru import logger
+from utils.db_compat import table_exists
 
 
 class Permission(Enum):
@@ -225,8 +226,7 @@ def update_role_permissions_in_db():
         cursor = conn.cursor()
         
         # ✅ Check if user_roles table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_roles'")
-        if not cursor.fetchone():
+        if not table_exists(cursor, "user_roles"):
             logger.warning("user_roles table not found, skipping permission update")
             conn.close()
             return

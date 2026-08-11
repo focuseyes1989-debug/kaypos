@@ -4,7 +4,7 @@
 LIGHT_THEME = """
 /* ========== GLOBAL ========== */
 * {
-    font-family: "Segoe UI", "Pyidaungsu", "Myanmar Text", "Noto Sans Myanmar", "sans-serif";
+    font-family: "Myanmar Text", "Noto Sans Myanmar", "Pyidaungsu", "Segoe UI", "sans-serif";
     font-size: 10pt;
 }
 

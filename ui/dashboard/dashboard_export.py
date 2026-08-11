@@ -42,7 +42,7 @@ class DashboardExport:
         cursor.execute("""
             SELECT COALESCE(SUM(products.cost * sale_items.qty), 0)
             FROM sale_items
-            JOIN products ON sale_items.product_name = products.name
+            JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
             JOIN sales ON sale_items.sale_id = sales.id
             WHERE sales.status='completed' AND date(sales.created_at) BETWEEN ? AND ?
         """, (from_date, to_date))
@@ -88,7 +88,7 @@ class DashboardExport:
             cursor2.execute("""
                 SELECT COALESCE(SUM(products.cost * sale_items.qty), 0)
                 FROM sale_items
-                JOIN products ON sale_items.product_name = products.name
+                JOIN products ON sale_items.product_id = products.id OR (sale_items.product_id IS NULL AND sale_items.product_name = products.name)
                 JOIN sales ON sale_items.sale_id = sales.id
                 WHERE date(sales.created_at) = ? AND sales.status='completed'
             """, (sale_date,))

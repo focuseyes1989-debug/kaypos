@@ -60,10 +60,10 @@ class DashboardData:
                         COALESCE(SUM(si.total), 0) as total
                     FROM sale_items si
                     JOIN sales s ON si.sale_id = s.id
-                    LEFT JOIN products p ON si.product_name = p.name
+                    LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
                     WHERE s.status = 'completed'
                     AND date(s.created_at) BETWEEN ? AND ?
-                    GROUP BY p.category
+                    GROUP BY COALESCE(p.category, 'Uncategorized')
                     ORDER BY total DESC
                     LIMIT 8
                 """, (start_date, end_date))

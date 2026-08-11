@@ -165,6 +165,10 @@ def create_tables():
             image TEXT,
             supplier_id INTEGER,
             unit TEXT,
+            base_unit TEXT DEFAULT 'pcs',
+            pack_unit TEXT DEFAULT '',
+            pack_size INTEGER DEFAULT 1,
+            restaurant_modifiers TEXT,
             warehouse TEXT,
             batch_no TEXT,
             manufacture_date TEXT,
@@ -175,7 +179,9 @@ def create_tables():
         cols = [c[1] for c in cursor.fetchall()]
         new_prod_cols = {
             'unit': 'TEXT', 'warehouse': 'TEXT', 'batch_no': 'TEXT',
-            'manufacture_date': 'TEXT', 'last_updated': 'TIMESTAMP', 'supplier_id': 'INTEGER'
+            'manufacture_date': 'TEXT', 'last_updated': 'TIMESTAMP', 'supplier_id': 'INTEGER',
+            'base_unit': "TEXT DEFAULT 'pcs'", 'pack_unit': "TEXT DEFAULT ''",
+            'pack_size': 'INTEGER DEFAULT 1', 'restaurant_modifiers': 'TEXT'
         }
         for col, dtype in new_prod_cols.items():
             if col not in cols:
@@ -331,7 +337,7 @@ def create_tables():
             ('window_resolution', '1366x768'),
             ('follow_system_theme', '1'),
             ('performance_low_end_mode', '1'),
-            ('performance_product_page_size', '24'),
+            ('performance_product_page_size', '25'),
             ('performance_search_debounce_ms', '450'),
             ('performance_thumbnail_quality', 'low'),
             ('performance_customer_display_youtube_enabled', '0'),
@@ -794,6 +800,141 @@ def create_tables():
         """)
         logger.debug("User activity log table verified")
 
+        # ---------- Held Sales ----------
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS held_sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hold_no TEXT UNIQUE,
+            cart_json TEXT NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT,
+            payment_type TEXT,
+            note TEXT,
+            total_amount REAL DEFAULT 0,
+            item_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        logger.debug("Held sales table verified")
+
+        # ---------- Restaurant Mode ----------
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_tables (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_no TEXT UNIQUE NOT NULL,
+            display_name TEXT,
+            seats INTEGER DEFAULT 4,
+            status TEXT DEFAULT 'available',
+            sort_order INTEGER DEFAULT 0,
+            active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_no TEXT UNIQUE NOT NULL,
+            table_id INTEGER,
+            order_type TEXT DEFAULT 'Dine-in',
+            status TEXT DEFAULT 'open',
+            kitchen_status TEXT DEFAULT 'draft',
+            cart_json TEXT NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT,
+            note TEXT,
+            total_amount REAL DEFAULT 0,
+            item_count INTEGER DEFAULT 0,
+            opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sent_to_kitchen_at TIMESTAMP,
+            settled_at TIMESTAMP,
+            cancelled_at TIMESTAMP,
+            sale_id INTEGER,
+            invoice_no TEXT,
+            settled_total REAL DEFAULT 0,
+            payment_amount REAL DEFAULT 0,
+            change_amount REAL DEFAULT 0,
+            payment_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE SET NULL
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            quantity REAL DEFAULT 0,
+            unit_price REAL DEFAULT 0,
+            base_price REAL DEFAULT 0,
+            line_total REAL DEFAULT 0,
+            note TEXT,
+            line_id TEXT,
+            status TEXT DEFAULT 'active',
+            kitchen_status TEXT DEFAULT 'draft',
+            sent_quantity REAL DEFAULT 0,
+            cancelled_quantity REAL DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES restaurant_orders(id) ON DELETE CASCADE
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_order_modifiers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_item_id INTEGER NOT NULL,
+            group_name TEXT,
+            modifier_name TEXT NOT NULL,
+            modifier_type TEXT DEFAULT 'note',
+            price_delta REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_item_id) REFERENCES restaurant_order_items(id) ON DELETE CASCADE
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_kitchen_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_no TEXT UNIQUE NOT NULL,
+            order_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'sent',
+            ticket_signature TEXT NOT NULL,
+            printed INTEGER DEFAULT 0,
+            note TEXT,
+            completed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES restaurant_orders(id) ON DELETE CASCADE
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS restaurant_kitchen_ticket_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id INTEGER NOT NULL,
+            order_item_id INTEGER,
+            product_id INTEGER,
+            product_name TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            modifier_summary TEXT,
+            quantity REAL DEFAULT 0,
+            note TEXT,
+            status TEXT DEFAULT 'sent',
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            preparing_at TIMESTAMP,
+            ready_at TIMESTAMP,
+            served_at TIMESTAMP,
+            cancelled_at TIMESTAMP,
+            FOREIGN KEY (ticket_id) REFERENCES restaurant_kitchen_tickets(id) ON DELETE CASCADE,
+            FOREIGN KEY (order_item_id) REFERENCES restaurant_order_items(id) ON DELETE SET NULL
+        )
+        """)
+        logger.debug("Restaurant mode tables verified")
+
         # ---------- Default category ----------
         cursor.execute("SELECT COUNT(*) FROM categories")
         if cursor.fetchone()[0] == 0:
@@ -806,6 +947,18 @@ def create_tables():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sales_invoice_no ON sales(invoice_no)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_held_sales_created_at ON held_sales(created_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_orders_table ON restaurant_orders(table_id, status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_orders_status ON restaurant_orders(status, created_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_orders_type_status ON restaurant_orders(order_type, status, updated_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_order_items_order ON restaurant_order_items(order_id, sort_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_order_items_status ON restaurant_order_items(order_id, status, kitchen_status)")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_order_items_line ON restaurant_order_items(order_id, line_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_order_modifiers_item ON restaurant_order_modifiers(order_item_id)")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_kitchen_ticket_signature ON restaurant_kitchen_tickets(order_id, ticket_signature)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_kitchen_tickets_status ON restaurant_kitchen_tickets(status, created_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_kitchen_ticket_items_ticket ON restaurant_kitchen_ticket_items(ticket_id, sort_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_restaurant_kitchen_ticket_items_status ON restaurant_kitchen_ticket_items(ticket_id, status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")

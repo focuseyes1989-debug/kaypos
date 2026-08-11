@@ -12,7 +12,7 @@ from utils.language import lang
 from loguru import logger
 
 
-class MainWindowHandlers(QWidget):
+class MainWindowHandlers:
     """Handle event handlers for MainWindow"""
     
     # Declare attributes to fix Pylance errors
@@ -388,6 +388,8 @@ class MainWindowHandlers(QWidget):
                 self.general_settings_action.setText("General Settings")
             if hasattr(self, 'receipt_settings_action') and self.receipt_settings_action:
                 self.receipt_settings_action.setText("Receipt Settings")
+            if hasattr(self, 'restaurant_settings_action') and self.restaurant_settings_action:
+                self.restaurant_settings_action.setText("Restaurant Setting")
             if hasattr(self, 'regional_settings_action') and self.regional_settings_action:
                 self.regional_settings_action.setText("Regional Settings")
             if hasattr(self, 'update_settings_action') and self.update_settings_action:

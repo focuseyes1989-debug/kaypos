@@ -47,10 +47,14 @@ class VersionManager:
     
     VERSION_FILE = "version.txt"
     UPDATE_METADATA_FILE = "update_metadata.json"
+    _cached_version: Optional[str] = None
+    _cached_version_path: Optional[str] = None
+    _cached_version_mtime: Optional[float] = None
     
     def __init__(self):
         self.current_version = None
-        self._load_current_version()
+        if not self.current_version:
+            self._load_current_version()
     
     def _get_version_file_path(self) -> str:
         """Get the path to version.txt."""
@@ -78,13 +82,25 @@ class VersionManager:
         """Load current version from version.txt."""
         try:
             version_file = self._get_version_file_path()
+            try:
+                version_mtime = os.path.getmtime(version_file)
+            except OSError:
+                version_mtime = None
+
+            if (
+                self.__class__._cached_version
+                and self.__class__._cached_version_path == version_file
+                and self.__class__._cached_version_mtime == version_mtime
+            ):
+                self.current_version = self.__class__._cached_version
+                return
             
             logger.info(f"Looking for version file: {version_file}")
             
             if os.path.exists(version_file):
                 with open(version_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    logger.info(f"Version file content: {content[:200]}...")
+                    logger.debug(f"Version file loaded ({len(content)} chars)")
                     
                     # ✅ Try multiple patterns to find version
                     patterns = [
@@ -115,6 +131,9 @@ class VersionManager:
                 self.current_version = "1.0.0"
                 
             logger.info(f"Current version: {self.current_version}")
+            self.__class__._cached_version = self.current_version
+            self.__class__._cached_version_path = version_file
+            self.__class__._cached_version_mtime = version_mtime
                 
         except Exception as e:
             logger.error(f"Failed to load version: {e}")
@@ -123,7 +142,8 @@ class VersionManager:
     def get_current_version(self) -> str:
         """Get current application version."""
         # ✅ Reload version each time to ensure it's up to date
-        self._load_current_version()
+        if not self.current_version:
+            self._load_current_version()
         return self.current_version
     
     def update_version(self, new_version: str) -> bool:
@@ -183,6 +203,9 @@ class VersionManager:
                     with open(version_file, 'w', encoding='utf-8') as f:
                         f.write(content)
                     self.current_version = new_version
+                    self.__class__._cached_version = new_version
+                    self.__class__._cached_version_path = version_file
+                    self.__class__._cached_version_mtime = os.path.getmtime(version_file)
                     logger.info(f"✅ Version updated to: {new_version}")
                     return True
                 else:
@@ -222,6 +245,9 @@ VSVersionInfo(
                 with open(version_file, 'w', encoding='utf-8') as f:
                     f.write(version_content)
                 self.current_version = new_version
+                self.__class__._cached_version = new_version
+                self.__class__._cached_version_path = version_file
+                self.__class__._cached_version_mtime = os.path.getmtime(version_file)
                 logger.info(f"✅ Created version file with version: {new_version}")
                 return True
                 

@@ -26,7 +26,7 @@ class StockNotificationDialog(QDialog):
         
         # Pagination variables
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self.total_items = 0
         self.current_rows = []
         self.all_rows = []  # Store all filtered rows

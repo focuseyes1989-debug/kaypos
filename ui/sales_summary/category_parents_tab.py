@@ -208,7 +208,7 @@ class CategoryParentsTab(QWidget):
                 COALESCE(SUM(p.cost * si.qty), 0) as cogs
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            LEFT JOIN products p ON si.product_name = p.name
+            LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN categories pc ON c.parent_id = pc.id
             WHERE s.status = 'completed' 

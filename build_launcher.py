@@ -210,6 +210,7 @@ def build_launcher(version):
     # Add data files with correct path
     cmd.extend([
         f'--add-data={version_txt_path};.',
+        f'--add-data={os.path.abspath("qt.conf")};.',
     ])
     
     # Hidden imports

@@ -305,13 +305,12 @@ class MainWindowActions:
         if hasattr(self, 'follow_system_theme_action') and self.follow_system_theme_action:
             self.follow_system_theme_action.setChecked(checked)
 
-    def apply_theme_from_settings(self) -> None:
+    def apply_theme_from_settings(self, refresh_widgets: bool = True) -> None:
         """
         Settings ထဲမှ Theme ကို အသုံးပြုခြင်း
         """
         if self.follow_system_theme:
             theme = system_theme.get_system_theme()
-            self.apply_theme(theme)
             self.set_theme_menu_enabled(True)
         else:
             try:
@@ -324,8 +323,16 @@ class MainWindowActions:
             except Exception as e:
                 logger.error(f"Failed to load theme from settings: {e}")
                 saved_theme = "Light"
-            self.apply_theme(saved_theme)
+            theme = saved_theme
             self.set_theme_menu_enabled(True)
+
+        if refresh_widgets:
+            self.apply_theme(theme)
+        else:
+            app = QApplication.instance()
+            if app:
+                apply_theme_style(app, theme)
+            self._update_menu_bar_clock_color(theme)
 
         if hasattr(self, 'follow_system_theme_action') and self.follow_system_theme_action:
             self.follow_system_theme_action.setChecked(self.follow_system_theme)
@@ -518,6 +525,24 @@ class MainWindowActions:
             760
         )
 
+    def open_restaurant_settings_dialog(self) -> None:
+        from ui.settings import RestaurantSettingWidget
+
+        widget = RestaurantSettingWidget()
+        self._open_setting_dialog(
+            self._settings_dialog_title("restaurant_setting", "Restaurant Setting"),
+            widget,
+            980,
+            680
+        )
+        restaurant_page = getattr(self, "restaurant_page", None)
+        if restaurant_page:
+            try:
+                restaurant_page.refresh_tables()
+                restaurant_page.refresh_takeaway_orders()
+            except Exception as exc:
+                logger.error(f"Failed to refresh Restaurant page after settings: {exc}")
+
     def open_regional_settings_dialog(self) -> None:
         from ui.settings import RegionalSettingWidget
 
@@ -645,6 +670,8 @@ class MainWindowActions:
 
     def refresh_general_settings(self) -> None:
         self.apply_window_resolution_from_settings()
+        if hasattr(self, "apply_role_permissions"):
+            self.apply_role_permissions()
         if hasattr(self, 'sales_page') and self.sales_page:
             if hasattr(self.sales_page, 'load_settings'):
                 self.sales_page.load_settings()

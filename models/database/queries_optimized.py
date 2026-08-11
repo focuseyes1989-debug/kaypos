@@ -13,7 +13,7 @@ from models.database.cache import cached_query, _query_cache
 
 @cached_query(ttl_seconds=60)  # 1 minute cache
 def get_products_optimized(category=None, search=None, 
-                           limit=50, offset=0, sort_by="name"):
+                           limit=25, offset=0, sort_by="name"):
     """
     Get products with optimized query and pagination.
     """

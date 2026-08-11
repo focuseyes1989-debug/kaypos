@@ -44,14 +44,16 @@ class ExpenseNotificationChecker(QObject):
         should_check = False
         now = datetime.now()
 
+        last_checked_dt = self._parse_last_checked(last_checked)
+
         if check_frequency == 'daily':
-            if not last_checked or (now - datetime.fromisoformat(last_checked)).days >= 1:
+            if not last_checked_dt or (now - last_checked_dt).days >= 1:
                 should_check = True
         elif check_frequency == 'weekly':
-            if not last_checked or (now - datetime.fromisoformat(last_checked)).days >= 7:
+            if not last_checked_dt or (now - last_checked_dt).days >= 7:
                 should_check = True
         elif check_frequency == 'monthly':
-            if not last_checked or (now - datetime.fromisoformat(last_checked)).days >= 30:
+            if not last_checked_dt or (now - last_checked_dt).days >= 30:
                 should_check = True
 
         if not should_check:
@@ -129,6 +131,16 @@ class ExpenseNotificationChecker(QObject):
 
         conn.close()
         return alerts_created
+
+    def _parse_last_checked(self, value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=None)
+        try:
+            return datetime.fromisoformat(str(value)).replace(tzinfo=None)
+        except ValueError:
+            return None
 
     def get_unread_alerts_count(self):
         """Get count of unread alerts"""

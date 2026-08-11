@@ -3,17 +3,46 @@ import os
 import functools
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImageReader, QPixmap
-from utils.paths import app_path
+from utils.paths import app_path, get_product_images_dir
 from utils.performance import get_performance_settings
 
 
 def resolve_image_path(image_path: str):
-    """Resolve image path to absolute path using app_path for relative paths."""
+    """Resolve product image paths saved in older and newer formats."""
     if not image_path:
         return ""
-    if os.path.isabs(image_path):
-        return image_path
-    return app_path(image_path)
+
+    raw_path = str(image_path).strip().strip('"')
+    if not raw_path:
+        return ""
+
+    normalized = raw_path.replace("\\", os.sep).replace("/", os.sep)
+    filename = os.path.basename(normalized)
+    candidates = []
+
+    if os.path.isabs(normalized):
+        candidates.append(normalized)
+        if filename:
+            candidates.append(os.path.join(get_product_images_dir(), filename))
+    else:
+        candidates.extend([
+            app_path(normalized),
+            os.path.join(os.getcwd(), normalized),
+        ])
+        if filename:
+            candidates.append(os.path.join(get_product_images_dir(), filename))
+        if normalized.startswith(f"product_images{os.sep}"):
+            candidates.append(app_path("database", normalized))
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.exists(candidate):
+            return candidate
+
+    return candidates[0] if candidates else ""
 
 
 @functools.lru_cache(maxsize=100)
@@ -31,22 +60,6 @@ def load_thumbnail(image_path: str, size: int = 50):
         size = max(24, min(size, int(size * 0.75)))
 
     resolved_path = resolve_image_path(image_path)
-
-    if not resolved_path or not os.path.exists(resolved_path):
-        if not os.path.isabs(image_path):
-            alt_path = os.path.join(os.getcwd(), image_path)
-            if os.path.exists(alt_path):
-                resolved_path = alt_path
-            else:
-                filename = os.path.basename(image_path)
-                db_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                alt_path2 = os.path.join(db_dir, 'database', 'product_images', filename)
-                if os.path.exists(alt_path2):
-                    resolved_path = alt_path2
-                else:
-                    alt_path3 = app_path(os.path.join('database', 'product_images', filename))
-                    if os.path.exists(alt_path3):
-                        resolved_path = alt_path3
 
     if not resolved_path or not os.path.exists(resolved_path):
         return None

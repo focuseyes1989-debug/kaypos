@@ -272,5 +272,6 @@ class CheckoutHelpers:
             main_window.inventory_page.refresh_all()
         if hasattr(main_window, 'check_stock_alerts'):
             main_window.check_stock_alerts()
-        if hasattr(main_window, 'customers_page'):
-            main_window.customers_page.load_customers()
+        customers_page = getattr(main_window, "customers_page", None)
+        if customers_page is not None and hasattr(customers_page, "load_customers"):
+            customers_page.load_customers()

@@ -18,7 +18,7 @@ for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
 
 # Default version (will be overwritten by user input)
-APP_VERSION = "1.5.9"
+APP_VERSION = "1.6.2"
 APP_NAME = "ZAY_POS"
 
 def get_version_input():
@@ -166,6 +166,7 @@ a = Analysis(
     binaries=sqlite_binaries,
     datas=[
         ('assets', 'assets'),
+        ('qt.conf', '.'),
         ('version.txt', '.'),
         ('updater/version_manager.py', 'updater'),
     ],
@@ -339,6 +340,7 @@ def build_launcher(version):
         '--name=ZAY_POS_Launcher',  # 🔥 Name for the exe
         f'--icon={icon_path}',
         f'--add-data={version_txt_path};.',
+        f'--add-data={os.path.abspath("qt.conf")};.',
         # PyQt6
         '--hidden-import=PyQt6',
         '--hidden-import=PyQt6.QtWidgets',

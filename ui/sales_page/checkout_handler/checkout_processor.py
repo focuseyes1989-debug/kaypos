@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from models.database import connect_db
 from services.credit_service import CreditService
 from loguru import logger
+from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 
 
 class CheckoutProcessor:
@@ -26,12 +27,16 @@ class CheckoutProcessor:
     
     def create_sale_items(self, cursor, sale_id, cart):
         """Create sale items in database"""
+        ensure_wholesale_sale_item_columns(cursor)
         for item in cart:
             product_name = item["name"]
             discount_percent = float(item.get("expiry_discount_percent") or item.get("promo_discount_percent") or 0)
             if discount_percent > 0:
                 source = "Expiry" if item.get("expiry_discount_enabled") else "Promo"
                 product_name = f"{product_name} ({source} -{discount_percent:g}%)"
+            wholesale_regular_price = float(item.get("price_before_wholesale") or 0)
+            item_price = float(item.get("price") or 0)
+            wholesale_applied = bool(item.get("wholesale_tier_id")) and wholesale_regular_price > item_price
             allocations = item.get("stock_allocations") or [{
                 "product_id": item.get("id"),
                 "variant_id": item.get("variant_id"),
@@ -46,13 +51,16 @@ class CheckoutProcessor:
                 if qty <= 0:
                     continue
                 total = item["price"] * qty
+                wholesale_savings = (wholesale_regular_price - item_price) * qty if wholesale_applied else 0
                 try:
                     cursor.execute("""
                         INSERT INTO sale_items (
                             sale_id, product_id, product_name, qty, price, total,
-                            variant_id, location_id, location, batch_no, expire_date
+                            variant_id, location_id, location, batch_no, expire_date,
+                            wholesale_regular_price, wholesale_savings,
+                            wholesale_tier_min_qty, wholesale_unit_label
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         sale_id,
                         allocation.get("product_id") or item.get("id"),
@@ -65,6 +73,10 @@ class CheckoutProcessor:
                         allocation.get("location") or "",
                         allocation.get("batch_no") or "",
                         allocation.get("expire_date") or "",
+                        wholesale_regular_price if wholesale_applied else 0,
+                        wholesale_savings,
+                        item.get("wholesale_min_qty") if wholesale_applied else None,
+                        item.get("wholesale_unit_label") or "",
                     ))
                 except Exception:
                     cursor.execute("""

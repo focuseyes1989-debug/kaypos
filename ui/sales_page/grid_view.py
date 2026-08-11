@@ -416,11 +416,15 @@ class GridViewWidget(QScrollArea):
             name, price, stock, sold_by = product
             price = float(price) if price else 0.0
             
-            if sold_by and sold_by.lower() == "service":
+            sold_by_mode = str(sold_by or "").lower()
+            if sold_by_mode == "service":
                 manual_price, ok = self._show_service_price_dialog(name)
                 if ok:
                     self.service_selected.emit(prod_id, name, manual_price)
             else:
+                if sold_by_mode == "restaurant":
+                    self.product_selected.emit(prod_id, name, price, max(int(stock or 0), 999999))
+                    return
                 if stock <= 0:
                     self._show_message("Out of Stock", f"{name} is out of stock.", QMessageBox.Icon.Warning)
                     return
@@ -700,9 +704,9 @@ class LoyverseProductCard(QWidget):
     def _load_image(self) -> None:
         if self._image_path:
             try:
-                pixmap = QPixmap(self._image_path)
-                if not pixmap.isNull():
-                    image_size = self.image_frame.height() - 4
+                image_size = self.image_frame.height() - 4
+                pixmap = load_thumbnail(str(self._image_path), max(40, image_size))
+                if pixmap and not pixmap.isNull():
                     scaled = pixmap.scaled(
                         image_size, image_size,
                         Qt.AspectRatioMode.IgnoreAspectRatio,
@@ -738,7 +742,8 @@ class LoyverseProductCard(QWidget):
         return self._discount_percent > 0
 
     def _is_out_of_stock(self) -> bool:
-        return not (self._sold_by and str(self._sold_by).lower() == "service") and int(self._stock or 0) <= 0
+        sold_by_mode = str(self._sold_by or "").lower()
+        return sold_by_mode not in ("service", "restaurant") and int(self._stock or 0) <= 0
 
     def _discount_badge_text(self) -> str:
         if self._discount_type == "manual_price" and self._manual_price > 0:
@@ -947,8 +952,11 @@ class ModernProductCard(QWidget):
     def _status_text(self) -> str:
         if self._category_name:
             return str(self._category_name)
-        if self._sold_by and self._sold_by.lower() == "service":
+        sold_by_mode = str(self._sold_by or "").lower()
+        if sold_by_mode == "service":
             return "Service"
+        if sold_by_mode == "restaurant":
+            return "Menu"
         if self._stock <= 0:
             return "Out"
         if self._stock <= self._low_stock:
@@ -956,7 +964,8 @@ class ModernProductCard(QWidget):
         return "In Stock"
 
     def _is_out_of_stock(self) -> bool:
-        return not (self._sold_by and str(self._sold_by).lower() == "service") and self._stock <= 0
+        sold_by_mode = str(self._sold_by or "").lower()
+        return sold_by_mode not in ("service", "restaurant") and self._stock <= 0
 
     def _has_discount_badge(self) -> bool:
         if self._discount_type == "manual_price":

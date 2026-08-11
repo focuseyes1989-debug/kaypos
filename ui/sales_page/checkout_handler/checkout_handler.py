@@ -1,7 +1,20 @@
 # ui/sales_page/checkout_handler/checkout_handler.py
 from typing import Any
 
-from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QPushButton, QMessageBox, QHBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
+    QHeaderView,
+    QHBoxLayout,
+    QInputDialog,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from PyQt6.QtCore import pyqtSignal, QObject, QPropertyAnimation, QEasingCurve, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QLinearGradient, QBrush, QPainter, QPen
 from datetime import datetime
@@ -12,6 +25,8 @@ from services.credit_service import CreditService
 from loguru import logger
 from utils.language import lang
 from utils.translations import tr
+from utils.db_compat import begin_transaction_sql
+from utils.held_sales import create_held_sale, delete_held_sale, get_held_sale, list_held_sales
 
 from ui.sales_page.checkout_handler.checkout_dialogs import (
     CompletionDialog,
@@ -120,6 +135,7 @@ class CheckoutHandler(QObject):
         self.credit_due_days = 15
         self.credit_limit_enabled = True
         self.credit_service = CreditService()
+        self.last_sale_result = None
         
         # Prevent duplicate credit info dialog
         self._credit_info_shown = False
@@ -142,6 +158,28 @@ class CheckoutHandler(QObject):
         action_layout = QVBoxLayout()
         action_layout.setSpacing(8)
         action_layout.setContentsMargins(0, 0, 0, 0)
+
+        utility_layout = QHBoxLayout()
+        utility_layout.setSpacing(8)
+
+        self.btn_hold_sale = GradientButton(
+            "Hold",
+            gradient_colors=["#f39c12", "#d68910"],
+            hover_gradient_colors=["#e67e22", "#b9770e"]
+        )
+        self.btn_hold_sale.setFixedHeight(40)
+        self.btn_hold_sale.clicked.connect(self.hold_sale)
+
+        self.btn_resume_sale = GradientButton(
+            "Resume",
+            gradient_colors=["#3498db", "#2471a3"],
+            hover_gradient_colors=["#2e86c1", "#1f618d"]
+        )
+        self.btn_resume_sale.setFixedHeight(40)
+        self.btn_resume_sale.clicked.connect(self.resume_sale)
+
+        utility_layout.addWidget(self.btn_hold_sale, stretch=1)
+        utility_layout.addWidget(self.btn_resume_sale, stretch=1)
         
         # Buttons Layout
         button_layout = QHBoxLayout()
@@ -170,6 +208,7 @@ class CheckoutHandler(QObject):
         self.btn_clear_cart.setVisible(False)
         button_layout.addWidget(self.btn_checkout, stretch=1)
         
+        action_layout.addLayout(utility_layout)
         action_layout.addLayout(button_layout)
         self.action_group.setLayout(action_layout)
 
@@ -296,6 +335,170 @@ class CheckoutHandler(QObject):
         self.update_credit_radio_state()
         self._credit_info_shown = False
 
+    def _get_selected_customer_name(self):
+        combo = getattr(self.parent_widget, "customer_combo", None)
+        if not combo or combo.currentIndex() <= 0:
+            return ""
+        return combo.currentText()
+
+    def _reset_sale_inputs(self, reset_customer=True):
+        """Reset the active POS entry area without refreshing inventory pages."""
+        self.parent_widget.cart_widget.clear()
+        delete_cart_backup()
+        self.parent_widget.totals_widget.discount_checkbox.setChecked(False)
+        self.parent_widget.totals_widget.points_use_check.setChecked(False)
+        self.parent_widget.payment_widget.payment_input.setValue(0.0)
+        self.parent_widget.payment_widget.reset_manual_override()
+        self.parent_widget.payment_widget.reset_to_default()
+        self.parent_widget.options_widget.set_payment_type("Cash")
+        self.parent_widget.payment_widget.setEnabled(True)
+        if reset_customer and hasattr(self.parent_widget, "customer_combo"):
+            self.parent_widget.customer_combo.setCurrentIndex(0)
+            self.selected_customer_id = None
+        self._credit_info_shown = False
+        self.update_credit_radio_state()
+        if hasattr(self.parent_widget, "product_grid"):
+            self.parent_widget.product_grid.focus_search()
+
+    def hold_sale(self):
+        """Suspend the current cart so another sale can be served first."""
+        cart = self.parent_widget.cart_widget.get_cart()
+        if not cart:
+            QMessageBox.information(self.parent_widget, "Hold Sale", "Cart is empty.")
+            return
+
+        note, ok = QInputDialog.getText(
+            self.parent_widget,
+            "Hold Sale",
+            "Note / customer reference:",
+        )
+        if not ok:
+            return
+
+        try:
+            customer_id = self.selected_customer_id
+            customer_name = self._get_selected_customer_name()
+            payment_type = "Credit" if self.parent_widget.options_widget.is_credit_sale() else "Cash"
+            total_amount = self.parent_widget.totals_widget.get_current_grand_total()
+            _, hold_no = create_held_sale(
+                cart,
+                customer_id=customer_id,
+                customer_name=customer_name,
+                payment_type=payment_type,
+                note=note.strip(),
+                total_amount=total_amount,
+            )
+            self._reset_sale_inputs(reset_customer=True)
+            QMessageBox.information(self.parent_widget, "Hold Sale", f"Sale held: {hold_no}")
+        except Exception as e:
+            logger.error(f"Failed to hold sale: {e}", exc_info=True)
+            QMessageBox.critical(self.parent_widget, "Hold Sale", f"Could not hold sale: {e}")
+
+    def _select_held_sale_id(self):
+        rows = list_held_sales()
+        if not rows:
+            QMessageBox.information(self.parent_widget, "Resume Sale", "No held sales found.")
+            return None
+
+        dialog = QDialog(self.parent_widget)
+        dialog.setWindowTitle("Resume Held Sale")
+        dialog.resize(760, 360)
+        layout = QVBoxLayout(dialog)
+
+        table = QTableWidget(len(rows), 7, dialog)
+        table.setHorizontalHeaderLabels(["ID", "Hold No", "Customer", "Items", "Total", "Note", "Created"])
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setColumnHidden(0, True)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+
+        symbol = get_currency_symbol()
+        for row_idx, row in enumerate(rows):
+            held_id, hold_no, customer_name, item_count, total_amount, note, created_at = row
+            values = [
+                str(held_id),
+                hold_no or "",
+                customer_name or "-",
+                str(item_count or 0),
+                format_money(float(total_amount or 0), symbol),
+                note or "",
+                str(created_at or ""),
+            ]
+            for col_idx, value in enumerate(values):
+                table.setItem(row_idx, col_idx, QTableWidgetItem(value))
+
+        table.selectRow(0)
+        table.doubleClicked.connect(dialog.accept)
+        layout.addWidget(table)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+
+        selected = table.currentRow()
+        if selected < 0:
+            return None
+        item = table.item(selected, 0)
+        return int(item.text()) if item else None
+
+    def resume_sale(self):
+        """Load a held cart back into the active checkout."""
+        try:
+            held_id = self._select_held_sale_id()
+            if not held_id:
+                return
+
+            if self.parent_widget.cart_widget.cart:
+                reply = QMessageBox.question(
+                    self.parent_widget,
+                    "Resume Sale",
+                    "Replace the current cart with the held sale?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+
+            held_sale = get_held_sale(held_id)
+            if not held_sale:
+                QMessageBox.warning(self.parent_widget, "Resume Sale", "Held sale was not found.")
+                return
+
+            self.parent_widget.cart_widget.cart = held_sale["cart"]
+            self.parent_widget.cart_widget.refresh_table()
+            delete_held_sale(held_id)
+
+            combo = getattr(self.parent_widget, "customer_combo", None)
+            self.selected_customer_id = held_sale.get("customer_id")
+            if combo and self.selected_customer_id:
+                index = combo.findData(self.selected_customer_id)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+            elif combo:
+                combo.setCurrentIndex(0)
+
+            if held_sale.get("payment_type") == "Credit" and self.selected_customer_id:
+                self.parent_widget.options_widget.set_payment_type("Credit")
+            else:
+                self.parent_widget.options_widget.set_payment_type("Cash")
+                self.parent_widget.payment_widget.setEnabled(True)
+            self.parent_widget.payment_widget.reset_manual_override()
+            self.parent_widget.payment_widget.reset_to_default()
+            self.update_credit_radio_state()
+            if hasattr(self.parent_widget, "product_grid"):
+                self.parent_widget.product_grid.focus_search()
+            QMessageBox.information(self.parent_widget, "Resume Sale", f"Resumed {held_sale['hold_no']}.")
+        except Exception as e:
+            logger.error(f"Failed to resume sale: {e}", exc_info=True)
+            QMessageBox.critical(self.parent_widget, "Resume Sale", f"Could not resume sale: {e}")
+
     def clear_cart(self):
         """Clear cart"""
         if self.parent_widget.cart_widget.cart:
@@ -356,10 +559,11 @@ class CheckoutHandler(QObject):
     # =========================================================================
     def checkout(self):
         """Main checkout method"""
+        self.last_sale_result = None
         cart = self.parent_widget.cart_widget.get_cart()
         if not cart:
             QMessageBox.warning(self.parent_widget, tr("empty_cart"), "Cart is empty")
-            return
+            return None
 
         symbol = get_currency_symbol()
         grand_total = self.parent_widget.totals_widget.get_current_grand_total()
@@ -384,7 +588,7 @@ class CheckoutHandler(QObject):
         # Handle credit sale
         if is_credit_sale:
             if not self.check_credit_limit(grand_total):
-                return
+                return None
             payment = 0
             change = 0
             payment_type = "Credit"
@@ -393,7 +597,7 @@ class CheckoutHandler(QObject):
             if payment < grand_total:
                 QMessageBox.warning(self.parent_widget, tr("insufficient_payment"),
                     f"Payment ({format_money(payment, symbol)}) < Total ({format_money(grand_total, symbol)})")
-                return
+                return None
             change = payment - grand_total
             payment_type = self.parent_widget.payment_widget.get_selected_payment_type()
 
@@ -412,9 +616,10 @@ class CheckoutHandler(QObject):
         
         # Track sale success
         sale_successful = False
+        sale_result = None
         
         try:
-            cursor.execute("BEGIN IMMEDIATE")
+            cursor.execute(begin_transaction_sql(immediate=True))
 
             # Check expiry issues
             valid, expired_items, warning_items, all_expired_blocked = self.helpers.check_expiry_issues(cart)
@@ -428,17 +633,17 @@ class CheckoutHandler(QObject):
                         self.parent_widget.cart_widget.refresh_table()
                         self.parent_widget.totals_widget.update_totals()
                     conn.rollback()
-                    return
+                    return None
                 else:
                     conn.rollback()
-                    return
+                    return None
             
             # Show expiry warning
             if warning_items:
                 dialog = ExpiryWarningDialog(self.parent_widget, warning_items)
                 if dialog.exec() == ExpiryWarningDialog.DialogCode.Rejected:
                     conn.rollback()
-                    return
+                    return None
             
             # Process stock deduction
             self.helpers.process_stock_deduction(cursor, cart, invoice_no)
@@ -463,6 +668,16 @@ class CheckoutHandler(QObject):
             delete_cart_backup()
             
             sale_successful = True
+            sale_result = {
+                "sale_id": sale_id,
+                "invoice_no": invoice_no,
+                "grand_total": grand_total,
+                "payment": payment,
+                "change": change,
+                "payment_type": payment_type,
+                "is_credit_sale": is_credit_sale,
+            }
+            self.last_sale_result = sale_result
 
             # Show completion dialog
             self._show_completion_dialog(sale_id, invoice_no, grand_total, payment, change, total_discount, is_credit_sale)
@@ -485,6 +700,7 @@ class CheckoutHandler(QObject):
                 self.parent_widget.payment_widget.setEnabled(True)
                 self.parent_widget.product_grid.focus_search()
                 self.update_credit_radio_state()
+        return sale_result
 
     def _reset_after_checkout(self):
         """Reset after successful checkout"""
@@ -547,5 +763,7 @@ class CheckoutHandler(QObject):
         else:
             self.btn_clear_cart.setText("Clear Cart")
             self.btn_checkout.setText("Checkout")
+        self.btn_hold_sale.setText("Hold")
+        self.btn_resume_sale.setText("Resume")
         
         self.update_credit_radio_state()

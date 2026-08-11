@@ -52,7 +52,7 @@ class ProductGrid(QWidget):
         self._selected_category = ""
         self._discount_filter = "all"
         self._grid_lazy_page = 1
-        self._grid_lazy_page_size = 50
+        self._grid_lazy_page_size = 25
         self._grid_lazy_total = 0
         self._grid_lazy_loading = False
         self._grid_lazy_has_more = False
@@ -530,6 +530,7 @@ class ProductGrid(QWidget):
         selected_category_text = self.category_combo.currentText()
         
         use_category = False
+        selected_category_names = []
         selected_category_ids = []  # ✅ List of category IDs (parent + children)
         
         # Check if a category is selected (not "All Categories")
@@ -550,6 +551,16 @@ class ProductGrid(QWidget):
                 
                 # ✅ Get all child category IDs (including the parent itself)
                 selected_category_ids = self._get_category_tree_ids(parent_id)
+                if selected_category_ids:
+                    name_placeholders = ",".join(["?"] * len(selected_category_ids))
+                    conn = connect_db()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        f"SELECT name FROM categories WHERE id IN ({name_placeholders})",
+                        selected_category_ids,
+                    )
+                    selected_category_names = [name for (name,) in cursor.fetchall()]
+                    conn.close()
                 logger.debug(f"Found category tree IDs for '{clean_name}': {selected_category_ids}")
             else:
                 logger.warning(f"Category '{clean_name}' not found in database")
@@ -570,21 +581,34 @@ class ProductGrid(QWidget):
         if use_group:
             # ✅ Filter by group using category_id
             count_where.append("""
-                p.category_id IN (
-                    SELECT c.id FROM categories c
-                    WHERE c.group_id = (
-                        SELECT id FROM category_groups WHERE name = ?
+                (
+                    p.category_id IN (
+                        SELECT c.id FROM categories c
+                        WHERE c.group_id = (
+                            SELECT id FROM category_groups WHERE name = ?
+                        )
+                    )
+                    OR p.category IN (
+                        SELECT c.name FROM categories c
+                        WHERE c.group_id = (
+                            SELECT id FROM category_groups WHERE name = ?
+                        )
                     )
                 )
             """)
-            count_params.append(self._selected_group)
+            count_params.extend([self._selected_group, self._selected_group])
             logger.debug(f"Filtering by group: {self._selected_group}")
             
         elif use_category and selected_category_ids:
             # ✅ Filter by category IDs (parent + all children)
-            placeholders = ','.join(['?'] * len(selected_category_ids))
-            count_where.append(f"p.category_id IN ({placeholders})")
+            id_placeholders = ','.join(['?'] * len(selected_category_ids))
+            name_placeholders = ','.join(['?'] * len(selected_category_names))
+            if selected_category_names:
+                count_where.append(f"(p.category_id IN ({id_placeholders}) OR p.category IN ({name_placeholders}))")
+            else:
+                count_where.append(f"p.category_id IN ({id_placeholders})")
             count_params.extend(selected_category_ids)
+            count_params.extend(selected_category_names)
             logger.debug(f"Filtering by category IDs: {selected_category_ids}")
         
         if search_text:
@@ -612,21 +636,34 @@ class ProductGrid(QWidget):
         if use_group:
             # ✅ Filter by group using category_id
             where_clauses.append("""
-                p.category_id IN (
-                    SELECT c.id FROM categories c
-                    WHERE c.group_id = (
-                        SELECT id FROM category_groups WHERE name = ?
+                (
+                    p.category_id IN (
+                        SELECT c.id FROM categories c
+                        WHERE c.group_id = (
+                            SELECT id FROM category_groups WHERE name = ?
+                        )
+                    )
+                    OR p.category IN (
+                        SELECT c.name FROM categories c
+                        WHERE c.group_id = (
+                            SELECT id FROM category_groups WHERE name = ?
+                        )
                     )
                 )
             """)
-            select_params.append(self._selected_group)
+            select_params.extend([self._selected_group, self._selected_group])
             logger.debug(f"SELECT filter by group: {self._selected_group}")
             
         elif use_category and selected_category_ids:
             # ✅ Filter by category IDs (parent + all children)
-            placeholders = ','.join(['?'] * len(selected_category_ids))
-            where_clauses.append(f"p.category_id IN ({placeholders})")
+            id_placeholders = ','.join(['?'] * len(selected_category_ids))
+            name_placeholders = ','.join(['?'] * len(selected_category_names))
+            if selected_category_names:
+                where_clauses.append(f"(p.category_id IN ({id_placeholders}) OR p.category IN ({name_placeholders}))")
+            else:
+                where_clauses.append(f"p.category_id IN ({id_placeholders})")
             select_params.extend(selected_category_ids)
+            select_params.extend(selected_category_names)
             logger.debug(f"SELECT filter by category IDs: {selected_category_ids}")
         
         if search_text:
@@ -780,14 +817,17 @@ class ProductGrid(QWidget):
             self.table.setCellWidget(row, 1, container)
 
             self.table.setItem(row, 2, QTableWidgetItem(name))
-            if sold_by and sold_by.lower() == "service":
+            sold_by_mode = str(sold_by or "").lower()
+            if sold_by_mode == "service":
                 price_display = "Service"
             else:
                 price_display = format_money(price, symbol)
             self.table.setItem(row, 3, QTableWidgetItem(price_display))
 
-            if sold_by and sold_by.lower() == "service":
+            if sold_by_mode == "service":
                 stock_item = QTableWidgetItem("N/A")
+            elif sold_by_mode == "restaurant":
+                stock_item = QTableWidgetItem("Menu")
             else:
                 stock_item = QTableWidgetItem(str(stock))
                 if stock == 0:
@@ -796,9 +836,12 @@ class ProductGrid(QWidget):
                     stock_item.setForeground(QColor(230, 126, 34))
             self.table.setItem(row, 4, stock_item)
 
-            if sold_by and sold_by.lower() == "service":
+            if sold_by_mode == "service":
                 status_text = "Service"
                 status_color = QColor(52, 152, 219)
+            elif sold_by_mode == "restaurant":
+                status_text = "Menu"
+                status_color = QColor(22, 160, 133)
             else:
                 if stock == 0:
                     status_text = "Out"
@@ -875,6 +918,9 @@ class ProductGrid(QWidget):
                 if ok:
                     self.service_selected.emit(prod_id, name, manual_price)
             else:
+                if sold_by_mode == "restaurant":
+                    self.product_selected.emit(prod_id, name, price, max(int(stock or 0), 999999))
+                    return
                 if stock <= 0:
                     self._show_message("Out of Stock", f"{name} is out of stock.", QMessageBox.Icon.Warning)
                     return

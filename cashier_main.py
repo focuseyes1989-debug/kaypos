@@ -15,6 +15,10 @@ def qt_message_handler(_msg_type, _context, message):
         return
     if "QPropertyAnimation::setPropertyName" in message:
         return
+    if "SetProcessDpiAwarenessContext() failed" in message:
+        return
+    if "DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2" in message:
+        return
     print(f"Qt: {message}")
 
 

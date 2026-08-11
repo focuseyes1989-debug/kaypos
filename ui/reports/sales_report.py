@@ -16,7 +16,7 @@ class SalesReportWorker(QObject):
     error = pyqtSignal(str)
     result = pyqtSignal(dict)
     
-    def __init__(self, from_date, to_date, page=1, page_size=50):
+    def __init__(self, from_date, to_date, page=1, page_size=25):
         super().__init__()
         self.from_date = from_date
         self.to_date = to_date
@@ -76,7 +76,7 @@ class SalesReportTab(QWidget):
         self._is_loading = False
         self._current_data = None
         self.current_page = 1
-        self.page_size = 50
+        self.page_size = 25
         self.total_items = 0
         self._is_dark = is_dark_theme()
         
@@ -241,7 +241,7 @@ class SalesReportTab(QWidget):
         from_date, to_date = self.parent_dialog.get_date_range()
         self.refresh(from_date, to_date, self.current_page, self.page_size)
     
-    def refresh(self, from_date, to_date, page=1, page_size=50):
+    def refresh(self, from_date, to_date, page=1, page_size=25):
         if self._is_loading:
             return
         

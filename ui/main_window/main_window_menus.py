@@ -365,6 +365,13 @@ class MainWindowMenus:
             self.receipt_settings_action.setToolTip(edit_tooltip)
         self.settings_menu.addAction(self.receipt_settings_action)
 
+        self.restaurant_settings_action = QAction("Restaurant Setting", main_window)
+        self.restaurant_settings_action.triggered.connect(self.open_restaurant_settings_dialog)
+        self.restaurant_settings_action.setEnabled(can_edit_settings)
+        if not can_edit_settings:
+            self.restaurant_settings_action.setToolTip(edit_tooltip)
+        self.settings_menu.addAction(self.restaurant_settings_action)
+
         self.regional_settings_action = QAction("Regional Settings", main_window)
         self.regional_settings_action.triggered.connect(self.open_regional_settings_dialog)
         self.regional_settings_action.setEnabled(can_edit_settings)

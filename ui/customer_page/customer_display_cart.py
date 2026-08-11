@@ -39,7 +39,7 @@ def _load_thumbnail(image_path, size):
 class CartDisplayWidget(QWidget):
     """Simple card-style cart for the customer display."""
 
-    THUMBNAIL_SIZE = 46
+    THUMBNAIL_SIZE = 42
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -50,7 +50,7 @@ class CartDisplayWidget(QWidget):
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
@@ -80,10 +80,10 @@ class CartDisplayWidget(QWidget):
         layout.addWidget(self.empty_label, 1)
 
         self.total_frame = QFrame()
-        self.total_frame.setMinimumHeight(118)
+        self.total_frame.setMinimumHeight(104)
         total_layout = QVBoxLayout(self.total_frame)
-        total_layout.setContentsMargins(14, 10, 14, 12)
-        total_layout.setSpacing(6)
+        total_layout.setContentsMargins(12, 8, 12, 10)
+        total_layout.setSpacing(4)
 
         subtotal_row = QHBoxLayout()
         self.subtotal_label = QLabel(tr("subtotal"))
@@ -118,7 +118,7 @@ class CartDisplayWidget(QWidget):
         self.setStyleSheet("background: transparent;")
         self.title_label.setStyleSheet(f"""
             color: {colors['title_text']};
-            font-size: 18pt;
+            font-size: 16pt;
             font-weight: 800;
             background: transparent;
             border: none;
@@ -152,7 +152,7 @@ class CartDisplayWidget(QWidget):
         self.items_container.setStyleSheet("background: transparent;")
         self.empty_label.setStyleSheet(f"""
             color: {colors['muted']};
-            font-size: 15pt;
+            font-size: 13pt;
             font-weight: 700;
             background: transparent;
             border: none;
@@ -170,8 +170,8 @@ class CartDisplayWidget(QWidget):
         self.discount_label.setStyleSheet(label_style)
         self.subtotal_value.setStyleSheet(value_style)
         self.discount_value.setStyleSheet(value_style)
-        self.grand_label.setStyleSheet(f"color: {colors['title_text']}; font-size: 13pt; font-weight: 800; background: transparent; border: none;")
-        self.grand_value.setStyleSheet(f"color: {colors['success']}; font-size: 16pt; font-weight: 900; background: transparent; border: none;")
+        self.grand_label.setStyleSheet(f"color: {colors['title_text']}; font-size: 12pt; font-weight: 800; background: transparent; border: none;")
+        self.grand_value.setStyleSheet(f"color: {colors['success']}; font-size: 14pt; font-weight: 900; background: transparent; border: none;")
         for widget in self._items:
             self._style_item_card(widget)
 
@@ -191,11 +191,11 @@ class CartDisplayWidget(QWidget):
         for label in frame.findChildren(QLabel):
             role = label.property("role")
             if role == "name":
-                label.setStyleSheet(f"color: {colors['title_text']}; font-size: 11.5pt; font-weight: 800; background: transparent; border: none;")
+                label.setStyleSheet(f"color: {colors['title_text']}; font-size: 10.5pt; font-weight: 800; background: transparent; border: none;")
             elif role == "meta":
                 label.setStyleSheet(f"color: {colors['muted']}; font-size: 9.5pt; font-weight: 650; background: transparent; border: none;")
             elif role == "total":
-                label.setStyleSheet(f"color: {colors['success']}; font-size: 12pt; font-weight: 900; background: transparent; border: none;")
+                label.setStyleSheet(f"color: {colors['success']}; font-size: 11pt; font-weight: 900; background: transparent; border: none;")
             elif role == "image":
                 label.setStyleSheet(f"""
                     background: {colors['panel_alt']};
@@ -247,8 +247,8 @@ class CartDisplayWidget(QWidget):
 
         frame = QFrame()
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(8, 7, 8, 7)
+        layout.setSpacing(8)
 
         image_label = QLabel()
         image_label.setProperty("role", "image")

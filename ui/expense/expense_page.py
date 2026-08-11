@@ -14,10 +14,10 @@ from PyQt6.QtCore import Qt, QDate, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.db_compat import is_postgres_backend
 from utils.language import lang
 from ui.expense.expense_table import ExpenseTable
 from ui.expense.expense_export import ExpenseExport
-from ui.expense.expense_chart import ExpenseChartWidget
 from ui.expense.expense_category_tab import ExpenseCategoryTab
 from ui.expense_dialog import ExpenseDialog
 from ui.expense_categories_dialog import ExpenseCategoriesDialog
@@ -329,7 +329,14 @@ class ExpensePage(QWidget):
         
         # === Tab 3: Charts ===
         logger.info("Creating chart tab for ExpensePage")
-        self.chart_tab = ExpenseChartWidget(self)
+        if is_postgres_backend():
+            self.chart_tab = QLabel(
+                "Charts are temporarily disabled while PostgreSQL compatibility is active"
+            )
+            self.chart_tab.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        else:
+            from ui.expense.expense_chart import ExpenseChartWidget
+            self.chart_tab = ExpenseChartWidget(self)
         self.tab_widget.addTab(self.chart_tab, self._load_colored_tab_icon(2), self.tab_names[2])
         
         # âœ… Apply tab bar style for dark theme
@@ -396,7 +403,7 @@ class ExpensePage(QWidget):
         self.table.current_page = 1
         self.load_expenses()
     
-    def load_expenses(self, page=1, page_size=50):
+    def load_expenses(self, page=1, page_size=25):
         """Load expenses with pagination"""
         self.spinner.start()
         
@@ -435,20 +442,22 @@ class ExpensePage(QWidget):
         cursor.execute(data_query, params + [page_size, offset])
         rows = cursor.fetchall()
         
-        total_amount = sum(row[5] for row in rows) if rows else 0
+        total_amount = sum(float(row[5] or 0) for row in rows) if rows else 0
         
         self.table.table.setRowCount(0)
         
         for row_idx, row_data in enumerate(rows):
             exp_id, exp_no, exp_date, cat, desc, amount, method, ref_no, notes = row_data
+            exp_date_text = exp_date.isoformat() if hasattr(exp_date, "isoformat") else str(exp_date or "")
+            amount_value = float(amount or 0)
             self.table.table.insertRow(row_idx)
             self.table.table.setItem(row_idx, 0, QTableWidgetItem(str(exp_id)))
             self.table.table.setItem(row_idx, 1, QTableWidgetItem(exp_no or ""))
-            self.table.table.setItem(row_idx, 2, QTableWidgetItem(exp_date or ""))
+            self.table.table.setItem(row_idx, 2, QTableWidgetItem(exp_date_text))
             self.table.table.setItem(row_idx, 3, QTableWidgetItem(cat or ""))
             self.table.table.setItem(row_idx, 4, QTableWidgetItem(desc or ""))
             
-            amount_item = QTableWidgetItem(format_money(amount, symbol))
+            amount_item = QTableWidgetItem(format_money(amount_value, symbol))
             amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.table.setItem(row_idx, 5, amount_item)
             
@@ -470,7 +479,7 @@ class ExpensePage(QWidget):
         self.update_cards()
         
         # âœ… Refresh chart with main page date range
-        if hasattr(self, 'chart_tab'):
+        if hasattr(self, 'chart_tab') and hasattr(self.chart_tab, 'set_date_range') and hasattr(self.chart_tab, 'load_chart'):
             try:
                 self.chart_tab.set_date_range(from_date, to_date)
                 self.chart_tab.load_chart()
@@ -719,7 +728,7 @@ class ExpensePage(QWidget):
             except Exception as e:
                 logger.error(f"Error retranslating category tab: {e}")
         
-        if hasattr(self, 'chart_tab'):
+        if hasattr(self, 'chart_tab') and hasattr(self.chart_tab, 'retranslateUi'):
             try:
                 self.chart_tab.retranslateUi()
             except Exception as e:

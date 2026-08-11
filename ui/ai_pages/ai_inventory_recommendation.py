@@ -50,7 +50,7 @@ class AIInventoryRecommendation:
                         AND date(sl.created_at) >= date('now', ?)
                     LEFT JOIN suppliers s ON p.supplier_id = s.id
                     WHERE p.sold_by IS NULL OR p.sold_by != 'Service'
-                    GROUP BY p.id
+                    GROUP BY p.id, p.name, p.sku, p.stock, p.low_stock, p.price, p.supplier_id, s.name
                     ORDER BY (p.stock / (COALESCE(SUM(si.qty), 1) + 1)) ASC
                     LIMIT 50
                 """, (f'-{threshold_days} days',))

@@ -281,20 +281,20 @@ class ProductFormUIBase:
             self._update_label_icon(d.label_barcode, "barcode.svg", self._get_label_text(d.label_barcode))
         if hasattr(d, 'label_sold_by') and d.label_sold_by:
             self._update_label_icon(d.label_sold_by, "swap_horiz.svg", self._get_label_text(d.label_sold_by))
+        if hasattr(d, 'label_units') and d.label_units:
+            self._update_label_icon(d.label_units, "inventory_2.svg", self._get_label_text(d.label_units))
         if hasattr(d, 'label_price') and d.label_price:
             self._update_label_icon(d.label_price, "attach_money.svg", self._get_label_text(d.label_price))
+        if hasattr(d, 'label_wholesale') and d.label_wholesale:
+            self._update_label_icon(d.label_wholesale, "attach_money.svg", self._get_label_text(d.label_wholesale))
         if hasattr(d, 'label_low_stock') and d.label_low_stock:
             self._update_label_icon(d.label_low_stock, "warning.svg", self._get_label_text(d.label_low_stock))
+        if hasattr(d, 'label_variants') and d.label_variants:
+            self._update_label_icon(d.label_variants, "inventory_2.svg", self._get_label_text(d.label_variants))
         if hasattr(d, 'label_description') and d.label_description:
             self._update_label_icon(d.label_description, "description.svg", self._get_label_text(d.label_description))
         if hasattr(d, 'label_image') and d.label_image:
             self._update_label_icon(d.label_image, "image.svg", self._get_label_text(d.label_image))
-        
-        # Update speech buttons - use speech type
-        if hasattr(d, 'btn_speech') and d.btn_speech:
-            self._update_button_icon(d.btn_speech, "speech_to_text.svg", "speech")
-        if hasattr(d, 'btn_speech_desc') and d.btn_speech_desc:
-            self._update_button_icon(d.btn_speech_desc, "speech_to_text.svg", "speech")
         
         # Update browse button - use browse type
         if hasattr(d, 'btn_browse') and d.btn_browse:

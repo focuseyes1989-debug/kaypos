@@ -131,10 +131,10 @@ def get_top_categories(from_date, to_date):
             COALESCE(SUM(si.qty * si.price), 0) as total
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
-        LEFT JOIN products p ON si.product_name = p.name
+        LEFT JOIN products p ON si.product_id = p.id OR (si.product_id IS NULL AND si.product_name = p.name)
         WHERE s.status = 'completed' 
           AND date(s.created_at) BETWEEN ? AND ?
-        GROUP BY p.category
+        GROUP BY COALESCE(p.category, 'Uncategorized')
         ORDER BY total DESC
         LIMIT 3
     """, (from_date, to_date))
@@ -180,7 +180,7 @@ def get_payment_breakdown(from_date, to_date):
         FROM sales
         WHERE status = 'completed' 
           AND date(created_at) BETWEEN ? AND ?
-        GROUP BY payment_type
+        GROUP BY COALESCE(payment_type, 'Other')
         ORDER BY total DESC
     """, (from_date, to_date))
     

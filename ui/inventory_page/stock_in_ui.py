@@ -279,11 +279,19 @@ class StockInUI:
         
         # Row 3: Quantity | Unit Cost
         qty_label = self._create_label("🔢 Quantity", colors)
+        qty_widget = QWidget()
+        qty_layout = QHBoxLayout(qty_widget)
+        qty_layout.setContentsMargins(0, 0, 0, 0)
+        qty_layout.setSpacing(8)
         dialog.si_qty = self._create_spinbox(colors)
+        qty_layout.addWidget(dialog.si_qty, 2)
+        dialog.si_unit = self._create_combobox(colors)
+        dialog.si_unit.setMinimumWidth(120)
+        qty_layout.addWidget(dialog.si_unit, 1)
         unit_cost_label = self._create_label("💰 Unit Cost", colors)
         dialog.si_unit_cost = self._create_double_spinbox(colors)
         grid.addWidget(qty_label, row, 0)
-        grid.addWidget(dialog.si_qty, row, 1)
+        grid.addWidget(qty_widget, row, 1)
         row += 1
         
         # Row 4: Unit Cost (display) | Total Cost
@@ -686,6 +694,8 @@ class StockInUI:
             dialog.si_product.setStyleSheet(self._get_combobox_style(colors))
         if hasattr(dialog, 'si_supplier'):
             dialog.si_supplier.setStyleSheet(self._get_combobox_style(colors))
+        if hasattr(dialog, 'si_unit'):
+            dialog.si_unit.setStyleSheet(self._get_combobox_style(colors))
         if hasattr(dialog, 'si_location'):
             dialog.si_location.setStyleSheet(self._get_combobox_style(colors))
         if hasattr(dialog, 'si_payment_status'):

@@ -11,7 +11,7 @@ class ProductService:
     def __init__(self, parent=None):
         self.parent = parent
 
-    def load_products(self, page=1, page_size=50, search_text="", category=""):
+    def load_products(self, page=1, page_size=25, search_text="", category=""):
         use_category = category != "All Categories" and category != "အားလုံး"
         conn = connect_db()
         cursor = conn.cursor()
@@ -56,7 +56,7 @@ class ProductService:
         conn.close()
         return rows, total_items
 
-    def filter_by_type(self, filter_type, page=1, page_size=50):
+    def filter_by_type(self, filter_type, page=1, page_size=25):
         conn = connect_db()
         cursor = conn.cursor()
 

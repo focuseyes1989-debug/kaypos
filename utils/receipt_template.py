@@ -95,6 +95,15 @@ def sample_receipt_data():
     ]
 
 
+def _receipt_item_value(item, index, key, default=None):
+    if isinstance(item, dict):
+        return item.get(key, default)
+    try:
+        return item[index]
+    except (IndexError, TypeError):
+        return default
+
+
 def build_receipt_text_lines(sale, items, template_settings=None, shop_settings=None):
     template = template_settings or load_receipt_template_settings()
     shop = shop_settings or get_shop_settings()
@@ -137,14 +146,25 @@ def build_receipt_text_lines(sale, items, template_settings=None, shop_settings=
         lines.append(f"Customer: {customer_name}")
     lines.append("-" * width)
 
-    for name, qty, price, item_total in items:
+    for item in items:
+        name = _receipt_item_value(item, 0, "product_name", "")
+        qty = _receipt_item_value(item, 1, "qty", 0) or 0
+        price = _receipt_item_value(item, 2, "price", 0) or 0
+        item_total = _receipt_item_value(item, 3, "total", 0) or 0
+        wholesale_regular_price = float(_receipt_item_value(item, 4, "wholesale_regular_price", 0) or 0)
+        wholesale_savings = float(_receipt_item_value(item, 5, "wholesale_savings", 0) or 0)
         lines.append(str(name))
         if _as_bool(template, "receipt_show_item_prices"):
             lines.append(f"  {qty} x {format_money(price, symbol)} = {format_money(item_total, symbol)}")
+            if wholesale_regular_price > float(price or 0) and wholesale_savings > 0:
+                lines.append(
+                    f"  Wholesale: regular {format_money(wholesale_regular_price, symbol)}, "
+                    f"saved {format_money(wholesale_savings, symbol)}"
+                )
         else:
             lines.append(f"  Qty: {qty}")
 
-    subtotal = sum((item[3] or 0) for item in items)
+    subtotal = sum((_receipt_item_value(item, 3, "total", 0) or 0) for item in items)
     discount = discount_amt if discount_amt else 0
     lines.append("-" * width)
     if _as_bool(template, "receipt_show_subtotal"):

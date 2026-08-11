@@ -418,7 +418,7 @@ class LoadingDialog(QDialog):
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
 
-        title_label = QLabel("Preparing ZAY POS")
+        title_label = QLabel("Preparing KAY Point of Sales")
         title_label.setObjectName("titleLabel")
         title_font = QFont()
         title_font.setPointSize(15)
