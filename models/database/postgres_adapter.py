@@ -324,6 +324,7 @@ def _adapt_sqlite_conflict_syntax(sql):
     for sqlite_expr, postgres_expr in _DATE_NOW_REPLACEMENTS:
         text = text.replace(sqlite_expr, postgres_expr)
 
+    text = re.sub(r"\s+COLLATE\s+NOCASE\b", "", text, flags=re.IGNORECASE)
     text = _adapt_sqlite_date_now(text)
     text = _adapt_sqlite_strftime(text)
     text = _adapt_sqlite_group_concat(text)
