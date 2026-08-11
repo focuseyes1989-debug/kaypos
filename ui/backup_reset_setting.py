@@ -718,6 +718,41 @@ def _copy_extracted_images(extracted_images, product_images_dir):
     return copied
 
 
+def _sync_restored_images_to_postgres(product_images_dir):
+    from utils.product_image_store import save_product_image_blob
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, image
+            FROM products
+            WHERE image IS NOT NULL
+              AND image != ''
+        """)
+        rows = cursor.fetchall()
+        synced = 0
+        for product_id, image_path in rows:
+            cursor.execute("SELECT image_data FROM products WHERE id = ?", (product_id,))
+            before = cursor.fetchone()
+            save_product_image_blob(cursor, product_id, image_path)
+            cursor.execute("SELECT image_data FROM products WHERE id = ?", (product_id,))
+            after = cursor.fetchone()
+            if (not before or before[0] is None) and after and after[0] is not None:
+                synced += 1
+        conn.commit()
+        logger.info(f"Synced {synced} restored product image(s) into PostgreSQL")
+        return synced
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
 def _sqlite_table_columns(cursor, table_name):
     cursor.execute(f"PRAGMA table_info({table_name})")
     return [row[1] for row in cursor.fetchall()]
@@ -880,6 +915,7 @@ def _restore_backup_package_to_postgres(backup_path, product_images_dir=PRODUCT_
             pg_conn.close()
 
         _copy_extracted_images(extracted_images, product_images_dir)
+        _sync_restored_images_to_postgres(product_images_dir)
 
 
 def _restore_backup_package(backup_path, db_path=DB_PATH, product_images_dir=PRODUCT_IMAGES_DIR):
