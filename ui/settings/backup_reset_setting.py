@@ -756,6 +756,12 @@ def _import_sqlite_table_to_postgres(sqlite_cursor, pg_cursor, table_name):
         for source_column, target_column in column_pairs
         if target_column in target_columns
     ]
+    if table_name == "categories":
+        column_pairs = [
+            (source_column, target_column)
+            for source_column, target_column in column_pairs
+            if target_column != "parent_id"
+        ]
     if not column_pairs:
         return 0
 
@@ -775,6 +781,45 @@ def _import_sqlite_table_to_postgres(sqlite_cursor, pg_cursor, table_name):
     )
     logger.info(f"Imported {len(values)} row(s) into PostgreSQL table: {table_name}")
     return len(values)
+
+
+def _restore_postgres_category_parent_links(sqlite_cursor, pg_cursor):
+    if not table_exists(pg_cursor, "categories") or "parent_id" not in table_columns(pg_cursor, "categories"):
+        return 0
+    sqlite_cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='categories'"
+    )
+    if not sqlite_cursor.fetchone():
+        return 0
+
+    source_columns = _sqlite_table_columns(sqlite_cursor, "categories")
+    if "id" not in source_columns or "parent_id" not in source_columns:
+        return 0
+
+    sqlite_cursor.execute("SELECT id, parent_id FROM categories WHERE parent_id IS NOT NULL")
+    rows = sqlite_cursor.fetchall()
+    if not rows:
+        return 0
+
+    sqlite_cursor.execute("SELECT id FROM categories")
+    source_ids = {row[0] for row in sqlite_cursor.fetchall()}
+    restored = 0
+    skipped = 0
+    for category_id, parent_id in rows:
+        if parent_id in source_ids and parent_id != category_id:
+            pg_cursor.execute(
+                "UPDATE categories SET parent_id = ? WHERE id = ?",
+                (parent_id, category_id),
+            )
+            restored += 1
+        else:
+            skipped += 1
+
+    if skipped:
+        logger.warning(f"Skipped {skipped} orphan category parent link(s) during PostgreSQL restore")
+    if restored:
+        logger.info(f"Restored {restored} category parent link(s)")
+    return restored
 
 
 def _restore_backup_package_to_postgres(backup_path, product_images_dir=PRODUCT_IMAGES_DIR):
@@ -815,6 +860,8 @@ def _restore_backup_package_to_postgres(backup_path, product_images_dir=PRODUCT_
                     pg_cursor,
                     table,
                 )
+
+            _restore_postgres_category_parent_links(sqlite_cursor, pg_cursor)
 
             for table in POSTGRES_RESTORE_TABLES:
                 if table_exists(pg_cursor, table):
