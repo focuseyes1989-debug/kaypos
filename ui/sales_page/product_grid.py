@@ -527,7 +527,11 @@ class ProductGrid(QWidget):
             self._grid_lazy_loading = True
         search_text = self.search_input.text().strip().lower()
         
-        selected_category_text = self.category_combo.currentText()
+        selected_category_text = (
+            "All Categories"
+            if self.category_combo.currentIndex() == 0
+            else self.category_combo.currentText()
+        )
         
         use_category = False
         selected_category_names = []
