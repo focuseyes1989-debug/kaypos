@@ -15,7 +15,10 @@ from typing import Any, Dict, Iterable, List, Optional
 from loguru import logger
 
 from models.database import connect_db
-from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier, get_price_tiers
+from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
+
+
+_TABLE_COLUMNS_CACHE: Dict[str, set[str]] = {}
 
 
 def _dict_from_row(cursor, row) -> Dict[str, Any]:
@@ -23,8 +26,12 @@ def _dict_from_row(cursor, row) -> Dict[str, Any]:
 
 
 def _table_columns(cursor, table_name: str) -> set[str]:
+    if table_name in _TABLE_COLUMNS_CACHE:
+        return _TABLE_COLUMNS_CACHE[table_name]
     cursor.execute(f"PRAGMA table_info({table_name})")
-    return {row[1] for row in cursor.fetchall()}
+    columns = {row[1] for row in cursor.fetchall()}
+    _TABLE_COLUMNS_CACHE[table_name] = columns
+    return columns
 
 
 def _execute_dynamic_insert(cursor, table_name: str, values: Dict[str, Any]) -> int:
@@ -90,6 +97,44 @@ def _active_product_discount(cursor, product_id: int) -> Dict[str, Any]:
     }
 
 
+def _active_product_discounts(cursor, product_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    if not product_ids:
+        return {}
+    placeholders = ", ".join("?" for _ in product_ids)
+    try:
+        cursor.execute(
+            f"""
+            SELECT product_id, discount_percent, COALESCE(discount_type, 'percentage'),
+                   COALESCE(manual_price, 0), end_date
+            FROM product_discounts
+            WHERE product_id IN ({placeholders})
+              AND active = 1
+              AND date(start_date) <= date('now')
+              AND date(end_date) >= date('now')
+            ORDER BY product_id,
+                CASE
+                    WHEN COALESCE(discount_type, 'percentage') = 'manual_price' THEN 999999999 - COALESCE(manual_price, 0)
+                    ELSE discount_percent
+                END DESC,
+                end_date ASC
+            """,
+            product_ids,
+        )
+        discounts = {}
+        for product_id, percent, discount_type, manual_price, _end_date in cursor.fetchall():
+            pid = int(product_id or 0)
+            if pid and pid not in discounts:
+                discounts[pid] = {
+                    "source": "promo",
+                    "percent": float(percent or 0),
+                    "type": discount_type or "percentage",
+                    "manual_price": float(manual_price or 0),
+                }
+        return discounts
+    except Exception:
+        return {}
+
+
 def _effective_price(price: float, discount: Dict[str, Any]) -> tuple[float, float]:
     original = float(price or 0)
     if discount.get("source") == "promo" and discount.get("type") == "manual_price":
@@ -101,6 +146,41 @@ def _effective_price(price: float, discount: Dict[str, Any]) -> tuple[float, flo
     if percent > 0:
         return max(0.0, original * (1 - min(percent, 100) / 100.0)), percent
     return original, 0.0
+
+
+def _price_tiers_for_products(cursor, product_ids: List[int]) -> Dict[int, List[Dict[str, Any]]]:
+    if not product_ids:
+        return {}
+    try:
+        ensure_wholesale_schema(cursor)
+        placeholders = ", ".join("?" for _ in product_ids)
+        cursor.execute(
+            f"""
+            SELECT product_id, id, min_qty, COALESCE(unit_label, ''), COALESCE(unit_multiplier, 1),
+                   COALESCE(barcode, ''), unit_price, COALESCE(note, ''), COALESCE(active, 1)
+            FROM product_price_tiers
+            WHERE product_id IN ({placeholders})
+            ORDER BY product_id, min_qty ASC, unit_price ASC
+            """,
+            product_ids,
+        )
+        tiers_by_product: Dict[int, List[Dict[str, Any]]] = {}
+        for row in cursor.fetchall():
+            product_id = int(row[0] or 0)
+            tiers_by_product.setdefault(product_id, []).append({
+                "id": row[1],
+                "min_qty": int(row[2] or 1),
+                "unit_label": row[3] or "",
+                "unit_multiplier": int(row[4] or 1),
+                "barcode": row[5] or "",
+                "unit_price": float(row[6] or 0),
+                "note": row[7] or "",
+                "active": int(row[8] or 0),
+            })
+        return tiers_by_product
+    except Exception as exc:
+        logger.debug(f"Wholesale tier batch load skipped: {exc}")
+        return {}
 
 
 def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
@@ -183,19 +263,23 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
         )
         rows = cursor.fetchall()
         product_columns = [description[0] for description in cursor.description]
+        product_ids = [int(row[0] or 0) for row in rows]
+        discounts = _active_product_discounts(cursor, product_ids)
+        tiers_by_product = _price_tiers_for_products(cursor, product_ids)
         products = []
         for row in rows:
             product = {product_columns[index]: row[index] for index in range(len(product_columns))}
             sold_by = str(product.get("sold_by") or "")
             product["is_service"] = sold_by.lower() == "service" or sold_by.lower() == "services"
-            discount = _active_product_discount(cursor, int(product["id"]))
+            product_id = int(product["id"])
+            discount = discounts.get(product_id, {"source": "", "percent": 0.0, "type": "percentage", "manual_price": 0.0})
             effective_price, discount_percent = _effective_price(float(product.get("price") or 0), discount)
             product["original_price"] = float(product.get("price") or 0)
             product["price"] = effective_price
             product["discount_source"] = discount.get("source", "")
             product["discount_percent"] = discount_percent
             product["wholesale_tiers"] = [
-                tier for tier in get_price_tiers(cursor, int(product["id"]))
+                tier for tier in tiers_by_product.get(product_id, [])
                 if int(tier.get("active", 1)) == 1
             ]
             products.append(product)
@@ -272,27 +356,37 @@ def get_cashier_settings() -> Dict[str, Any]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        discount_enabled = _setting(cursor, "discount_enabled", "0") == "1"
-        discount_type = _setting(cursor, "discount_type", "percentage") or "percentage"
-        discount_value = float(_setting(cursor, "discount_value", "0") or 0)
-        tax_enabled = _setting(cursor, "tax_enabled", "0") == "1"
-        tax_rate = float(_setting(cursor, "tax_rate", "0") or 0)
-        points_per_dollar = float(_setting(cursor, "loyalty_points_per_dollar", "0") or 0)
-        points_dollar_value = float(_setting(cursor, "points_dollar_value", "0.01") or 0.01)
-        points_expiry_months = int(float(_setting(cursor, "points_expiry_months", "12") or 12))
-        return {
-            "discount_enabled": discount_enabled,
-            "discount_type": discount_type,
-            "discount_value": discount_value,
-            "tax_enabled": tax_enabled,
-            "tax_rate": tax_rate,
-            "points_per_dollar": points_per_dollar,
-            "points_dollar_value": points_dollar_value,
-            "points_expiry_months": points_expiry_months,
-            "payment_types": list_payment_types(),
-        }
+        return _cashier_settings_from_cursor(cursor)
     finally:
         conn.close()
+
+
+def _cashier_settings_from_cursor(cursor) -> Dict[str, Any]:
+    discount_enabled = _setting(cursor, "discount_enabled", "0") == "1"
+    discount_type = _setting(cursor, "discount_type", "percentage") or "percentage"
+    discount_value = float(_setting(cursor, "discount_value", "0") or 0)
+    tax_enabled = _setting(cursor, "tax_enabled", "0") == "1"
+    tax_rate = float(_setting(cursor, "tax_rate", "0") or 0)
+    points_per_dollar = float(_setting(cursor, "loyalty_points_per_dollar", "0") or 0)
+    points_dollar_value = float(_setting(cursor, "points_dollar_value", "0.01") or 0.01)
+    points_expiry_months = int(float(_setting(cursor, "points_expiry_months", "12") or 12))
+    try:
+        cursor.execute("SELECT name FROM payment_types ORDER BY name")
+        rows = cursor.fetchall()
+    except Exception:
+        rows = []
+    payment_types = [str(row[0]) for row in rows if row and row[0]] or ["Cash", "Card", "Mobile Money"]
+    return {
+        "discount_enabled": discount_enabled,
+        "discount_type": discount_type,
+        "discount_value": discount_value,
+        "tax_enabled": tax_enabled,
+        "tax_rate": tax_rate,
+        "points_per_dollar": points_per_dollar,
+        "points_dollar_value": points_dollar_value,
+        "points_expiry_months": points_expiry_months,
+        "payment_types": payment_types,
+    }
 
 
 def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, created_by: str) -> List[Dict[str, Any]]:
@@ -478,7 +572,7 @@ def create_sale(
             cogs += cost * qty
 
         discount_amount = max(0.0, float(discount_amount or 0))
-        settings = get_cashier_settings()
+        settings = _cashier_settings_from_cursor(cursor)
         points_used = max(0, int(points_used or 0))
         points_discount = 0.0
         if customer_id and points_used > 0:
@@ -587,9 +681,10 @@ def create_sale(
                 (total, customer_id),
             )
 
+        receipt = _get_receipt_from_cursor(cursor, sale_id)
         conn.commit()
         logger.info(f"Browser cashier sale created: {invoice_no} ({sale_id})")
-        return get_receipt(sale_id)
+        return receipt
     except Exception:
         conn.rollback()
         raise
@@ -601,46 +696,50 @@ def get_receipt(sale_id: int) -> Dict[str, Any]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """
-            SELECT s.*, c.name AS customer_name
-            FROM sales s
-            LEFT JOIN customers c ON s.customer_id = c.id
-            WHERE s.id = ?
-            """,
-            (sale_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            raise ValueError("Receipt not found")
-        sale = _dict_from_row(cursor, row)
-
-        item_columns = _table_columns(cursor, "sale_items")
-        wanted_columns = [
-            "product_id",
-            "product_name",
-            "qty",
-            "price",
-            "total",
-            "cost",
-            "location",
-            "batch_no",
-            "expire_date",
-        ]
-        select_columns = [column for column in wanted_columns if column in item_columns]
-        cursor.execute(
-            f"""
-            SELECT {', '.join(select_columns)}
-            FROM sale_items
-            WHERE sale_id = ?
-            ORDER BY id
-            """,
-            (sale_id,),
-        )
-        sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
-        return sale
+        return _get_receipt_from_cursor(cursor, sale_id)
     finally:
         conn.close()
+
+
+def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
+    cursor.execute(
+        """
+        SELECT s.*, c.name AS customer_name
+        FROM sales s
+        LEFT JOIN customers c ON s.customer_id = c.id
+        WHERE s.id = ?
+        """,
+        (sale_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        raise ValueError("Receipt not found")
+    sale = _dict_from_row(cursor, row)
+
+    item_columns = _table_columns(cursor, "sale_items")
+    wanted_columns = [
+        "product_id",
+        "product_name",
+        "qty",
+        "price",
+        "total",
+        "cost",
+        "location",
+        "batch_no",
+        "expire_date",
+    ]
+    select_columns = [column for column in wanted_columns if column in item_columns]
+    cursor.execute(
+        f"""
+        SELECT {', '.join(select_columns)}
+        FROM sale_items
+        WHERE sale_id = ?
+        ORDER BY id
+        """,
+        (sale_id,),
+    )
+    sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
+    return sale
 
 
 def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:

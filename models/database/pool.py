@@ -53,8 +53,9 @@ class ConnectionPool:
                     self._initialized = True
                     return
                 try:
-                    conn = self._create_connection()
-                    self._pool.put(conn)
+                    for _ in range(self._size):
+                        conn = self._create_connection()
+                        self._pool.put(conn)
                     logger.info(f"PostgreSQL connection pool initialized with {self._pool.qsize()} connection(s)")
                 except Exception as e:
                     logger.warning(f"Failed to create initial PostgreSQL connection: {e}")
