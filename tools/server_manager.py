@@ -16,7 +16,10 @@ from pathlib import Path
 from PyQt6.QtCore import QProcess, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
+    QAbstractItemView,
     QFormLayout,
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -94,24 +97,179 @@ class ServerManagerWindow(QMainWindow):
         self.refresh_timer.start(5000)
 
     def _build_ui(self) -> None:
-        tabs = QTabWidget()
-        tabs.addTab(self._wizard_tab(), "First-Time Setup")
-        tabs.addTab(self._database_tab(), "Database")
-        tabs.addTab(self._server_tab(), "Server")
-        tabs.addTab(self._activity_tab(), "Clients & Activity")
-        tabs.addTab(self._logs_tab(), "Logs")
-        self.setCentralWidget(tabs)
+        root = QWidget()
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        header = QFrame()
+        header.setObjectName("Header")
+        header_layout = QGridLayout(header)
+        header_layout.setContentsMargins(18, 14, 18, 14)
+        header_layout.setHorizontalSpacing(18)
+
+        title = QLabel("Kay POS Server Manager")
+        title.setObjectName("HeaderTitle")
+        subtitle = QLabel("Setup PostgreSQL, manage services, and monitor client activity from the Server PC.")
+        subtitle.setObjectName("HeaderSubtitle")
+        subtitle.setWordWrap(True)
+        self.header_ip_label = QLabel(f"Server IP: {local_ip()}")
+        self.header_ip_label.setObjectName("InfoChip")
+        self.header_db_label = QLabel("Database: not checked")
+        self.header_db_label.setObjectName("InfoChip")
+
+        header_layout.addWidget(title, 0, 0)
+        header_layout.addWidget(subtitle, 1, 0)
+        header_layout.addWidget(self.header_ip_label, 0, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        header_layout.addWidget(self.header_db_label, 1, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        header_layout.setColumnStretch(0, 1)
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._wizard_tab(), "Setup")
+        self.tabs.addTab(self._database_tab(), "Database")
+        self.tabs.addTab(self._server_tab(), "Services")
+        self.tabs.addTab(self._activity_tab(), "Activity")
+        self.tabs.addTab(self._logs_tab(), "Logs")
+
+        layout.addWidget(header)
+        layout.addWidget(self.tabs, 1)
+        self.setCentralWidget(root)
+        self._apply_stylesheet()
+
+    def _apply_stylesheet(self) -> None:
+        self.setStyleSheet("""
+            QMainWindow, QWidget {
+                background: #f4f6f8;
+                color: #1f2933;
+                font-size: 10pt;
+            }
+            QFrame#Header, QGroupBox {
+                background: #ffffff;
+                border: 1px solid #d9e2ec;
+                border-radius: 8px;
+            }
+            QLabel#HeaderTitle {
+                font-size: 20pt;
+                font-weight: 700;
+                color: #102a43;
+            }
+            QLabel#HeaderSubtitle {
+                color: #52606d;
+            }
+            QLabel#InfoChip, QLabel#StatusChip {
+                background: #eef3f8;
+                border: 1px solid #d9e2ec;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: #334e68;
+            }
+            QLabel#Note {
+                color: #52606d;
+                background: #f8fafc;
+                border: 1px solid #e4ebf3;
+                border-radius: 6px;
+                padding: 8px 10px;
+            }
+            QGroupBox {
+                margin-top: 12px;
+                padding: 14px 12px 12px 12px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 5px;
+                color: #243b53;
+            }
+            QLineEdit, QSpinBox {
+                background: #ffffff;
+                border: 1px solid #bcccdc;
+                border-radius: 6px;
+                padding: 6px 8px;
+                min-height: 24px;
+            }
+            QPushButton {
+                background: #2563eb;
+                color: #ffffff;
+                border: 0;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #1d4ed8;
+            }
+            QPushButton:disabled {
+                background: #9fb3c8;
+            }
+            QPlainTextEdit, QTableWidget {
+                background: #0f172a;
+                color: #dbeafe;
+                border: 1px solid #1e293b;
+                border-radius: 8px;
+                padding: 8px;
+                font-family: Consolas, "Courier New", monospace;
+            }
+            QTabWidget::pane {
+                border: 1px solid #d9e2ec;
+                border-radius: 8px;
+                background: #ffffff;
+            }
+            QTabBar::tab {
+                background: #e9eff6;
+                border: 1px solid #d9e2ec;
+                padding: 9px 16px;
+                margin-right: 4px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+            }
+            QTabBar::tab:selected {
+                background: #ffffff;
+                color: #1d4ed8;
+            }
+        """)
+
+    def _note(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("Note")
+        label.setWordWrap(True)
+        return label
+
+    def _status_chip(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("StatusChip")
+        label.setWordWrap(True)
+        return label
+
+    def _set_chip(self, label: QLabel, text: str, tone: str = "neutral") -> None:
+        colors = {
+            "neutral": ("#eef3f8", "#334e68", "#d9e2ec"),
+            "ok": ("#ecfdf5", "#047857", "#a7f3d0"),
+            "warn": ("#fff7ed", "#c2410c", "#fed7aa"),
+            "bad": ("#fef2f2", "#b91c1c", "#fecaca"),
+        }
+        bg, fg, border = colors.get(tone, colors["neutral"])
+        label.setText(text)
+        label.setStyleSheet(
+            f"background: {bg}; color: {fg}; border: 1px solid {border}; "
+            "border-radius: 6px; padding: 6px 10px;"
+        )
+
+    def _update_server_buttons(self) -> None:
+        running = bool(self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning)
+        self.start_server_button.setEnabled(not running)
+        self.stop_server_button.setEnabled(running)
+        self.restart_server_button.setEnabled(running)
 
     def _wizard_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
 
-        intro = QLabel(
-            "Use this wizard on the Server PC after installing PostgreSQL. "
-            "Run Server Manager as Administrator for network config and firewall steps."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.addWidget(self._note(
+            "Run this setup on the Server PC. Use Administrator mode for network config and firewall steps."
+        ))
 
         install_box = QGroupBox("1. PostgreSQL Install / Detect")
         install_layout = QVBoxLayout(install_box)
@@ -141,6 +299,7 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_username_input = QLineEdit(DEFAULT_DB_USER)
         self.wizard_password_input = QLineEdit("lonepair")
         self.wizard_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.super_password_input.setPlaceholderText("PostgreSQL installer password")
         setup_form.addRow("Postgres Admin User", self.superuser_input)
         setup_form.addRow("Postgres Admin Password", self.super_password_input)
         setup_form.addRow("Admin Setup Host", self.wizard_host_input)
@@ -156,6 +315,7 @@ class ServerManagerWindow(QMainWindow):
         network_form = QFormLayout(network_box)
         default_pg_dir = Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "PostgreSQL" / "18" / "data"
         self.pg_data_dir_input = QLineEdit(str(default_pg_dir))
+        self.pg_data_dir_input.setPlaceholderText("Example: C:\\Program Files\\PostgreSQL\\18\\data")
         self.allowed_subnet_input = QLineEdit(local_subnet())
         self.listen_addresses_input = QLineEdit("*")
         network_form.addRow("PostgreSQL Data Folder", self.pg_data_dir_input)
@@ -186,6 +346,8 @@ class ServerManagerWindow(QMainWindow):
 
         self.wizard_output = QPlainTextEdit()
         self.wizard_output.setReadOnly(True)
+        self.wizard_output.setPlaceholderText("Setup progress and command output will appear here.")
+        self.wizard_output.setMinimumHeight(150)
 
         layout.addWidget(install_box)
         layout.addWidget(setup_box)
@@ -197,6 +359,12 @@ class ServerManagerWindow(QMainWindow):
     def _database_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        layout.addWidget(self._note(
+            "Server PC should normally use 127.0.0.1 here. Client PCs should use the Server IP shown in Setup > Show Client Settings."
+        ))
 
         form_box = QGroupBox("PostgreSQL Connection")
         form = QFormLayout(form_box)
@@ -207,6 +375,9 @@ class ServerManagerWindow(QMainWindow):
         self.username_input = QLineEdit()
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.host_input.setPlaceholderText("127.0.0.1 on Server PC")
+        self.database_input.setPlaceholderText(DEFAULT_DB_NAME)
+        self.username_input.setPlaceholderText(DEFAULT_DB_USER)
         form.addRow("Server IP / Host", self.host_input)
         form.addRow("Port", self.port_input)
         form.addRow("Database", self.database_input)
@@ -231,10 +402,10 @@ class ServerManagerWindow(QMainWindow):
             buttons.addWidget(button)
         buttons.addStretch()
 
-        self.db_status = QLabel("Database status: not checked")
-        self.db_status.setWordWrap(True)
+        self.db_status = self._status_chip("Database status: not checked")
         self.db_output = QPlainTextEdit()
         self.db_output.setReadOnly(True)
+        self.db_output.setPlaceholderText("Database test, schema initialization, and image sync results will appear here.")
 
         layout.addWidget(form_box)
         layout.addLayout(buttons)
@@ -245,6 +416,12 @@ class ServerManagerWindow(QMainWindow):
     def _server_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        layout.addWidget(self._note(
+            f"Browser cashier URL for this network will be http://{local_ip()}:8000 after the service starts."
+        ))
 
         pos_box = QGroupBox("Kay POS Browser/Cashier Server")
         pos_layout = QVBoxLayout(pos_box)
@@ -269,7 +446,7 @@ class ServerManagerWindow(QMainWindow):
         pos_buttons.addWidget(self.restart_server_button)
         pos_buttons.addStretch()
         pos_layout.addLayout(pos_buttons)
-        self.server_status = QLabel("Server status: stopped")
+        self.server_status = self._status_chip("Server status: stopped")
         pos_layout.addWidget(self.server_status)
 
         pg_box = QGroupBox("PostgreSQL Windows Service")
@@ -293,6 +470,7 @@ class ServerManagerWindow(QMainWindow):
 
         self.server_output = QPlainTextEdit()
         self.server_output.setReadOnly(True)
+        self.server_output.setPlaceholderText("Service output and PostgreSQL service command results will appear here.")
 
         layout.addWidget(pos_box)
         layout.addWidget(pg_box)
@@ -302,8 +480,10 @@ class ServerManagerWindow(QMainWindow):
     def _activity_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
         top = QHBoxLayout()
-        self.stats_label = QLabel("Stats: not loaded")
+        self.stats_label = self._status_chip("Stats: not loaded")
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_activity)
         top.addWidget(self.stats_label)
@@ -314,14 +494,18 @@ class ServerManagerWindow(QMainWindow):
         self.activity_table = QTableWidget(0, 5)
         self.activity_table.setHorizontalHeaderLabels(["Time", "User", "Action", "Details", "IP"])
         self.activity_table.horizontalHeader().setStretchLastSection(True)
+        self.activity_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.activity_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.activity_table, 1)
         return page
 
     def _logs_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
         top = QHBoxLayout()
-        self.log_path_label = QLabel("Log file: not selected")
+        self.log_path_label = self._status_chip("Log file: not selected")
         refresh_button = QPushButton("Refresh Logs")
         refresh_button.clicked.connect(self.refresh_logs)
         top.addWidget(self.log_path_label)
@@ -331,6 +515,7 @@ class ServerManagerWindow(QMainWindow):
 
         self.log_output = QPlainTextEdit()
         self.log_output.setReadOnly(True)
+        self.log_output.setPlaceholderText("Application logs will appear here after a log file is detected.")
         layout.addWidget(self.log_output, 1)
         return page
 
@@ -346,6 +531,11 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
         self.wizard_password_input.setText(cfg.get("password") or "lonepair")
         self.allowed_subnet_input.setText(local_subnet())
+        self._set_chip(
+            self.header_db_label,
+            f"Database: {self.database_input.text()} @ {self.host_input.text()}:{self.port_input.value()}",
+        )
+        self._update_server_buttons()
 
     def _database_values(self):
         return (
@@ -615,7 +805,13 @@ class ServerManagerWindow(QMainWindow):
 
     def test_database(self) -> None:
         ok, message = test_database_connection(*self._database_values())
-        self.db_status.setText(f"Database status: {'connected' if ok else 'failed'}")
+        status_text = f"Database status: {'connected' if ok else 'failed'}"
+        self._set_chip(self.db_status, status_text, "ok" if ok else "bad")
+        self._set_chip(
+            self.header_db_label,
+            f"Database: {self.database_input.text()} @ {self.host_input.text()}:{self.port_input.value()}",
+            "ok" if ok else "bad",
+        )
         self.append_db_output(message)
         if not ok:
             QMessageBox.warning(self, "Database Test Failed", message)
@@ -682,18 +878,23 @@ class ServerManagerWindow(QMainWindow):
         self.server_process.readyReadStandardError.connect(self._read_server_stderr)
         self.server_process.finished.connect(self._server_finished)
         self.server_process.start()
-        self.server_status.setText(
-            f"Server status: starting. Network URL: http://{local_ip()}:{self.server_port_input.value()}"
+        self._set_chip(
+            self.server_status,
+            f"Server status: starting. Network URL: http://{local_ip()}:{self.server_port_input.value()}",
+            "warn",
         )
+        self._update_server_buttons()
 
     def stop_pos_server(self) -> None:
         if not self.server_process or self.server_process.state() == QProcess.ProcessState.NotRunning:
-            self.server_status.setText("Server status: stopped")
+            self._set_chip(self.server_status, "Server status: stopped")
+            self._update_server_buttons()
             return
         self.server_process.terminate()
         if not self.server_process.waitForFinished(3000):
             self.server_process.kill()
-        self.server_status.setText("Server status: stopped")
+        self._set_chip(self.server_status, "Server status: stopped")
+        self._update_server_buttons()
 
     def restart_pos_server(self) -> None:
         self.stop_pos_server()
@@ -714,7 +915,8 @@ class ServerManagerWindow(QMainWindow):
             self.append_server_output(data)
 
     def _server_finished(self) -> None:
-        self.server_status.setText("Server status: stopped")
+        self._set_chip(self.server_status, "Server status: stopped")
+        self._update_server_buttons()
         self.append_server_output("POS server stopped.")
 
     def run_postgres_service_command(self, command: str) -> None:
@@ -766,6 +968,13 @@ class ServerManagerWindow(QMainWindow):
                 f"Products {counts['products']} | Users {counts['users']} | "
                 f"Sales {counts['sales']} | Customers {counts['customers']}"
             )
+            self._set_chip(
+                self.stats_label,
+                "Stats: "
+                f"Products {counts['products']} | Users {counts['users']} | "
+                f"Sales {counts['sales']} | Customers {counts['customers']}",
+                "ok",
+            )
 
             cursor.execute("""
                 SELECT created_at, username, action, details, ip_address
@@ -784,19 +993,19 @@ class ServerManagerWindow(QMainWindow):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     self.activity_table.setItem(row_index, col, item)
         except Exception as exc:
-            self.stats_label.setText(f"Stats: unavailable ({exc})")
+            self._set_chip(self.stats_label, f"Stats: unavailable ({exc})", "warn")
 
     def refresh_logs(self) -> None:
         log_dir = Path(config.LOG_DIR)
         candidates = sorted(log_dir.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not candidates:
-            self.log_path_label.setText(f"Log file: no .log files in {log_dir}")
+            self._set_chip(self.log_path_label, f"Log file: no .log files in {log_dir}", "warn")
             return
         if self.log_file != candidates[0]:
             self.log_file = candidates[0]
             self.log_position = 0
             self.log_output.clear()
-            self.log_path_label.setText(f"Log file: {self.log_file}")
+            self._set_chip(self.log_path_label, f"Log file: {self.log_file}", "ok")
 
         try:
             text = self.log_file.read_text(encoding="utf-8", errors="ignore")
@@ -815,9 +1024,12 @@ class ServerManagerWindow(QMainWindow):
         self.refresh_activity()
         self.refresh_logs()
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
-            self.server_status.setText(
-                f"Server status: running. Network URL: http://{local_ip()}:{self.server_port_input.value()}"
+            self._set_chip(
+                self.server_status,
+                f"Server status: running. Network URL: http://{local_ip()}:{self.server_port_input.value()}",
+                "ok",
             )
+        self._update_server_buttons()
 
     def closeEvent(self, event) -> None:
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
