@@ -18,7 +18,7 @@ from server import cashier_service
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="ZAY POS Cashier Server", version="0.1.0")
+app = FastAPI(title="KAY POS Cashier Server", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -77,7 +77,7 @@ def cashier_home():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "zay-pos-cashier"}
+    return {"ok": True, "service": "kay-pos-cashier"}
 
 
 @app.post("/api/login")
@@ -88,6 +88,11 @@ def login(payload: LoginRequest):
     token = secrets.token_urlsafe(32)
     _TOKENS[token] = user
     return {"token": token, "user": user}
+
+
+@app.get("/api/me")
+def me(user: Dict[str, Any] = Depends(current_user)):
+    return {"user": user}
 
 
 @app.get("/api/categories")

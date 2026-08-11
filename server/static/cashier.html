@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ZAY POS Cashier</title>
+  <title>KAY POS Cashier</title>
   <style>
     :root {
       --bg: #eef2f6;
@@ -141,7 +141,8 @@
     .topbar .brand-mark { width: 28px; height: 28px; border-radius: 6px; font-size: 14px; }
     .topbar .brand-title { font-size: 15px; font-weight: 600; }
     .topbar .brand-subtitle { font-size: 11px; color: #a8b3c7; }
-    .top-actions { display: flex; gap: 12px; align-items: center; color: #cbd5e1; white-space: nowrap; font-size: 12px; }
+    .top-actions { display: flex; gap: 8px; align-items: center; color: #cbd5e1; white-space: nowrap; font-size: 12px; }
+    .top-actions button { min-height: 28px; padding: 4px 9px; background: #1e293b; color: #dbeafe; }
     .workspace {
       min-height: 0;
       display: grid;
@@ -217,7 +218,7 @@
     }
     .customer-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 76px 76px;
+      grid-template-columns: minmax(0, 1fr) 76px 76px 76px;
       gap: 6px;
       padding: 8px;
       background: var(--soft);
@@ -464,9 +465,9 @@
     <section class="login-card">
       <div class="login-header">
         <div class="brand-row">
-          <div class="brand-mark">Z</div>
+          <div class="brand-mark">K</div>
           <div>
-            <div class="brand-title">ZAY POS Cashier</div>
+            <div class="brand-title">KAY POS Cashier</div>
             <div class="brand-subtitle">Browser cashier terminal</div>
           </div>
         </div>
@@ -482,7 +483,7 @@
   <main id="app" class="app" hidden>
     <header class="topbar">
       <div class="brand-row">
-        <div class="brand-mark">Z</div>
+        <div class="brand-mark">K</div>
         <div>
           <div class="brand-title">Cashier Mode</div>
           <div class="brand-subtitle">Server database mode</div>
@@ -491,6 +492,7 @@
       <div class="top-actions">
         <span id="userLabel">Cashier</span>
         <span id="clock"></span>
+        <button id="logoutBtn" class="secondary" type="button">Logout</button>
       </div>
     </header>
 
@@ -508,7 +510,8 @@
         <div class="customer-row">
           <select id="customerSelect"><option value="">Walk-in Customer</option></select>
           <button id="receiptsBtn" class="secondary" type="button">Receipts</button>
-          <button id="backupBtn" class="secondary" type="button">Backup</button>
+          <button id="backupBtn" class="secondary" type="button">Hold</button>
+          <button id="restoreBtn" class="secondary" type="button">Restore</button>
         </div>
 
         <section class="cart-box">
@@ -632,8 +635,15 @@
   </main>
 
   <script>
+    const TOKEN_KEY = "kay_cashier_token";
+    const OLD_TOKEN_KEY = "zay_cashier_token";
+    const CART_KEY = "kay_cashier_cart";
+    const HELD_CART_KEY = "kay_cashier_held_cart";
+    const HELPER_URL_KEY = "kay_client_helper_url";
+    const OLD_HELPER_URL_KEY = "zay_client_helper_url";
+
     const state = {
-      token: localStorage.getItem("zay_cashier_token"),
+      token: localStorage.getItem(TOKEN_KEY) || localStorage.getItem(OLD_TOKEN_KEY),
       user: null,
       products: [],
       customers: [],
@@ -655,12 +665,82 @@
       customerDisplayWindow: null,
       expenseCategories: [],
       selectedExpenseCategory: "",
-      clientHelperUrl: localStorage.getItem("zay_client_helper_url") || "http://127.0.0.1:8765"
+      clientHelperUrl: localStorage.getItem(HELPER_URL_KEY) || localStorage.getItem(OLD_HELPER_URL_KEY) || "http://127.0.0.1:8765",
+      checkoutBusy: false,
+      healthTimer: null
     };
 
     const money = value => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
     const isService = product => String(product.sold_by || "").toLowerCase().startsWith("service") || product.is_service;
     const cartKey = product => `${product.id}:${isService(product) ? "service" : "product"}`;
+
+    function serializeCart() {
+      return [...state.cart.values()].map(item => ({
+        ...item,
+        qty: Number(item.qty || 0),
+        price: Number(item.price || 0),
+        manual_price: item.manual_price == null ? null : Number(item.manual_price || 0)
+      }));
+    }
+
+    function saveCart() {
+      localStorage.setItem(CART_KEY, JSON.stringify(serializeCart()));
+    }
+
+    function restoreCart() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+        state.cart.clear();
+        for (const savedItem of saved) {
+          const product = state.products.find(row => Number(row.id) === Number(savedItem.id));
+          const item = {
+            ...(product || savedItem),
+            ...savedItem,
+            key: savedItem.key || cartKey(savedItem)
+          };
+          if (item.qty > 0) {
+            applyWholesale(item);
+            state.cart.set(item.key, item);
+          }
+        }
+      } catch (_err) {
+        localStorage.removeItem(CART_KEY);
+      }
+    }
+
+    function holdCart() {
+      if (!state.cart.size) return setStatus("Cart is empty.", true);
+      localStorage.setItem(HELD_CART_KEY, JSON.stringify({
+        saved_at: new Date().toISOString(),
+        customer_id: document.getElementById("customerSelect").value || "",
+        items: serializeCart()
+      }));
+      state.cart.clear();
+      saveCart();
+      renderCart();
+      setStatus("Sale held locally on this browser.");
+    }
+
+    function restoreHeldCart() {
+      try {
+        const held = JSON.parse(localStorage.getItem(HELD_CART_KEY) || "{}");
+        if (!held.items?.length) return setStatus("No held sale found on this browser.", true);
+        state.cart.clear();
+        for (const heldItem of held.items) {
+          const product = state.products.find(row => Number(row.id) === Number(heldItem.id));
+          const item = { ...(product || heldItem), ...heldItem, key: heldItem.key || cartKey(heldItem) };
+          applyWholesale(item);
+          state.cart.set(item.key, item);
+        }
+        document.getElementById("customerSelect").value = held.customer_id || "";
+        localStorage.removeItem(HELD_CART_KEY);
+        onCustomerChanged();
+        renderCart();
+        setStatus("Held sale restored.");
+      } catch (err) {
+        setStatus(`Could not restore held sale: ${err.message}`, true);
+      }
+    }
 
     function wholesaleTier(product, qty) {
       const tiers = [...(product.wholesale_tiers || [])]
@@ -693,8 +773,28 @@
       if (state.token) headers.Authorization = `Bearer ${state.token}`;
       const res = await fetch(path, { ...options, headers });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && path !== "/api/login") {
+        logout("Session expired. Please login again.");
+      }
       if (!res.ok) throw new Error(data.detail || "Request failed");
+      setServerState(true);
       return data;
+    }
+
+    function setServerState(connected, message = "") {
+      const el = document.getElementById("serverState");
+      el.textContent = connected ? (message || "Connected") : (message || "Disconnected");
+      el.style.color = connected ? "#bbf7d0" : "#fecaca";
+    }
+
+    async function checkServerHealth() {
+      try {
+        const res = await fetch("/health", { cache: "no-store" });
+        if (!res.ok) throw new Error("health failed");
+        setServerState(true);
+      } catch (_err) {
+        setServerState(false, "Server offline");
+      }
     }
 
     function setStatus(message, isError = false) {
@@ -717,7 +817,8 @@
         });
         state.token = data.token;
         state.user = data.user;
-        localStorage.setItem("zay_cashier_token", state.token);
+        localStorage.setItem(TOKEN_KEY, state.token);
+        localStorage.removeItem(OLD_TOKEN_KEY);
         document.getElementById("login").hidden = true;
         document.getElementById("app").hidden = false;
         document.getElementById("userLabel").textContent = data.user.full_name || data.user.username;
@@ -728,9 +829,25 @@
       }
     }
 
+    function logout(message = "") {
+      state.token = null;
+      state.user = null;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(OLD_TOKEN_KEY);
+      document.getElementById("app").hidden = true;
+      document.getElementById("login").hidden = false;
+      document.getElementById("loginStatus").textContent = message;
+      document.getElementById("password").value = "";
+      document.getElementById("username").focus();
+    }
+
     async function loadInitialData() {
       await Promise.all([loadSettings(), loadCategories(), loadCustomers(), loadProducts()]);
+      restoreCart();
       renderCart();
+      checkServerHealth();
+      clearInterval(state.healthTimer);
+      state.healthTimer = setInterval(checkServerHealth, 10000);
     }
 
     async function loadSettings() {
@@ -767,6 +884,28 @@
       const data = await api(`/api/products?q=${q}&category=${category}&limit=150`);
       state.products = data.products;
       renderProducts();
+    }
+
+    async function addExactSearchMatch() {
+      const search = document.getElementById("search");
+      const value = search.value.trim();
+      if (!value) return;
+      await loadProducts();
+      const lower = value.toLowerCase();
+      const exact = state.products.find(product =>
+        String(product.barcode || "").toLowerCase() === lower ||
+        String(product.sku || "").toLowerCase() === lower
+      );
+      if (exact) {
+        addToCart(exact);
+        search.value = "";
+        await loadProducts();
+        setStatus(`Added ${exact.name}`);
+      } else if (state.products.length === 1) {
+        addToCart(state.products[0]);
+        search.value = "";
+        await loadProducts();
+      }
     }
 
     function addToCart(product) {
@@ -889,6 +1028,7 @@
       document.querySelectorAll("[data-remove]").forEach(btn => btn.onclick = () => removeItem(btn.dataset.remove));
       updateTotals();
       updateCustomerDisplay();
+      saveCart();
     }
 
     function subtotal() {
@@ -979,6 +1119,7 @@
     }
 
     async function checkout() {
+      if (state.checkoutBusy) return;
       const cartItems = [...state.cart.values()];
       if (!cartItems.length) return setStatus("Cart is empty", true);
       const values = totals();
@@ -987,6 +1128,8 @@
         return setStatus("Insufficient payment.", true);
       }
 
+      state.checkoutBusy = true;
+      document.getElementById("checkoutBtn").disabled = true;
       setStatus("Saving sale...");
       try {
         const data = await api("/api/sales", {
@@ -1006,6 +1149,7 @@
           })
         });
         state.cart.clear();
+        saveCart();
         state.paymentManual = false;
         document.getElementById("applyDiscount").checked = false;
         document.getElementById("usePoints").checked = false;
@@ -1025,12 +1169,15 @@
         setStatus(`Saved ${data.receipt.invoice_no}`);
       } catch (err) {
         setStatus(err.message, true);
+      } finally {
+        state.checkoutBusy = false;
+        document.getElementById("checkoutBtn").disabled = false;
       }
     }
 
     function buildReceiptText(receipt) {
       const lines = [
-        "ZAY POS",
+        "KAY POS",
         `Invoice: ${receipt.invoice_no}`,
         `Date: ${receipt.created_at}`,
         `Payment: ${receipt.payment_type || ""}`,
@@ -1220,7 +1367,8 @@
       const input = document.getElementById("clientHelperUrl");
       const value = (input?.value || state.clientHelperUrl || "http://127.0.0.1:8765").replace(/\/$/, "");
       state.clientHelperUrl = value;
-      localStorage.setItem("zay_client_helper_url", value);
+      localStorage.setItem(HELPER_URL_KEY, value);
+      localStorage.removeItem(OLD_HELPER_URL_KEY);
       return value;
     }
 
@@ -1243,7 +1391,7 @@
         setStatus("Customer display closed.");
         return;
       }
-      const win = window.open("", "zayCustomerDisplay", "width=720,height=520");
+      const win = window.open("", "kayCustomerDisplay", "width=720,height=520");
       if (!win) return setStatus("Popup blocked. Please allow popups for customer display.", true);
       state.customerDisplayWindow = win;
       win.document.write(`
@@ -1262,7 +1410,7 @@
           .muted { color:#cbd5e1; }
         </style>
         <div class="wrap">
-          <header><h1>ZAY POS</h1><div class="muted" id="customerName">Walk-in Customer</div></header>
+          <header><h1>KAY POS</h1><div class="muted" id="customerName">Walk-in Customer</div></header>
           <main class="items" id="displayItems"></main>
           <footer>
             <div class="line"><span>Subtotal</span><strong id="displaySubtotal">0 Ks</strong></div>
@@ -1299,11 +1447,32 @@
       document.getElementById("clock").textContent = new Date().toLocaleString();
     }
 
+    async function bootstrap() {
+      updateClock();
+      setInterval(updateClock, 1000);
+      if (!state.token) {
+        document.getElementById("username").focus();
+        checkServerHealth();
+        return;
+      }
+      try {
+        const data = await api("/api/me");
+        state.user = data.user;
+        document.getElementById("login").hidden = true;
+        document.getElementById("app").hidden = false;
+        document.getElementById("userLabel").textContent = data.user.full_name || data.user.username;
+        await loadInitialData();
+      } catch (_err) {
+        logout("Please login again.");
+      }
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     }
 
     document.getElementById("loginBtn").onclick = login;
+    document.getElementById("logoutBtn").onclick = () => logout();
     document.getElementById("password").addEventListener("keydown", event => { if (event.key === "Enter") login(); });
     document.getElementById("refreshBtn").onclick = loadProducts;
     document.getElementById("checkoutBtn").onclick = checkout;
@@ -1321,7 +1490,8 @@
     document.getElementById("receiptsModal").addEventListener("click", event => {
       if (event.target.id === "receiptsModal") closeReceipts();
     });
-    document.getElementById("backupBtn").onclick = () => setStatus("Backup remains available from desktop Cashier mode.");
+    document.getElementById("backupBtn").onclick = holdCart;
+    document.getElementById("restoreBtn").onclick = restoreHeldCart;
     document.getElementById("expenseBtn").onclick = openExpenseModal;
     document.getElementById("closeExpenseBtn").onclick = closeExpenseModal;
     document.getElementById("saveExpenseBtn").onclick = saveExpense;
@@ -1336,6 +1506,12 @@
     document.getElementById("search").addEventListener("input", () => {
       clearTimeout(state.searchTimer);
       state.searchTimer = setTimeout(loadProducts, 180);
+    });
+    document.getElementById("search").addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addExactSearchMatch().catch(err => setStatus(err.message, true));
+      }
     });
     document.getElementById("category").addEventListener("change", loadProducts);
     document.getElementById("customerSelect").addEventListener("change", onCustomerChanged);
@@ -1368,8 +1544,7 @@
       if (event.key === "F10") { event.preventDefault(); if (!document.getElementById("creditMode").disabled) { document.getElementById("creditMode").checked = true; updateSaleMode(); } }
       if (event.key === "F12") { event.preventDefault(); checkout(); }
     });
-    updateClock();
-    setInterval(updateClock, 1000);
+    bootstrap();
   </script>
 </body>
 </html>

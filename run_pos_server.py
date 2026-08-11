@@ -1,4 +1,4 @@
-"""Run ZAY POS browser cashier server on the local network."""
+"""Run KAY POS browser cashier server on the local network."""
 
 from __future__ import annotations
 
@@ -18,13 +18,13 @@ def _local_ip() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run ZAY POS Cashier Server")
+    parser = argparse.ArgumentParser(description="Run KAY POS Cashier Server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", default=8000, type=int, help="Server port")
     args = parser.parse_args()
 
     ip = _local_ip()
-    print("ZAY POS Cashier Server")
+    print("KAY POS Cashier Server")
     print(f"Local:   http://127.0.0.1:{args.port}")
     print(f"Network: http://{ip}:{args.port}")
     print("Keep this window open while browser cashier clients are using POS.")
