@@ -76,6 +76,16 @@ def local_subnet() -> str:
     return "192.168.0.0/16"
 
 
+def can_bind_port(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, port))
+            return True
+    except OSError:
+        return False
+
+
 class ServerManagerWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -890,15 +900,25 @@ class ServerManagerWindow(QMainWindow):
             self.append_server_output("POS server is already running.")
             return
 
+        bind_host = self.bind_host_input.text().strip() or "0.0.0.0"
+        port = self.server_port_input.value()
+        if not can_bind_port(bind_host, port):
+            url = f"http://{local_ip()}:{port}"
+            message = f"Port {port} is already in use. Cashier Server may already be running at {url}"
+            self.append_server_output(message)
+            self._set_chip(self.server_status, message, "warn")
+            QMessageBox.information(self, "Cashier Server Already Running", message)
+            return
+
         self.server_process = QProcess(self)
         self.server_process.setWorkingDirectory(str(PROJECT_ROOT))
         self.server_process.setProgram(sys.executable)
         self.server_process.setArguments([
             "run_pos_server.py",
             "--host",
-            self.bind_host_input.text().strip() or "0.0.0.0",
+            bind_host,
             "--port",
-            str(self.server_port_input.value()),
+            str(port),
         ])
         self.server_process.readyReadStandardOutput.connect(self._read_server_stdout)
         self.server_process.readyReadStandardError.connect(self._read_server_stderr)
@@ -906,7 +926,7 @@ class ServerManagerWindow(QMainWindow):
         self.server_process.start()
         self._set_chip(
             self.server_status,
-            f"Server status: starting. Network URL: http://{local_ip()}:{self.server_port_input.value()}",
+            f"Server status: starting. Network URL: http://{local_ip()}:{port}",
             "warn",
         )
         self._update_server_buttons()
