@@ -1,5 +1,6 @@
 PyQt6>=6.4.0
 PyQt6-Qt6>=6.4.0
+PyQt6-sip>=13.6.0
 PyQt6-WebEngine>=6.4.0
 loguru>=0.7.0
 win32-setctime>=1.1.0
