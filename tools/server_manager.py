@@ -7,8 +7,10 @@ operations separate from the cashier/client app.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import sys
+import webbrowser
 from pathlib import Path
 
 from PyQt6.QtCore import QProcess, Qt, QTimer
@@ -50,6 +52,10 @@ from utils.env_loader import load_project_env
 from utils.product_image_store import save_product_image_blob
 
 
+POSTGRES_INSTALLER_URL = "https://www.enterprisedb.com/downloads/postgres-postgresql-downloads"
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
 def local_ip() -> str:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -81,11 +87,104 @@ class ServerManagerWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         tabs = QTabWidget()
+        tabs.addTab(self._wizard_tab(), "First-Time Setup")
         tabs.addTab(self._database_tab(), "Database")
         tabs.addTab(self._server_tab(), "Server")
         tabs.addTab(self._activity_tab(), "Clients & Activity")
         tabs.addTab(self._logs_tab(), "Logs")
         self.setCentralWidget(tabs)
+
+    def _wizard_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        intro = QLabel(
+            "Use this wizard on the Server PC after installing PostgreSQL. "
+            "Run Server Manager as Administrator for network config and firewall steps."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        install_box = QGroupBox("1. PostgreSQL Install / Detect")
+        install_layout = QVBoxLayout(install_box)
+        install_buttons = QHBoxLayout()
+        detect_button = QPushButton("Detect PostgreSQL")
+        installer_button = QPushButton("Open PostgreSQL Download")
+        detect_button.clicked.connect(self.detect_postgresql)
+        installer_button.clicked.connect(lambda: webbrowser.open(POSTGRES_INSTALLER_URL))
+        install_buttons.addWidget(detect_button)
+        install_buttons.addWidget(installer_button)
+        install_buttons.addStretch()
+        self.detect_status = QLabel("PostgreSQL status: not checked")
+        self.detect_status.setWordWrap(True)
+        install_layout.addLayout(install_buttons)
+        install_layout.addWidget(self.detect_status)
+
+        setup_box = QGroupBox("2. Create Kay POS Database")
+        setup_form = QFormLayout(setup_box)
+        self.superuser_input = QLineEdit("postgres")
+        self.super_password_input = QLineEdit()
+        self.super_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.wizard_host_input = QLineEdit("127.0.0.1")
+        self.wizard_port_input = QSpinBox()
+        self.wizard_port_input.setRange(1, 65535)
+        self.wizard_port_input.setValue(DEFAULT_DB_PORT)
+        self.wizard_database_input = QLineEdit(DEFAULT_DB_NAME)
+        self.wizard_username_input = QLineEdit(DEFAULT_DB_USER)
+        self.wizard_password_input = QLineEdit("lonepair")
+        self.wizard_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        setup_form.addRow("Postgres Admin User", self.superuser_input)
+        setup_form.addRow("Postgres Admin Password", self.super_password_input)
+        setup_form.addRow("Host", self.wizard_host_input)
+        setup_form.addRow("Port", self.wizard_port_input)
+        setup_form.addRow("Kay POS Database", self.wizard_database_input)
+        setup_form.addRow("Kay POS Username", self.wizard_username_input)
+        setup_form.addRow("Kay POS Password", self.wizard_password_input)
+        create_db_button = QPushButton("Create / Update Database and User")
+        create_db_button.clicked.connect(self.create_wizard_database)
+        setup_form.addRow("", create_db_button)
+
+        network_box = QGroupBox("3. Network Access")
+        network_form = QFormLayout(network_box)
+        default_pg_dir = Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "PostgreSQL" / "18" / "data"
+        self.pg_data_dir_input = QLineEdit(str(default_pg_dir))
+        self.allowed_subnet_input = QLineEdit("192.168.100.0/24")
+        self.listen_addresses_input = QLineEdit("*")
+        network_form.addRow("PostgreSQL Data Folder", self.pg_data_dir_input)
+        network_form.addRow("Allowed Client Subnet", self.allowed_subnet_input)
+        network_form.addRow("Listen Addresses", self.listen_addresses_input)
+        network_buttons = QHBoxLayout()
+        config_network_button = QPushButton("Configure pg_hba/postgresql.conf")
+        firewall_button = QPushButton("Open Firewall Port 5432")
+        config_network_button.clicked.connect(self.configure_network_files)
+        firewall_button.clicked.connect(self.open_postgres_firewall_port)
+        network_buttons.addWidget(config_network_button)
+        network_buttons.addWidget(firewall_button)
+        network_buttons.addStretch()
+        network_form.addRow("", network_buttons)
+
+        finish_box = QGroupBox("4. Initialize Kay POS")
+        finish_layout = QHBoxLayout(finish_box)
+        save_test_button = QPushButton("Save App Config and Test")
+        init_schema_button = QPushButton("Initialize Schema")
+        finish_button = QPushButton("Show Client Settings")
+        save_test_button.clicked.connect(self.save_wizard_to_app_config)
+        init_schema_button.clicked.connect(self.initialize_database)
+        finish_button.clicked.connect(self.show_client_settings)
+        finish_layout.addWidget(save_test_button)
+        finish_layout.addWidget(init_schema_button)
+        finish_layout.addWidget(finish_button)
+        finish_layout.addStretch()
+
+        self.wizard_output = QPlainTextEdit()
+        self.wizard_output.setReadOnly(True)
+
+        layout.addWidget(install_box)
+        layout.addWidget(setup_box)
+        layout.addWidget(network_box)
+        layout.addWidget(finish_box)
+        layout.addWidget(self.wizard_output, 1)
+        return page
 
     def _database_tab(self) -> QWidget:
         page = QWidget()
@@ -234,6 +333,10 @@ class ServerManagerWindow(QMainWindow):
         self.database_input.setText(cfg.get("database") or DEFAULT_DB_NAME)
         self.username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
         self.password_input.setText(cfg.get("password") or "")
+        self.wizard_port_input.setValue(int(cfg.get("port") or DEFAULT_DB_PORT))
+        self.wizard_database_input.setText(cfg.get("database") or DEFAULT_DB_NAME)
+        self.wizard_username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
+        self.wizard_password_input.setText(cfg.get("password") or "lonepair")
 
     def _database_values(self):
         return (
@@ -249,6 +352,235 @@ class ServerManagerWindow(QMainWindow):
 
     def append_server_output(self, text: str) -> None:
         self.server_output.appendPlainText(text.rstrip())
+
+    def append_wizard_output(self, text: str) -> None:
+        self.wizard_output.appendPlainText(text.rstrip())
+
+    def wizard_database_values(self):
+        return (
+            local_ip(),
+            self.wizard_port_input.value(),
+            self.wizard_database_input.text().strip() or DEFAULT_DB_NAME,
+            self.wizard_username_input.text().strip() or DEFAULT_DB_USER,
+            self.wizard_password_input.text(),
+        )
+
+    def detect_postgresql(self) -> None:
+        service_process = QProcess(self)
+        service_process.setProgram("powershell")
+        service_process.setArguments([
+            "-NoProfile",
+            "-Command",
+            "Get-Service 'postgresql*' -ErrorAction SilentlyContinue | "
+            "Select-Object Name,Status,DisplayName | Format-Table -AutoSize | Out-String",
+        ])
+        service_process.readyReadStandardOutput.connect(
+            lambda: self._append_detect_output(service_process, False)
+        )
+        service_process.readyReadStandardError.connect(
+            lambda: self._append_detect_output(service_process, True)
+        )
+        service_process.finished.connect(lambda: self.detect_status.setText("PostgreSQL status: detect completed"))
+        self.detect_process = service_process
+        service_process.start()
+
+    def _append_detect_output(self, process: QProcess, is_error: bool) -> None:
+        data = process.readAllStandardError() if is_error else process.readAllStandardOutput()
+        text = bytes(data).decode(errors="ignore").strip()
+        if text:
+            self.append_wizard_output(text)
+            if "postgresql" in text.lower():
+                first_service = self._first_postgres_service_name(text)
+                if first_service:
+                    self.pg_service_input.setText(first_service)
+
+    def _first_postgres_service_name(self, text: str) -> str:
+        for line in text.splitlines():
+            value = line.strip().split()
+            if value and value[0].lower().startswith("postgresql"):
+                return value[0]
+        return ""
+
+    def create_wizard_database(self) -> None:
+        admin_user = self.superuser_input.text().strip() or "postgres"
+        admin_password = self.super_password_input.text()
+        host = self.wizard_host_input.text().strip() or "127.0.0.1"
+        port = self.wizard_port_input.value()
+        db_name = self.wizard_database_input.text().strip() or DEFAULT_DB_NAME
+        app_user = self.wizard_username_input.text().strip() or DEFAULT_DB_USER
+        app_password = self.wizard_password_input.text()
+
+        if not IDENTIFIER_RE.match(db_name) or not IDENTIFIER_RE.match(app_user):
+            QMessageBox.warning(
+                self,
+                "Invalid Name",
+                "Database and username must use letters, numbers, and underscores only.",
+            )
+            return
+
+        try:
+            from models.database.postgres_adapter import import_postgres_driver
+
+            driver_name, driver = import_postgres_driver()
+            conn = driver.connect(
+                dbname="postgres",
+                user=admin_user,
+                password=admin_password,
+                host=host,
+                port=port,
+            )
+            if hasattr(conn, "autocommit"):
+                conn.autocommit = True
+            cursor = conn.cursor()
+            password_sql = app_password.replace("'", "''")
+            cursor.execute(f"SELECT 1 FROM pg_roles WHERE rolname = '{app_user}'")
+            if cursor.fetchone():
+                cursor.execute(f"ALTER ROLE {app_user} WITH LOGIN PASSWORD '{password_sql}'")
+                self.append_wizard_output(f"Updated role: {app_user}")
+            else:
+                cursor.execute(f"CREATE ROLE {app_user} WITH LOGIN PASSWORD '{password_sql}'")
+                self.append_wizard_output(f"Created role: {app_user}")
+
+            cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+            if not cursor.fetchone():
+                cursor.execute(f"CREATE DATABASE {db_name} OWNER {app_user}")
+                self.append_wizard_output(f"Created database: {db_name}")
+            else:
+                self.append_wizard_output(f"Database already exists: {db_name}")
+
+            cursor.close()
+            conn.close()
+
+            app_conn = driver.connect(
+                dbname=db_name,
+                user=admin_user,
+                password=admin_password,
+                host=host,
+                port=port,
+            )
+            if hasattr(app_conn, "autocommit"):
+                app_conn.autocommit = True
+            app_cursor = app_conn.cursor()
+            app_cursor.execute(f"GRANT ALL PRIVILEGES ON DATABASE {db_name} TO {app_user}")
+            app_cursor.execute(f"GRANT ALL ON SCHEMA public TO {app_user}")
+            app_cursor.execute(f"ALTER SCHEMA public OWNER TO {app_user}")
+            app_cursor.close()
+            app_conn.close()
+
+            self.save_wizard_to_app_config()
+            self.append_wizard_output("Database/user setup completed.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Database Setup Failed", str(exc))
+            self.append_wizard_output(f"Database setup failed: {exc}")
+
+    def save_wizard_to_app_config(self) -> None:
+        host, port, database, username, password = self.wizard_database_values()
+        self.host_input.setText(host)
+        self.port_input.setValue(port)
+        self.database_input.setText(database)
+        self.username_input.setText(username)
+        self.password_input.setText(password)
+        env_path = save_database_config(host, port, database, username, password)
+        self.append_wizard_output(f"Saved Kay POS database config to {env_path}")
+        self.test_database()
+
+    def configure_network_files(self) -> None:
+        data_dir = Path(self.pg_data_dir_input.text().strip())
+        pg_hba = data_dir / "pg_hba.conf"
+        postgresql_conf = data_dir / "postgresql.conf"
+        subnet = self.allowed_subnet_input.text().strip()
+        listen_addresses = self.listen_addresses_input.text().strip() or "*"
+        db_name = self.wizard_database_input.text().strip() or DEFAULT_DB_NAME
+        app_user = self.wizard_username_input.text().strip() or DEFAULT_DB_USER
+
+        if not pg_hba.exists() or not postgresql_conf.exists():
+            QMessageBox.warning(
+                self,
+                "Config Files Not Found",
+                f"Could not find pg_hba.conf and postgresql.conf in:\n{data_dir}",
+            )
+            return
+
+        try:
+            self._backup_once(pg_hba)
+            self._backup_once(postgresql_conf)
+            hba_text = pg_hba.read_text(encoding="utf-8", errors="ignore")
+            hba_line = f"host    {db_name}    {app_user}    {subnet}    scram-sha-256"
+            if hba_line not in hba_text:
+                pg_hba.write_text(hba_text.rstrip() + "\n" + hba_line + "\n", encoding="utf-8")
+                self.append_wizard_output(f"Added pg_hba rule: {hba_line}")
+            else:
+                self.append_wizard_output("pg_hba rule already exists.")
+
+            conf_lines = postgresql_conf.read_text(encoding="utf-8", errors="ignore").splitlines()
+            new_lines = []
+            replaced = False
+            for line in conf_lines:
+                if line.strip().startswith("listen_addresses") or line.strip().startswith("#listen_addresses"):
+                    new_lines.append(f"listen_addresses = '{listen_addresses}'")
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append(f"listen_addresses = '{listen_addresses}'")
+            postgresql_conf.write_text("\n".join(new_lines).rstrip() + "\n", encoding="utf-8")
+            self.append_wizard_output("Updated postgresql.conf listen_addresses.")
+            self.append_wizard_output("Restart PostgreSQL service after this step.")
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Administrator Required",
+                "Run Server Manager as Administrator to edit PostgreSQL config files.",
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Network Config Failed", str(exc))
+            self.append_wizard_output(f"Network config failed: {exc}")
+
+    def _backup_once(self, path: Path) -> None:
+        backup = path.with_suffix(path.suffix + ".kaypos.bak")
+        if not backup.exists():
+            backup.write_text(path.read_text(encoding="utf-8", errors="ignore"), encoding="utf-8")
+
+    def open_postgres_firewall_port(self) -> None:
+        port = self.wizard_port_input.value()
+        process = QProcess(self)
+        process.setProgram("powershell")
+        process.setArguments([
+            "-NoProfile",
+            "-Command",
+            (
+                "New-NetFirewallRule "
+                "-DisplayName 'Kay POS PostgreSQL 5432' "
+                "-Direction Inbound "
+                "-Protocol TCP "
+                f"-LocalPort {port} "
+                "-Action Allow "
+                "-ErrorAction SilentlyContinue"
+            ),
+        ])
+        process.readyReadStandardOutput.connect(
+            lambda: self.append_wizard_output(bytes(process.readAllStandardOutput()).decode(errors="ignore"))
+        )
+        process.readyReadStandardError.connect(
+            lambda: self.append_wizard_output(bytes(process.readAllStandardError()).decode(errors="ignore"))
+        )
+        process.finished.connect(lambda: self.append_wizard_output(f"Firewall rule checked/opened for TCP {port}."))
+        self.firewall_process = process
+        process.start()
+
+    def show_client_settings(self) -> None:
+        host, port, database, username, password = self.wizard_database_values()
+        text = (
+            "Use these settings on each Client PC:\n\n"
+            f"Server IP: {host}\n"
+            f"Port: {port}\n"
+            f"Database: {database}\n"
+            f"Username: {username}\n"
+            f"Password: {password}\n\n"
+            "Client app path: Settings > Database"
+        )
+        self.append_wizard_output(text)
+        QMessageBox.information(self, "Client Settings", text)
 
     def test_database(self) -> None:
         ok, message = test_database_connection(*self._database_values())
