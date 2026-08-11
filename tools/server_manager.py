@@ -367,7 +367,7 @@ class ServerManagerWindow(QMainWindow):
 
     def wizard_database_values(self):
         return (
-            local_ip(),
+            "127.0.0.1",
             self.wizard_port_input.value(),
             self.wizard_database_input.text().strip() or DEFAULT_DB_NAME,
             self.wizard_username_input.text().strip() or DEFAULT_DB_USER,
@@ -508,7 +508,7 @@ class ServerManagerWindow(QMainWindow):
         self.username_input.setText(username)
         self.password_input.setText(password)
         env_path = save_database_config(host, port, database, username, password)
-        self.append_wizard_output(f"Saved Kay POS database config to {env_path}")
+        self.append_wizard_output(f"Saved server-local Kay POS database config to {env_path}")
         self.test_database()
 
     def configure_network_files(self) -> None:
@@ -596,7 +596,11 @@ class ServerManagerWindow(QMainWindow):
         process.start()
 
     def show_client_settings(self) -> None:
-        host, port, database, username, password = self.wizard_database_values()
+        host = local_ip()
+        port = self.wizard_port_input.value()
+        database = self.wizard_database_input.text().strip() or DEFAULT_DB_NAME
+        username = self.wizard_username_input.text().strip() or DEFAULT_DB_USER
+        password = self.wizard_password_input.text()
         text = (
             "Use these settings on each Client PC:\n\n"
             f"Server IP: {host}\n"
