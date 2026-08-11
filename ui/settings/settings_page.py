@@ -9,6 +9,7 @@ from ui.settings.backup_reset_setting import BackupResetSettingWidget
 from ui.settings.users_setting import UsersSettingWidget
 from ui.settings.update_setting import UpdateSettingWidget
 from ui.settings.telegram_setting import TelegramSettingWidget
+from ui.settings.database_connection_setting import DatabaseConnectionSettingWidget
 from utils.language import lang
 from utils.permissions import PermissionManager, Permission
 from loguru import logger
@@ -49,6 +50,10 @@ class SettingsPage(QWidget):
         # Telegram Tab - Always visible
         self.telegram_tab = TelegramSettingWidget()
         self.tabs.addTab(self.telegram_tab, "")
+
+        # Database connection tab - client-local config
+        self.database_connection_tab = DatabaseConnectionSettingWidget()
+        self.tabs.addTab(self.database_connection_tab, "")
 
         # Backup Tab - Only show if user has backup permission
         if self.user_id and PermissionManager.user_has_permission(self.user_id, Permission.BACKUP):
@@ -110,6 +115,10 @@ class SettingsPage(QWidget):
             if hasattr(self, 'telegram_tab'):
                 self.telegram_tab.setEnabled(False)
                 self.telegram_tab.setToolTip("You don't have permission to edit Telegram settings")
+
+            if hasattr(self, 'database_connection_tab'):
+                self.database_connection_tab.setEnabled(False)
+                self.database_connection_tab.setToolTip("You don't have permission to edit database connection settings")
             
             # If backup tab exists, disable it too
             if hasattr(self, 'backup_tab'):
@@ -133,6 +142,9 @@ class SettingsPage(QWidget):
         
         # Add Telegram tab
         tab_titles.append(("Telegram", "Telegram"))
+
+        # Add Database tab
+        tab_titles.append(("Database", "Database"))
 
         # Add Backup tab title if exists
         if hasattr(self, 'backup_tab'):
@@ -160,6 +172,8 @@ class SettingsPage(QWidget):
             self.update_tab.retranslateUi()
         if hasattr(self, 'telegram_tab'):
             self.telegram_tab.retranslateUi()
+        if hasattr(self, 'database_connection_tab'):
+            self.database_connection_tab.retranslateUi()
         if hasattr(self, 'backup_tab'):
             self.backup_tab.retranslateUi()
         if hasattr(self, 'users_tab'):
@@ -191,5 +205,8 @@ class SettingsPage(QWidget):
 
         if hasattr(self, 'telegram_tab'):
             self.telegram_tab.load_settings()
+
+        if hasattr(self, 'database_connection_tab'):
+            self.database_connection_tab.load_settings()
         
         super().showEvent(event)

@@ -94,17 +94,19 @@ def show_database_error(error_msg: str):
         "The application cannot start because the database could not be initialized.\n\n"
         f"Error: {error_msg}\n\n"
         "Please check the logs for more details.\n"
-        "Contact your system administrator for assistance."
+        "For client PCs, check the local .env database connection settings."
     )
     msg.setDetailedText(
         "Possible causes:\n"
-        "1. Database file is corrupted\n"
-        "2. Migration failed\n"
-        "3. Insufficient disk space\n"
-        "4. Permission issues\n\n"
+        "1. Server IP, port, username, password, or database name is wrong\n"
+        "2. PostgreSQL pg_hba.conf does not allow this client IP\n"
+        "3. Windows Firewall is blocking port 5432\n"
+        "4. The PostgreSQL service is not running\n"
+        "5. SQLite database file is corrupted when using local SQLite mode\n\n"
         "Solution:\n"
-        "1. Restore from backup\n"
-        "2. Contact support"
+        "1. Update .env beside the app or use Settings > Database after login\n"
+        "2. Test from the client with scripts/postgres_app_smoke.py\n"
+        "3. Ask the server admin to allow this client IP in pg_hba.conf"
     )
     msg.setStandardButtons(QMessageBox.StandardButton.Ok)
     msg.exec()
