@@ -27,6 +27,12 @@ def signal_handler(_signum, _frame):
 
 
 def main():
+    try:
+        from utils.env_loader import load_project_env
+        load_project_env()
+    except Exception:
+        pass
+
     qInstallMessageHandler(qt_message_handler)
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
