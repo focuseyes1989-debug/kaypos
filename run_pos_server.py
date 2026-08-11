@@ -7,6 +7,8 @@ import socket
 
 import uvicorn
 
+from utils.env_loader import load_project_env
+
 
 def _local_ip() -> str:
     try:
@@ -32,6 +34,7 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", default=8000, type=int, help="Server port")
     args = parser.parse_args()
+    load_project_env()
 
     ip = _local_ip()
     if not _can_bind(args.host, args.port):

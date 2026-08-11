@@ -842,7 +842,11 @@
     }
 
     async function loadInitialData() {
-      await Promise.all([loadSettings(), loadCategories(), loadCustomers(), loadProducts()]);
+      const results = await Promise.allSettled([loadSettings(), loadCategories(), loadCustomers(), loadProducts()]);
+      const failed = results.find(result => result.status === "rejected");
+      if (failed) {
+        setStatus(`Could not load cashier data: ${failed.reason?.message || failed.reason}`, true);
+      }
       restoreCart();
       renderCart();
       checkServerHealth();
@@ -881,9 +885,17 @@
     async function loadProducts() {
       const q = encodeURIComponent(document.getElementById("search").value.trim());
       const category = encodeURIComponent(document.getElementById("category").value);
-      const data = await api(`/api/products?q=${q}&category=${category}&limit=150`);
-      state.products = data.products;
-      renderProducts();
+      const root = document.getElementById("products");
+      root.innerHTML = '<div class="empty-cart">Loading products...</div>';
+      try {
+        const data = await api(`/api/products?q=${q}&category=${category}&limit=150`);
+        state.products = data.products;
+        renderProducts();
+      } catch (err) {
+        state.products = [];
+        root.innerHTML = `<div class="empty-cart error">Could not load products: ${escapeHtml(err.message)}</div>`;
+        setStatus(`Could not load products: ${err.message}`, true);
+      }
     }
 
     async function addExactSearchMatch() {
