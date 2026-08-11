@@ -12,6 +12,13 @@ from ui.responsive_utils import get_supported_resolution_options, parse_resoluti
 from utils.sale_mode import get_sale_mode, save_sale_mode
 
 
+def _save_setting(cursor, key, value):
+    cursor.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, str(value)),
+    )
+
+
 class PaymentTypeDialog(QDialog):
     def __init__(self, payment_id=None, current_name=""):
         super().__init__()
@@ -361,12 +368,18 @@ class GeneralSettingWidget(QWidget):
             self.resolution_combo.addItem(label, f"{width}x{height}")
 
     def on_follow_system_toggled(self, checked):
-        # Save to DB immediately
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE settings SET value = ? WHERE key = 'follow_system_theme'", ('1' if checked else '0'))
-        conn.commit()
-        conn.close()
+        conn = None
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            _save_setting(cursor, "follow_system_theme", "1" if checked else "0")
+            conn.commit()
+        except Exception as exc:
+            QMessageBox.warning(self, "Database Error", f"Could not save theme setting:\n{exc}")
+            return
+        finally:
+            if conn:
+                conn.close()
         # Emit signal so MainWindow can update menu states and apply theme
         self.follow_system_theme_changed.emit(checked)
 
@@ -376,7 +389,9 @@ class GeneralSettingWidget(QWidget):
         cursor.execute("SELECT value FROM settings WHERE key='follow_system_theme'")
         row = cursor.fetchone()
         checked = row[0] == '1' if row else True
+        was_blocked = self.follow_system_theme_check.blockSignals(True)
         self.follow_system_theme_check.setChecked(checked)
+        self.follow_system_theme_check.blockSignals(was_blocked)
         
         # Load saved theme
         cursor.execute("SELECT value FROM settings WHERE key='theme'")
@@ -410,37 +425,42 @@ class GeneralSettingWidget(QWidget):
         main_window = self.window()
         if hasattr(main_window, "show_loading"):
             main_window.show_loading("Saving general settings...", 15)
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE settings SET value=? WHERE key='tax_enabled'", ('1' if self.tax_enabled.isChecked() else '0',))
-        cursor.execute("UPDATE settings SET value=? WHERE key='tax_rate'", (str(self.tax_rate.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='loyalty_points_per_dollar'", (str(self.points_per_dollar.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='loyalty_min_points_for_reward'", (str(self.min_points.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='loyalty_reward_discount'", (str(self.reward_discount.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='points_expiry_months'", (str(self.points_expiry_months.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='points_dollar_value'", (str(self.points_dollar_value.value()),))
-        cursor.execute("UPDATE settings SET value=? WHERE key='discount_enabled'", ('1' if self.discount_enabled.isChecked() else '0',))
-        
-        if self.discount_type_percent.isChecked():
-            dtype = "percentage"
-        elif self.discount_type_fixed.isChecked():
-            dtype = "fixed"
-        else:
-            dtype = "manual"
-        cursor.execute("UPDATE settings SET value=? WHERE key='discount_type'", (dtype,))
-        cursor.execute("UPDATE settings SET value=? WHERE key='discount_value'", (str(self.discount_value.value()),))
-        
-        # Save theme setting
-        selected_theme = self.theme_combo.currentText()
-        cursor.execute("UPDATE settings SET value=? WHERE key='theme'", (selected_theme,))
-        selected_resolution = self.resolution_combo.currentData() or "1366x768"
-        cursor.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('window_resolution', ?)",
-            (selected_resolution,)
-        )
-        
-        conn.commit()
-        conn.close()
+        conn = None
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            values = {
+                "tax_enabled": "1" if self.tax_enabled.isChecked() else "0",
+                "tax_rate": self.tax_rate.value(),
+                "loyalty_points_per_dollar": self.points_per_dollar.value(),
+                "loyalty_min_points_for_reward": self.min_points.value(),
+                "loyalty_reward_discount": self.reward_discount.value(),
+                "points_expiry_months": self.points_expiry_months.value(),
+                "points_dollar_value": self.points_dollar_value.value(),
+                "discount_enabled": "1" if self.discount_enabled.isChecked() else "0",
+                "discount_value": self.discount_value.value(),
+                "theme": self.theme_combo.currentText(),
+                "window_resolution": self.resolution_combo.currentData() or "1366x768",
+            }
+
+            if self.discount_type_percent.isChecked():
+                values["discount_type"] = "percentage"
+            elif self.discount_type_fixed.isChecked():
+                values["discount_type"] = "fixed"
+            else:
+                values["discount_type"] = "manual"
+
+            for key, value in values.items():
+                _save_setting(cursor, key, value)
+            conn.commit()
+        except Exception as exc:
+            if hasattr(main_window, "hide_loading"):
+                main_window.hide_loading()
+            QMessageBox.warning(self, "Database Error", f"Could not save general settings:\n{exc}")
+            return
+        finally:
+            if conn:
+                conn.close()
         save_sale_mode(self.sale_mode_combo.currentData() or "retail")
         if hasattr(main_window, "update_loading"):
             main_window.update_loading("General settings saved.", 100)
