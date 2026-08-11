@@ -65,6 +65,14 @@ def local_ip() -> str:
         return "127.0.0.1"
 
 
+def local_subnet() -> str:
+    ip = local_ip()
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return ".".join(parts[:3] + ["0"]) + "/24"
+    return "192.168.0.0/16"
+
+
 class ServerManagerWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -135,7 +143,7 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         setup_form.addRow("Postgres Admin User", self.superuser_input)
         setup_form.addRow("Postgres Admin Password", self.super_password_input)
-        setup_form.addRow("Host", self.wizard_host_input)
+        setup_form.addRow("Admin Setup Host", self.wizard_host_input)
         setup_form.addRow("Port", self.wizard_port_input)
         setup_form.addRow("Kay POS Database", self.wizard_database_input)
         setup_form.addRow("Kay POS Username", self.wizard_username_input)
@@ -148,7 +156,7 @@ class ServerManagerWindow(QMainWindow):
         network_form = QFormLayout(network_box)
         default_pg_dir = Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "PostgreSQL" / "18" / "data"
         self.pg_data_dir_input = QLineEdit(str(default_pg_dir))
-        self.allowed_subnet_input = QLineEdit("192.168.100.0/24")
+        self.allowed_subnet_input = QLineEdit(local_subnet())
         self.listen_addresses_input = QLineEdit("*")
         network_form.addRow("PostgreSQL Data Folder", self.pg_data_dir_input)
         network_form.addRow("Allowed Client Subnet", self.allowed_subnet_input)
@@ -337,6 +345,7 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_database_input.setText(cfg.get("database") or DEFAULT_DB_NAME)
         self.wizard_username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
         self.wizard_password_input.setText(cfg.get("password") or "lonepair")
+        self.allowed_subnet_input.setText(local_subnet())
 
     def _database_values(self):
         return (
@@ -404,7 +413,7 @@ class ServerManagerWindow(QMainWindow):
     def create_wizard_database(self) -> None:
         admin_user = self.superuser_input.text().strip() or "postgres"
         admin_password = self.super_password_input.text()
-        host = self.wizard_host_input.text().strip() or "127.0.0.1"
+        requested_host = self.wizard_host_input.text().strip() or "127.0.0.1"
         port = self.wizard_port_input.value()
         db_name = self.wizard_database_input.text().strip() or DEFAULT_DB_NAME
         app_user = self.wizard_username_input.text().strip() or DEFAULT_DB_USER
@@ -422,13 +431,7 @@ class ServerManagerWindow(QMainWindow):
             from models.database.postgres_adapter import import_postgres_driver
 
             driver_name, driver = import_postgres_driver()
-            conn = driver.connect(
-                dbname="postgres",
-                user=admin_user,
-                password=admin_password,
-                host=host,
-                port=port,
-            )
+            conn = self._connect_admin_postgres(driver, admin_user, admin_password, requested_host, port)
             if hasattr(conn, "autocommit"):
                 conn.autocommit = True
             cursor = conn.cursor()
@@ -472,6 +475,28 @@ class ServerManagerWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Database Setup Failed", str(exc))
             self.append_wizard_output(f"Database setup failed: {exc}")
+
+    def _connect_admin_postgres(self, driver, admin_user: str, admin_password: str, requested_host: str, port: int):
+        hosts = []
+        for candidate in (requested_host, "127.0.0.1", "localhost"):
+            if candidate and candidate not in hosts:
+                hosts.append(candidate)
+        last_error = None
+        for host in hosts:
+            try:
+                conn = driver.connect(
+                    dbname="postgres",
+                    user=admin_user,
+                    password=admin_password,
+                    host=host,
+                    port=port,
+                )
+                self.append_wizard_output(f"Connected to PostgreSQL admin database via {host}.")
+                return conn
+            except Exception as exc:
+                last_error = exc
+                self.append_wizard_output(f"Admin connection via {host} failed: {exc}")
+        raise last_error
 
     def save_wizard_to_app_config(self) -> None:
         host, port, database, username, password = self.wizard_database_values()
