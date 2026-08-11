@@ -360,18 +360,25 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_output.setPlaceholderText("Setup progress and command output will appear here.")
         self.wizard_output.setMinimumHeight(150)
 
-        setup_grid = QGridLayout()
-        setup_grid.setHorizontalSpacing(12)
-        setup_grid.setVerticalSpacing(12)
-        setup_grid.addWidget(install_box, 0, 0)
-        setup_grid.addWidget(network_box, 0, 1)
-        setup_grid.addWidget(setup_box, 1, 0)
-        setup_grid.addWidget(finish_box, 1, 1)
-        setup_grid.setColumnStretch(0, 1)
-        setup_grid.setColumnStretch(1, 1)
-        setup_grid.setRowStretch(1, 1)
+        columns = QHBoxLayout()
+        columns.setSpacing(12)
+        left_column = QVBoxLayout()
+        left_column.setSpacing(12)
+        right_column = QVBoxLayout()
+        right_column.setSpacing(12)
 
-        layout.addLayout(setup_grid, 2)
+        left_column.addWidget(install_box)
+        left_column.addWidget(setup_box)
+        left_column.addStretch(1)
+
+        right_column.addWidget(network_box)
+        right_column.addWidget(finish_box)
+        right_column.addStretch(1)
+
+        columns.addLayout(left_column, 1)
+        columns.addLayout(right_column, 1)
+
+        layout.addLayout(columns)
         layout.addWidget(self.wizard_output, 1)
         return page
 
