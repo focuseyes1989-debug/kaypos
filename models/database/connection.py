@@ -7,7 +7,7 @@ import os
 import sys
 import sqlite3
 from loguru import logger
-from models.database.pool import ConnectionPool, _pool
+import models.database.pool as pool_module
 from utils.db_compat import database_url, is_postgres_backend
 
 # 🔥 Dynamic database path
@@ -52,11 +52,7 @@ def connect_db():
     """
     try:
         # ✅ Ensure pool is initialized
-        if _pool is None:
-            from models.database.pool import get_pool
-            get_pool()
-        
-        return _pool.get_connection()
+        return pool_module.get_pool().get_connection()
     except Exception as e:
         logger.error(f"❌ Failed to get database connection: {e}")
         # 🔥 Try direct connection as fallback
@@ -87,8 +83,8 @@ def connect_db():
 
 def close_all_connections():
     """Close all pooled database connections."""
-    if _pool:
-        _pool.close_all()
+    if pool_module._pool:
+        pool_module._pool.close_all()
 
 
 def release_connection(conn):

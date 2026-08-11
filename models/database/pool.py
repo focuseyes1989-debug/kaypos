@@ -10,7 +10,7 @@ import threading
 import weakref
 from queue import Queue, Empty
 from loguru import logger
-from utils.db_compat import database_url, is_postgres_backend
+from utils.db_compat import database_url, get_db_backend, is_postgres_backend
 
 # 🔥 Dynamic DB_NAME based on execution context
 def get_db_path():
@@ -40,6 +40,8 @@ class ConnectionPool:
                 cls._instance._pool = Queue(maxsize=POOL_SIZE)
                 cls._instance._size = POOL_SIZE
                 cls._instance._initialized = False
+                cls._instance._backend = get_db_backend()
+                cls._instance._database_url = database_url()
                 cls._instance._initialize_pool()
         return cls._instance
 
@@ -301,6 +303,23 @@ _pool = None
 def get_pool():
     """Get or create the connection pool."""
     global _pool
+    current_backend = get_db_backend()
+    current_url = database_url()
+    if (
+        _pool is not None
+        and (
+            getattr(_pool, "_backend", None) != current_backend
+            or getattr(_pool, "_database_url", None) != current_url
+        )
+    ):
+        logger.info("Database configuration changed, recreating connection pool")
+        try:
+            _pool.close_all()
+        except Exception:
+            pass
+        ConnectionPool._instance = None
+        _pool = None
+
     if _pool is None:
         try:
             _pool = ConnectionPool()
