@@ -36,6 +36,7 @@ class MainWindowMenus:
     refresh_all_pages: Any
     open_general_settings_dialog: Any
     open_receipt_settings_dialog: Any
+    open_database_connection_settings_dialog: Any
     open_regional_settings_dialog: Any
     open_backup_reset_settings_dialog: Any
     open_users_settings_dialog: Any
@@ -364,6 +365,13 @@ class MainWindowMenus:
         if not can_edit_settings:
             self.receipt_settings_action.setToolTip(edit_tooltip)
         self.settings_menu.addAction(self.receipt_settings_action)
+
+        self.database_connection_settings_action = QAction("Database", main_window)
+        self.database_connection_settings_action.triggered.connect(self.open_database_connection_settings_dialog)
+        self.database_connection_settings_action.setEnabled(can_edit_settings)
+        if not can_edit_settings:
+            self.database_connection_settings_action.setToolTip(edit_tooltip)
+        self.settings_menu.addAction(self.database_connection_settings_action)
 
         self.restaurant_settings_action = QAction("Restaurant Setting", main_window)
         self.restaurant_settings_action.triggered.connect(self.open_restaurant_settings_dialog)

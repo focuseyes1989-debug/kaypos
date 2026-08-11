@@ -525,6 +525,17 @@ class MainWindowActions:
             760
         )
 
+    def open_database_connection_settings_dialog(self) -> None:
+        from ui.settings import DatabaseConnectionSettingWidget
+
+        widget = DatabaseConnectionSettingWidget()
+        self._open_setting_dialog(
+            "Database",
+            widget,
+            760,
+            520
+        )
+
     def open_restaurant_settings_dialog(self) -> None:
         from ui.settings import RestaurantSettingWidget
 

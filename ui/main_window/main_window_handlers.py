@@ -388,6 +388,8 @@ class MainWindowHandlers:
                 self.general_settings_action.setText("General Settings")
             if hasattr(self, 'receipt_settings_action') and self.receipt_settings_action:
                 self.receipt_settings_action.setText("Receipt Settings")
+            if hasattr(self, 'database_connection_settings_action') and self.database_connection_settings_action:
+                self.database_connection_settings_action.setText("Database")
             if hasattr(self, 'restaurant_settings_action') and self.restaurant_settings_action:
                 self.restaurant_settings_action.setText("Restaurant Setting")
             if hasattr(self, 'regional_settings_action') and self.regional_settings_action:
