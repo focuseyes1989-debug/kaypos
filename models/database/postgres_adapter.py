@@ -332,9 +332,9 @@ def _adapt_sqlite_conflict_syntax(sql):
     )
     text = re.sub(r"\s+COLLATE\s+NOCASE\b", "", text, flags=re.IGNORECASE)
     text = _adapt_sqlite_date_now(text)
+    text = _adapt_sqlite_date_cast(text)
     text = _adapt_sqlite_strftime(text)
     text = _adapt_sqlite_group_concat(text)
-    text = re.sub(r"\bdate\s*\(\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*\)", r"DATE(\1)", text, flags=re.IGNORECASE)
     return text
 
 
@@ -361,6 +361,15 @@ def _adapt_sqlite_date_now(sql):
         flags=re.IGNORECASE,
     )
     return text
+
+
+def _adapt_sqlite_date_cast(sql):
+    return re.sub(
+        r"\bdate\s*\(\s*([A-Za-z_][A-Za-z0-9_\.]*)\s*\)",
+        lambda match: f"NULLIF({match.group(1)}::text, '')::date",
+        sql,
+        flags=re.IGNORECASE,
+    )
 
 
 def _adapt_sqlite_strftime(sql):

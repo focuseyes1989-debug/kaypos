@@ -244,7 +244,7 @@ class CreditTab(QWidget):
         elif status_filter == "Paid" or status_filter == "ပြီးစီး":
             status_condition = "AND cs.status = 'paid'"
         elif status_filter == "Overdue" or status_filter == "သက်တမ်းလွန်":
-            status_condition = "AND cs.due_date < date('now') AND cs.balance_amount > 0"
+            status_condition = "AND date(cs.due_date) < date('now') AND cs.balance_amount > 0"
         
         if search_text:
             cursor.execute(f"""
@@ -397,7 +397,7 @@ class CreditTab(QWidget):
         if status_filter == "Paid" or status_filter == "ပြီးစီး":
             return "AND cs.status = 'paid'"
         if status_filter == "Overdue" or status_filter == "သက်တမ်းလွန်":
-            return "AND cs.due_date < date('now') AND cs.balance_amount > 0"
+            return "AND date(cs.due_date) < date('now') AND cs.balance_amount > 0"
         return ""
 
     def _get_export_rows(self, from_date=None, to_date=None):

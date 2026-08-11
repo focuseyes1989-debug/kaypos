@@ -342,7 +342,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT COUNT(*) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_count,
@@ -351,7 +351,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT SUM(balance_amount) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_amount
@@ -393,7 +393,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT SUM(balance_amount) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_amount
@@ -544,7 +544,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT COUNT(*) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_count,
@@ -552,7 +552,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT SUM(balance_amount) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_amount
@@ -593,7 +593,7 @@ class OutstandingReportDialog(QDialog):
                             SELECT SUM(balance_amount) 
                             FROM credit_sales cs 
                             WHERE cs.customer_id = c.id 
-                              AND cs.due_date < date('now') 
+                              AND date(cs.due_date) < date('now') 
                               AND cs.balance_amount > 0
                               AND cs.status != 'refunded'
                         ), 0) as overdue_amount
