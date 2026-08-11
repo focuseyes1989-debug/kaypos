@@ -1,6 +1,5 @@
 # ui/sales_page/product_utils.py
 import os
-import functools
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImageReader, QPixmap
 from utils.paths import app_path, get_product_images_dir
@@ -46,7 +45,6 @@ def resolve_image_path(image_path: str):
     return candidates[0] if candidates else ""
 
 
-@functools.lru_cache(maxsize=100)
 def load_thumbnail(image_path: str, size: int = 50, product_id=None):
     """
     Load and cache product image thumbnail.

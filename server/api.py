@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -109,9 +109,18 @@ def products(
 @app.get("/api/products/{product_id}/image")
 def product_image(product_id: int):
     image_path = cashier_service.get_product_image_path(product_id)
-    if not image_path:
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(image_path)
+    if image_path:
+        return FileResponse(image_path)
+
+    image_blob = cashier_service.get_product_image_blob(product_id)
+    if image_blob:
+        return Response(
+            content=image_blob["data"],
+            media_type=image_blob["mime"],
+            headers={"Content-Disposition": f'inline; filename="{image_blob["filename"]}"'},
+        )
+
+    raise HTTPException(status_code=404, detail="Image not found")
 
 
 @app.get("/api/customers")

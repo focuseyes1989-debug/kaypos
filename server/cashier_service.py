@@ -311,6 +311,35 @@ def get_product_image_path(product_id: int) -> Optional[str]:
         conn.close()
 
 
+def get_product_image_blob(product_id: int) -> Optional[Dict[str, Any]]:
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT image_data, image_mime, image_filename
+            FROM products
+            WHERE id = ? AND image_data IS NOT NULL
+            """,
+            (product_id,),
+        )
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            return None
+        image_data = row[0]
+        if isinstance(image_data, memoryview):
+            image_data = image_data.tobytes()
+        elif not isinstance(image_data, bytes):
+            image_data = bytes(image_data)
+        return {
+            "data": image_data,
+            "mime": row[1] or "image/jpeg",
+            "filename": row[2] or f"product_{product_id}.jpg",
+        }
+    finally:
+        conn.close()
+
+
 def list_customers(search: str = "", limit: int = 50) -> List[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()

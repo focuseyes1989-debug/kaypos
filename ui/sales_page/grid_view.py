@@ -702,10 +702,10 @@ class LoyverseProductCard(QWidget):
             self._apply_stock_badge_style()
 
     def _load_image(self) -> None:
-        if self._image_path:
+        if self._image_path or self._prod_id:
             try:
                 image_size = self.image_frame.height() - 4
-                pixmap = load_thumbnail(str(self._image_path), max(40, image_size), self._prod_id)
+                pixmap = load_thumbnail(str(self._image_path or ""), max(40, image_size), self._prod_id)
                 if pixmap and not pixmap.isNull():
                     scaled = pixmap.scaled(
                         image_size, image_size,
