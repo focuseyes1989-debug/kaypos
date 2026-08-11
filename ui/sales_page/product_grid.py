@@ -808,7 +808,7 @@ class ProductGrid(QWidget):
             image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             image_label.setScaledContents(True)
             image_label.setFixedSize(40, 40)
-            thumb = load_thumbnail(image_path, 40)
+            thumb = load_thumbnail(image_path, 40, prod_id)
             if thumb:
                 image_label.setPixmap(thumb)
             else:

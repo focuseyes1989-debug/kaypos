@@ -44,7 +44,7 @@ class ProductCard(QFrame):
         self.img_label.setFixedHeight(120)
         self.img_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         
-        thumb = load_thumbnail(image_path, 120)
+        thumb = load_thumbnail(image_path, 120, prod_id)
         if thumb:
             scaled_thumb = thumb.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio,
                                              Qt.TransformationMode.SmoothTransformation)

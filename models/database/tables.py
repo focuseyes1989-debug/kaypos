@@ -32,6 +32,9 @@ def create_tables():
             expire_date TEXT,
             low_stock INTEGER DEFAULT 0,
             image TEXT,
+            image_data BLOB,
+            image_mime TEXT,
+            image_filename TEXT,
             supplier_id INTEGER,
             unit TEXT,
             base_unit TEXT DEFAULT 'pcs',
@@ -54,7 +57,8 @@ def create_tables():
             'supplier_id': 'INTEGER', 'is_favourite': 'INTEGER DEFAULT 0',
             'category_id': 'INTEGER', 'base_unit': "TEXT DEFAULT 'pcs'",
             'pack_unit': "TEXT DEFAULT ''", 'pack_size': 'INTEGER DEFAULT 1',
-            'restaurant_modifiers': 'TEXT'
+            'restaurant_modifiers': 'TEXT', 'image_data': 'BLOB',
+            'image_mime': 'TEXT', 'image_filename': 'TEXT'
         }
         for col, dtype in new_prod_cols.items():
             if col not in cols:

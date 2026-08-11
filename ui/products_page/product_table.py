@@ -10,6 +10,7 @@ from models.database import connect_db
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.product_detail_dialog import ProductDetailDialog
 from utils.paths import app_path
+from utils.product_image_store import cached_product_image_path
 import functools
 import os
 
@@ -24,7 +25,7 @@ def _find_image_file(search_dir, filename):
     
     for root, _, files in os.walk(search_dir):
         if filename in files:
-            return os.path.join(root, files)
+            return os.path.join(root, filename)
     
     return None
 
@@ -88,14 +89,16 @@ def _find_relative_image(image_path):
 
 
 @functools.lru_cache(maxsize=200)
-def load_thumbnail(image_path: str, size: int = 50):
+def load_thumbnail(image_path: str, size: int = 50, product_id=None):
     """Load product thumbnail with caching"""
-    if not image_path:
+    if not image_path and not product_id:
         return None
     
     resolved_path = resolve_image_path(image_path)
     if not resolved_path or not os.path.exists(resolved_path):
-        return None
+        resolved_path = cached_product_image_path(product_id, image_path)
+        if not resolved_path or not os.path.exists(resolved_path):
+            return None
     
     # Use optimized thumbnail from image_optimizer
     try:
@@ -273,7 +276,7 @@ class ProductTable(QWidget):
             image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             image_label.setScaledContents(True)
             image_label.setFixedSize(50, 50)
-            thumb = load_thumbnail(data['image_path'], 50)
+            thumb = load_thumbnail(data['image_path'], 50, data['id'])
             if thumb:
                 image_label.setPixmap(thumb)
             else:

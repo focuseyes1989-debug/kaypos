@@ -136,7 +136,11 @@ class CartItemWidget(CashierCartItemWidget):
         return target
 
     def _update_thumbnail(self) -> None:
-        thumb = load_thumbnail(self._resolve_image_path(), self.THUMBNAIL_SIZE)
+        thumb = load_thumbnail(
+            self._resolve_image_path(),
+            self.THUMBNAIL_SIZE,
+            self.item.get("id"),
+        )
         if thumb:
             scaled = thumb.scaled(
                 self.THUMBNAIL_SIZE,

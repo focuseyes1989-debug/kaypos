@@ -11,6 +11,7 @@ from utils.translations import tr
 from utils.language import lang
 from utils.paths import app_path
 from utils.image_optimizer import ImageOptimizer
+from utils.product_image_store import save_product_image_blob
 from ui.widgets.modern_button import ModernButton
 from ui.products_page.product_form_ui_styles import ProductFormUIStyles
 from ui.themes.theme_manager import get_theme_colors
@@ -1161,6 +1162,7 @@ class ProductFormHandlers:
         elif is_service or d.product_id is not None:
             cursor.execute("DELETE FROM product_variants WHERE product_id = ?", (product_id,))
         save_price_tiers(cursor, product_id, [] if is_restaurant else wholesale_tiers)
+        save_product_image_blob(cursor, product_id, image_path)
         
         conn.commit()
         conn.close()

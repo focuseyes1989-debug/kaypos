@@ -705,7 +705,7 @@ class LoyverseProductCard(QWidget):
         if self._image_path:
             try:
                 image_size = self.image_frame.height() - 4
-                pixmap = load_thumbnail(str(self._image_path), max(40, image_size))
+                pixmap = load_thumbnail(str(self._image_path), max(40, image_size), self._prod_id)
                 if pixmap and not pixmap.isNull():
                     scaled = pixmap.scaled(
                         image_size, image_size,
@@ -1062,7 +1062,7 @@ class ModernProductCard(QWidget):
         try:
             image_w = max(80, self.image_label.width() or self.image_frame.width())
             image_h = max(80, self.image_label.height() or self.image_frame.height())
-            pixmap = load_thumbnail(str(self._image_path or ""), int(max(image_w, image_h)))
+            pixmap = load_thumbnail(str(self._image_path or ""), int(max(image_w, image_h)), self._prod_id)
             if (not pixmap or pixmap.isNull()) and self._image_path:
                 resolved_path = resolve_image_path(str(self._image_path))
                 direct_pixmap = QPixmap(resolved_path)

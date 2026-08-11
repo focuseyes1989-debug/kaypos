@@ -38,7 +38,7 @@ class ListItemWidget(QFrame):
         self.img_label.setFixedSize(40, 40)
         self.img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.img_label.setScaledContents(True)
-        thumb = load_thumbnail(image_path, 40)
+        thumb = load_thumbnail(image_path, 40, prod_id)
         if thumb:
             self.img_label.setPixmap(thumb.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio,
                                             Qt.TransformationMode.SmoothTransformation))

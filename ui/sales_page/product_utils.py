@@ -5,6 +5,7 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImageReader, QPixmap
 from utils.paths import app_path, get_product_images_dir
 from utils.performance import get_performance_settings
+from utils.product_image_store import cached_product_image_path
 
 
 def resolve_image_path(image_path: str):
@@ -46,13 +47,13 @@ def resolve_image_path(image_path: str):
 
 
 @functools.lru_cache(maxsize=100)
-def load_thumbnail(image_path: str, size: int = 50):
+def load_thumbnail(image_path: str, size: int = 50, product_id=None):
     """
     Load and cache product image thumbnail.
     Supports both relative and absolute paths.
     Will try multiple path resolutions if the image is not found.
     """
-    if not image_path:
+    if not image_path and not product_id:
         return None
 
     performance = get_performance_settings()
@@ -62,7 +63,9 @@ def load_thumbnail(image_path: str, size: int = 50):
     resolved_path = resolve_image_path(image_path)
 
     if not resolved_path or not os.path.exists(resolved_path):
-        return None
+        resolved_path = cached_product_image_path(product_id, image_path)
+        if not resolved_path or not os.path.exists(resolved_path):
+            return None
 
     reader = QImageReader(resolved_path)
     reader.setScaledSize(QSize(size, size))
