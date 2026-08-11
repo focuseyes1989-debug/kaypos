@@ -12,7 +12,8 @@ class ProductService:
         self.parent = parent
 
     def load_products(self, page=1, page_size=25, search_text="", category=""):
-        use_category = category != "All Categories" and category != "အားလုံး"
+        category = (category or "").strip()
+        use_category = bool(category) and category not in {"All Categories", "အားလုံး"}
         conn = connect_db()
         cursor = conn.cursor()
 

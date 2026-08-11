@@ -183,6 +183,8 @@ class ProductFilters(QWidget):
         return self.search_widget.get_text().lower()
 
     def get_category(self) -> str:
+        if self.category_combo.currentIndex() == 0:
+            return ""
         return self.category_combo.currentText()
 
     def load_categories(self):
