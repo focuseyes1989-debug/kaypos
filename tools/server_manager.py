@@ -454,13 +454,7 @@ class ServerManagerWindow(QMainWindow):
             cursor.close()
             conn.close()
 
-            app_conn = driver.connect(
-                dbname=db_name,
-                user=admin_user,
-                password=admin_password,
-                host=host,
-                port=port,
-            )
+            app_conn = self._connect_admin_postgres(driver, admin_user, admin_password, requested_host, port, db_name)
             if hasattr(app_conn, "autocommit"):
                 app_conn.autocommit = True
             app_cursor = app_conn.cursor()
@@ -476,7 +470,15 @@ class ServerManagerWindow(QMainWindow):
             QMessageBox.warning(self, "Database Setup Failed", str(exc))
             self.append_wizard_output(f"Database setup failed: {exc}")
 
-    def _connect_admin_postgres(self, driver, admin_user: str, admin_password: str, requested_host: str, port: int):
+    def _connect_admin_postgres(
+        self,
+        driver,
+        admin_user: str,
+        admin_password: str,
+        requested_host: str,
+        port: int,
+        database: str = "postgres",
+    ):
         hosts = []
         for candidate in (requested_host, "127.0.0.1", "localhost"):
             if candidate and candidate not in hosts:
@@ -485,17 +487,17 @@ class ServerManagerWindow(QMainWindow):
         for host in hosts:
             try:
                 conn = driver.connect(
-                    dbname="postgres",
+                    dbname=database,
                     user=admin_user,
                     password=admin_password,
                     host=host,
                     port=port,
                 )
-                self.append_wizard_output(f"Connected to PostgreSQL admin database via {host}.")
+                self.append_wizard_output(f"Connected to PostgreSQL database '{database}' via {host}.")
                 return conn
             except Exception as exc:
                 last_error = exc
-                self.append_wizard_output(f"Admin connection via {host} failed: {exc}")
+                self.append_wizard_output(f"Admin connection to '{database}' via {host} failed: {exc}")
         raise last_error
 
     def save_wizard_to_app_config(self) -> None:
