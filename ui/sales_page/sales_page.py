@@ -10,6 +10,7 @@ from loguru import logger
 
 from ui.sales_page.product_grid import ProductGrid
 from ui.sales_page.cart_widget import CartWidget, load_cart_from_file, delete_cart_backup
+from ui.sales_page.product_utils import get_effective_stock
 from ui.sales_page.totals_widget import TotalsWidget
 from ui.sales_page.payment_widget import PaymentWidget
 from ui.sales_page.options_widget import OptionsWidget
@@ -183,10 +184,11 @@ class SalesPage(QWidget):
                         if item["qty"] > 0:
                             valid_items.append(item)
                     continue
-                cursor.execute("SELECT name, price, stock, sold_by FROM products WHERE id=?", (item['id'],))
+                cursor.execute("SELECT name, price, sold_by FROM products WHERE id=?", (item['id'],))
                 row = cursor.fetchone()
                 if row:
-                    db_name, db_price, db_stock, sold_by = row
+                    db_name, db_price, sold_by = row
+                    db_stock = get_effective_stock(cursor, int(item["id"]))
                     item['name'] = db_name
                     item['original_price'] = float(db_price or 0)
                     discount_percent = float(item.get('expiry_discount_percent') or item.get('promo_discount_percent') or 0)

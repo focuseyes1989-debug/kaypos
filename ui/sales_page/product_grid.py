@@ -15,7 +15,7 @@ from ui.widgets.search_widget import SearchWidget
 from ui.widgets.combo_box_widget import ComboBoxWidget
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
-from ui.sales_page.product_utils import load_thumbnail
+from ui.sales_page.product_utils import effective_stock_sql, get_effective_stock, load_thumbnail
 from ui.sales_page.grid_view import GridViewWidget
 from ui.sales_page.list_view import ListViewWidget
 from ui.sales_page.category_slider import CategorySlider
@@ -678,9 +678,10 @@ class ProductGrid(QWidget):
         if self._discount_filter == "discount":
             where_clauses.append(self._active_discount_exists_sql())
 
-        select_sql = """
+        stock_expr = effective_stock_sql("p")
+        select_sql = f"""
             SELECT 
-                p.id, p.name, p.price, p.stock, p.low_stock, p.sold_by, p.image,
+                p.id, p.name, p.price, {stock_expr} as stock, p.low_stock, p.sold_by, p.image,
                 p.is_favourite, COALESCE(c.name, p.category, '') as category_name,
                 COALESCE((
                     SELECT MAX(COALESCE(pd.discount_percent, 0))
@@ -900,15 +901,17 @@ class ProductGrid(QWidget):
         
         conn = connect_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock, sold_by FROM products WHERE id=?", (prod_id,))
+        cursor.execute("SELECT name, price, sold_by FROM products WHERE id=?", (prod_id,))
         product = cursor.fetchone()
+        stock = get_effective_stock(cursor, prod_id) if product else 0
         conn.close()
         
         if product:
-            name, price, stock, sold_by = product
+            name, price, sold_by = product
             price = float(price) if price else 0.0
             
-            if sold_by and sold_by.lower() == "service":
+            sold_by_mode = str(sold_by or "").lower()
+            if sold_by_mode == "service":
                 # ✅ FIXED: max value increased from 1,000,000 to 999,999,999
                 manual_price, ok = get_numeric_input_value(
                     self,

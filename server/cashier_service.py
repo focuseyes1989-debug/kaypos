@@ -183,6 +183,30 @@ def _price_tiers_for_products(cursor, product_ids: List[int]) -> Dict[int, List[
         return {}
 
 
+def _effective_stock_sql(alias: str = "p") -> str:
+    return f"""
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM product_locations pl_stock_exists
+                WHERE pl_stock_exists.product_id = {alias}.id
+            )
+            THEN COALESCE((
+                SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                FROM product_locations pl_stock
+                WHERE pl_stock.product_id = {alias}.id
+            ), 0)
+            ELSE COALESCE({alias}.stock, 0)
+        END
+    """
+
+
+def _effective_stock(cursor, product_id: int) -> int:
+    cursor.execute(f"SELECT {_effective_stock_sql('p')} FROM products p WHERE p.id = ?", (product_id,))
+    row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
 def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
@@ -251,12 +275,14 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
 
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
         params.extend([max(1, min(limit, 500)), max(0, offset)])
+        stock_expr = _effective_stock_sql("p")
         cursor.execute(
             f"""
-            SELECT id, name, category, price, cost, sku, barcode, stock, image, sold_by, unit
-            FROM products
+            SELECT p.id, p.name, p.category, p.price, p.cost, p.sku, p.barcode,
+                   {stock_expr} as stock, p.image, p.sold_by, p.unit
+            FROM products p
             {where_sql}
-            ORDER BY is_favourite DESC, name COLLATE NOCASE
+            ORDER BY p.is_favourite DESC, p.name COLLATE NOCASE
             LIMIT ? OFFSET ?
             """,
             params,
@@ -425,8 +451,6 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
         raise ValueError(f"Product not found: {product_id}")
 
     product_name, master_stock = product[0], int(product[1] or 0)
-    if master_stock < qty_needed:
-        raise ValueError(f"Only {master_stock} left: {product_name}")
 
     allocations: List[Dict[str, Any]] = []
     cursor.execute(
@@ -443,6 +467,10 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
         (product_id,),
     )
     locations = cursor.fetchall()
+    location_stock = sum(int(row[4] or 0) for row in locations)
+    available_stock = location_stock if locations else master_stock
+    if available_stock < qty_needed:
+        raise ValueError(f"Only {available_stock} left: {product_name}")
 
     remaining = qty_needed
     for loc_id, location, batch_no, expire_date, available in locations:
@@ -488,7 +516,7 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
             }
         )
 
-    stock_before = master_stock
+    stock_before = available_stock
     for allocation in allocations:
         take = int(allocation["qty"])
         stock_after = stock_before - take
@@ -577,8 +605,9 @@ def create_sale(
                 if tier and float(tier.get("unit_price") or 0) > 0:
                     price = float(tier["unit_price"])
                     name = f"{name} (Wholesale {tier.get('min_qty')}+)"
-                if int(stock or 0) < qty:
-                    raise ValueError(f"Only {int(stock or 0)} left: {name}")
+                available_stock = _effective_stock(cursor, int(product_id))
+                if available_stock < qty:
+                    raise ValueError(f"Only {available_stock} left: {name}")
                 allocations = _allocate_stock(cursor, int(product_id), qty, invoice_no, created_by)
 
             for allocation in allocations:

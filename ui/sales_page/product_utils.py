@@ -7,6 +7,49 @@ from utils.performance import get_performance_settings
 from utils.product_image_store import cached_product_image_path
 
 
+def effective_stock_sql(alias: str = "p") -> str:
+    """Return location-backed stock when a product has location rows, otherwise master stock."""
+    return f"""
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM product_locations pl_stock_exists
+                WHERE pl_stock_exists.product_id = {alias}.id
+            )
+            THEN COALESCE((
+                SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                FROM product_locations pl_stock
+                WHERE pl_stock.product_id = {alias}.id
+            ), 0)
+            ELSE COALESCE({alias}.stock, 0)
+        END
+    """
+
+
+def get_effective_stock(cursor, product_id: int) -> int:
+    """Get sale-available stock using the same source as the inventory locations table."""
+    cursor.execute("""
+        SELECT
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM product_locations pl_stock_exists
+                    WHERE pl_stock_exists.product_id = p.id
+                )
+                THEN COALESCE((
+                    SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                    FROM product_locations pl_stock
+                    WHERE pl_stock.product_id = p.id
+                ), 0)
+                ELSE COALESCE(p.stock, 0)
+            END
+        FROM products p
+        WHERE p.id = ?
+    """, (product_id,))
+    row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
 def resolve_image_path(image_path: str):
     """Resolve product image paths saved in older and newer formats."""
     if not image_path:

@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
-from ui.sales_page.product_utils import load_thumbnail, clear_layout_widgets
+from ui.sales_page.product_utils import get_effective_stock, load_thumbnail, clear_layout_widgets
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 
@@ -225,12 +225,13 @@ class ListViewWidget(QScrollArea):
         """Handle list item click with theme-aware dialogs"""
         conn = connect_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock, sold_by FROM products WHERE id=?", (prod_id,))
+        cursor.execute("SELECT name, price, sold_by FROM products WHERE id=?", (prod_id,))
         product = cursor.fetchone()
+        stock = get_effective_stock(cursor, prod_id) if product else 0
         conn.close()
         
         if product:
-            name, price, stock, sold_by = product
+            name, price, sold_by = product
             price = float(price) if price else 0.0
             
             sold_by_mode = str(sold_by or "").lower()

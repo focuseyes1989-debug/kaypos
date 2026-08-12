@@ -30,6 +30,7 @@ from ui.themes.theme_manager import (
 )
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.numeric_keypad_dialog import NumericKeypadDialog, get_numeric_input_value
+from ui.sales_page.product_utils import effective_stock_sql, get_effective_stock
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier, get_price_tier_by_barcode
 
 # Backup file path
@@ -556,11 +557,24 @@ class CartItemWidget(QFrame):
         if not is_service:
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute("SELECT stock FROM products WHERE id = ?", (self.item["id"],))
-            result = cursor.fetchone()
+            location_id = self.item.get("location_id")
+            if location_id:
+                cursor.execute(
+                    "SELECT quantity FROM product_locations WHERE id = ? AND product_id = ?",
+                    (location_id, self.item["id"]),
+                )
+                result = cursor.fetchone()
+                max_qty = int(result[0] or 0) if result else 0
+            elif self.item.get("variant_id"):
+                cursor.execute(
+                    "SELECT stock FROM product_variants WHERE id = ? AND product_id = ?",
+                    (self.item["variant_id"], self.item["id"]),
+                )
+                result = cursor.fetchone()
+                max_qty = int(result[0] or 0) if result else 0
+            else:
+                max_qty = get_effective_stock(cursor, int(self.item["id"]))
             conn.close()
-            if result:
-                max_qty = result[0]
         
         # ✅ Simple Quantity Dialog
         dialog = QuantityDialog(self.item["name"], current_qty, max_qty, self)
@@ -1788,10 +1802,11 @@ class CartWidget(QWidget):
         except Exception:
             tier = None
         if tier:
-            cursor.execute("""
-                SELECT id, name, price, stock, sold_by
-                FROM products
-                WHERE id = ?
+            stock_expr = effective_stock_sql("p")
+            cursor.execute(f"""
+                SELECT p.id, p.name, p.price, {stock_expr} as stock, p.sold_by
+                FROM products p
+                WHERE p.id = ?
             """, (tier["product_id"],))
             product = cursor.fetchone()
             conn.close()
@@ -1833,10 +1848,11 @@ class CartWidget(QWidget):
                 "image": image or "",
             })
             return
-        cursor.execute("""
-            SELECT id, name, price, stock, sold_by 
-            FROM products 
-            WHERE barcode=? OR sku=? OR name LIKE ?
+        stock_expr = effective_stock_sql("p")
+        cursor.execute(f"""
+            SELECT p.id, p.name, p.price, {stock_expr} as stock, p.sold_by
+            FROM products p
+            WHERE p.barcode=? OR p.sku=? OR p.name LIKE ?
         """, (keyword, keyword, f'%{keyword}%'))
         product = cursor.fetchone()
         conn.close()
@@ -1924,7 +1940,7 @@ class CartWidget(QWidget):
         if sold_by and str(sold_by).lower() == "service":
             QMessageBox.warning(self, "Invalid Label", "Service products cannot use batch labels.")
             return
-        if batch_qty <= 0 or stock <= 0:
+        if batch_qty <= 0:
             QMessageBox.warning(self, "Out of Stock", f"{name} is out of stock for this batch.")
             return
 

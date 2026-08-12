@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurv
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QBrush, QMouseEvent, QTransform, QPainterPath
 from models.database import connect_db
 from ui.sales_page.product_card import FavouriteProductCard
-from ui.sales_page.product_utils import clear_layout_widgets, load_thumbnail, resolve_image_path
+from ui.sales_page.product_utils import clear_layout_widgets, get_effective_stock, load_thumbnail, resolve_image_path
 from ui.themes.theme_manager import is_dark_theme, get_theme_colors
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from utils.currency import get_currency_symbol, format_money
@@ -408,12 +408,13 @@ class GridViewWidget(QScrollArea):
     def _on_card_clicked(self, prod_id: int) -> None:
         conn = connect_db()
         cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock, sold_by FROM products WHERE id=?", (prod_id,))
+        cursor.execute("SELECT name, price, sold_by FROM products WHERE id=?", (prod_id,))
         product = cursor.fetchone()
+        stock = get_effective_stock(cursor, prod_id) if product else 0
         conn.close()
         
         if product:
-            name, price, stock, sold_by = product
+            name, price, sold_by = product
             price = float(price) if price else 0.0
             
             sold_by_mode = str(sold_by or "").lower()
