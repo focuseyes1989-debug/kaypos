@@ -9,12 +9,15 @@ from __future__ import annotations
 import hashlib
 import os
 import ctypes
+import mimetypes
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
 
 from models.database import connect_db
+from utils.paths import app_relative_path, get_product_images_dir
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
 
@@ -255,6 +258,160 @@ def list_categories() -> List[str]:
             """
         )
         return [row[0] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def barcode_exists(barcode: str, exclude_product_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    barcode = str(barcode or "").strip()
+    if not barcode:
+        return None
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        params: List[Any] = [barcode]
+        sql = """
+            SELECT id, name, barcode, sku
+            FROM products
+            WHERE barcode = ?
+        """
+        if exclude_product_id:
+            sql += " AND id != ?"
+            params.append(int(exclude_product_id))
+        sql += " LIMIT 1"
+        cursor.execute(sql, params)
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {"id": row[0], "name": row[1], "barcode": row[2], "sku": row[3]}
+    finally:
+        conn.close()
+
+
+def _save_mobile_product_image(image_bytes: bytes, filename: str, content_type: str) -> tuple[str, bytes, str, str]:
+    if not image_bytes:
+        return "", b"", "", ""
+
+    image_dir = get_product_images_dir()
+    os.makedirs(image_dir, exist_ok=True)
+
+    guessed_extension = mimetypes.guess_extension(content_type or "") or os.path.splitext(filename or "")[1] or ".jpg"
+    if guessed_extension.lower() == ".jpe":
+        guessed_extension = ".jpg"
+    safe_filename = f"mobile_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}{guessed_extension}"
+    image_path = os.path.join(image_dir, safe_filename)
+    with open(image_path, "wb") as image_file:
+        image_file.write(image_bytes)
+
+    mime_type = content_type or mimetypes.guess_type(safe_filename)[0] or "image/jpeg"
+    return app_relative_path(image_path), image_bytes, mime_type, safe_filename
+
+
+def create_mobile_product(
+    *,
+    name: str,
+    barcode: str = "",
+    sku: str = "",
+    category: str = "",
+    price: float = 0,
+    cost: float = 0,
+    stock: int = 0,
+    low_stock: int = 0,
+    unit: str = "",
+    location: str = "Mobile Entry",
+    image_bytes: bytes = b"",
+    image_filename: str = "",
+    image_content_type: str = "",
+    created_by: str = "Mobile",
+) -> Dict[str, Any]:
+    name = str(name or "").strip()
+    if not name:
+        raise ValueError("Product name is required.")
+
+    barcode = str(barcode or "").strip()
+    sku = str(sku or "").strip()
+    category = str(category or "").strip()
+    unit = str(unit or "").strip()
+    location = str(location or "").strip() or "Mobile Entry"
+    price = max(0.0, float(price or 0))
+    cost = max(0.0, float(cost or 0))
+    stock = max(0, int(stock or 0))
+    low_stock = max(0, int(low_stock or 0))
+
+    if barcode and barcode_exists(barcode):
+        raise ValueError(f"Barcode already exists: {barcode}")
+
+    image_path = ""
+    image_data = b""
+    image_mime = ""
+    image_db_filename = ""
+    if image_bytes:
+        image_path, image_data, image_mime, image_db_filename = _save_mobile_product_image(
+            image_bytes, image_filename, image_content_type
+        )
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("BEGIN IMMEDIATE")
+        product_id = _execute_dynamic_insert(cursor, "products", {
+            "name": name,
+            "category": category,
+            "description": "",
+            "sold_by": "Each",
+            "price": price,
+            "cost": cost,
+            "sku": sku,
+            "barcode": barcode,
+            "stock": stock,
+            "low_stock": low_stock,
+            "unit": unit,
+            "image": image_path,
+            "image_data": image_data if image_data else None,
+            "image_mime": image_mime,
+            "image_filename": image_db_filename,
+            "warehouse": location,
+        })
+
+        if stock > 0:
+            _try_dynamic_insert(cursor, "product_locations", {
+                "product_id": product_id,
+                "location": location,
+                "quantity": stock,
+                "batch_no": "",
+                "expire_date": "",
+            })
+            _try_dynamic_insert(cursor, "stock_movements", {
+                "product_id": product_id,
+                "type": "in",
+                "quantity": stock,
+                "old_stock": 0,
+                "new_stock": stock,
+                "reason": "Mobile Product Entry",
+                "reference": f"MOBILE-{product_id}",
+                "created_by": created_by,
+                "location": location,
+                "notes": "Initial stock from mobile product entry",
+            })
+
+        conn.commit()
+        return {
+            "id": product_id,
+            "name": name,
+            "barcode": barcode,
+            "sku": sku,
+            "category": category,
+            "price": price,
+            "cost": cost,
+            "stock": stock,
+            "low_stock": low_stock,
+            "unit": unit,
+            "location": location,
+            "image": image_path,
+        }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

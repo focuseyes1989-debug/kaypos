@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>KAY POS Mobile Products</title>
+  <style>
+    :root {
+      --bg: #f3f6fa;
+      --panel: #ffffff;
+      --ink: #162033;
+      --muted: #68758a;
+      --line: #d8e0eb;
+      --brand: #0f766e;
+      --brand-dark: #115e59;
+      --danger: #b42318;
+      --success: #137a3a;
+      --soft: #edf7f5;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Myanmar Text", "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 15px;
+    }
+    button, input, select { font: inherit; }
+    button {
+      border: 0;
+      min-height: 42px;
+      border-radius: 7px;
+      background: var(--brand);
+      color: #fff;
+      padding: 9px 14px;
+      font-weight: 700;
+    }
+    button.secondary { background: #e8edf4; color: var(--ink); }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: .55; }
+    input, select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 11px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+    }
+    input:focus, select:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .12);
+    }
+    label { display: grid; gap: 5px; font-weight: 700; color: var(--muted); }
+    .shell { max-width: 920px; margin: 0 auto; padding: 12px; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 56px;
+      margin: -12px -12px 12px;
+      padding: 8px 12px;
+      background: rgba(243, 246, 250, .94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .title { flex: 1; min-width: 0; }
+    .title strong { display: block; font-size: 17px; }
+    .title span { color: var(--muted); font-size: 12px; }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, .82fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .span-2 { grid-column: 1 / -1; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .preview {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border-radius: 8px;
+      border: 1px dashed #aab7c7;
+      background: #f8fafc;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--muted);
+      text-align: center;
+    }
+    .preview img { width: 100%; height: 100%; object-fit: cover; }
+    .status {
+      min-height: 38px;
+      border-radius: 7px;
+      padding: 9px 11px;
+      background: var(--soft);
+      color: var(--brand-dark);
+      border: 1px solid rgba(15, 118, 110, .22);
+      word-break: break-word;
+    }
+    .status.error {
+      background: #fff1f0;
+      color: var(--danger);
+      border-color: rgba(180, 35, 24, .25);
+    }
+    .login {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+    .login-card {
+      width: min(360px, 100%);
+      display: grid;
+      gap: 11px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .recent { display: grid; gap: 8px; }
+    .recent-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px;
+      background: #fbfcfe;
+    }
+    .recent-item strong { display: block; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .success-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(22, 32, 51, .42);
+    }
+    .success-card {
+      width: min(340px, 100%);
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 22px 18px 18px;
+      text-align: center;
+      box-shadow: 0 18px 48px rgba(22, 32, 51, .18);
+    }
+    .checkmark {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: var(--success);
+      position: relative;
+    }
+    .checkmark::after {
+      content: "";
+      position: absolute;
+      left: 20px;
+      top: 15px;
+      width: 17px;
+      height: 28px;
+      border: solid #fff;
+      border-width: 0 5px 5px 0;
+      transform: rotate(45deg);
+    }
+    .success-card strong { font-size: 18px; }
+    .success-card button { width: 100%; }
+    #scannerVideo {
+      width: 100%;
+      border-radius: 8px;
+      background: #111827;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+    }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .scanner-panel { order: -1; }
+      .form-grid { grid-template-columns: 1fr; }
+      .span-2 { grid-column: auto; }
+      .topbar { margin-bottom: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="loginView" class="login">
+    <form id="loginForm" class="login-card">
+      <div>
+        <strong style="font-size: 20px;">KAY POS Mobile</strong>
+        <div class="muted">Product entry for phones and tablets</div>
+      </div>
+      <label>Username <input id="loginUser" autocomplete="username" required></label>
+      <label>Password <input id="loginPass" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Login</button>
+      <div id="loginStatus" class="status" hidden></div>
+    </form>
+  </section>
+
+  <main id="appView" class="shell" hidden>
+    <div class="topbar">
+      <div class="title">
+        <strong>Mobile Product Entry</strong>
+        <span id="userLabel">Ready</span>
+      </div>
+      <button id="logoutBtn" class="secondary" type="button">Logout</button>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <form id="productForm" class="form-grid">
+          <label class="span-2">Product Name
+            <input id="name" name="name" required placeholder="e.g. Nestle Extreme Pink 70g">
+          </label>
+
+          <label>Barcode
+            <div class="row">
+              <input id="barcode" name="barcode" inputmode="numeric" placeholder="Scan or type">
+              <button id="scanBtn" class="secondary" type="button">Scan</button>
+            </div>
+          </label>
+          <label>SKU
+            <input id="sku" name="sku" placeholder="Optional">
+          </label>
+
+          <label>Category
+            <input id="category" name="category" list="categoryList" placeholder="Type or choose">
+            <datalist id="categoryList"></datalist>
+          </label>
+          <label>Unit
+            <input id="unit" name="unit" placeholder="pcs / box / pack">
+          </label>
+
+          <label>Price
+            <input id="price" name="price" type="number" min="0" step="1" value="0">
+          </label>
+          <label>Low Stock
+            <input id="lowStock" name="low_stock" type="number" min="0" step="1" value="0">
+          </label>
+
+          <label class="span-2">Product Photo
+            <input id="image" name="image" type="file" accept="image/*" capture="environment">
+          </label>
+
+          <button id="saveBtn" class="span-2" type="submit">Save Product</button>
+        </form>
+      </section>
+
+      <aside class="panel scanner-panel">
+        <div id="status" class="status">Ready.</div>
+        <div style="height: 12px;"></div>
+        <video id="scannerVideo" autoplay muted playsinline hidden></video>
+        <div id="scannerControls" class="row" hidden style="margin-top: 8px;">
+          <button id="stopScanBtn" class="danger" type="button">Stop Scan</button>
+        </div>
+        <div style="height: 12px;"></div>
+        <div id="preview" class="preview">Take or choose a product photo</div>
+        <div style="height: 12px;"></div>
+        <strong>Recently Added</strong>
+        <div id="recent" class="recent" style="margin-top: 8px;"></div>
+      </aside>
+    </div>
+  </main>
+
+  <div id="successModal" class="success-modal" hidden>
+    <div class="success-card" role="alertdialog" aria-modal="true" aria-labelledby="successTitle">
+      <div class="checkmark" aria-hidden="true"></div>
+      <strong id="successTitle">Product Saved</strong>
+      <div id="successMessage" class="muted">The product has been added.</div>
+      <button id="successOkBtn" type="button">OK</button>
+    </div>
+  </div>
+
+  <script src="/static/vendor/zxing-browser.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const state = {
+      token: localStorage.getItem("kaypos_mobile_token") || "",
+      user: JSON.parse(localStorage.getItem("kaypos_mobile_user") || "null"),
+      stream: null,
+      scanTimer: null,
+      detector: null,
+      zxingReader: null,
+      zxingControls: null,
+      scanCaptured: false,
+      recent: JSON.parse(localStorage.getItem("kaypos_mobile_recent") || "[]"),
+    };
+
+    function setStatus(message, error = false) {
+      const node = $("status");
+      node.textContent = message;
+      node.className = `status${error ? " error" : ""}`;
+    }
+
+    function setLoginStatus(message, error = false) {
+      const node = $("loginStatus");
+      node.hidden = false;
+      node.textContent = message;
+      node.className = `status${error ? " error" : ""}`;
+    }
+
+    async function api(path, options = {}) {
+      const headers = options.headers || {};
+      if (state.token) headers.Authorization = `Bearer ${state.token}`;
+      const response = await fetch(path, { ...options, headers });
+      const text = await response.text();
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = { detail: text }; }
+      if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`);
+      return data;
+    }
+
+    function showApp() {
+      $("loginView").hidden = true;
+      $("appView").hidden = false;
+      $("userLabel").textContent = state.user ? `${state.user.username || "User"} connected` : "Connected";
+      renderRecent();
+      loadCategories();
+    }
+
+    function showLogin() {
+      $("loginView").hidden = false;
+      $("appView").hidden = true;
+    }
+
+    async function login(event) {
+      event.preventDefault();
+      setLoginStatus("Logging in...");
+      try {
+        const data = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: $("loginUser").value, password: $("loginPass").value }),
+        }).then(async response => {
+          const json = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(json.detail || "Login failed");
+          return json;
+        });
+        state.token = data.token;
+        state.user = data.user;
+        localStorage.setItem("kaypos_mobile_token", state.token);
+        localStorage.setItem("kaypos_mobile_user", JSON.stringify(state.user));
+        showApp();
+      } catch (err) {
+        setLoginStatus(err.message, true);
+      }
+    }
+
+    async function loadCategories() {
+      try {
+        const data = await api("/api/categories");
+        $("categoryList").innerHTML = (data.categories || [])
+          .map(category => `<option value="${escapeHtml(category)}"></option>`)
+          .join("");
+      } catch (err) {
+        setStatus(`Could not load categories: ${err.message}`, true);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[char]));
+    }
+
+    $("image").addEventListener("change", () => {
+      const file = $("image").files[0];
+      if (!file) {
+        $("preview").innerHTML = "Take or choose a product photo";
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      $("preview").innerHTML = `<img src="${url}" alt="">`;
+    });
+
+    $("barcode").addEventListener("change", async () => {
+      const barcode = $("barcode").value.trim();
+      if (!barcode) return;
+      try {
+        const data = await api(`/api/products/barcode/${encodeURIComponent(barcode)}`);
+        if (data.product) {
+          setStatus(`Barcode already exists: ${data.product.name}`, true);
+        }
+      } catch (err) {
+        setStatus(`Barcode check failed: ${err.message}`, true);
+      }
+    });
+
+    async function saveProduct(event) {
+      event.preventDefault();
+      $("saveBtn").disabled = true;
+      setStatus("Saving product...");
+      try {
+        const form = new FormData();
+        for (const field of ["name", "barcode", "sku", "category", "price", "unit"]) {
+          form.append(field, $(field).value);
+        }
+        form.append("cost", "0");
+        form.append("stock", "0");
+        form.append("location", "Mobile Entry");
+        form.append("low_stock", $("lowStock").value);
+        if ($("image").files[0]) form.append("image", $("image").files[0]);
+        const data = await api("/api/mobile/products", { method: "POST", body: form });
+        rememberProduct(data.product);
+        $("productForm").reset();
+        $("price").value = 0;
+        $("lowStock").value = 0;
+        $("preview").innerHTML = "Take or choose a product photo";
+        setStatus(`Saved: ${data.product.name}`);
+        showSuccessDialog(data.product.name);
+      } catch (err) {
+        setStatus(err.message, true);
+      } finally {
+        $("saveBtn").disabled = false;
+      }
+    }
+
+    function showSuccessDialog(productName) {
+      $("successMessage").textContent = `${productName} has been added.`;
+      $("successModal").hidden = false;
+      $("successOkBtn").focus();
+    }
+
+    function closeSuccessDialog() {
+      $("successModal").hidden = true;
+    }
+
+    function rememberProduct(product) {
+      state.recent.unshift(product);
+      state.recent = state.recent.slice(0, 6);
+      localStorage.setItem("kaypos_mobile_recent", JSON.stringify(state.recent));
+      renderRecent();
+    }
+
+    function renderRecent() {
+      $("recent").innerHTML = state.recent.length
+        ? state.recent.map(product => `
+            <div class="recent-item">
+              <strong>${escapeHtml(product.name)}</strong>
+              <div class="muted">Barcode: ${escapeHtml(product.barcode || "-")} | Stock: ${escapeHtml(product.stock ?? 0)}</div>
+            </div>
+          `).join("")
+        : '<div class="muted">No mobile entries yet.</div>';
+    }
+
+    function handleBarcodeCaptured(value) {
+      if (state.scanCaptured) return;
+      const barcode = String(value || "").trim();
+      if (!barcode) return;
+      state.scanCaptured = true;
+      $("barcode").value = barcode;
+      stopScanner();
+      setStatus(`Barcode captured: ${barcode}`);
+      $("barcode").dispatchEvent(new Event("change"));
+    }
+
+    async function startScanner() {
+      state.scanCaptured = false;
+      if (!window.isSecureContext) {
+        setStatus("Live barcode scanning needs HTTPS on phones. Restart the server with --https, then open the https:// network address.", true);
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("Camera access is not available in this browser. Try Chrome or Edge on the phone.", true);
+        return;
+      }
+      const video = $("scannerVideo");
+      video.hidden = false;
+      $("scannerControls").hidden = false;
+      if (window.ZXingBrowser?.BrowserMultiFormatReader) {
+        try {
+          state.zxingReader = state.zxingReader || new ZXingBrowser.BrowserMultiFormatReader();
+          setStatus("Starting camera scanner...");
+          state.zxingControls = await state.zxingReader.decodeFromVideoDevice(null, video, (result, error) => {
+            if (result) handleBarcodeCaptured(result.getText());
+          });
+          setStatus("Point the camera at a barcode. Keep the barcode flat and fill the preview.");
+          return;
+        } catch (err) {
+          stopScanner();
+          setStatus(`Camera scanner unavailable: ${err.message}`, true);
+          return;
+        }
+      }
+      if (!("BarcodeDetector" in window)) {
+        stopScanner();
+        setStatus("Live barcode scanning is not supported in this browser. Try Chrome or Edge, or type the barcode manually.", true);
+        return;
+      }
+      try {
+        state.detector = state.detector || new BarcodeDetector({ formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e"] });
+        state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = state.stream;
+        await video.play();
+        setStatus("Point the camera at a barcode. Keep the barcode flat and fill the preview.");
+        state.scanTimer = setInterval(async () => {
+          try {
+            const codes = await state.detector.detect(video);
+            if (codes.length) handleBarcodeCaptured(codes[0].rawValue);
+          } catch {}
+        }, 600);
+      } catch (err) {
+        stopScanner();
+        setStatus(`Camera scanner unavailable: ${err.message}`, true);
+      }
+    }
+
+    function stopScanner() {
+      if (state.scanTimer) clearInterval(state.scanTimer);
+      state.scanTimer = null;
+      if (state.zxingControls) state.zxingControls.stop();
+      state.zxingControls = null;
+      if (state.stream) state.stream.getTracks().forEach(track => track.stop());
+      state.stream = null;
+      $("scannerVideo").srcObject = null;
+      $("scannerVideo").hidden = true;
+      $("scannerControls").hidden = true;
+    }
+
+    $("loginForm").addEventListener("submit", login);
+    $("productForm").addEventListener("submit", saveProduct);
+    $("scanBtn").addEventListener("click", startScanner);
+    $("stopScanBtn").addEventListener("click", stopScanner);
+    $("successOkBtn").addEventListener("click", closeSuccessDialog);
+    $("successModal").addEventListener("click", event => {
+      if (event.target === $("successModal")) closeSuccessDialog();
+    });
+    $("logoutBtn").addEventListener("click", () => {
+      stopScanner();
+      localStorage.removeItem("kaypos_mobile_token");
+      localStorage.removeItem("kaypos_mobile_user");
+      state.token = "";
+      state.user = null;
+      showLogin();
+    });
+
+    if (state.token) showApp();
+    else showLogin();
+  </script>
+</body>
+</html>

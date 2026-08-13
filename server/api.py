@@ -6,7 +6,7 @@ import secrets
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -79,6 +79,11 @@ def cashier_home():
     return FileResponse(STATIC_DIR / "cashier.html")
 
 
+@app.get("/mobile/products", response_class=HTMLResponse)
+def mobile_products_home():
+    return FileResponse(STATIC_DIR / "mobile_products.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "service": "kay-pos-cashier"}
@@ -113,6 +118,49 @@ def products(
     _: Dict[str, Any] = Depends(current_user),
 ):
     return {"products": cashier_service.list_products(q.strip(), category.strip(), limit, offset)}
+
+
+@app.get("/api/products/barcode/{barcode}")
+def product_by_barcode(barcode: str, _: Dict[str, Any] = Depends(current_user)):
+    return {"product": cashier_service.barcode_exists(barcode.strip())}
+
+
+@app.post("/api/mobile/products")
+async def create_mobile_product(
+    name: str = Form(...),
+    barcode: str = Form(default=""),
+    sku: str = Form(default=""),
+    category: str = Form(default=""),
+    price: float = Form(default=0),
+    cost: float = Form(default=0),
+    stock: int = Form(default=0),
+    low_stock: int = Form(default=0),
+    unit: str = Form(default=""),
+    location: str = Form(default="Mobile Entry"),
+    image: Optional[UploadFile] = File(default=None),
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        image_bytes = await image.read() if image else b""
+        product = cashier_service.create_mobile_product(
+            name=name,
+            barcode=barcode,
+            sku=sku,
+            category=category,
+            price=price,
+            cost=cost,
+            stock=stock,
+            low_stock=low_stock,
+            unit=unit,
+            location=location,
+            image_bytes=image_bytes,
+            image_filename=image.filename if image else "",
+            image_content_type=image.content_type if image else "",
+            created_by=user.get("username", "Mobile"),
+        )
+        return {"product": product}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/products/{product_id}/image")

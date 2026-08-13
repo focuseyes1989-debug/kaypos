@@ -20,6 +20,7 @@ database/*.db-wal
 database/product_images/
 database/images/
 database/logos/
+database/certs/
 utils/database/
 _internal/
 dist_launcher/
