@@ -10,7 +10,7 @@ import threading
 import weakref
 from queue import Queue, Empty
 from loguru import logger
-from utils.db_compat import database_url, get_db_backend, is_postgres_backend
+from utils.db_compat import database_url, database_urls, get_db_backend, is_postgres_backend
 
 # 🔥 Dynamic DB_NAME based on execution context
 def get_db_path():
@@ -103,15 +103,25 @@ class ConnectionPool:
             if is_postgres_backend():
                 from models.database.postgres_adapter import connect_postgres
 
-                url = database_url()
-                if not url:
+                urls = database_urls()
+                if not urls:
                     raise RuntimeError(
                         "ZAY_POS_DB_BACKEND=postgres requires ZAY_POS_DATABASE_URL or DATABASE_URL."
                     )
-                conn = connect_postgres(url)
-                conn.execute("SELECT 1").fetchone()
-                logger.debug("New PostgreSQL database connection created")
-                return conn
+                last_error = None
+                for index, url in enumerate(urls):
+                    try:
+                        conn = connect_postgres(url)
+                        conn.execute("SELECT 1").fetchone()
+                        if index:
+                            logger.warning("Primary PostgreSQL unavailable; using fallback database.")
+                        else:
+                            logger.debug("New PostgreSQL database connection created")
+                        return conn
+                    except Exception as exc:
+                        last_error = exc
+                        logger.warning(f"PostgreSQL connection attempt failed: {exc}")
+                raise last_error
 
             db_dir = os.path.dirname(DB_NAME)
             os.makedirs(db_dir, exist_ok=True)

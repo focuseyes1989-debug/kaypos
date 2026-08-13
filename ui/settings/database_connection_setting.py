@@ -11,6 +11,7 @@ from utils.db_connection_config import (
     load_database_config,
     load_cloud_sync_config,
     save_database_config,
+    save_database_failover_config,
     save_cloud_sync_config,
     test_database_connection,
     test_cloud_sync_connection,
@@ -85,6 +86,9 @@ class DatabaseConnectionSettingWidget(QWidget):
 
         self.cloud_enabled_check = QCheckBox("Enable cloud sync on this PC")
         cloud_form.addRow("", self.cloud_enabled_check)
+
+        self.failover_enabled_check = QCheckBox("Use this cloud database if the local PostgreSQL server is offline")
+        cloud_form.addRow("", self.failover_enabled_check)
 
         self.cloud_host_edit = QLineEdit()
         self.cloud_host_edit.setPlaceholderText("pg-xxxx.aivencloud.com")
@@ -161,8 +165,9 @@ class DatabaseConnectionSettingWidget(QWidget):
         layout.addLayout(button_row)
 
         note = QLabel(
-            "Local PostgreSQL settings control the POS database connection. Cloud Sync settings "
-            "are for server PCs only and push local data to Aiven when internet is available. "
+            "Local PostgreSQL settings control the primary POS database connection. Cloud Sync "
+            "pushes local data to Aiven from server PCs. Client failover lets this app use the "
+            "cloud database when the local PostgreSQL server is offline. "
             "Restart the app after saving so background services reload the new settings."
         )
         note.setWordWrap(True)
@@ -180,6 +185,7 @@ class DatabaseConnectionSettingWidget(QWidget):
 
         cloud = load_cloud_sync_config()
         self.cloud_enabled_check.setChecked(bool(cloud.get("enabled")))
+        self.failover_enabled_check.setChecked(bool(cloud.get("failover_enabled")))
         self.cloud_host_edit.setText(cloud.get("host") or "")
         self.cloud_port_spin.setValue(int(cloud.get("port") or 16365))
         self.cloud_database_edit.setText(cloud.get("database") or "defaultdb")
@@ -202,6 +208,7 @@ class DatabaseConnectionSettingWidget(QWidget):
     def _cloud_values(self):
         return (
             self.cloud_enabled_check.isChecked(),
+            self.failover_enabled_check.isChecked(),
             self.cloud_host_edit.text().strip(),
             self.cloud_port_spin.value(),
             self.cloud_database_edit.text().strip() or "defaultdb",
@@ -227,7 +234,7 @@ class DatabaseConnectionSettingWidget(QWidget):
             QMessageBox.critical(self, "Database Connection Failed", message)
 
     def test_cloud_connection(self):
-        enabled, host, port, database, username, password, sslmode, *_ = self._cloud_values()
+        enabled, failover_enabled, host, port, database, username, password, sslmode, *_ = self._cloud_values()
         if not host:
             QMessageBox.warning(self, "Cloud Sync", "Please enter the Aiven host.")
             return
@@ -240,7 +247,7 @@ class DatabaseConnectionSettingWidget(QWidget):
             QMessageBox.critical(self, "Cloud Sync Failed", message)
 
     def sync_cloud_now(self):
-        enabled, host, port, database, username, password, sslmode, *_ = self._cloud_values()
+        enabled, failover_enabled, host, port, database, username, password, sslmode, *_ = self._cloud_values()
         if not host:
             QMessageBox.warning(self, "Cloud Sync", "Please enter the Aiven host.")
             return
@@ -304,6 +311,7 @@ class DatabaseConnectionSettingWidget(QWidget):
             return
         (
             cloud_enabled,
+            failover_enabled,
             cloud_host,
             cloud_port,
             cloud_database,
@@ -317,6 +325,9 @@ class DatabaseConnectionSettingWidget(QWidget):
         if cloud_enabled and not cloud_host:
             QMessageBox.warning(self, "Cloud Sync", "Please enter the Aiven host or disable cloud sync.")
             return
+        if failover_enabled and not cloud_host:
+            QMessageBox.warning(self, "Client Failover", "Please enter the Aiven host or disable cloud failover.")
+            return
         env_path = save_database_config(host, port, database, username, password)
         save_cloud_sync_config(
             cloud_enabled,
@@ -329,6 +340,15 @@ class DatabaseConnectionSettingWidget(QWidget):
             cloud_interval,
             branch_id,
             device_id,
+        )
+        save_database_failover_config(
+            failover_enabled,
+            cloud_host,
+            cloud_port,
+            cloud_database,
+            cloud_username,
+            cloud_password,
+            cloud_sslmode,
         )
         QMessageBox.information(
             self,

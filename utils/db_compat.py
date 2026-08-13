@@ -42,6 +42,22 @@ def database_url():
     return os.getenv("ZAY_POS_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
 
 
+def database_fallback_url():
+    enabled = str(os.getenv("ZAY_POS_DATABASE_FAILOVER_ENABLED", "")).strip().lower()
+    if enabled not in {"1", "true", "yes", "on"}:
+        return ""
+    return os.getenv("ZAY_POS_DATABASE_FALLBACK_URL") or os.getenv("ZAY_POS_CLOUD_DATABASE_URL") or ""
+
+
+def database_urls():
+    urls = []
+    for url in (database_url(), database_fallback_url()):
+        url = str(url or "").strip()
+        if url and url not in urls:
+            urls.append(url)
+    return urls
+
+
 def adapt_sql_placeholders(sql):
     """Convert qmark placeholders to pyformat placeholders outside strings.
 

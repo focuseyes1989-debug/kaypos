@@ -63,3 +63,32 @@ python run_pos_server.py --host 0.0.0.0 --port 8443 --https
 ```
 
 If the server PC is off, users can open the cloud URL instead.
+
+## Desktop Client PC Failover
+
+Desktop client PCs can keep the local PostgreSQL server as the primary
+database and use Aiven PostgreSQL as a fallback when the local server is
+offline.
+
+In the app:
+
+```text
+Settings > Database
+```
+
+Set the local PostgreSQL server fields, then fill the Aiven fields and enable:
+
+```text
+Use this cloud database if the local PostgreSQL server is offline
+```
+
+The app writes these values to `.env`:
+
+```text
+ZAY_POS_DATABASE_FAILOVER_ENABLED=1
+ZAY_POS_DATABASE_FALLBACK_URL=postgres://avnadmin:YOUR_PASSWORD@YOUR_AIVEN_HOST:16365/defaultdb?sslmode=require
+```
+
+Restart the client app after saving. On startup, it tries the primary local
+PostgreSQL database first; if that connection fails, it connects to the cloud
+fallback database.

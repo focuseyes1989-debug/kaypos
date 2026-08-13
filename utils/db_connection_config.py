@@ -102,15 +102,23 @@ def save_database_config(host, port, database, username, password):
 def load_cloud_sync_config():
     load_project_env()
     url = os.getenv("ZAY_POS_CLOUD_DATABASE_URL") or ""
+    fallback_url = os.getenv("ZAY_POS_DATABASE_FALLBACK_URL") or url
     config = parse_database_url(url)
+    fallback_config = parse_database_url(fallback_url)
     config.update({
         "enabled": str(os.getenv("ZAY_POS_CLOUD_SYNC_ENABLED", "")).strip().lower() in {"1", "true", "yes", "on"},
+        "failover_enabled": str(os.getenv("ZAY_POS_DATABASE_FAILOVER_ENABLED", "")).strip().lower() in {"1", "true", "yes", "on"},
         "interval_seconds": int(os.getenv("ZAY_POS_CLOUD_SYNC_INTERVAL_SECONDS") or 300),
         "branch_id": os.getenv("ZAY_POS_BRANCH_ID") or "shop_001",
         "device_id": os.getenv("ZAY_POS_DEVICE_ID") or "server_pc",
         "sslmode": "require",
+        "fallback_host": fallback_config.get("host") or "",
+        "fallback_port": fallback_config.get("port") or DEFAULT_DB_PORT,
+        "fallback_database": fallback_config.get("database") or "defaultdb",
+        "fallback_username": fallback_config.get("username") or "avnadmin",
+        "fallback_password": fallback_config.get("password") or "",
     })
-    query = (urlparse(url or "").query or "").split("&")
+    query = (urlparse(fallback_url or url or "").query or "").split("&")
     for item in query:
         if item.startswith("sslmode="):
             config["sslmode"] = item.split("=", 1)[1] or "require"
@@ -134,14 +142,24 @@ def save_cloud_sync_config(
     branch_id="shop_001",
     device_id="server_pc",
 ):
+    cloud_url = ""
+    if host:
+        cloud_url = build_cloud_database_url(host, port, database, username, password, sslmode)
     values = {
         "ZAY_POS_CLOUD_SYNC_ENABLED": "1" if enabled else "0",
         "ZAY_POS_CLOUD_SYNC_INTERVAL_SECONDS": str(max(60, int(interval_seconds or 300))),
         "ZAY_POS_BRANCH_ID": str(branch_id or "shop_001").strip(),
         "ZAY_POS_DEVICE_ID": str(device_id or "server_pc").strip(),
     }
+    if cloud_url:
+        values["ZAY_POS_CLOUD_DATABASE_URL"] = cloud_url
+    return _save_env_values(values)
+
+
+def save_database_failover_config(enabled, host, port, database, username, password, sslmode="require"):
+    values = {"ZAY_POS_DATABASE_FAILOVER_ENABLED": "1" if enabled else "0"}
     if host:
-        values["ZAY_POS_CLOUD_DATABASE_URL"] = build_cloud_database_url(
+        values["ZAY_POS_DATABASE_FALLBACK_URL"] = build_cloud_database_url(
             host, port, database, username, password, sslmode
         )
     return _save_env_values(values)
