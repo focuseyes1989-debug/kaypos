@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from loguru import logger
 
 from models.database import connect_db
+from utils.db_compat import table_columns
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
@@ -31,8 +32,7 @@ def _dict_from_row(cursor, row) -> Dict[str, Any]:
 def _table_columns(cursor, table_name: str) -> set[str]:
     if table_name in _TABLE_COLUMNS_CACHE:
         return _TABLE_COLUMNS_CACHE[table_name]
-    cursor.execute(f"PRAGMA table_info({table_name})")
-    columns = {row[1] for row in cursor.fetchall()}
+    columns = table_columns(cursor, table_name)
     _TABLE_COLUMNS_CACHE[table_name] = columns
     return columns
 

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: kay-pos-cloud
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: uvicorn server.cloud_app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ZAY_POS_DB_BACKEND
+        value: postgres
+      - key: ZAY_POS_AUTO_INIT_DB
+        value: "1"
+      - key: ZAY_POS_DATABASE_URL
+        sync: false
