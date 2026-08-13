@@ -44,6 +44,7 @@ class MainWindow(MainWindowUI):
     logout_triggered: bool
     follow_system_theme: bool
     auto_backup_manager: Optional[Any] = None
+    cloud_sync_manager: Optional[Any] = None
     telegram_command_listener: Optional[Any] = None
     customer_display_server: Optional[Any] = None
     expense_notification_checker: Optional[Any] = None
@@ -115,6 +116,7 @@ class MainWindow(MainWindowUI):
         # ၅. Auto Backup Manager ကို စတင်ခြင်း
         # ------------------------------------------------------------
         self.auto_backup_manager = None
+        self.cloud_sync_manager = None
         
         # ------------------------------------------------------------
         # ၆. Telegram Service ကို စတင်ခြင်း
@@ -200,6 +202,7 @@ class MainWindow(MainWindowUI):
             from utils.customer_display_server import start_customer_display_server
             from utils.expense_notification_checker import ExpenseNotificationChecker
             from utils.telegram_service import start_telegram_command_listener
+            from services.cloud_sync_service import start_cloud_sync_manager
 
             self.auto_backup_manager = AutoBackupManager(self)
             self.auto_backup_manager.backup_started.connect(self.on_background_activity_started)
@@ -209,6 +212,7 @@ class MainWindow(MainWindowUI):
 
             self.telegram_command_listener = start_telegram_command_listener()
             self.customer_display_server = start_customer_display_server()
+            self.cloud_sync_manager = start_cloud_sync_manager()
             self._show_customer_display_server_status()
 
             if hasattr(self, "sales_page") and self.sales_page and hasattr(self.sales_page, 'publish_customer_display_state'):
@@ -384,6 +388,9 @@ class MainWindow(MainWindowUI):
             if hasattr(self, "auto_backup_manager") and self.auto_backup_manager:
                 self.auto_backup_manager.stop()
                 self.auto_backup_manager = None
+            if hasattr(self, "cloud_sync_manager") and self.cloud_sync_manager:
+                self.cloud_sync_manager.stop()
+                self.cloud_sync_manager = None
 
             if hasattr(self, "update_loading"):
                 self.update_loading("Closing session...", 94)
@@ -482,6 +489,9 @@ class MainWindow(MainWindowUI):
             if hasattr(self, "auto_backup_manager") and self.auto_backup_manager:
                 self.auto_backup_manager.stop()
                 self.auto_backup_manager = None
+            if hasattr(self, "cloud_sync_manager") and self.cloud_sync_manager:
+                self.cloud_sync_manager.stop()
+                self.cloud_sync_manager = None
             
             if not self.logout_triggered:
                 # 3. Stop Telegram listener on real application exit only. This can
