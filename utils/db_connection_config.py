@@ -40,18 +40,29 @@ def build_database_url(host, port=DEFAULT_DB_PORT, database=DEFAULT_DB_NAME, use
     return f"postgresql://{auth}@{host}:{port}/{database}"
 
 
+def build_cloud_database_url(
+    host,
+    port=DEFAULT_DB_PORT,
+    database="defaultdb",
+    username="avnadmin",
+    password="",
+    sslmode="require",
+):
+    url = build_database_url(host, port, database or "defaultdb", username or "avnadmin", password)
+    sslmode = str(sslmode or "").strip()
+    if sslmode:
+        url = f"{url}?sslmode={quote(sslmode, safe='')}"
+    return url
+
+
 def load_database_config():
     load_project_env()
     return parse_database_url(os.getenv("ZAY_POS_DATABASE_URL") or os.getenv("DATABASE_URL") or "")
 
 
-def save_database_config(host, port, database, username, password):
+def _save_env_values(values):
     env_path = get_writable_env_path()
     env_path.parent.mkdir(parents=True, exist_ok=True)
-    values = {
-        "ZAY_POS_DB_BACKEND": "postgres",
-        "ZAY_POS_DATABASE_URL": build_database_url(host, port, database, username, password),
-    }
     existing = []
     if env_path.exists():
         existing = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -81,6 +92,61 @@ def save_database_config(host, port, database, username, password):
     return env_path
 
 
+def save_database_config(host, port, database, username, password):
+    return _save_env_values({
+        "ZAY_POS_DB_BACKEND": "postgres",
+        "ZAY_POS_DATABASE_URL": build_database_url(host, port, database, username, password),
+    })
+
+
+def load_cloud_sync_config():
+    load_project_env()
+    url = os.getenv("ZAY_POS_CLOUD_DATABASE_URL") or ""
+    config = parse_database_url(url)
+    config.update({
+        "enabled": str(os.getenv("ZAY_POS_CLOUD_SYNC_ENABLED", "")).strip().lower() in {"1", "true", "yes", "on"},
+        "interval_seconds": int(os.getenv("ZAY_POS_CLOUD_SYNC_INTERVAL_SECONDS") or 300),
+        "branch_id": os.getenv("ZAY_POS_BRANCH_ID") or "shop_001",
+        "device_id": os.getenv("ZAY_POS_DEVICE_ID") or "server_pc",
+        "sslmode": "require",
+    })
+    query = (urlparse(url or "").query or "").split("&")
+    for item in query:
+        if item.startswith("sslmode="):
+            config["sslmode"] = item.split("=", 1)[1] or "require"
+            break
+    if not config.get("database"):
+        config["database"] = "defaultdb"
+    if not config.get("username"):
+        config["username"] = "avnadmin"
+    return config
+
+
+def save_cloud_sync_config(
+    enabled,
+    host,
+    port,
+    database,
+    username,
+    password,
+    sslmode="require",
+    interval_seconds=300,
+    branch_id="shop_001",
+    device_id="server_pc",
+):
+    values = {
+        "ZAY_POS_CLOUD_SYNC_ENABLED": "1" if enabled else "0",
+        "ZAY_POS_CLOUD_SYNC_INTERVAL_SECONDS": str(max(60, int(interval_seconds or 300))),
+        "ZAY_POS_BRANCH_ID": str(branch_id or "shop_001").strip(),
+        "ZAY_POS_DEVICE_ID": str(device_id or "server_pc").strip(),
+    }
+    if host:
+        values["ZAY_POS_CLOUD_DATABASE_URL"] = build_cloud_database_url(
+            host, port, database, username, password, sslmode
+        )
+    return _save_env_values(values)
+
+
 def test_database_connection(host, port, database, username, password):
     url = build_database_url(host, port, database, username, password)
     try:
@@ -94,5 +160,16 @@ def test_database_connection(host, port, database, username, password):
         user_count = cursor.fetchone()[0]
         conn.close()
         return True, f"Connected. Products: {product_count}, Users: {user_count}"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def test_cloud_sync_connection(host, port, database, username, password, sslmode="require"):
+    url = build_cloud_database_url(host, port, database, username, password, sslmode)
+    try:
+        from services.cloud_sync_service import CloudSyncService
+
+        result = CloudSyncService(database_url=url).test_connection()
+        return result.ok, result.message
     except Exception as exc:
         return False, str(exc)
