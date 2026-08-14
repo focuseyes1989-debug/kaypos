@@ -455,7 +455,11 @@ class DatabaseConnectionSettingWidget(QWidget):
             subprocess.Popen(command, **popen_kwargs)
             app = QApplication.instance()
             if app:
-                QTimer.singleShot(300, app.quit)
+                QTimer.singleShot(200, app.closeAllWindows)
+                QTimer.singleShot(500, app.quit)
+                QTimer.singleShot(1200, lambda: os._exit(0))
+            else:
+                QTimer.singleShot(1200, lambda: os._exit(0))
         except Exception as exc:
             QMessageBox.critical(
                 self,
