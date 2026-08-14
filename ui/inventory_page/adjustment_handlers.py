@@ -11,6 +11,17 @@ import os
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 
 
+def _quantity_value(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _format_quantity(value):
+    return f"{_quantity_value(value):g}"
+
+
 class AdjustmentHandlers:
     """Event handlers for AdjustmentDialog"""
     
@@ -136,7 +147,7 @@ class AdjustmentHandlers:
             conn.close()
             if row:
                 stock, sold_by = row
-                stock = stock if stock is not None else 0
+                stock = _quantity_value(stock)
                 if sold_by == "Service":
                     QMessageBox.warning(d, tr("warning"), tr("service_adjustment_not_allowed"))
                     d.adj_new_qty.setEnabled(False)
@@ -145,7 +156,7 @@ class AdjustmentHandlers:
                     return
                 else:
                     d.adj_new_qty.setEnabled(True)
-                    d.adj_old_qty.setText(str(stock))
+                    d.adj_old_qty.setText(_format_quantity(stock))
                     
                     # ✅ Check if location only mode is active
                     if hasattr(d, 'adj_location_only') and d.adj_location_only.isChecked():
@@ -153,7 +164,7 @@ class AdjustmentHandlers:
                         d.current_stock_label.setText("📍 Location Only Mode - Stock will not change")
                     else:
                         d.adj_new_qty.setValue(stock)
-                        d.current_stock_label.setText(f"📊 Stock: {stock}")
+                        d.current_stock_label.setText(f"📊 Stock: {_format_quantity(stock)}")
                     
                     d.current_stock_label.setVisible(True)
                     self.current_product_id = pid
@@ -168,10 +179,10 @@ class AdjustmentHandlers:
         """Update difference between old and new quantity"""
         d = self.dialog
         try:
-            old = int(d.adj_old_qty.text()) if d.adj_old_qty.text().isdigit() else 0
+            old = _quantity_value(d.adj_old_qty.text())
         except:
-            old = 0
-        new = d.adj_new_qty.value()
+            old = 0.0
+        new = _quantity_value(d.adj_new_qty.value())
         diff = new - old
         
         # Format diff with sign and color
@@ -188,7 +199,7 @@ class AdjustmentHandlers:
                     min-width: 80px;
                 }
             """)
-            d.adj_diff.setText(f"+{diff}")
+            d.adj_diff.setText(f"+{_format_quantity(diff)}")
         elif diff < 0:
             d.adj_diff.setStyleSheet("""
                 QLabel {
@@ -202,7 +213,7 @@ class AdjustmentHandlers:
                     min-width: 80px;
                 }
             """)
-            d.adj_diff.setText(str(diff))
+            d.adj_diff.setText(_format_quantity(diff))
         else:
             # ✅ Check if location only mode is active
             if hasattr(d, 'adj_location_only') and d.adj_location_only.isChecked():
@@ -437,7 +448,7 @@ class AdjustmentHandlers:
                 row = cursor.fetchone()
                 conn.close()
                 if row:
-                    stock = row[0] if row[0] is not None else 0
+                    stock = _quantity_value(row[0])
                     d.adj_new_qty.setValue(stock)
                     
                     # Update label
@@ -473,7 +484,7 @@ class AdjustmentHandlers:
             
             # Change new_qty background to indicate it's locked
             d.adj_new_qty.setStyleSheet("""
-                QSpinBox {
+                QDoubleSpinBox {
                     padding: 8px 12px;
                     border: 2px solid #3498db;
                     border-radius: 6px;
@@ -501,7 +512,7 @@ class AdjustmentHandlers:
     def _get_spinbox_style(self, colors):
         """Get spinbox style for resetting"""
         return f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 padding: 8px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
@@ -510,15 +521,15 @@ class AdjustmentHandlers:
                 font-size: 10pt;
                 min-width: 100px;
             }}
-            QSpinBox:focus {{
+            QDoubleSpinBox:focus {{
                 border-color: #5865f2;
             }}
-            QSpinBox::up-button, QSpinBox::down-button {{
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
                 background-color: transparent;
                 border: none;
                 width: 16px;
             }}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+            QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
                 background-color: {colors['bg_hover']};
                 border-radius: 2px;
             }}
@@ -537,7 +548,7 @@ class AdjustmentHandlers:
             QMessageBox.warning(self.dialog, tr("error"), tr("valid_product_required"))
             return
         
-        new_qty = d.adj_new_qty.value()
+        new_qty = _quantity_value(d.adj_new_qty.value())
         reason = d.adj_reason.text().strip()
         staff = d.adj_staff.text().strip()
         notes = d.adj_notes.toPlainText().strip()
@@ -578,7 +589,7 @@ class AdjustmentHandlers:
                 return
             
             old_stock, sold_by = row
-            old_stock = old_stock if old_stock is not None else 0
+            old_stock = _quantity_value(old_stock)
             
             if sold_by == "Service":
                 QMessageBox.warning(self.dialog, tr("error"), tr("service_stock_not_allowed"))
@@ -604,14 +615,14 @@ class AdjustmentHandlers:
                                 last_updated = CURRENT_TIMESTAMP
                             WHERE product_id = ? AND location = ?
                         """, (old_stock, product_id, location))
-                        msg = f"Location '{location}' updated with {old_stock} units!" if lang != "my" else f"နေရာ '{location}' ကို {old_stock} ခုဖြင့် ပြင်ဆင်ပြီးပါပြီ။"
+                        msg = f"Location '{location}' updated with {_format_quantity(old_stock)} units!" if lang != "my" else f"နေရာ '{location}' ကို {_format_quantity(old_stock)} ခုဖြင့် ပြင်ဆင်ပြီးပါပြီ။"
                     else:
                         # Location doesn't exist, add it
                         cursor.execute("""
                             INSERT INTO product_locations (product_id, location, quantity, last_updated)
                             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                         """, (product_id, location, old_stock))
-                        msg = f"Location '{location}' added with {old_stock} units!" if lang != "my" else f"နေရာ '{location}' ကို {old_stock} ခုဖြင့် ထည့်သွင်းပြီးပါပြီ။"
+                        msg = f"Location '{location}' added with {_format_quantity(old_stock)} units!" if lang != "my" else f"နေရာ '{location}' ကို {_format_quantity(old_stock)} ခုဖြင့် ထည့်သွင်းပြီးပါပြီ။"
                     
                     # Record stock movement for location update
                     cursor.execute("""
@@ -697,7 +708,7 @@ class AdjustmentHandlers:
             
             conn.commit()
             
-            msg = f"စတော့ကို {old_stock} မှ {new_qty} သို့ ပြင်ဆင်ပြီးပါပြီ။" if lang == "my" else f"Stock adjusted from {old_stock} to {new_qty}"
+            msg = f"စတော့ကို {_format_quantity(old_stock)} မှ {_format_quantity(new_qty)} သို့ ပြင်ဆင်ပြီးပါပြီ။" if lang == "my" else f"Stock adjusted from {_format_quantity(old_stock)} to {_format_quantity(new_qty)}"
             if location:
                 msg += f" (Location: {location})"
             QMessageBox.information(self.dialog, tr("success"), msg)

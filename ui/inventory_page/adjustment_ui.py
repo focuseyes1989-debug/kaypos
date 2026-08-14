@@ -1,6 +1,6 @@
 # ui/inventory_page/adjustment_ui.py
 from PyQt6.QtWidgets import (
-    QLabel, QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit, QVBoxLayout, 
+    QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QDateEdit, QTextEdit, QVBoxLayout, 
     QHBoxLayout, QWidget, QGridLayout, QFrame, QCheckBox
 )
 from PyQt6.QtCore import Qt, QDate
@@ -462,7 +462,7 @@ class AdjustmentUI:
     
     def _get_input_style(self, colors):
         return f"""
-            QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit {{
+            QLineEdit, QComboBox, QDoubleSpinBox, QDateEdit, QTextEdit {{
                 padding: 8px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
@@ -470,7 +470,7 @@ class AdjustmentUI:
                 color: {colors['text']};
                 font-size: 10pt;
             }}
-            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus, QTextEdit:focus {{
+            QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTextEdit:focus {{
                 border-color: #5865f2;
             }}
             QLineEdit::placeholder, QTextEdit::placeholder {{
@@ -518,7 +518,7 @@ class AdjustmentUI:
     
     def _get_spinbox_style(self, colors):
         return f"""
-            QSpinBox {{
+            QDoubleSpinBox {{
                 padding: 8px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
@@ -527,15 +527,15 @@ class AdjustmentUI:
                 font-size: 10pt;
                 min-width: 100px;
             }}
-            QSpinBox:focus {{
+            QDoubleSpinBox:focus {{
                 border-color: #5865f2;
             }}
-            QSpinBox::up-button, QSpinBox::down-button {{
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
                 background-color: transparent;
                 border: none;
                 width: 16px;
             }}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+            QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
                 background-color: {colors['bg_hover']};
                 border-radius: 2px;
             }}
@@ -656,8 +656,10 @@ class AdjustmentUI:
         return edit
     
     def _create_spinbox(self, colors):
-        spin = QSpinBox()
+        spin = QDoubleSpinBox()
         spin.setRange(0, 999999)
+        spin.setDecimals(3)
+        spin.setSingleStep(1)
         spin.setStyleSheet(self._get_spinbox_style(colors))
         return spin
     
