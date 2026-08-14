@@ -1,8 +1,13 @@
+import os
+import subprocess
+import sys
+
 from PyQt6.QtWidgets import (
+    QApplication,
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout, QLabel,
     QCheckBox, QLineEdit, QPushButton, QSpinBox, QMessageBox, QProgressDialog
 )
-from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 
 from utils.db_connection_config import (
     DEFAULT_DB_NAME,
@@ -414,8 +419,49 @@ class DatabaseConnectionSettingWidget(QWidget):
         QMessageBox.information(
             self,
             "Database Connection",
-            f"Saved to {env_path}\n\nPlease restart the app.",
+            f"Saved to {env_path}",
         )
+        self._prompt_restart()
+
+    def _restart_command(self):
+        if getattr(sys, "frozen", False):
+            return [sys.executable], os.path.dirname(sys.executable)
+
+        script = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+        if script and os.path.exists(script):
+            return [sys.executable, script], os.getcwd()
+        return [sys.executable, "main.py"], os.getcwd()
+
+    def _prompt_restart(self):
+        answer = QMessageBox.question(
+            self,
+            "Restart Required",
+            "Database settings were saved successfully.\n\nRestart the app now to apply the new connection settings?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self._restart_app()
+
+    def _restart_app(self):
+        try:
+            command, cwd = self._restart_command()
+            popen_kwargs = {"cwd": cwd, "close_fds": True}
+            if sys.platform == "win32":
+                popen_kwargs["creationflags"] = (
+                    getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                    | getattr(subprocess, "DETACHED_PROCESS", 0)
+                )
+            subprocess.Popen(command, **popen_kwargs)
+            app = QApplication.instance()
+            if app:
+                QTimer.singleShot(300, app.quit)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Restart Failed",
+                f"Settings were saved, but the app could not restart automatically.\n\n{exc}",
+            )
 
     def retranslateUi(self):
         pass
