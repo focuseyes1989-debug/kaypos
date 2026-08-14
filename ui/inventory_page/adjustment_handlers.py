@@ -9,6 +9,8 @@ import os
 
 # ✅ Import theme manager
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from utils.paths import app_path, get_product_images_dir
+from utils.product_image_store import cached_product_image_path
 
 
 def _quantity_value(value):
@@ -20,6 +22,44 @@ def _quantity_value(value):
 
 def _format_quantity(value):
     return f"{_quantity_value(value):g}"
+
+
+def _resolve_product_image_path(product_id, image_path):
+    raw_path = str(image_path or "").strip().strip('"')
+    if not raw_path and not product_id:
+        return ""
+
+    normalized = raw_path.replace("\\", os.sep).replace("/", os.sep)
+    filename = os.path.basename(normalized)
+    candidates = []
+
+    if normalized:
+        if os.path.isabs(normalized):
+            candidates.append(normalized)
+            if filename:
+                candidates.append(os.path.join(get_product_images_dir(), filename))
+        else:
+            candidates.extend([
+                app_path(normalized),
+                os.path.join(os.getcwd(), normalized),
+            ])
+            if filename:
+                candidates.append(os.path.join(get_product_images_dir(), filename))
+            if normalized.startswith(f"product_images{os.sep}"):
+                candidates.append(app_path("database", normalized))
+
+    seen = set()
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            if os.path.exists(candidate):
+                return candidate
+
+    cached_path = cached_product_image_path(product_id, raw_path)
+    if cached_path and os.path.exists(cached_path):
+        return cached_path
+
+    return ""
 
 
 class AdjustmentHandlers:
@@ -256,6 +296,7 @@ class AdjustmentHandlers:
         d = self.dialog
         product_id = d.adj_product.currentData()
         if product_id is None:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             return
@@ -282,25 +323,30 @@ class AdjustmentHandlers:
             """
             d.product_details_label.setText(details)
             
-            if image and os.path.exists(image):
+            image_path = _resolve_product_image_path(product_id, image)
+            if image_path:
                 try:
-                    pixmap = QPixmap(image)
+                    pixmap = QPixmap(image_path)
                     if not pixmap.isNull():
                         scaled_pixmap = pixmap.scaled(
-                            d.image_preview.width() - 30,
-                            d.image_preview.height() - 30,
+                            max(1, d.image_preview.width() - 30),
+                            max(1, d.image_preview.height() - 30),
                             Qt.AspectRatioMode.KeepAspectRatio,
                             Qt.TransformationMode.SmoothTransformation
                         )
                         d.image_preview.setPixmap(scaled_pixmap)
                         d.image_preview.setText("")
                     else:
+                        d.image_preview.setPixmap(QPixmap())
                         d.image_preview.setText("🖼️ Invalid Image")
                 except Exception:
+                    d.image_preview.setPixmap(QPixmap())
                     d.image_preview.setText("🖼️ Image Not Available")
             else:
+                d.image_preview.setPixmap(QPixmap())
                 d.image_preview.setText("📷 No Image Available")
         else:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     
