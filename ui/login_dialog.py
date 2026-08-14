@@ -109,7 +109,7 @@ class LoginDialog(QDialog):
 
         # Logo container - NO BORDER
         logo_container = QFrame()
-        logo_container.setFixedSize(70, 70)
+        logo_container.setFixedSize(112, 112)
         logo_container.setStyleSheet("""
             QFrame {
                 background: transparent;
@@ -126,7 +126,7 @@ class LoginDialog(QDialog):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             if not pixmap.isNull():
-                scaled_pixmap = pixmap.scaled(55, 55, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                scaled_pixmap = pixmap.scaled(104, 104, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 logo_label.setPixmap(scaled_pixmap)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_container_layout.addWidget(logo_label)
@@ -213,14 +213,14 @@ class LoginDialog(QDialog):
         
         # Cancel button (left)
         self.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
-        self.btn_cancel.set_icon("close", size=(18, 18))
+        self.btn_cancel.set_icon("close", size=(20, 20))
         self.btn_cancel.set_compact(False)
         self.btn_cancel.setMinimumHeight(40)
         self.btn_cancel.clicked.connect(self.reject)
         
         # Login button (right)
         self.btn_login = ModernButton(" Login", ModernButton.PRIMARY)
-        self.btn_login.set_icon("login", size=(18, 18))
+        self.btn_login.set_icon("login", size=(20, 20))
         self.btn_login.set_compact(False)
         self.btn_login.setMinimumHeight(40)
         self.btn_login.clicked.connect(self.attempt_login)
@@ -261,8 +261,8 @@ class LoginDialog(QDialog):
 
     def _update_button_icons(self):
         """Update button icons when theme changes"""
-        self.btn_login.set_icon("login", size=(18, 18))
-        self.btn_cancel.set_icon("close", size=(18, 18))
+        self.btn_login.set_icon("login", size=(20, 20))
+        self.btn_cancel.set_icon("close", size=(20, 20))
 
     def _apply_theme(self):
         """Apply theme-aware styles"""
