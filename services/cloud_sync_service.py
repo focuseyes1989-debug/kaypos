@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import shutil
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, List, Sequence
 
 from loguru import logger
@@ -13,7 +15,7 @@ from loguru import logger
 from models.database import connect_db
 from models.database.postgres_adapter import connect_postgres
 from models.database.postgres_schema import ensure_postgres_app_schema
-from utils.db_compat import is_postgres_backend, quote_identifier
+from utils.db_compat import database_url, is_postgres_backend, quote_identifier, table_columns
 from utils.env_loader import load_project_env
 
 
@@ -43,6 +45,7 @@ class CloudSyncResult:
     synced_tables: int = 0
     synced_rows: int = 0
     message: str = ""
+    backup_path: str = ""
 
 
 def cloud_sync_enabled() -> bool:
@@ -93,8 +96,7 @@ def _local_table_exists(cursor, table_name: str) -> bool:
 
 
 def _local_columns(cursor, table_name: str) -> List[str]:
-    cursor.execute(f"PRAGMA table_info({quote_identifier(table_name)})")
-    return [str(row[1]) for row in cursor.fetchall()]
+    return list(table_columns(cursor, table_name))
 
 
 def _cloud_columns(cursor, table_name: str) -> List[str]:
@@ -129,6 +131,29 @@ def _fetch_local_rows(cursor, table_name: str, columns: Sequence[str], limit: in
     return cursor.fetchall()
 
 
+def _fetch_cloud_rows(cursor, table_name: str, columns: Sequence[str], limit: int, offset: int) -> List[tuple]:
+    col_sql = ", ".join(quote_identifier(column) for column in columns)
+    order_sql = "id" if "id" in columns else columns[0]
+    cursor.execute(
+        f"""
+        SELECT {col_sql}
+        FROM {quote_identifier(table_name)}
+        ORDER BY {quote_identifier(order_sql)}
+        LIMIT %s OFFSET %s
+        """,
+        (limit, offset),
+    )
+    return cursor.fetchall()
+
+
+def _normalize_local_value(value: Any) -> Any:
+    if isinstance(value, memoryview):
+        return value.tobytes()
+    if isinstance(value, bytearray):
+        return bytes(value)
+    return value
+
+
 def _upsert_cloud_rows(cursor, table_name: str, columns: Sequence[str], rows: Iterable[Sequence[Any]]) -> int:
     rows = list(rows)
     if not rows:
@@ -142,6 +167,35 @@ def _upsert_cloud_rows(cursor, table_name: str, columns: Sequence[str], rows: It
     if update_columns:
         update_sql = ", ".join(
             f"{quote_identifier(column)} = EXCLUDED.{quote_identifier(column)}"
+            for column in update_columns
+        )
+        conflict_sql = f"DO UPDATE SET {update_sql}"
+    else:
+        conflict_sql = "DO NOTHING"
+
+    sql = f"""
+        INSERT INTO {quote_identifier(table_name)} ({quoted_columns})
+        VALUES {values_placeholders}
+        ON CONFLICT ({quote_identifier(conflict_column)}) {conflict_sql}
+    """
+    params = [value for row in rows for value in row]
+    cursor.execute(sql, params)
+    return len(rows)
+
+
+def _upsert_local_rows(cursor, table_name: str, columns: Sequence[str], rows: Iterable[Sequence[Any]]) -> int:
+    rows = [tuple(_normalize_local_value(value) for value in row) for row in rows]
+    if not rows:
+        return 0
+
+    quoted_columns = ", ".join(quote_identifier(column) for column in columns)
+    row_placeholders = f"({', '.join('?' for _ in columns)})"
+    values_placeholders = ", ".join(row_placeholders for _ in rows)
+    conflict_column = "id" if "id" in columns else columns[0]
+    update_columns = [column for column in columns if column != conflict_column]
+    if update_columns:
+        update_sql = ", ".join(
+            f"{quote_identifier(column)} = excluded.{quote_identifier(column)}"
             for column in update_columns
         )
         conflict_sql = f"DO UPDATE SET {update_sql}"
@@ -184,6 +238,62 @@ def _upsert_category_rows(cursor, columns: Sequence[str], rows: Iterable[Sequenc
               AND EXISTS (SELECT 1 FROM categories parent WHERE parent.id = %s)
         """, (parent_id, category_id, parent_id))
     return synced
+
+
+def _upsert_local_category_rows(cursor, columns: Sequence[str], rows: Iterable[Sequence[Any]]) -> int:
+    rows = list(rows)
+    if not rows or "parent_id" not in columns or "id" not in columns:
+        return _upsert_local_rows(cursor, "categories", columns, rows)
+
+    parent_index = columns.index("parent_id")
+    id_index = columns.index("id")
+    insert_rows = []
+    parent_updates = []
+    for row in rows:
+        row_values = list(row)
+        parent_id = row_values[parent_index]
+        if parent_id:
+            parent_updates.append((parent_id, row_values[id_index]))
+            row_values[parent_index] = None
+        insert_rows.append(tuple(row_values))
+
+    synced = _upsert_local_rows(cursor, "categories", columns, insert_rows)
+    for parent_id, category_id in parent_updates:
+        cursor.execute("""
+            UPDATE categories
+            SET parent_id = ?
+            WHERE id = ?
+              AND EXISTS (SELECT 1 FROM categories parent WHERE parent.id = ?)
+        """, (parent_id, category_id, parent_id))
+    return synced
+
+
+def _backup_local_sqlite_database() -> str:
+    if is_postgres_backend():
+        return ""
+    try:
+        from models.database.connection import DB_NAME
+    except Exception:
+        DB_NAME = os.path.join("database", "pos.db")
+
+    db_path = Path(DB_NAME)
+    if not db_path.exists():
+        return ""
+
+    backup_dir = db_path.parent / "cloud_pull_backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_path = backup_dir / f"pos_before_cloud_pull_{stamp}.db"
+    shutil.copy2(db_path, backup_path)
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(str(db_path) + suffix)
+        if sidecar.exists():
+            shutil.copy2(sidecar, backup_dir / f"{backup_path.name}{suffix}")
+    return str(backup_path)
+
+
+def _normalize_database_url(url: str) -> str:
+    return str(url or "").strip().rstrip("/")
 
 
 def _set_metadata(cursor, key: str, value: str) -> None:
@@ -307,6 +417,107 @@ class CloudSyncService:
                     pass
             logger.warning(f"Cloud sync failed: {exc}")
             return CloudSyncResult(False, synced_tables=synced_tables, synced_rows=synced_rows, message=str(exc))
+        finally:
+            for conn in (cloud_conn, local_conn):
+                if conn:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+
+    def pull_once(self) -> CloudSyncResult:
+        """Pull cloud data into the local POS database.
+
+        Cloud rows win on id conflicts. This is intended for server-PC recovery
+        after clients used the cloud database while the local server was down.
+        """
+        if not self.database_url:
+            return CloudSyncResult(False, message="ZAY_POS_CLOUD_DATABASE_URL is not configured.")
+        if is_postgres_backend() and _normalize_database_url(database_url()) == _normalize_database_url(self.database_url):
+            return CloudSyncResult(
+                False,
+                message=(
+                    "Cloud pull refused because the primary database URL is the same as the cloud URL. "
+                    "Set the local server database as ZAY_POS_DATABASE_URL before pulling from cloud."
+                ),
+            )
+
+        local_conn = None
+        cloud_conn = None
+        synced_tables = 0
+        synced_rows = 0
+        backup_path = ""
+        started = time.time()
+        try:
+            backup_path = _backup_local_sqlite_database()
+            previous_failover = os.getenv("ZAY_POS_DATABASE_FAILOVER_ENABLED")
+            os.environ["ZAY_POS_DATABASE_FAILOVER_ENABLED"] = "0"
+            try:
+                local_conn = connect_db()
+            finally:
+                if previous_failover is None:
+                    os.environ.pop("ZAY_POS_DATABASE_FAILOVER_ENABLED", None)
+                else:
+                    os.environ["ZAY_POS_DATABASE_FAILOVER_ENABLED"] = previous_failover
+            local_cursor = local_conn.cursor()
+            cloud_conn = connect_postgres(self.database_url)
+            cloud_cursor = cloud_conn.cursor()
+            if _metadata_value(cloud_cursor, "schema_initialized") != "1":
+                _ensure_cloud_schema(cloud_cursor)
+                _set_metadata(cloud_cursor, "schema_initialized", "1")
+                cloud_conn.commit()
+
+            for table_name in self.tables:
+                if not _local_table_exists(local_cursor, table_name):
+                    continue
+                local_columns = _local_columns(local_cursor, table_name)
+                cloud_columns = _cloud_columns(cloud_cursor, table_name)
+                columns = [
+                    column for column in cloud_columns
+                    if column in local_columns
+                ]
+                if not columns or ("id" not in columns and not columns[0]):
+                    continue
+
+                total_rows = _row_count(cloud_cursor, table_name)
+                offset = 0
+                table_rows = 0
+                while offset < total_rows:
+                    rows = _fetch_cloud_rows(cloud_cursor, table_name, columns, self.batch_size, offset)
+                    if table_name == "categories":
+                        table_rows += _upsert_local_category_rows(local_cursor, columns, rows)
+                    else:
+                        table_rows += _upsert_local_rows(local_cursor, table_name, columns, rows)
+                    offset += self.batch_size
+                if table_rows or total_rows == 0:
+                    synced_tables += 1
+                    synced_rows += table_rows
+                    local_conn.commit()
+                    logger.info(f"Pulled {table_name} from cloud: {table_rows} row(s)")
+
+            elapsed = time.time() - started
+            backup_note = f" Backup: {backup_path}" if backup_path else ""
+            return CloudSyncResult(
+                True,
+                synced_tables=synced_tables,
+                synced_rows=synced_rows,
+                backup_path=backup_path,
+                message=f"Pulled {synced_rows} row(s) from {synced_tables} table(s) in {elapsed:.1f}s.{backup_note}",
+            )
+        except Exception as exc:
+            if local_conn:
+                try:
+                    local_conn.rollback()
+                except Exception:
+                    pass
+            logger.warning(f"Cloud pull failed: {exc}")
+            return CloudSyncResult(
+                False,
+                synced_tables=synced_tables,
+                synced_rows=synced_rows,
+                backup_path=backup_path,
+                message=str(exc),
+            )
         finally:
             for conn in (cloud_conn, local_conn):
                 if conn:

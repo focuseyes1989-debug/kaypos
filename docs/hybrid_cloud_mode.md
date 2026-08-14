@@ -92,3 +92,38 @@ ZAY_POS_DATABASE_FALLBACK_URL=postgres://avnadmin:YOUR_PASSWORD@YOUR_AIVEN_HOST:
 Restart the client app after saving. On startup, it tries the primary local
 PostgreSQL database first; if that connection fails, it connects to the cloud
 fallback database.
+
+## Server PC Recovery After Cloud Use
+
+When the server PC was down and users continued on Aiven/cloud mode, the cloud
+database becomes the latest source of truth. When the server PC is repaired:
+
+1. Start the server PC app, but do not switch clients back to local mode yet.
+2. Open `Settings > Database`.
+3. Confirm the Aiven fields are correct.
+4. Click `Pull from Cloud`.
+5. Wait for the success message and note the backup path.
+6. Restart the server PC app.
+7. Switch client PCs back to local PostgreSQL/server PC mode.
+
+`Pull from Cloud` copies cloud rows into the local POS database. Cloud rows win
+when a matching local row has the same ID. For SQLite local databases, the app
+creates a backup under:
+
+```text
+database/cloud_pull_backups/
+```
+
+The same operation is available from the command line:
+
+```bash
+python scripts/cloud_sync_once.py --pull
+```
+
+Safety notes:
+
+- The primary database must be the repaired local/server database before
+  pulling.
+- Pull is refused when the primary database URL is the same as the cloud URL.
+- Cloud failover is temporarily disabled during pull so a broken local server
+  does not accidentally write back into the cloud database.

@@ -21,15 +21,17 @@ from utils.db_connection_config import (
 class CloudSyncWorker(QObject):
     finished = pyqtSignal(bool, str)
 
-    def __init__(self, database_url):
+    def __init__(self, database_url, action="sync"):
         super().__init__()
         self.database_url = database_url
+        self.action = action
 
     def run(self):
         try:
             from services.cloud_sync_service import CloudSyncService
 
-            result = CloudSyncService(database_url=self.database_url).sync_once()
+            service = CloudSyncService(database_url=self.database_url)
+            result = service.pull_once() if self.action == "pull" else service.sync_once()
             self.finished.emit(result.ok, result.message)
         except Exception as exc:
             self.finished.emit(False, str(exc))
@@ -152,15 +154,18 @@ class DatabaseConnectionSettingWidget(QWidget):
         self.btn_test = QPushButton("Test Connection")
         self.btn_test_cloud = QPushButton("Test Cloud")
         self.btn_sync_now = QPushButton("Sync Now")
+        self.btn_pull_cloud = QPushButton("Pull from Cloud")
         self.btn_save = QPushButton("Save")
         self.btn_test.clicked.connect(self.test_connection)
         self.btn_test_cloud.clicked.connect(self.test_cloud_connection)
         self.btn_sync_now.clicked.connect(self.sync_cloud_now)
+        self.btn_pull_cloud.clicked.connect(self.pull_cloud_now)
         self.btn_save.clicked.connect(self.save_settings)
         button_row.addStretch()
         button_row.addWidget(self.btn_test)
         button_row.addWidget(self.btn_test_cloud)
         button_row.addWidget(self.btn_sync_now)
+        button_row.addWidget(self.btn_pull_cloud)
         button_row.addWidget(self.btn_save)
         layout.addLayout(button_row)
 
@@ -259,8 +264,7 @@ class DatabaseConnectionSettingWidget(QWidget):
 
         url = build_cloud_database_url(host, port, database, username, password, sslmode)
         self.cloud_status_label.setText("Running cloud sync...")
-        self.btn_sync_now.setEnabled(False)
-        self.btn_test_cloud.setEnabled(False)
+        self._set_cloud_action_buttons_enabled(False)
 
         self._sync_progress = QProgressDialog(
             "Preparing cloud sync...",
@@ -278,7 +282,7 @@ class DatabaseConnectionSettingWidget(QWidget):
         self._sync_progress.show()
 
         self._sync_thread = QThread(self)
-        self._sync_worker = CloudSyncWorker(url)
+        self._sync_worker = CloudSyncWorker(url, action="sync")
         self._sync_worker.moveToThread(self._sync_thread)
         self._sync_thread.started.connect(self._sync_worker.run)
         self._sync_worker.finished.connect(self._on_cloud_sync_finished)
@@ -288,12 +292,69 @@ class DatabaseConnectionSettingWidget(QWidget):
         self._sync_thread.finished.connect(self._clear_cloud_sync_thread)
         self._sync_thread.start()
 
+    def pull_cloud_now(self):
+        enabled, failover_enabled, host, port, database, username, password, sslmode, *_ = self._cloud_values()
+        if not host:
+            QMessageBox.warning(self, "Cloud Pull", "Please enter the Aiven host.")
+            return
+        if self._sync_thread and self._sync_thread.isRunning():
+            QMessageBox.information(self, "Cloud Pull", "A cloud operation is already running.")
+            return
+        answer = QMessageBox.warning(
+            self,
+            "Pull from Cloud",
+            "This will copy Aiven cloud data into this local POS database. "
+            "Cloud rows will overwrite matching local rows by ID. "
+            "Use this after the server PC was offline and clients used cloud mode.\n\n"
+            "A local SQLite backup will be created first when possible. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        from utils.db_connection_config import build_cloud_database_url
+
+        url = build_cloud_database_url(host, port, database, username, password, sslmode)
+        self.cloud_status_label.setText("Pulling cloud data into local POS...")
+        self._set_cloud_action_buttons_enabled(False)
+
+        self._sync_progress = QProgressDialog(
+            "Preparing cloud pull...",
+            None,
+            0,
+            0,
+            self,
+        )
+        self._sync_progress.setWindowTitle("Cloud Pull")
+        self._sync_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self._sync_progress.setMinimumDuration(0)
+        self._sync_progress.setAutoClose(False)
+        self._sync_progress.setAutoReset(False)
+        self._sync_progress.setLabelText("Downloading Aiven PostgreSQL data into the local POS database...")
+        self._sync_progress.show()
+
+        self._sync_thread = QThread(self)
+        self._sync_worker = CloudSyncWorker(url, action="pull")
+        self._sync_worker.moveToThread(self._sync_thread)
+        self._sync_thread.started.connect(self._sync_worker.run)
+        self._sync_worker.finished.connect(self._on_cloud_sync_finished)
+        self._sync_worker.finished.connect(self._sync_thread.quit)
+        self._sync_worker.finished.connect(self._sync_worker.deleteLater)
+        self._sync_thread.finished.connect(self._sync_thread.deleteLater)
+        self._sync_thread.finished.connect(self._clear_cloud_sync_thread)
+        self._sync_thread.start()
+
+    def _set_cloud_action_buttons_enabled(self, enabled):
+        self.btn_sync_now.setEnabled(enabled)
+        self.btn_pull_cloud.setEnabled(enabled)
+        self.btn_test_cloud.setEnabled(enabled)
+
     def _on_cloud_sync_finished(self, ok, message):
         if self._sync_progress:
             self._sync_progress.close()
             self._sync_progress = None
-        self.btn_sync_now.setEnabled(True)
-        self.btn_test_cloud.setEnabled(True)
+        self._set_cloud_action_buttons_enabled(True)
         self.cloud_status_label.setText(message)
         if ok:
             QMessageBox.information(self, "Cloud Sync", message)

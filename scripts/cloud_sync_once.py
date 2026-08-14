@@ -4,6 +4,7 @@ Usage:
     python scripts/cloud_sync_once.py --test
     python scripts/cloud_sync_once.py --init
     python scripts/cloud_sync_once.py --sync
+    python scripts/cloud_sync_once.py --pull
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ def main() -> int:
     parser.add_argument("--test", action="store_true", help="Test cloud PostgreSQL connection only")
     parser.add_argument("--init", action="store_true", help="Create/verify cloud PostgreSQL schema")
     parser.add_argument("--sync", action="store_true", help="Run one local-to-cloud sync pass")
+    parser.add_argument("--pull", action="store_true", help="Pull cloud PostgreSQL data into the local database")
     parser.add_argument("--table", action="append", help="Sync only this table; can be passed more than once")
     args = parser.parse_args()
 
@@ -41,7 +43,12 @@ def main() -> int:
         print(result.message)
         return 0 if result.ok else 1
 
-    if args.sync or not any((args.test, args.init)):
+    if args.pull:
+        result = service.pull_once()
+        print(result.message)
+        return 0 if result.ok else 1
+
+    if args.sync or not any((args.test, args.init, args.pull)):
         result = service.sync_once()
         print(result.message)
         return 0 if result.ok else 1
