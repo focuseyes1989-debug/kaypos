@@ -185,24 +185,23 @@ class StockOutHandlers:
             d.product_details_label.setText(details)
             
             try:
-                # Resolve relative/moved image files and fall back to the image
-                # bytes stored in the database for synced client installations.
-                from ui.products_page.product_table import load_thumbnail
+                # Use the full-resolution source for the large preview. The
+                # thumbnail cache is intentionally reserved for table cells.
+                from ui.products_page.product_table import load_product_pixmap
 
                 available_width = max(50, d.image_preview.width() - 30)
                 available_height = max(50, d.image_preview.height() - 30)
-                pixmap = load_thumbnail(
-                    image or "",
-                    max(available_width, available_height),
-                    product_id,
-                )
+                pixmap = load_product_pixmap(image or "", product_id)
                 if pixmap and not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(
-                        available_width,
-                        available_height,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
+                    if pixmap.width() <= available_width and pixmap.height() <= available_height:
+                        scaled_pixmap = pixmap
+                    else:
+                        scaled_pixmap = pixmap.scaled(
+                            available_width,
+                            available_height,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
                     d.image_preview.setPixmap(scaled_pixmap)
                     d.image_preview.setText("")
                 else:

@@ -158,6 +158,7 @@ class StockInHandlers:
         d = self.dialog
         product_id = d.si_product.currentData()
         if product_id is None:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             self.update_unit_selector(None)
@@ -188,24 +189,23 @@ class StockInHandlers:
             d.product_details_label.setText(details)
             
             try:
-                # This loader resolves moved/relative files and restores images
-                # stored in products.image_data to the local cache when needed.
-                from ui.products_page.product_table import load_thumbnail
+                # Use the full-resolution source for the large preview. The
+                # thumbnail cache is intentionally reserved for table cells.
+                from ui.products_page.product_table import load_product_pixmap
 
                 available_width = max(1, d.image_preview.width() - 30)
                 available_height = max(1, d.image_preview.height() - 30)
-                pixmap = load_thumbnail(
-                    image or "",
-                    max(available_width, available_height),
-                    product_id,
-                )
+                pixmap = load_product_pixmap(image or "", product_id)
                 if pixmap and not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(
-                        available_width,
-                        available_height,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
+                    if pixmap.width() <= available_width and pixmap.height() <= available_height:
+                        scaled_pixmap = pixmap
+                    else:
+                        scaled_pixmap = pixmap.scaled(
+                            available_width,
+                            available_height,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
                     d.image_preview.setPixmap(scaled_pixmap)
                     d.image_preview.setText("")
                 else:
@@ -215,6 +215,7 @@ class StockInHandlers:
                 d.image_preview.setPixmap(QPixmap())
                 d.image_preview.setText("🖼️ Image Not Available")
         else:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     

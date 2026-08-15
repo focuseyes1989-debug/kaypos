@@ -40,8 +40,10 @@ class SuppliersTab(QWidget):
         # Status filter combo box
         filter_layout.addWidget(QLabel(tr("show_status")))
         self.status_filter = QComboBox()
-        self.status_filter.addItems([tr("all"), tr("active"), tr("inactive")])
-        self.status_filter.setCurrentText(tr("active"))
+        self.status_filter.addItem(tr("all"), None)
+        self.status_filter.addItem(tr("active"), "Active")
+        self.status_filter.addItem(tr("inactive"), "Inactive")
+        self.status_filter.setCurrentIndex(self.status_filter.findData("Active"))
         self.status_filter.currentTextChanged.connect(self.reset_pagination)
         filter_layout.addWidget(self.status_filter, 1)
         
@@ -174,9 +176,14 @@ class SuppliersTab(QWidget):
         self.search_widget.set_placeholder_text(tr("search_supplier"))
         
         # Update status filter items
+        selected_status = self.status_filter.currentData()
         self.status_filter.blockSignals(True)
         self.status_filter.clear()
-        self.status_filter.addItems([tr("all"), tr("active"), tr("inactive")])
+        self.status_filter.addItem(tr("all"), None)
+        self.status_filter.addItem(tr("active"), "Active")
+        self.status_filter.addItem(tr("inactive"), "Inactive")
+        selected_index = self.status_filter.findData(selected_status)
+        self.status_filter.setCurrentIndex(selected_index if selected_index >= 0 else 0)
         self.status_filter.blockSignals(False)
         
         # Update buttons with text only (icons are SVG)
@@ -236,16 +243,8 @@ class SuppliersTab(QWidget):
             page_size = self.page_size
             
         search_text = self.search_widget.get_text().lower()
-        status_filter = self.status_filter.currentText()
+        db_status = self.status_filter.currentData()
         lang = self.get_lang()
-        
-        # Translate status filter back to database values
-        if status_filter == tr("active"):
-            db_status = "Active"
-        elif status_filter == tr("inactive"):
-            db_status = "Inactive"
-        else:
-            db_status = None
         
         # Set headers based on language
         if lang == "my":
@@ -264,46 +263,49 @@ class SuppliersTab(QWidget):
         conn = connect_db()
         cursor = conn.cursor()
         like = f'%{search_text}%'
-        
-        # Build query based on status filter
-        if db_status:
-            cursor.execute("""
-                SELECT COUNT(*) FROM suppliers
-                WHERE status = ?
-                  AND (name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?)
-            """, (db_status, like, like, like, like))
-            total_items = cursor.fetchone()[0]
-            self.pagination.set_total_items(total_items, emit_signal=False)
 
-            offset = (page - 1) * page_size
-            cursor.execute("""
-                SELECT id, name, contact_person, phone, email, address,
-                       company_name, tax_number, website, payment_terms, bank_account, status
-                FROM suppliers
-                WHERE status = ?
-                  AND (name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?)
-                ORDER BY name
-                LIMIT ? OFFSET ?
-            """, (db_status, like, like, like, like, page_size, offset))
+        search_clause = """(
+            LOWER(COALESCE(name, '')) LIKE ?
+            OR LOWER(COALESCE(contact_person, '')) LIKE ?
+            OR LOWER(COALESCE(phone, '')) LIKE ?
+            OR LOWER(COALESCE(email, '')) LIKE ?
+        )"""
+        params = [like, like, like, like]
+        if db_status == "Active":
+            # Blank status is the legacy equivalent of Active.
+            where_clause = (
+                "(COALESCE(TRIM(status), '') = '' "
+                "OR LOWER(TRIM(status)) = 'active') AND " + search_clause
+            )
+        elif db_status == "Inactive":
+            where_clause = "LOWER(TRIM(COALESCE(status, ''))) = 'inactive' AND " + search_clause
         else:
-            cursor.execute("""
-                SELECT COUNT(*) FROM suppliers
-                WHERE name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?
-            """, (like, like, like, like))
-            total_items = cursor.fetchone()[0]
-            self.pagination.set_total_items(total_items, emit_signal=False)
+            where_clause = search_clause
 
-            offset = (page - 1) * page_size
-            cursor.execute("""
-                SELECT id, name, contact_person, phone, email, address,
-                       company_name, tax_number, website, payment_terms, bank_account, status
-                FROM suppliers
-                WHERE name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?
-                ORDER BY 
-                    CASE WHEN status = 'Active' THEN 0 ELSE 1 END,
-                    name
-                LIMIT ? OFFSET ?
-            """, (like, like, like, like, page_size, offset))
+        cursor.execute(f"SELECT COUNT(*) FROM suppliers WHERE {where_clause}", params)
+        total_items = cursor.fetchone()[0]
+        self.pagination.set_total_items(total_items, emit_signal=False)
+
+        # Keep this tab's page state in sync with PaginationWidget. Previously
+        # the widget clamped itself while this stale value still produced an
+        # out-of-range OFFSET and an empty table.
+        total_pages = max(1, (total_items + page_size - 1) // page_size)
+        page = min(max(1, page), total_pages)
+        self.current_page = page
+        self.page_size = page_size
+        self.pagination.set_current_page(page, emit_signal=False)
+        offset = (page - 1) * page_size
+
+        cursor.execute(f"""
+            SELECT id, name, contact_person, phone, email, address,
+                   company_name, tax_number, website, payment_terms, bank_account, status
+            FROM suppliers
+            WHERE {where_clause}
+            ORDER BY
+                CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'active' THEN 0 ELSE 1 END,
+                name
+            LIMIT ? OFFSET ?
+        """, params + [page_size, offset])
         
         rows = cursor.fetchall()
         conn.close()

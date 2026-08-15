@@ -121,6 +121,25 @@ def load_thumbnail(image_path: str, size: int = 50, product_id=None):
     return None
 
 
+def load_product_pixmap(image_path: str, product_id=None):
+    """Load the best available full-resolution product image for a preview."""
+    if not image_path and not product_id:
+        return None
+
+    resolved_path = resolve_image_path(image_path)
+    if not resolved_path or not os.path.exists(resolved_path):
+        resolved_path = cached_product_image_path(product_id, image_path)
+        if not resolved_path or not os.path.exists(resolved_path):
+            return None
+
+    reader = QImageReader(resolved_path)
+    reader.setAutoTransform(True)
+    image = reader.read()
+    if image.isNull():
+        return None
+    return QPixmap.fromImage(image)
+
+
 def get_product_category(product_id):
     """Get category name for a product"""
     conn = connect_db()
