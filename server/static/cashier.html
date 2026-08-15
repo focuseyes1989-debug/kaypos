@@ -1443,18 +1443,47 @@
     function printReceiptText(text) {
       const win = window.open("", "_blank", "width=420,height=640");
       if (!win) return setStatus("Popup blocked. Please allow popups for receipt printing.", true);
-      win.document.write(`
+      const receiptHtml = `
         <!doctype html>
+        <html>
+        <head>
+        <meta charset="utf-8">
         <title>Receipt</title>
         <style>
-          body { font-family: Consolas, "Courier New", monospace; font-size: 12px; margin: 12px; white-space: pre-wrap; }
+          html, body { background: #fff; }
+          body {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1.35;
+            margin: 12px;
+            color: #000;
+            white-space: pre-wrap;
+          }
+          @page { margin: 4mm; }
           @media print { body { margin: 0; } }
         </style>
+        </head>
         <body>${escapeHtml(text)}</body>
-      `);
+        </html>
+      `;
+      win.document.open();
+      win.document.write(receiptHtml);
       win.document.close();
       win.focus();
-      win.print();
+      const runPrint = () => {
+        try {
+          win.focus();
+          win.print();
+        } catch (_err) {
+          setStatus("Could not open receipt print preview.", true);
+        }
+      };
+      if (win.document.readyState === "complete") {
+        win.setTimeout(runPrint, 250);
+      } else {
+        win.addEventListener("load", () => win.setTimeout(runPrint, 250), { once: true });
+        win.setTimeout(runPrint, 700);
+      }
     }
 
     async function copySelectedReceipt() {
