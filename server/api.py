@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from utils.env_loader import load_project_env
@@ -246,6 +247,9 @@ def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_use
         return {"receipt": receipt}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Browser cashier checkout failed")
+        raise HTTPException(status_code=500, detail=f"Checkout failed: {exc}") from exc
 
 
 @app.get("/api/receipts/{sale_id}")

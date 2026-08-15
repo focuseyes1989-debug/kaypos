@@ -904,11 +904,17 @@
       const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
       if (state.token) headers.Authorization = `Bearer ${state.token}`;
       const res = await fetch(path, { ...options, headers });
-      const data = await res.json().catch(() => ({}));
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (_err) {
+        data = { detail: text };
+      }
       if (res.status === 401 && path !== "/api/login") {
         logout("Session expired. Please login again.");
       }
-      if (!res.ok) throw new Error(data.detail || "Request failed");
+      if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`);
       setServerState(true);
       return data;
     }

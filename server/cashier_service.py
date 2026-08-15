@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from loguru import logger
 
 from models.database import connect_db
-from utils.db_compat import table_columns
+from utils.db_compat import is_postgres_backend, table_columns
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
@@ -353,7 +353,8 @@ def create_mobile_product(
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        cursor.execute("BEGIN IMMEDIATE")
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
         product_id = _execute_dynamic_insert(cursor, "products", {
             "name": name,
             "category": category,
@@ -732,7 +733,8 @@ def create_sale(
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        cursor.execute("BEGIN IMMEDIATE")
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
 
         sale_items: List[Dict[str, Any]] = []
         subtotal = 0.0
@@ -1062,7 +1064,8 @@ def add_expense(
     cursor = conn.cursor()
     expense_no = datetime.now().strftime("EXP%Y%m%d%H%M%S%f")[:-3]
     try:
-        cursor.execute("BEGIN IMMEDIATE")
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
         expense_id = _execute_dynamic_insert(
             cursor,
             "expenses",
