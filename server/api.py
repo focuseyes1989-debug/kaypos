@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,7 @@ from utils.env_loader import load_project_env
 load_project_env()
 
 from server import cashier_service
+from server.asyncio_errors import install_windows_disconnect_handler
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -35,6 +37,24 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 _TOKENS: Dict[str, Dict[str, Any]] = {}
+
+
+@app.on_event("startup")
+async def configure_asyncio_error_handling() -> None:
+    """Keep expected Windows browser disconnects out of the server console."""
+    loop = asyncio.get_running_loop()
+    app.state.asyncio_loop = loop
+    app.state.previous_asyncio_exception_handler = install_windows_disconnect_handler(loop)
+
+
+@app.on_event("shutdown")
+async def restore_asyncio_error_handling() -> None:
+    """Restore the event loop handler when the cashier server stops."""
+    loop = getattr(app.state, "asyncio_loop", None)
+    if loop is not None and not loop.is_closed():
+        loop.set_exception_handler(
+            getattr(app.state, "previous_asyncio_exception_handler", None)
+        )
 
 
 class LoginRequest(BaseModel):

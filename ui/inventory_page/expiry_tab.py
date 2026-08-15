@@ -1499,7 +1499,7 @@ class ExpiryTab(QWidget):
                 INSERT INTO product_locations (product_id, location, quantity)
                 VALUES (?, ?, ?)
                 ON CONFLICT(product_id, location, batch_no, expire_date)
-                DO UPDATE SET quantity = quantity + excluded.quantity,
+                DO UPDATE SET quantity = product_locations.quantity + excluded.quantity,
                               last_updated = CURRENT_TIMESTAMP
             """, (product_id, location, qty))
             

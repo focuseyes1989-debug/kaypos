@@ -870,7 +870,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                     INSERT INTO product_locations (product_id, location, quantity)
                     VALUES (?, ?, ?)
                     ON CONFLICT(product_id, location) 
-                    DO UPDATE SET quantity = quantity + excluded.quantity,
+                    DO UPDATE SET quantity = product_locations.quantity + excluded.quantity,
                                   last_updated = CURRENT_TIMESTAMP
                 """, (product_id, location, quantity))
             

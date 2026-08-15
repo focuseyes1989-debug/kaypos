@@ -688,7 +688,7 @@ class ReceiptsTab(QWidget):
                             (product_id, location, batch_no, expire_date, quantity, last_updated)
                         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                         ON CONFLICT(product_id, location, batch_no, expire_date)
-                        DO UPDATE SET quantity = quantity + excluded.quantity,
+                        DO UPDATE SET quantity = product_locations.quantity + excluded.quantity,
                                       last_updated = CURRENT_TIMESTAMP
                     """, (product_id, restore_location, restore_batch, restore_expire, qty))
 

@@ -401,7 +401,7 @@ class StockTransferHandlers:
                 INSERT INTO product_locations (product_id, location, quantity)
                 VALUES (?, ?, ?)
                 ON CONFLICT(product_id, location) 
-                DO UPDATE SET quantity = quantity + excluded.quantity
+                DO UPDATE SET quantity = product_locations.quantity + excluded.quantity
             """, (product_id, to_loc, qty))
             
             # 3. Update total stock in products table
