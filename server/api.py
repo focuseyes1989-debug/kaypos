@@ -45,6 +45,13 @@ async def configure_asyncio_error_handling() -> None:
     loop = asyncio.get_running_loop()
     app.state.asyncio_loop = loop
     app.state.previous_asyncio_exception_handler = install_windows_disconnect_handler(loop)
+    try:
+        from models.database.stock_audit import clamp_all_location_stock_to_master
+        fixed = clamp_all_location_stock_to_master("Cashier Server Startup")
+        if fixed:
+            logger.info(f"Clamped stale location stock for {len(fixed)} product(s)")
+    except Exception as exc:
+        logger.warning(f"Could not clamp stale location stock on cashier startup: {exc}")
 
 
 @app.on_event("shutdown")

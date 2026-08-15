@@ -131,6 +131,14 @@ def safe_initialize_database() -> bool:
             check_and_run_migrations()
         except Exception as e:
             logger.warning(f"Migration warning: {e}")
+
+        try:
+            from models.database.stock_audit import clamp_all_location_stock_to_master
+            fixed = clamp_all_location_stock_to_master("Startup")
+            if fixed:
+                logger.info(f"Clamped stale location stock for {len(fixed)} product(s)")
+        except Exception as e:
+            logger.warning(f"Could not clamp stale location stock: {e}")
         
         # ✅ AUTO-UPDATE: AI Pages Permission
         try:
@@ -160,6 +168,13 @@ def safe_initialize_postgres_app_database() -> bool:
             cursor = conn.cursor()
             ensure_postgres_app_schema(cursor)
             conn.commit()
+        try:
+            from models.database.stock_audit import clamp_all_location_stock_to_master
+            fixed = clamp_all_location_stock_to_master("Startup")
+            if fixed:
+                logger.info(f"Clamped stale PostgreSQL location stock for {len(fixed)} product(s)")
+        except Exception as exc:
+            logger.warning(f"Could not clamp PostgreSQL location stock: {exc}")
         logger.info("PostgreSQL app schema created/verified")
         return True
     except Exception as exc:

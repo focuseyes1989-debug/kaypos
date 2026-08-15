@@ -37,7 +37,23 @@ class CashierProductListingTests(unittest.TestCase):
             CREATE TABLE product_locations (
                 id INTEGER PRIMARY KEY,
                 product_id INTEGER,
-                quantity INTEGER
+                location TEXT DEFAULT '',
+                batch_no TEXT DEFAULT '',
+                expire_date TEXT DEFAULT '',
+                quantity INTEGER,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE stock_movements (
+                id INTEGER PRIMARY KEY,
+                product_id INTEGER,
+                type TEXT,
+                quantity INTEGER,
+                old_stock INTEGER,
+                new_stock INTEGER,
+                reason TEXT,
+                reference TEXT,
+                created_by TEXT,
+                notes TEXT
             );
             """
         )
@@ -81,6 +97,21 @@ class CashierProductListingTests(unittest.TestCase):
         self.assertTrue(products["Phantom Location Stock"]["is_out_of_stock"])
         self.assertTrue(products["Service Item"]["is_service"])
         self.assertFalse(products["Service Item"]["is_out_of_stock"])
+
+    def test_clamp_location_stock_removes_phantom_quantity_above_master_stock(self) -> None:
+        from models.database.stock_audit import clamp_location_stock_to_master
+
+        cursor = self.conn.cursor()
+        fixed = clamp_location_stock_to_master(cursor, product_id=4, created_by="Test")
+        self.conn.commit()
+
+        cursor.execute("SELECT COALESCE(SUM(quantity), 0) FROM product_locations WHERE product_id = 4")
+        self.assertEqual(cursor.fetchone()[0], 0)
+        cursor.execute("SELECT stock FROM products WHERE id = 4")
+        self.assertEqual(cursor.fetchone()[0], 0)
+        cursor.execute("SELECT reason, quantity, old_stock, new_stock FROM stock_movements WHERE product_id = 4")
+        self.assertEqual(cursor.fetchone(), ("Location Stock Clamp", 3, 3, 0))
+        self.assertEqual(fixed[0]["removed"], 3)
 
 
 if __name__ == "__main__":
