@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayou
 from models.database import connect_db
 from utils.performance import get_performance_settings
 from utils.paths import get_images_dir
+from utils.receipt_images import resolve_receipt_image_path
 from .customer_display_cart import CartDisplayWidget
 from .customer_display_theme import get_display_palette, get_launcher_style
 from .customer_display_utils import set_default_geometry, show_on_customer_monitor_fullscreen
@@ -320,7 +321,7 @@ class CustomerDisplayWindow(QWidget):
         self.shop_name_label.setText(shop_name)
         self.shop_detail_label.setText(details)
 
-        logo_path = settings.get("shop_logo") or ""
+        logo_path = resolve_receipt_image_path("logo") or settings.get("shop_logo") or ""
         if logo_path and os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             if not pixmap.isNull():

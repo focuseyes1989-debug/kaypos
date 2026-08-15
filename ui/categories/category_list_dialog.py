@@ -34,12 +34,7 @@ from datetime import datetime
 from typing import List, Optional, Dict
 
 
-class CategoryListDialog(
-    QDialog,
-    CategoryListUI,
-    CategoryListTable,
-    CategoryListActions
-):
+class CategoryListDialog(QDialog):
     """Main dialog for managing categories - Theme-aware"""
     
     categories_changed = pyqtSignal()
@@ -79,6 +74,7 @@ class CategoryListDialog(
         
         # Setup UI
         self.setup_ui()
+        self._configure_filter_data()
         
         # Load data
         self.load_categories()
@@ -88,9 +84,6 @@ class CategoryListDialog(
         lang.language_changed.connect(self.retranslateUi)
         self.retranslateUi()
         
-        # ✅ Connect theme change signal for auto-refresh
-        theme_manager.theme_changed.connect(self._on_theme_changed)
-    
     # ==================== Theme Handling ====================
     
     def _on_theme_changed(self, theme_name):
@@ -157,22 +150,21 @@ class CategoryListDialog(
             categories, _ = self.service.get_categories(limit=1000)
             self.parent_filter.blockSignals(True)
             
-            current = self.parent_filter.currentText()
+            current_data = self.parent_filter.currentData()
             self.parent_filter.clear()
-            self.parent_filter.addItem('📂 All Parents')
-            self.parent_filter.addItem('📁 No Parent')
+            all_parents_label, no_parent_label = self._parent_filter_labels()
+            self.parent_filter.addItem(all_parents_label, None)
+            self.parent_filter.addItem(no_parent_label, -1)
             
             # Add category names with icons
-            cat_names = sorted(set(c['name'] for c in categories if c['name']))
-            for name in cat_names:
-                icon = '📁'
-                for cat in categories:
-                    if cat['name'] == name and cat.get('icon'):
-                        icon = cat['icon']
-                        break
-                self.parent_filter.addItem(f"{icon} {name}")
+            for cat in sorted(categories, key=lambda item: (item.get('sort_order', 0), item.get('name') or '')):
+                name = cat.get('name')
+                if not name:
+                    continue
+                icon = cat.get('icon') or '📁'
+                self.parent_filter.addItem(f"{icon} {name}", cat.get('id'))
             
-            idx = self.parent_filter.findText(current)
+            idx = self.parent_filter.findData(current_data)
             self.parent_filter.setCurrentIndex(idx if idx >= 0 else 0)
             self.parent_filter.blockSignals(False)
             
@@ -181,16 +173,18 @@ class CategoryListDialog(
     
     def _get_parent_filter(self):
         """Get parent filter value"""
-        current = self.parent_filter.currentText()
-        if current == '📂 All Parents':
-            return None
-        if current == '📁 No Parent':
-            return -1
-        # Find parent ID
-        for cat in self.categories:
-            if cat['name'] == current:
-                return cat['id']
-        return None
+        return self.parent_filter.currentData()
+
+    def _parent_filter_labels(self):
+        if lang.get_current() == "my":
+            return "📂 မိဘအားလုံး", "📁 မိဘမရှိ"
+        return "📂 All Parents", "📁 No Parent"
+
+    def _configure_filter_data(self):
+        """Keep filter values stable when display text is translated."""
+        for index, value in enumerate(("all", "active", "inactive", "hidden")):
+            self.status_filter.setItemData(index, value)
+        self.filter_status = self.status_filter.currentData() or "all"
     
     def update_statistics(self):
         """Update statistics"""
@@ -202,9 +196,18 @@ class CategoryListDialog(
         selected = len(self.table.selectedIndexes())
         if selected > 0:
             rows = set(idx.row() for idx in self.table.selectedIndexes())
-            self.selection_label.setText(f"☑️ {len(rows)} selected")
+            selected_count = len(rows)
+            self.selection_label.setText(f"☑️ {selected_count} selected")
+            if hasattr(self, "btn_edit"):
+                self.btn_edit.setEnabled(selected_count == 1)
+            if hasattr(self, "btn_delete"):
+                self.btn_delete.setEnabled(selected_count >= 1)
         else:
             self.selection_label.setText("☐ 0 selected")
+            if hasattr(self, "btn_edit"):
+                self.btn_edit.setEnabled(False)
+            if hasattr(self, "btn_delete"):
+                self.btn_delete.setEnabled(False)
     
     # ==================== Event Handlers ====================
     
@@ -250,7 +253,7 @@ class CategoryListDialog(
     
     def on_filter_changed(self):
         """Handle filter change"""
-        self.filter_status = self.status_filter.currentText().lower()
+        self.filter_status = self.status_filter.currentData() or "all"
         self.current_page = 1
         self.load_categories()
     
@@ -266,6 +269,10 @@ class CategoryListDialog(
         
         if is_my:
             self.setWindowTitle("အမျိုးအစားများ စီမံခန့်ခွဲခြင်း")
+            if hasattr(self, "title_label"):
+                self.title_label.setText("📂 အမျိုးအစားများ")
+            if hasattr(self, "subtitle_label"):
+                self.subtitle_label.setText("Parent/Child အမျိုးအစားများဖြင့် ပစ္စည်းများကို စနစ်တကျခွဲထားပါ။")
             self.search_input.setPlaceholderText("🔍 အမျိုးအစားရှာရန်...")
             self.btn_add.setText("➕ အမျိုးအစားအသစ်")
             self.btn_edit.setText("✏️ ပြင်မည်")
@@ -288,6 +295,10 @@ class CategoryListDialog(
             
         else:
             self.setWindowTitle("Manage Categories")
+            if hasattr(self, "title_label"):
+                self.title_label.setText("📂 Categories")
+            if hasattr(self, "subtitle_label"):
+                self.subtitle_label.setText("Organize products into parent and child categories.")
             self.search_input.setPlaceholderText("🔍 Search categories...")
             self.btn_add.setText("➕ Add Category")
             self.btn_edit.setText("✏️ Edit")
@@ -307,6 +318,8 @@ class CategoryListDialog(
             
             self.parent_filter.setItemText(0, "📂 All Parents")
             self.parent_filter.setItemText(1, "📁 No Parent")
+
+        self._update_control_tooltips(is_my)
         
         # ✅ Retranslate summary widget
         if hasattr(self, 'summary_widget'):
@@ -314,3 +327,35 @@ class CategoryListDialog(
         
         # ✅ Refresh table with new language
         self.load_categories()
+
+    def _update_control_tooltips(self, is_my):
+        if is_my:
+            self.status_filter.setToolTip("အခြေအနေအလိုက် စစ်ထုတ်ရန်")
+            self.parent_filter.setToolTip("Parent category တစ်ခုအောက်ရှိ child များကို ကြည့်ရန်")
+            self.btn_add.setToolTip("အမျိုးအစားအသစ်ထည့်ရန်")
+            self.btn_edit.setToolTip("ရွေးထားသောအမျိုးအစားကိုပြင်ရန်")
+            self.btn_delete.setToolTip("ရွေးထားသောအမျိုးအစားကိုဖျက်ရန်")
+            self.btn_merge.setToolTip("အမျိုးအစားများကို တစ်ခုထဲပေါင်းရန်")
+            self.btn_export.setToolTip("အမျိုးအစားများ export ထုတ်ရန်")
+            self.btn_import.setToolTip("အမျိုးအစားများ import သွင်းရန်")
+        else:
+            self.status_filter.setToolTip("Filter categories by status")
+            self.parent_filter.setToolTip("Show all categories or only children under one parent")
+            self.btn_add.setToolTip("Create a new category")
+            self.btn_edit.setToolTip("Edit the selected category")
+            self.btn_delete.setToolTip("Delete the selected category")
+            self.btn_merge.setToolTip("Merge multiple categories into one")
+            self.btn_export.setToolTip("Export categories")
+            self.btn_import.setToolTip("Import categories")
+
+
+def _attach_category_list_helpers():
+    """Attach pure-Python helper methods without PyQt multiple inheritance."""
+    for mixin in (CategoryListUI, CategoryListTable, CategoryListActions):
+        for name, value in mixin.__dict__.items():
+            if name.startswith("__") or hasattr(CategoryListDialog, name):
+                continue
+            setattr(CategoryListDialog, name, value)
+
+
+_attach_category_list_helpers()

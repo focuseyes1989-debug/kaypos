@@ -9,7 +9,7 @@ Category List UI - UI setup and layout
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
-    QComboBox, QFrame, QPushButton
+    QComboBox, QFrame, QPushButton, QAbstractItemView
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -79,13 +79,17 @@ class CategoryListUI:
     
     def _update_header_style(self, colors):
         """Update header style"""
-        for child in self.findChildren(QLabel):
-            if child.text() == "📂 Categories":
-                child.setStyleSheet(f"""
-                    font-size: 18pt; 
-                    font-weight: 700; 
-                    color: {colors['text']};
-                """)
+        if hasattr(self, "title_label"):
+            self.title_label.setStyleSheet(f"""
+                font-size: 18pt; 
+                font-weight: 700; 
+                color: {colors['text']};
+            """)
+        if hasattr(self, "subtitle_label"):
+            self.subtitle_label.setStyleSheet(f"""
+                color: {colors['text_secondary']};
+                font-size: 10pt;
+            """)
     
     def _update_search_bar_style(self, colors):
         """Update search bar style"""
@@ -110,10 +114,8 @@ class CategoryListUI:
                 }}
             """)
         
-        # ComboBox styles
-        for combo in [self.status_filter, self.parent_filter]:
-            if hasattr(self, combo.objectName()):
-                combo.setStyleSheet(self._combobox_style(colors))
+        for combo in (self.status_filter, self.parent_filter):
+            combo.setStyleSheet(self._combobox_style(colors))
     
     def _update_table_style(self, colors):
         """Update table style"""
@@ -159,16 +161,22 @@ class CategoryListUI:
     
     def _setup_header(self, parent_layout, colors):
         """Setup header with theme-aware styling"""
-        header_layout = QHBoxLayout()
+        header_layout = QVBoxLayout()
+        header_layout.setSpacing(2)
         
-        title_label = QLabel("📂 Categories")
-        title_label.setStyleSheet(f"""
+        self.title_label = QLabel("📂 Categories")
+        self.title_label.setStyleSheet(f"""
             font-size: 18pt; 
             font-weight: 700; 
             color: {colors['text']};
         """)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
+        self.subtitle_label = QLabel("Organize products into parent and child categories.")
+        self.subtitle_label.setStyleSheet(f"""
+            color: {colors['text_secondary']};
+            font-size: 10pt;
+        """)
+        header_layout.addWidget(self.title_label)
+        header_layout.addWidget(self.subtitle_label)
         
         parent_layout.addLayout(header_layout)
     
@@ -217,6 +225,8 @@ class CategoryListUI:
         self.status_filter = QComboBox()
         self.status_filter.addItems(['All', 'Active', 'Inactive', 'Hidden'])
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
+        self.status_filter.setMinimumWidth(145)
+        self.status_filter.setToolTip("Filter categories by status")
         self.status_filter.setStyleSheet(self._combobox_style(colors))
         search_layout.addWidget(self.status_filter)
         
@@ -224,6 +234,8 @@ class CategoryListUI:
         self.parent_filter = QComboBox()
         self.parent_filter.addItem('📂 All Parents')
         self.parent_filter.currentTextChanged.connect(self.on_filter_changed)
+        self.parent_filter.setMinimumWidth(220)
+        self.parent_filter.setToolTip("Show all categories or only children under one parent")
         self.parent_filter.setStyleSheet(self._combobox_style(colors))
         search_layout.addWidget(self.parent_filter)
         
@@ -231,6 +243,7 @@ class CategoryListUI:
         self.btn_add = ModernButton("Add Category", ModernButton.PRIMARY)
         self.btn_add.set_icon("add", size=(16, 16))
         self.btn_add.setMinimumWidth(140)
+        self.btn_add.setToolTip("Create a new category")
         self.btn_add.clicked.connect(self.add_category)
         search_layout.addWidget(self.btn_add)
         
@@ -258,9 +271,15 @@ class CategoryListUI:
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
         self.table.setSortingEnabled(True)
+        self.table.setWordWrap(False)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.table.sortByColumn(1, Qt.SortOrder.AscendingOrder)
         
         # Apply table style
@@ -284,6 +303,7 @@ class CategoryListUI:
         
         # Connect selection change
         self.table.itemSelectionChanged.connect(self.on_selection_changed)
+        self.table.itemDoubleClicked.connect(lambda *_: self.edit_category())
         
         table_layout.addWidget(self.table)
         parent_layout.addWidget(table_container, 1)
@@ -353,18 +373,21 @@ class CategoryListUI:
         self.btn_edit = ModernButton("Edit", ModernButton.SECONDARY)
         self.btn_edit.set_icon("edit", size=(16, 16))
         self.btn_edit.setMinimumWidth(100)
+        self.btn_edit.setToolTip("Edit the selected category")
         self.btn_edit.clicked.connect(self.edit_category)
         button_layout.addWidget(self.btn_edit)
         
         self.btn_delete = ModernButton("Delete", ModernButton.TERTIARY)
         self.btn_delete.set_icon("delete", size=(16, 16))
         self.btn_delete.setMinimumWidth(100)
+        self.btn_delete.setToolTip("Delete the selected category")
         self.btn_delete.clicked.connect(self.delete_category)
         button_layout.addWidget(self.btn_delete)
         
         self.btn_merge = ModernButton("Merge", ModernButton.SECONDARY)
         self.btn_merge.set_icon("merge", size=(16, 16))
         self.btn_merge.setMinimumWidth(100)
+        self.btn_merge.setToolTip("Merge multiple categories into one")
         self.btn_merge.clicked.connect(self.merge_categories)
         button_layout.addWidget(self.btn_merge)
         
@@ -381,12 +404,14 @@ class CategoryListUI:
         self.btn_export = ModernButton("Export", ModernButton.SECONDARY)
         self.btn_export.set_icon("file_export", size=(16, 16))
         self.btn_export.setMinimumWidth(100)
+        self.btn_export.setToolTip("Export categories")
         self.btn_export.clicked.connect(self.export_categories)
         button_layout.addWidget(self.btn_export)
         
         self.btn_import = ModernButton("Import", ModernButton.SECONDARY)
         self.btn_import.set_icon("upload_file", size=(16, 16))
         self.btn_import.setMinimumWidth(100)
+        self.btn_import.setToolTip("Import categories")
         self.btn_import.clicked.connect(self.import_categories)
         button_layout.addWidget(self.btn_import)
         

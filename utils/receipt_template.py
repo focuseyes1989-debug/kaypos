@@ -5,6 +5,7 @@ import os
 
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.receipt_images import resolve_receipt_image_path
 
 
 DEFAULT_RECEIPT_TEMPLATE = {
@@ -76,6 +77,7 @@ def get_shop_settings():
         conn.close()
     except Exception:
         pass
+    defaults["shop_logo"] = resolve_receipt_image_path("logo") or defaults.get("shop_logo", "")
     return defaults
 
 

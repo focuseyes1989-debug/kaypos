@@ -8,6 +8,7 @@ Telegram dependencies to be installed.
 _EXPORTS = {
     "GeneralSettingWidget": ("ui.settings.general_setting", "GeneralSettingWidget"),
     "ReceiptSettingWidget": ("ui.settings.receipt_setting", "ReceiptSettingWidget"),
+    "PrintSettingWidget": ("ui.settings.print_setting", "PrintSettingWidget"),
     "RestaurantSettingWidget": ("ui.settings.restaurant_setting", "RestaurantSettingWidget"),
     "RegionalSettingWidget": ("ui.settings.regional_setting", "RegionalSettingWidget"),
     "BackupResetSettingWidget": ("ui.settings.backup_reset_setting", "BackupResetSettingWidget"),
@@ -20,7 +21,8 @@ _EXPORTS = {
     ),
     "YouTubeSettingWidget": ("ui.settings.youtube_setting", "YouTubeSettingWidget"),
     "PerformanceSettingWidget": ("ui.settings.performance_setting", "PerformanceSettingWidget"),
-    "SettingsPage": ("ui.settings.settings_page", "SettingsPage"),
+    "SettingsCenterWidget": ("ui.settings.settings_center", "SettingsCenterWidget"),
+    "SettingsPage": ("ui.settings.settings_center", "SettingsPage"),
 }
 
 
@@ -37,7 +39,8 @@ def __getattr__(name):
 
 __all__ = [
     'GeneralSettingWidget',
-    'ReceiptSettingWidget', 
+    'ReceiptSettingWidget',
+    'PrintSettingWidget',
     'RestaurantSettingWidget',
     'RegionalSettingWidget',
     'BackupResetSettingWidget',
@@ -47,5 +50,6 @@ __all__ = [
     'DatabaseConnectionSettingWidget',
     'YouTubeSettingWidget',
     'PerformanceSettingWidget',
+    'SettingsCenterWidget',
     'SettingsPage'
 ]

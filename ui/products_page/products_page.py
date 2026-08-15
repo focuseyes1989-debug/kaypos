@@ -10,7 +10,6 @@ from ui.products_page.product_card import ProductCards
 from ui.products_page.product_table import ProductTable
 from ui.products_page.product_service import ProductService
 from ui.products_page.product_form_dialog import ProductFormDialog
-from ui.products_page.manage_categories_dialog import ManageCategoriesDialog
 from ui.products_page.manage_category_groups_dialog import ManageCategoryGroupsDialog
 from ui.print_barcode_dialog import PrintBarcodeDialog
 from utils.language import lang

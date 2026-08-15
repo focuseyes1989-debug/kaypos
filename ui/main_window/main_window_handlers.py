@@ -77,8 +77,10 @@ class MainWindowHandlers:
     expense_action: Optional[Any] = None
     budget_settings_action: Optional[Any] = None
     expense_comparison_action: Optional[Any] = None
+    settings_center_action: Optional[Any] = None
     general_settings_action: Optional[Any] = None
     receipt_settings_action: Optional[Any] = None
+    print_settings_action: Optional[Any] = None
     regional_settings_action: Optional[Any] = None
     update_settings_action: Optional[Any] = None
     telegram_settings_action: Optional[Any] = None
@@ -384,10 +386,14 @@ class MainWindowHandlers:
         # Settings Menu
         if hasattr(self, 'settings_menu') and self.settings_menu:
             self.settings_menu.setTitle("Settings")
+            if hasattr(self, 'settings_center_action') and self.settings_center_action:
+                self.settings_center_action.setText("Settings Center")
             if hasattr(self, 'general_settings_action') and self.general_settings_action:
                 self.general_settings_action.setText("General Settings")
             if hasattr(self, 'receipt_settings_action') and self.receipt_settings_action:
                 self.receipt_settings_action.setText("Receipt Settings")
+            if hasattr(self, 'print_settings_action') and self.print_settings_action:
+                self.print_settings_action.setText("Print Setting")
             if hasattr(self, 'database_connection_settings_action') and self.database_connection_settings_action:
                 self.database_connection_settings_action.setText("Database")
             if hasattr(self, 'restaurant_settings_action') and self.restaurant_settings_action:

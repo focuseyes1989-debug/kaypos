@@ -2,12 +2,12 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
     QFileDialog, QTextEdit, QCheckBox, QScrollArea, QFrame,
-    QMessageBox, QFormLayout, QComboBox, QGridLayout, QSpinBox, QSizePolicy
+    QMessageBox, QFormLayout, QGridLayout, QSpinBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtPrintSupport import QPrinterInfo
 from models.database import connect_db
+from ui.themes.theme_manager import get_theme_colors
 from utils.language import lang
 from utils.receipt_template import (
     DEFAULT_RECEIPT_TEMPLATE,
@@ -16,9 +16,9 @@ from utils.receipt_template import (
     sample_receipt_data,
     save_receipt_template_settings,
 )
+from utils.receipt_images import clear_receipt_image, resolve_receipt_image_path, save_receipt_image
 from ui.widgets.modern_button import ModernButton
 import os
-import shutil
 
 
 class ReceiptSettingWidget(QWidget):
@@ -53,6 +53,8 @@ class ReceiptSettingWidget(QWidget):
         columns_layout.setSpacing(16)
         left_column = QWidget()
         right_column = QWidget()
+        self.left_column = left_column
+        self.right_column = right_column
         left_column.setMinimumWidth(440)
         right_column.setMinimumWidth(440)
         left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -152,6 +154,9 @@ class ReceiptSettingWidget(QWidget):
         self.btn_browse_logo = self._create_action_button("Browse", "image", min_width=96)
         self.btn_browse_logo.clicked.connect(lambda: self.select_image("logo"))
         logo_row.addWidget(self.btn_browse_logo)
+        self.btn_clear_logo = self._create_action_button("Clear", "delete", min_width=86)
+        self.btn_clear_logo.clicked.connect(lambda: self.clear_image("logo"))
+        logo_row.addWidget(self.btn_clear_logo)
         logo_widget_layout.addLayout(logo_row)
         
         logo_section.addWidget(logo_widget, 1)
@@ -217,6 +222,9 @@ class ReceiptSettingWidget(QWidget):
         self.btn_browse_qr = self._create_action_button("Browse QR", "image", min_width=116)
         self.btn_browse_qr.clicked.connect(lambda: self.select_image("qr"))
         qr_row.addWidget(self.btn_browse_qr)
+        self.btn_clear_qr = self._create_action_button("Clear", "delete", min_width=86)
+        self.btn_clear_qr.clicked.connect(lambda: self.clear_image("qr"))
+        qr_row.addWidget(self.btn_clear_qr)
         qr_widget_layout.addLayout(qr_row)
         
         logo_section.addWidget(qr_widget, 1)
@@ -314,41 +322,7 @@ class ReceiptSettingWidget(QWidget):
 
         template_group.setLayout(template_layout)
 
-        # ========== PRINTER GROUP ==========
-        printer_group = QGroupBox("Printer")
-        self.printer_group = printer_group
-        printer_layout = QFormLayout()
-        printer_layout.setVerticalSpacing(12)
-
-        printer_row = QHBoxLayout()
-        self.receipt_printer_label = QLabel()
-        self.printer_combo = QComboBox()
-        printer_row.addWidget(self.printer_combo, 1)
-        self.btn_refresh_printers = self._create_action_button("Refresh", "refresh", min_width=104)
-        self.btn_refresh_printers.clicked.connect(lambda: self.load_printers())
-        printer_row.addWidget(self.btn_refresh_printers)
-        printer_layout.addRow(self.receipt_printer_label, printer_row)
-
-        self.receipt_paper_label = QLabel()
-        self.receipt_paper_combo = QComboBox()
-        self.receipt_paper_combo.addItems(["80mm", "58mm", "A4"])
-        printer_layout.addRow(self.receipt_paper_label, self.receipt_paper_combo)
-
-        self.receipt_quality_label = QLabel()
-        self.receipt_quality_combo = QComboBox()
-        self.receipt_quality_combo.addItem("203 dpi (Standard)", "203")
-        self.receipt_quality_combo.addItem("300 dpi (High)", "300")
-        self.receipt_quality_combo.addItem("600 dpi (Best)", "600")
-        printer_layout.addRow(self.receipt_quality_label, self.receipt_quality_combo)
-
-        self.cash_drawer_printer_check = QCheckBox()
-        self.cash_drawer_printer_check.setChecked(True)
-        printer_layout.addRow("", self.cash_drawer_printer_check)
-
-        printer_group.setLayout(printer_layout)
-        right_layout.addWidget(printer_group)
         right_layout.addWidget(template_group)
-        self.load_printers()
 
         left_layout.addStretch()
         right_layout.addStretch()
@@ -374,6 +348,22 @@ class ReceiptSettingWidget(QWidget):
         layout.addWidget(footer)
         self.setLayout(layout)
         self.retranslateUi()
+        self.update_theme()
+
+    def set_visible_sections(self, sections):
+        """Show only selected receipt groups when embedded in Settings Center."""
+        visible = set(sections or [])
+        group_map = {
+            "branding": self.logo_group,
+            "business": self.business_group,
+            "text": self.receipt_group,
+            "template": self.template_group,
+        }
+        for key, group in group_map.items():
+            group.setVisible(key in visible)
+
+        self.left_column.setVisible(any(key in visible for key in ("branding", "business", "text")))
+        self.right_column.setVisible("template" in visible)
 
     def retranslateUi(self):
         if lang.get_current() == "my":
@@ -381,15 +371,16 @@ class ReceiptSettingWidget(QWidget):
             self.logo_group.setTitle("Logo & QR Code")
             self.receipt_group.setTitle("Header & Footer")
             self.template_group.setTitle("Receipt Template Editor")
-            self.printer_group.setTitle("Printer")
             self.shop_name_label.setText("ဆိုင်အမည်:")
             self.shop_phone_label.setText("ဖုန်းနံပါတ်:")
             self.shop_address_label.setText("လိပ်စာ:")
             self.logo_preview_label.setText("ဆိုင်အမှတ်တံဆိပ် အကြိုကြည့်ရန်")
             self.btn_browse_logo.setText("ပုံရွေးရန်")
+            self.btn_clear_logo.setText("ရှင်းရန်")
             self.qr_preview_label.setText("QR Code အကြိုကြည့်ရန်")
             self.qr_name_label.setText("QR အမည်:")
             self.btn_browse_qr.setText("QR ပုံရွေးရန်")
+            self.btn_clear_qr.setText("ရှင်းရန်")
             self.header_label.setText("ပြေစာအပေါ်ပိုင်း:")
             self.footer_label.setText("ပြေစာအောက်ပိုင်း:")
             self.show_customer_check.setText("ပြေစာတွင်ဝယ်ယူသူအမည်ပြရန်")
@@ -399,60 +390,54 @@ class ReceiptSettingWidget(QWidget):
             self.logo_group.setTitle("Logo & QR Code")
             self.receipt_group.setTitle("Header & Footer")
             self.template_group.setTitle("Receipt Template Editor")
-            self.printer_group.setTitle("Printer")
             self.shop_name_label.setText("Shop Name:")
             self.shop_phone_label.setText("Phone Number:")
             self.shop_address_label.setText("Address:")
             self.logo_preview_label.setText("Logo Preview")
             self.btn_browse_logo.setText("Browse")
+            self.btn_clear_logo.setText("Clear")
             self.qr_preview_label.setText("QR Code Preview")
             self.qr_name_label.setText("QR Name:")
             self.btn_browse_qr.setText("Browse QR")
+            self.btn_clear_qr.setText("Clear")
             self.header_label.setText("Receipt Header:")
             self.footer_label.setText("Receipt Footer:")
             self.show_customer_check.setText("Show Customer Name on Receipt")
             self.btn_save.setText("Save Receipt Settings")
 
-        self.receipt_printer_label.setText("Receipt Printer:")
-        self.receipt_paper_label.setText("Paper Size:")
-        self.receipt_quality_label.setText("Print Quality:")
         self.btn_template_reset.setText("Reset Template")
-        self.btn_refresh_printers.setText("Refresh")
-        self.cash_drawer_printer_check.setText("Use receipt printer for cash drawer")
         for button in (
             self.btn_browse_logo,
+            self.btn_clear_logo,
             self.btn_browse_qr,
+            self.btn_clear_qr,
             self.btn_template_reset,
-            self.btn_refresh_printers,
             self.btn_save,
         ):
             button.update_theme()
 
-    def load_printers(self, selected_name=None):
-        if selected_name is None:
-            selected_name = self.printer_combo.currentData() if hasattr(self, "printer_combo") else ""
-        selected_name = selected_name or ""
-
-        self.printer_combo.blockSignals(True)
-        self.printer_combo.clear()
-        self.printer_combo.addItem("Windows default printer", "")
-
-        printer_names = []
-        default_printer = QPrinterInfo.defaultPrinter()
-        default_name = default_printer.printerName() if not default_printer.isNull() else ""
-        for info in QPrinterInfo.availablePrinters():
-            name = info.printerName()
-            printer_names.append(name)
-            suffix = " (default)" if name == default_name else ""
-            self.printer_combo.addItem(f"{name}{suffix}", name)
-
-        if selected_name and selected_name not in printer_names:
-            self.printer_combo.addItem(f"{selected_name} (not found)", selected_name)
-
-        target_index = self.printer_combo.findData(selected_name)
-        if target_index >= 0:
-            self.printer_combo.setCurrentIndex(target_index)
-        self.printer_combo.blockSignals(False)
+    def update_theme(self, theme_name=None):
+        colors = get_theme_colors(theme_name)
+        border = colors.get("border", "#ced4da")
+        panel = colors.get("card_bg", "#f8f9fa")
+        text_secondary = colors.get("text_secondary", "#6c757d")
+        for container in (self.logo_preview_container, self.qr_preview_container):
+            container.setStyleSheet(f"""
+                border: 1px solid {border};
+                border-radius: 4px;
+                background-color: {panel};
+            """)
+        for preview in (self.logo_preview, self.qr_preview):
+            preview.setStyleSheet(f"background-color: transparent; color: {text_secondary};")
+        for button in (
+            self.btn_browse_logo,
+            self.btn_clear_logo,
+            self.btn_browse_qr,
+            self.btn_clear_qr,
+            self.btn_template_reset,
+            self.btn_save,
+        ):
+            button.update_theme()
 
     def load_receipt_settings(self):
         conn = connect_db()
@@ -472,20 +457,20 @@ class ReceiptSettingWidget(QWidget):
         self.shop_address_edit.setPlainText(row[0] if row else "")
         
         # Load logo
-        cursor.execute("SELECT value FROM settings WHERE key='shop_logo'")
-        row = cursor.fetchone()
-        logo_path = row[0] if row else ""
+        logo_path = resolve_receipt_image_path("logo")
         self.logo_path_edit.setText(logo_path)
         if logo_path and os.path.exists(logo_path):
             self.update_logo_preview(logo_path)
+        else:
+            self.reset_image_preview("logo")
         
         # Load QR Code
-        cursor.execute("SELECT value FROM settings WHERE key='shop_qr_code'")
-        row = cursor.fetchone()
-        qr_path = row[0] if row else ""
+        qr_path = resolve_receipt_image_path("qr")
         self.qr_path_edit.setText(qr_path)
         if qr_path and os.path.exists(qr_path):
             self.update_qr_preview(qr_path)
+        else:
+            self.reset_image_preview("qr")
         
         # Load QR Name
         cursor.execute("SELECT value FROM settings WHERE key='shop_qr_name'")
@@ -505,29 +490,21 @@ class ReceiptSettingWidget(QWidget):
         row = cursor.fetchone()
         self.show_customer_check.setChecked(row[0] == '1' if row else True)
 
-        cursor.execute("SELECT value FROM settings WHERE key='receipt_printer_name'")
-        row = cursor.fetchone()
-        self.load_printers(row[0] if row else "")
-
-        cursor.execute("SELECT value FROM settings WHERE key='receipt_paper_size'")
-        row = cursor.fetchone()
-        if row and row[0] in ("0", "1", "2"):
-            self.receipt_paper_combo.setCurrentIndex(int(row[0]))
-
-        cursor.execute("SELECT value FROM settings WHERE key='receipt_print_quality'")
-        row = cursor.fetchone()
-        quality_index = self.receipt_quality_combo.findData(row[0] if row else "203")
-        if quality_index >= 0:
-            self.receipt_quality_combo.setCurrentIndex(quality_index)
-
-        cursor.execute("SELECT value FROM settings WHERE key='receipt_cash_drawer_use_receipt_printer'")
-        row = cursor.fetchone()
-        self.cash_drawer_printer_check.setChecked(row[0] == '1' if row else True)
-        
         conn.close()
         self.load_template_settings()
 
     def save_settings(self):
+        try:
+            logo_path = self.logo_path_edit.text().strip()
+            if logo_path and os.path.exists(logo_path):
+                self.logo_path_edit.setText(save_receipt_image("logo", logo_path))
+            qr_path = self.qr_path_edit.text().strip()
+            if qr_path and os.path.exists(qr_path):
+                self.qr_path_edit.setText(save_receipt_image("qr", qr_path))
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not save image to database: {e}")
+            return
+
         conn = connect_db()
         cursor = conn.cursor()
         
@@ -541,11 +518,6 @@ class ReceiptSettingWidget(QWidget):
         cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_header", self.receipt_header.toPlainText()))
         cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_footer", self.receipt_footer.toPlainText()))
         cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("show_customer_name", '1' if self.show_customer_check.isChecked() else '0'))
-        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_printer_name", self.printer_combo.currentData() or ""))
-        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_paper_size", str(self.receipt_paper_combo.currentIndex())))
-        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_print_quality", self.receipt_quality_combo.currentData() or "203"))
-        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("receipt_cash_drawer_use_receipt_printer", '1' if self.cash_drawer_printer_check.isChecked() else '0'))
-        
         conn.commit()
         conn.close()
         save_receipt_template_settings(self.collect_template_settings())
@@ -616,24 +588,41 @@ class ReceiptSettingWidget(QWidget):
             "Images (*.png *.jpg *.jpeg *.bmp)"
         )
         if file_path:
-            # Create images directory if not exists
-            img_dir = os.path.join(os.path.dirname(os.path.abspath("database/pos.db")), "images")
-            os.makedirs(img_dir, exist_ok=True)
-            
-            # Copy image to images directory
-            ext = os.path.splitext(file_path)[1]
-            dest_name = f"shop_{image_type}{ext}"
-            dest_path = os.path.join(img_dir, dest_name)
             try:
-                shutil.copyfile(file_path, dest_path)
+                dest_path = save_receipt_image(image_type, file_path)
                 if image_type == "logo":
                     self.logo_path_edit.setText(dest_path)
                     self.update_logo_preview(dest_path)
+                    self.update_template_preview()
                 else:  # qr
                     self.qr_path_edit.setText(dest_path)
                     self.update_qr_preview(dest_path)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not save image: {e}")
+
+    def clear_image(self, image_type):
+        """Clear logo or QR code selection and database image data."""
+        try:
+            clear_receipt_image(image_type, remove_file=True)
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not clear image: {e}")
+            return
+
+        if image_type == "logo":
+            self.logo_path_edit.clear()
+            self.update_template_preview()
+        else:
+            self.qr_path_edit.clear()
+        self.reset_image_preview(image_type)
+
+    def reset_image_preview(self, image_type):
+        """Reset preview label to its empty state."""
+        if image_type == "logo":
+            self.logo_preview.setPixmap(QPixmap())
+            self.logo_preview.setText("No logo")
+        else:
+            self.qr_preview.setPixmap(QPixmap())
+            self.qr_preview.setText("No QR code")
 
     def update_logo_preview(self, image_path):
         """Update logo preview with fixed size and centered"""

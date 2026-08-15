@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from .customer_display_theme import get_display_palette
+from utils.receipt_images import resolve_receipt_image_path
 from utils.translations import tr
 
 
@@ -14,10 +15,9 @@ def load_qr_info(qr_preview, qr_name_label, qr_group):
         conn = connect_db()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT value FROM settings WHERE key='shop_qr_code'")
-        row = cursor.fetchone()
-        if row and row[0] and os.path.exists(row[0]):
-            update_qr_preview(qr_preview, row[0])
+        qr_path = resolve_receipt_image_path("qr")
+        if qr_path and os.path.exists(qr_path):
+            update_qr_preview(qr_preview, qr_path)
             qr_group.setVisible(True)
         else:
             qr_preview.setText(f"📱 {tr('no_qr_code')}")

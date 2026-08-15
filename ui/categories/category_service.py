@@ -161,7 +161,7 @@ class CategoryService:
                 try:
                     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_slug_unique ON categories(slug)")
                     conn.commit()
-                    logger.info("✅ Created unique index for slug")
+                    logger.debug("✅ Ensured unique index for category slug")
                 except Exception as e:
                     logger.warning(f"Could not create unique index for slug: {e}")
                 
@@ -319,8 +319,8 @@ class CategoryService:
                         COALESCE(c.code, '') as code,
                         COALESCE(c.notes, '') as notes,
                         COALESCE(c.is_system, 0) as is_system,
-                        COALESCE(c.created_at, '') as created_at,
-                        COALESCE(c.updated_at, '') as updated_at,
+                        COALESCE(CAST(c.created_at AS TEXT), '') as created_at,
+                        COALESCE(CAST(c.updated_at AS TEXT), '') as updated_at,
                         COALESCE(s.product_count, 0) as product_count
                     FROM categories c
                     LEFT JOIN categories p ON c.parent_id = p.id
@@ -445,8 +445,8 @@ class CategoryService:
                         COALESCE(c.code, '') as code,
                         COALESCE(c.notes, '') as notes,
                         COALESCE(c.is_system, 0) as is_system,
-                        COALESCE(c.created_at, '') as created_at,
-                        COALESCE(c.updated_at, '') as updated_at,
+                        COALESCE(CAST(c.created_at AS TEXT), '') as created_at,
+                        COALESCE(CAST(c.updated_at AS TEXT), '') as updated_at,
                         COALESCE(s.product_count, 0) as product_count
                     FROM categories c
                     LEFT JOIN categories p ON c.parent_id = p.id

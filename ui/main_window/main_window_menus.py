@@ -34,8 +34,10 @@ class MainWindowMenus:
     logout: Any
     exit_app: Any
     refresh_all_pages: Any
+    open_settings_center_dialog: Any
     open_general_settings_dialog: Any
     open_receipt_settings_dialog: Any
+    open_print_settings_dialog: Any
     open_database_connection_settings_dialog: Any
     open_regional_settings_dialog: Any
     open_backup_reset_settings_dialog: Any
@@ -352,6 +354,11 @@ class MainWindowMenus:
         can_edit_settings = PermissionManager.user_has_permission(user_id, Permission.EDIT_SETTINGS)
         edit_tooltip = "You don't have permission to edit settings"
 
+        self.settings_center_action = QAction("Settings Center", main_window)
+        self.settings_center_action.triggered.connect(self.open_settings_center_dialog)
+        self.settings_menu.addAction(self.settings_center_action)
+        self.settings_menu.addSeparator()
+
         self.general_settings_action = QAction("General Settings", main_window)  # ✅ tr("general_settings") ကို တိုက်ရရိပ်ပြောင်း
         self.general_settings_action.triggered.connect(self.open_general_settings_dialog)
         self.general_settings_action.setEnabled(can_edit_settings)
@@ -365,6 +372,13 @@ class MainWindowMenus:
         if not can_edit_settings:
             self.receipt_settings_action.setToolTip(edit_tooltip)
         self.settings_menu.addAction(self.receipt_settings_action)
+
+        self.print_settings_action = QAction("Print Setting", main_window)
+        self.print_settings_action.triggered.connect(self.open_print_settings_dialog)
+        self.print_settings_action.setEnabled(can_edit_settings)
+        if not can_edit_settings:
+            self.print_settings_action.setToolTip(edit_tooltip)
+        self.settings_menu.addAction(self.print_settings_action)
 
         self.database_connection_settings_action = QAction("Database", main_window)
         self.database_connection_settings_action.triggered.connect(self.open_database_connection_settings_dialog)

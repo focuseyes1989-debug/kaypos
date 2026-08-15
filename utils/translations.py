@@ -433,6 +433,7 @@ TRANSLATIONS = {
 
         # Receipt settings
         "receipt_setting": "Receipt Setting",
+        "print_setting": "Print Setting",
         "shop_name": "Shop Name:",
         "shop_logo": "Shop Logo:",
         "browse": "Browse",
@@ -957,6 +958,7 @@ TRANSLATIONS = {
 
         # Receipt settings
         "receipt_setting": "ပြေစာသတ်မှတ်ချက်",
+        "print_setting": "Print သတ်မှတ်ချက်",
         "shop_name": "ဆိုင်အမည်:",
         "shop_logo": "ဆိုင်အမှတ်တံဆိပ်:",
         "browse": "ရှာရန်",

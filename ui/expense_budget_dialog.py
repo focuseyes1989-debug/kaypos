@@ -152,7 +152,8 @@ class ExpenseBudgetDialog(QDialog):
         
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.table.setColumnWidth(1, 160)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
@@ -646,7 +647,7 @@ class ExpenseBudgetDialog(QDialog):
             budget_spin.setDecimals(0)
             budget_spin.setPrefix(f"{symbol} ")
             budget_spin.setValue(budget)
-            budget_spin.setMinimumWidth(120)
+            budget_spin.setMinimumWidth(145)
             # ✅ Fix: Reduce top/bottom padding to center the spinbox vertically in the cell
             budget_spin.setStyleSheet(f"""
                 QDoubleSpinBox {{

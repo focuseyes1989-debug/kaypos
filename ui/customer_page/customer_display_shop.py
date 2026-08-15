@@ -6,6 +6,7 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGridLayout, QGroupBox, QLabel, QVBoxLayout
 
 from models.database import connect_db
+from utils.receipt_images import resolve_receipt_image_path
 from utils.translations import tr
 from .customer_display_theme import get_display_palette
 
@@ -138,10 +139,9 @@ class ShopInfoWidget:
             if row:
                 self.parent.shop_address_display.setText(row[0])
 
-            cursor.execute("SELECT value FROM settings WHERE key='shop_logo'")
-            row = cursor.fetchone()
-            if row and row[0] and os.path.exists(row[0]):
-                self.update_logo_preview(row[0])
+            logo_path = resolve_receipt_image_path("logo")
+            if logo_path and os.path.exists(logo_path):
+                self.update_logo_preview(logo_path)
 
             conn.close()
         except Exception:

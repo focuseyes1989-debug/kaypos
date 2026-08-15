@@ -10,6 +10,7 @@ from PyQt6.QtGui import QIcon, QFont, QPixmap, QPainter, QFontMetrics, QPageLayo
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog, QPrinterInfo
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.receipt_images import resolve_receipt_image_path
 from utils.receipt_template import build_receipt_html, build_receipt_text_lines
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 
@@ -484,18 +485,7 @@ class ReceiptDialog(QDialog):
         return lines
 
     def get_shop_logo_path(self):
-        try:
-            conn = connect_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key='shop_logo'")
-            row = cursor.fetchone()
-            conn.close()
-            logo_path = row[0] if row else ""
-            if logo_path and os.path.exists(logo_path):
-                return logo_path
-        except Exception:
-            pass
-        return ""
+        return resolve_receipt_image_path("logo")
 
     def _send_cash_drawer_pulse(self, printer_name):
         """Send ESC/POS drawer kick command to a Windows printer queue."""

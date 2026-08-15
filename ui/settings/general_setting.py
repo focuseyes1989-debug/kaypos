@@ -73,12 +73,14 @@ class GeneralSettingWidget(QWidget):
         columns_layout.setSpacing(20)
 
         left_column = QWidget()
+        self.left_column = left_column
         left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(15)
 
         right_column = QWidget()
+        self.right_column = right_column
         right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -269,6 +271,22 @@ class GeneralSettingWidget(QWidget):
         layout.addWidget(scroll)
         self.setLayout(layout)
         self.retranslateUi()
+
+    def set_visible_sections(self, sections):
+        """Show only selected setting groups when embedded in Settings Center."""
+        visible = set(sections or [])
+        group_map = {
+            "payments": self.payment_group,
+            "tax": self.tax_group,
+            "loyalty": self.royalty_group,
+            "discount": self.discount_group,
+            "appearance": self.appearance_group,
+        }
+        for key, group in group_map.items():
+            group.setVisible(key in visible)
+
+        self.left_column.setVisible(any(key in visible for key in ("payments", "tax")))
+        self.right_column.setVisible(any(key in visible for key in ("loyalty", "discount", "appearance")))
 
     def retranslateUi(self):
         if lang.get_current() == "my":

@@ -15,6 +15,7 @@ from ui.themes.theme_manager import get_current_theme, get_theme_colors, theme_m
 from ui.responsive_utils import parse_resolution
 from utils.translations import tr
 from utils.activity_logger import log_activity
+from utils.receipt_images import resolve_receipt_image_path
 from utils.system_theme import system_theme
 from loguru import logger
 import os
@@ -499,6 +500,25 @@ class MainWindowActions:
 
         dialog.exec()
 
+    def open_settings_center_dialog(self) -> None:
+        from ui.settings import SettingsCenterWidget
+
+        widget = SettingsCenterWidget(
+            current_user_role=self.current_user.get("role", "admin"),
+            user_id=self.user_id,
+        )
+        widget.general_settings_changed.connect(self.refresh_general_settings)
+        widget.general_settings_changed.connect(self.apply_theme_from_settings)
+        widget.receipt_settings_changed.connect(self.refresh_receipt_settings)
+        widget.print_settings_changed.connect(self.refresh_receipt_settings)
+        widget.currency_changed.connect(self.refresh_currency)
+        self._open_setting_dialog(
+            self._settings_dialog_title("settings", "Settings Center"),
+            widget,
+            1240,
+            780
+        )
+
     def open_general_settings_dialog(self) -> None:
         from ui.settings import GeneralSettingWidget
 
@@ -523,6 +543,18 @@ class MainWindowActions:
             widget,
             1180,
             760
+        )
+
+    def open_print_settings_dialog(self) -> None:
+        from ui.settings import PrintSettingWidget
+
+        widget = PrintSettingWidget()
+        widget.print_settings_changed.connect(self.refresh_receipt_settings)
+        self._open_setting_dialog(
+            self._settings_dialog_title("print_setting", "Print Setting"),
+            widget,
+            620,
+            320
         )
 
     def open_database_connection_settings_dialog(self) -> None:
@@ -742,12 +774,7 @@ class MainWindowActions:
     def update_shop_logo(self) -> None:
         """Update shop logo from database"""
         try:
-            conn = connect_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key='shop_logo'")
-            row = cursor.fetchone()
-            conn.close()
-            logo_path = row[0] if row else ""
+            logo_path = resolve_receipt_image_path("logo")
             
             # Use header's logo_label
             if hasattr(self, 'header') and self.header and hasattr(self.header, 'logo_label'):

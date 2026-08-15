@@ -18,6 +18,7 @@ class CategoryListTable:
         """Populate table with category data"""
         self.table.setSortingEnabled(False)
         self.table.setRowCount(0)
+        category_map = {cat.get('id'): cat for cat in categories}
 
         if not categories:
             self.status_label.setText("📭 No categories found")
@@ -34,13 +35,16 @@ class CategoryListTable:
             id_item.setText(str(cat['id']))
             self.table.setItem(row_idx, 0, id_item)
             
-            # Column 1: Name (with icon)
+            # Column 1: Name (with hierarchy hint)
             name_text = cat['name']
             if cat.get('is_system'):
                 name_text = f"⭐ {cat['name']}"
             
-            name_item = QTableWidgetItem(f"{cat.get('icon', '📁')} {name_text}")
+            depth = self._category_depth(cat, category_map)
+            prefix = ("   " * depth + "↳ ") if depth else ""
+            name_item = QTableWidgetItem(f"{prefix}{cat.get('icon', '📁')} {name_text}")
             name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            name_item.setToolTip(self._category_tooltip(cat))
             
             if cat.get('is_system'):
                 name_item.setForeground(QColor('#5865f2'))
@@ -54,6 +58,7 @@ class CategoryListTable:
             parent_text = cat.get('parent_name') or '—'
             parent_item = QTableWidgetItem(parent_text)
             parent_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            parent_item.setToolTip("Root category" if not cat.get('parent_name') else f"Parent: {cat.get('parent_name')}")
             parent_item.setForeground(QColor('#94a3b8'))
             self.table.setItem(row_idx, 2, parent_item)
             
@@ -61,6 +66,7 @@ class CategoryListTable:
             product_count = cat.get('product_count', 0)
             product_item = QTableWidgetItem(str(product_count))
             product_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            product_item.setToolTip(f"{product_count} product{'s' if product_count != 1 else ''}")
             
             if product_count > 0:
                 product_item.setForeground(QColor('#3b82f6'))
@@ -80,6 +86,7 @@ class CategoryListTable:
             
             status_item = QTableWidgetItem(status_display)
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            status_item.setToolTip(f"Status: {status.capitalize()}")
             
             status_colors = {
                 'active': QColor('#16a34a'),
@@ -105,35 +112,19 @@ class CategoryListTable:
             self.status_label.setText("No categories found")
 
     def get_selected_ids(self) -> List[int]:
-        """
-        Get selected category IDs - ✅ COMPLETE REWRITE
-        """
+        """Get selected category IDs."""
         selected = []
-        
-        print("[DEBUG] get_selected_ids() called")
-        
-        # Get all selected indexes
         selected_indexes = self.table.selectedIndexes()
-        print(f"[DEBUG] selectedIndexes(): {selected_indexes}")
-        
         if not selected_indexes:
-            print("[DEBUG] No selected indexes found")
             return selected
         
-        # Get unique rows from selection
         selected_rows = set()
         for index in selected_indexes:
             selected_rows.add(index.row())
         
-        print(f"[DEBUG] Selected rows: {selected_rows}")
-        
-        # Get ID from each selected row
         for row in selected_rows:
             id_item = self.table.item(row, 0)
             if id_item:
-                print(f"[DEBUG] Row {row}: id_item.text() = '{id_item.text()}', UserRole = {id_item.data(Qt.ItemDataRole.UserRole)}")
-                
-                # Try to get from UserRole first
                 cat_id = id_item.data(Qt.ItemDataRole.UserRole)
                 if cat_id is not None:
                     try:
@@ -154,8 +145,24 @@ class CategoryListTable:
                 except (ValueError, TypeError):
                     pass
         
-        print(f"[DEBUG] get_selected_ids() returning: {selected}")
         return selected
+
+    def _category_depth(self, category: Dict, category_map: Dict) -> int:
+        """Return the visible parent depth for indentation."""
+        depth = 0
+        parent_id = category.get('parent_id')
+        seen = set()
+        while parent_id and parent_id in category_map and parent_id not in seen:
+            seen.add(parent_id)
+            depth += 1
+            parent_id = category_map[parent_id].get('parent_id')
+        return min(depth, 4)
+
+    def _category_tooltip(self, category: Dict) -> str:
+        parent = category.get('parent_name') or 'Root'
+        products = category.get('product_count', 0)
+        status = category.get('status', 'active').capitalize()
+        return f"{category.get('name', '')}\nParent: {parent}\nProducts: {products}\nStatus: {status}"
 
     def get_category_from_row(self, row: int) -> Optional[Dict]:
         """Get category data from a row"""

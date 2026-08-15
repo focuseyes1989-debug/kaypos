@@ -1,12 +1,12 @@
 # ui/sales_page/checkout_handler/checkout_utils.py
 import ctypes
-import os
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtCore import Qt, QSizeF, QMarginsF
 from PyQt6.QtPrintSupport import QPrinter, QPrinterInfo
 from PyQt6.QtGui import QPainter, QFont, QFontMetrics, QPixmap, QPageLayout, QPageSize
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from utils.receipt_images import resolve_receipt_image_path
 from utils.receipt_template import build_receipt_text_lines, load_receipt_template_settings
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 from loguru import logger
@@ -102,17 +102,7 @@ def get_setting(key, default=""):
 
 def get_shop_logo_path():
     """Get shop logo path from database"""
-    try:
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key='shop_logo'")
-        row = cursor.fetchone()
-        conn.close()
-        if row and row[0] and os.path.exists(row[0]):
-            return row[0]
-    except Exception as e:
-        logger.error(f"Error loading logo: {e}")
-    return ""
+    return resolve_receipt_image_path("logo")
 
 
 def build_receipt_text(invoice_no, created_at, total, payment, change, 
