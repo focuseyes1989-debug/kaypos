@@ -20,6 +20,36 @@
       --danger-soft: #fee4e2;
       --warning-bg: #fff7d6;
       --warning-border: #f08c00;
+      --warning-ink: #9a3412;
+      --topbar: #101828;
+      --topbar-soft: #1d2939;
+      --input: #ffffff;
+      --hover: #eef4ff;
+      --shadow: 0 12px 32px rgba(15, 23, 42, .08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101418;
+        --panel: #171d23;
+        --soft: #111820;
+        --ink: #e8eef6;
+        --muted: #9aa8bb;
+        --line: #2d3744;
+        --brand: #4f8cff;
+        --brand-dark: #78a7ff;
+        --brand-soft: #172746;
+        --success: #54d487;
+        --danger: #ff8a80;
+        --danger-soft: #3a1d1f;
+        --warning-bg: #2c2412;
+        --warning-border: #d49a32;
+        --warning-ink: #f8c471;
+        --topbar: #0b0f14;
+        --topbar-soft: #17202a;
+        --input: #121820;
+        --hover: #182537;
+        --shadow: 0 12px 32px rgba(0, 0, 0, .28);
+      }
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -42,6 +72,7 @@
       color: #fff;
       font-weight: 600;
       cursor: pointer;
+      transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .12s ease;
     }
     button:hover { background: var(--brand-dark); }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -51,7 +82,7 @@
       min-height: 32px;
       border: 1px solid var(--line);
       border-radius: 6px;
-      background: #fff;
+      background: var(--input);
       color: var(--ink);
       padding: 5px 10px;
       outline: none;
@@ -78,7 +109,7 @@
       border: 1px solid rgba(148, 163, 184, .38);
       border-radius: 8px;
       padding: 20px;
-      box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+      box-shadow: var(--shadow);
     }
     .brand-row { display: flex; align-items: center; gap: 10px; }
     .brand-mark {
@@ -137,21 +168,21 @@
       justify-content: space-between;
       gap: 12px;
       padding: 0 12px;
-      background: #0f172a;
+      background: var(--topbar);
       color: #fff;
     }
     .topbar .brand-mark { width: 28px; height: 28px; border-radius: 6px; font-size: 14px; }
     .topbar .brand-title { font-size: 15px; font-weight: 600; }
     .topbar .brand-subtitle { font-size: 11px; color: #a8b3c7; }
     .top-actions { display: flex; gap: 8px; align-items: center; color: #cbd5e1; white-space: nowrap; font-size: 12px; }
-    .top-actions button { min-height: 28px; padding: 4px 9px; background: #1e293b; color: #dbeafe; }
+    .top-actions button { min-height: 28px; padding: 4px 9px; background: var(--topbar-soft); color: #dbeafe; }
     .top-link {
       min-height: 28px;
       display: inline-flex;
       align-items: center;
       padding: 4px 9px;
       border-radius: 6px;
-      background: #1e293b;
+      background: var(--topbar-soft);
       color: #dbeafe;
       text-decoration: none;
       font-weight: 600;
@@ -180,7 +211,7 @@
       gap: 10px;
       padding: 10px 12px;
       border-bottom: 1px solid var(--line);
-      background: #fff;
+      background: var(--panel);
     }
     .section-title { font-size: 15px; font-weight: 700; }
     .section-subtitle { color: var(--muted); font-size: 11px; margin-top: 2px; }
@@ -193,13 +224,13 @@
       padding: 3px 8px;
       border-radius: 999px;
       border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      color: #334155;
+      background: var(--soft);
+      color: var(--ink);
       font-size: 11px;
       font-weight: 700;
     }
-    .metric-chip.ok { border-color: #bbf7d0; background: #f0fdf4; color: var(--success); }
-    .metric-chip.warn { border-color: #fed7aa; background: #fff7ed; color: #b45309; }
+    .metric-chip.ok { border-color: rgba(19, 122, 58, .35); background: rgba(19, 122, 58, .08); color: var(--success); }
+    .metric-chip.warn { border-color: rgba(240, 140, 0, .35); background: rgba(240, 140, 0, .12); color: var(--warning-ink); }
     .toolbar {
       display: grid;
       grid-template-columns: minmax(240px, 1fr) 180px 88px;
@@ -223,7 +254,7 @@
       gap: 6px;
       min-width: 0;
       padding: 6px;
-      background: #fff;
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 6px;
       transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
@@ -233,7 +264,7 @@
       width: 100%;
       height: 80px;
       object-fit: contain;
-      background: #eef2f7;
+      background: var(--soft);
       border-radius: 4px;
     }
     .product-name { font-weight: 600; line-height: 1.2; word-break: break-word; font-size: 12px; }
@@ -247,7 +278,7 @@
       width: fit-content;
       border-radius: 999px;
       padding: 2px 6px;
-      background: #e5eaf2;
+      background: var(--hover);
       color: var(--muted);
       font-size: 10px;
       font-weight: 600;
@@ -264,7 +295,7 @@
       gap: 6px;
       padding: 8px;
       border-bottom: 1px solid var(--line);
-      background: #fff;
+      background: var(--panel);
     }
     .summary-tile {
       display: grid;
@@ -293,8 +324,8 @@
       border-bottom: 1px solid var(--line);
     }
     .cart-title { font-size: 14px; font-weight: 700; }
-    .secondary { background: #e5eaf2; color: var(--ink); }
-    .secondary:hover { background: #d5dde9; }
+    .secondary { background: var(--hover); color: var(--ink); border: 1px solid transparent; }
+    .secondary:hover { background: var(--brand-soft); border-color: rgba(37, 99, 235, .24); }
     .cart-items { min-height: 0; overflow: auto; }
     .empty-cart {
       min-height: 100%;
@@ -320,7 +351,7 @@
       width: 26px;
       min-height: 26px;
       padding: 0;
-      background: #e5eaf2;
+      background: var(--hover);
       color: var(--ink);
       font-size: 12px;
     }
@@ -342,19 +373,56 @@
     .details {
       display: grid;
       gap: 8px;
-      padding: 8px;
-      background: #fff;
+      padding: 10px;
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 6px;
       font-size: 12px;
     }
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .setting-card {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--soft);
+    }
+    .setting-card.wide { grid-column: 1 / -1; }
+    .setting-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .setting-hint { color: var(--muted); font-size: 11px; line-height: 1.35; }
     .options-row, .check-row {
       display: flex;
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
     }
-    .options-row label, .check-row label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); font-weight: normal; }
+    .options-row label, .check-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .options-row input, .check-row input { width: auto; min-height: auto; }
+    .discount-row input[type="checkbox"], .points-row input[type="checkbox"] {
+      width: auto;
+      min-height: auto;
+    }
     .discount-row, .points-row, .totals-grid {
       display: grid;
       grid-template-columns: 1fr 110px;
@@ -371,12 +439,12 @@
       gap: 8px;
       padding: 6px 8px;
       border-radius: 4px;
-      background: #f1f5f9;
+      background: var(--soft);
     }
     .total-card strong { font-weight: 600; }
     .grand {
       grid-column: 1 / -1;
-      background: #eaf1ff;
+      background: var(--brand-soft);
       font-size: 15px;
       font-weight: 700;
     }
@@ -411,7 +479,7 @@
       justify-content: space-between;
       gap: 10px;
       padding: 0 10px;
-      background: #0f172a;
+      background: var(--topbar);
       color: #cbd5e1;
       font-size: 11px;
     }
@@ -421,9 +489,9 @@
       display: none;
       padding: 7px 10px;
       border-radius: 6px;
-      border: 1px solid #fed7aa;
-      background: #fff7ed;
-      color: #9a3412;
+      border: 1px solid var(--warning-border);
+      background: var(--warning-bg);
+      color: var(--warning-ink);
       font-size: 12px;
       font-weight: 600;
     }
@@ -465,7 +533,7 @@
       justify-content: space-between;
       gap: 12px;
       padding: 10px 14px;
-      background: #0f172a;
+      background: var(--topbar);
       color: #fff;
     }
     .modal-title { font-size: 15px; font-weight: 700; }
@@ -496,7 +564,7 @@
       cursor: pointer;
       font-size: 12px;
     }
-    .receipt-row:hover, .receipt-row.active { background: #eef4ff; }
+    .receipt-row:hover, .receipt-row.active { background: var(--hover); }
     .receipt-row strong { word-break: break-word; font-weight: 600; }
     .receipt-preview {
       min-height: 0;
@@ -504,13 +572,13 @@
       grid-template-rows: minmax(0, 1fr) auto;
       padding: 10px;
       gap: 10px;
-      background: #f8fafc;
+      background: var(--soft);
     }
     .receipt-paper {
       min-height: 0;
       overflow: auto;
       white-space: pre-wrap;
-      background: #fff;
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 10px;
@@ -526,11 +594,24 @@
       gap: 8px;
       align-items: center;
     }
+    .helper-row input { font-family: Consolas, "Courier New", monospace; font-size: 11px; }
+    .helper-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .helper-status.ok { color: var(--success); }
+    .helper-status.error { color: var(--danger); }
+    .field-stack {
+      display: grid;
+      gap: 5px;
+    }
     @media (max-width: 980px) {
       body { overflow: auto; }
       .app { height: auto; min-height: 100vh; }
       .workspace { grid-template-columns: 1fr; }
-      .toolbar, .customer-row, .payment-row, .quick-cash-row { grid-template-columns: 1fr; }
+      .toolbar, .customer-row, .payment-row, .quick-cash-row, .details-grid, .helper-row { grid-template-columns: 1fr; }
       .section-head { align-items: flex-start; flex-direction: column; }
       .metric-row { justify-content: flex-start; }
       .sale-panel { min-height: 640px; }
@@ -639,27 +720,47 @@
           </div>
 
           <div id="detailsPanel" class="details" hidden>
-            <div class="options-row">
-              <strong>Payment:</strong>
-              <label><input id="cashMode" name="saleMode" type="radio" value="Cash" checked> Cash</label>
-              <label><input id="creditMode" name="saleMode" type="radio" value="Credit" disabled> Credit</label>
-            </div>
-            <div class="check-row">
-              <label><input id="printReceipt" type="checkbox" checked> Print Receipt</label>
-              <label><input id="openDrawer" type="checkbox" checked> Open Cash Drawer</label>
-            </div>
-            <div class="helper-row">
-              <span class="muted">Client helper</span>
-              <input id="clientHelperUrl" value="http://127.0.0.1:8765" title="Client cash drawer helper URL">
-              <button id="testHelperBtn" class="secondary" type="button">Test</button>
-            </div>
-            <div class="discount-row">
-              <label><input id="applyDiscount" type="checkbox"> Apply Discount</label>
-              <input id="discountValue" type="number" min="0" value="0">
-            </div>
-            <div class="points-row">
-              <label><input id="usePoints" type="checkbox" disabled> Use points <span id="pointsAvailable" class="muted">(0)</span></label>
-              <input id="pointsValue" type="number" min="0" value="0" disabled>
+            <div class="details-grid">
+              <div class="setting-card">
+                <div class="setting-title">Payment Mode</div>
+                <div class="options-row">
+                  <label><input id="cashMode" name="saleMode" type="radio" value="Cash" checked> Cash</label>
+                  <label><input id="creditMode" name="saleMode" type="radio" value="Credit" disabled> Credit</label>
+                </div>
+              </div>
+              <div class="setting-card">
+                <div class="setting-title">Receipt Actions</div>
+                <div class="check-row">
+                  <label><input id="printReceipt" type="checkbox" checked> Print Receipt</label>
+                  <label><input id="openDrawer" type="checkbox" checked> Open Drawer</label>
+                </div>
+              </div>
+              <div class="setting-card wide">
+                <div class="setting-title">
+                  <span>Client Cash Drawer Helper</span>
+                  <button id="testHelperBtn" class="secondary" type="button">Test</button>
+                </div>
+                <div class="helper-row">
+                  <span class="muted">URL</span>
+                  <input id="clientHelperUrl" value="http://127.0.0.1:8765" title="Client cash drawer helper URL">
+                  <span id="helperStatus" class="helper-status">Ready to test</span>
+                </div>
+                <div class="setting-hint">Run run_client_cashdrawer_helper.bat on this cashier PC when the cash drawer is connected to a local receipt printer.</div>
+              </div>
+              <div class="setting-card">
+                <div class="setting-title">Discount</div>
+                <div class="discount-row">
+                  <label><input id="applyDiscount" type="checkbox"> Apply Discount</label>
+                  <input id="discountValue" type="number" min="0" value="0">
+                </div>
+              </div>
+              <div class="setting-card">
+                <div class="setting-title">Customer Points</div>
+                <div class="points-row">
+                  <label><input id="usePoints" type="checkbox" disabled> Use points <span id="pointsAvailable" class="muted">(0)</span></label>
+                  <input id="pointsValue" type="number" min="0" value="0" disabled>
+                </div>
+              </div>
             </div>
             <div class="totals-grid">
               <div class="total-card"><span>Subtotal</span><strong id="subtotal">0 Ks</strong></div>
@@ -1591,16 +1692,26 @@
       return value;
     }
 
+    function setHelperStatus(message, stateName = "") {
+      const helperStatus = document.getElementById("helperStatus");
+      if (!helperStatus) return;
+      helperStatus.textContent = message;
+      helperStatus.className = `helper-status ${stateName}`.trim();
+    }
+
     async function openClientCashDrawer(showMessage = true) {
       if (showMessage) setStatus("Opening client cash drawer...");
+      setHelperStatus("Testing helper...");
       try {
         const res = await fetch(`${helperUrl()}/open-cashdrawer`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data.ok === false) throw new Error(data.error || "Client cash drawer helper failed");
         if (showMessage) setStatus(`Client cash drawer opened: ${data.printer_name || "local printer"}`);
+        setHelperStatus(`Connected: ${data.printer_name || "local printer"}`, "ok");
         return true;
       } catch (err) {
         const message = `Client helper error: ${err.message}. Run run_client_cashdrawer_helper.bat on this client PC.`;
+        setHelperStatus("Not connected", "error");
         if (showMessage) {
           setStatus(message, true);
         } else {
@@ -1730,6 +1841,7 @@
     document.getElementById("expenseCategorySearch").addEventListener("input", renderExpenseCategories);
     document.getElementById("clientHelperUrl").value = state.clientHelperUrl;
     document.getElementById("clientHelperUrl").addEventListener("change", helperUrl);
+    document.getElementById("clientHelperUrl").addEventListener("input", () => setHelperStatus("Ready to test"));
     document.getElementById("testHelperBtn").onclick = () => openClientCashDrawer(true);
     document.getElementById("search").addEventListener("input", () => {
       clearTimeout(state.searchTimer);
