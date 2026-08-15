@@ -835,7 +835,7 @@ class ProductGrid(QWidget):
                 stock_item = QTableWidgetItem("Menu")
             else:
                 stock_item = QTableWidgetItem(str(stock))
-                if stock == 0:
+                if stock <= 0:
                     stock_item.setForeground(QColor(231, 76, 60))
                 elif stock <= low_stock:
                     stock_item.setForeground(QColor(230, 126, 34))
@@ -848,7 +848,7 @@ class ProductGrid(QWidget):
                 status_text = "Menu"
                 status_color = QColor(22, 160, 133)
             else:
-                if stock == 0:
+                if stock <= 0:
                     status_text = "Out"
                     status_color = QColor(231, 76, 60)
                 elif stock <= low_stock:

@@ -75,7 +75,7 @@ class ListItemWidget(QFrame):
             stock_color = "#16a085"
         else:
             stock_text = str(stock)
-            if stock == 0:
+            if stock <= 0:
                 stock_color = "#e74c3c"
             elif stock <= low_stock:
                 stock_color = "#e67e22"
@@ -127,7 +127,7 @@ class ListItemWidget(QFrame):
             return "Service", "#3498db"
         if sold_by_mode == "restaurant":
             return "Menu", "#16a085"
-        if stock == 0:
+        if stock <= 0:
             return "Out", "#e74c3c"
         if stock <= low_stock:
             return "Low", "#e67e22"

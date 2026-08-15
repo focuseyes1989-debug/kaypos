@@ -142,7 +142,7 @@ class ProductCard(QFrame):
     def _get_status(sold_by, stock, low_stock):
         if sold_by and sold_by.lower() == "service":
             return "Service", ProductCard.COLOR_SVC
-        if stock == 0:
+        if stock <= 0:
             return "Out of Stock", ProductCard.COLOR_OUT
         if stock <= low_stock:
             return "Low Stock", ProductCard.COLOR_LOW

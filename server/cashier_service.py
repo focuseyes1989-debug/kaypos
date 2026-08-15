@@ -476,6 +476,8 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
             product = {product_columns[index]: row[index] for index in range(len(product_columns))}
             sold_by = str(product.get("sold_by") or "")
             product["is_service"] = sold_by.lower() == "service" or sold_by.lower() == "services"
+            product["stock"] = int(product.get("stock") or 0)
+            product["is_out_of_stock"] = not product["is_service"] and product["stock"] <= 0
             product_id = int(product["id"])
             discount = discounts.get(product_id, {"source": "", "percent": 0.0, "type": "percentage", "manual_price": 0.0})
             effective_price, discount_percent = _effective_price(float(product.get("price") or 0), discount)

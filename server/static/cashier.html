@@ -260,6 +260,9 @@
       transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
     }
     .product:hover { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); transform: translateY(-1px); }
+    .product.out-of-stock { border-color: #f3b6b6; background: #fff7f7; }
+    .product.out-of-stock img { filter: grayscale(.65); opacity: .72; }
+    .product.out-of-stock .price { color: #8a1f1f; }
     .product img {
       width: 100%;
       height: 80px;
@@ -284,6 +287,7 @@
       font-weight: 600;
     }
     .badge.service { background: #e8f5ee; color: var(--success); }
+    .badge.out-stock { background: #fde8e8; color: #b42318; }
     .sale-panel {
       display: grid;
       grid-template-rows: auto auto auto minmax(0, 1fr) auto;
@@ -1227,15 +1231,16 @@
       }
       root.innerHTML = state.products.map(product => {
         const service = isService(product);
-        const out = !service && Number(product.stock || 0) <= 0;
+        const out = Boolean(product.is_out_of_stock) || (!service && Number(product.stock || 0) <= 0);
         const discount = Number(product.discount_percent || 0);
+        const stockLabel = out ? '<span class="badge out-stock">Out of Stock</span>' : `Stock ${money(product.stock)}`;
         return `
-          <article class="product">
+          <article class="product ${out ? "out-of-stock" : ""}">
             <img src="/api/products/${product.id}/image" alt="" onerror="this.style.visibility='hidden'">
             <div class="product-name">${escapeHtml(product.name || "")}</div>
             <div class="product-meta">
               <span>${escapeHtml(product.category || "Uncategorized")}</span>
-              <span>${service ? '<span class="badge service">Service</span>' : `Stock ${money(product.stock)}`}</span>
+              <span>${service ? '<span class="badge service">Service</span>' : stockLabel}</span>
             </div>
             <div>
               ${discount > 0 ? `<span class="badge">-${money(discount)}%</span>` : ""}
@@ -1243,7 +1248,7 @@
             </div>
             <div class="product-footer">
               <div class="price">${money(product.price)} Ks</div>
-              <button ${out ? "disabled" : ""} data-id="${product.id}">Add</button>
+              <button ${out ? "disabled" : ""} data-id="${product.id}">${out ? "Out" : "Add"}</button>
             </div>
           </article>
         `;
