@@ -50,9 +50,19 @@ class StockInHandlers:
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, barcode, sku, sold_by, stock FROM products ORDER BY name")
         self.all_products = cursor.fetchall()
-        self.filter_products()
-        
-        cursor.execute("SELECT id, name FROM suppliers WHERE status = 'Active' ORDER BY name")
+
+        # Populate suppliers before selecting a product. Product selection also
+        # refreshes its preview, so a bad legacy image must not leave this combo
+        # empty by aborting the remainder of the dropdown setup.
+        # Older/imported supplier rows may have a blank status or use different
+        # casing.  Treat those as active, matching the Suppliers tab behaviour.
+        cursor.execute("""
+            SELECT id, name
+            FROM suppliers
+            WHERE COALESCE(TRIM(status), '') = ''
+               OR LOWER(TRIM(status)) = 'active'
+            ORDER BY name
+        """)
         sups = cursor.fetchall()
         d = self.dialog
         d.si_supplier.clear()
@@ -60,6 +70,7 @@ class StockInHandlers:
         for sid, name in sups:
             d.si_supplier.addItem(name, sid)
         conn.close()
+        self.filter_products()
     
     def load_locations(self):
         """Load locations from database"""
@@ -176,24 +187,33 @@ class StockInHandlers:
             """
             d.product_details_label.setText(details)
             
-            if image and os.path.exists(image):
-                try:
-                    pixmap = QPixmap(image)
-                    if not pixmap.isNull():
-                        scaled_pixmap = pixmap.scaled(
-                            d.image_preview.width() - 30,
-                            d.image_preview.height() - 30,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        d.image_preview.setPixmap(scaled_pixmap)
-                        d.image_preview.setText("")
-                    else:
-                        d.image_preview.setText("🖼️ Invalid Image")
-                except Exception:
-                    d.image_preview.setText("🖼️ Image Not Available")
-            else:
-                d.image_preview.setText("📷 No Image Available")
+            try:
+                # This loader resolves moved/relative files and restores images
+                # stored in products.image_data to the local cache when needed.
+                from ui.products_page.product_table import load_thumbnail
+
+                available_width = max(1, d.image_preview.width() - 30)
+                available_height = max(1, d.image_preview.height() - 30)
+                pixmap = load_thumbnail(
+                    image or "",
+                    max(available_width, available_height),
+                    product_id,
+                )
+                if pixmap and not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(
+                        available_width,
+                        available_height,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    d.image_preview.setPixmap(scaled_pixmap)
+                    d.image_preview.setText("")
+                else:
+                    d.image_preview.setPixmap(QPixmap())
+                    d.image_preview.setText("📷 No Image Available")
+            except Exception:
+                d.image_preview.setPixmap(QPixmap())
+                d.image_preview.setText("🖼️ Image Not Available")
         else:
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")

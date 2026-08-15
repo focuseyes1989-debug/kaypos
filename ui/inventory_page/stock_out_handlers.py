@@ -6,7 +6,6 @@ from models.database import connect_db
 from utils.currency import format_money
 from utils.translations import tr
 from datetime import datetime
-import os
 
 
 class StockOutHandlers:
@@ -102,6 +101,7 @@ class StockOutHandlers:
         else:
             # Clear product info if no products found
             d.current_stock_label.setVisible(False)
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nNo products found")
             d.product_details_label.setText("No products match your search")
             self.current_product_id = None
@@ -157,6 +157,7 @@ class StockOutHandlers:
         product_id = d.so_product.currentData()
         
         if product_id is None:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             return
@@ -183,36 +184,35 @@ class StockOutHandlers:
             """
             d.product_details_label.setText(details)
             
-            # Load and display image
-            if image and os.path.exists(image):
-                try:
-                    pixmap = QPixmap(image)
-                    if not pixmap.isNull():
-                        # Get available size
-                        available_width = d.image_preview.width() - 30
-                        available_height = d.image_preview.height() - 30
-                        
-                        # If size is too small, use default
-                        if available_width < 50:
-                            available_width = 250
-                        if available_height < 50:
-                            available_height = 200
-                        
-                        scaled_pixmap = pixmap.scaled(
-                            available_width,
-                            available_height,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        d.image_preview.setPixmap(scaled_pixmap)
-                        d.image_preview.setText("")
-                    else:
-                        d.image_preview.setText("🖼️ Invalid Image Format")
-                except Exception as e:
-                    d.image_preview.setText("🖼️ Error Loading Image")
-            else:
-                d.image_preview.setText("📷 No Image Available")
+            try:
+                # Resolve relative/moved image files and fall back to the image
+                # bytes stored in the database for synced client installations.
+                from ui.products_page.product_table import load_thumbnail
+
+                available_width = max(50, d.image_preview.width() - 30)
+                available_height = max(50, d.image_preview.height() - 30)
+                pixmap = load_thumbnail(
+                    image or "",
+                    max(available_width, available_height),
+                    product_id,
+                )
+                if pixmap and not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(
+                        available_width,
+                        available_height,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    d.image_preview.setPixmap(scaled_pixmap)
+                    d.image_preview.setText("")
+                else:
+                    d.image_preview.setPixmap(QPixmap())
+                    d.image_preview.setText("📷 No Image Available")
+            except Exception:
+                d.image_preview.setPixmap(QPixmap())
+                d.image_preview.setText("🖼️ Image Not Available")
         else:
+            d.image_preview.setPixmap(QPixmap())
             d.image_preview.setText("📷 No Image\n\nProduct not found")
             d.product_details_label.setText("Product not found")
     
