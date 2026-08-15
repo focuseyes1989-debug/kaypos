@@ -14,8 +14,10 @@
       --line: #d7dee9;
       --brand: #2563eb;
       --brand-dark: #1d4ed8;
+      --brand-soft: #eaf1ff;
       --success: #137a3a;
       --danger: #b42318;
+      --danger-soft: #fee4e2;
       --warning-bg: #fff7d6;
       --warning-border: #f08c00;
     }
@@ -143,6 +145,18 @@
     .topbar .brand-subtitle { font-size: 11px; color: #a8b3c7; }
     .top-actions { display: flex; gap: 8px; align-items: center; color: #cbd5e1; white-space: nowrap; font-size: 12px; }
     .top-actions button { min-height: 28px; padding: 4px 9px; background: #1e293b; color: #dbeafe; }
+    .top-link {
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #dbeafe;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .top-link:hover { background: #334155; }
     .workspace {
       min-height: 0;
       display: grid;
@@ -158,10 +172,37 @@
       border: 1px solid var(--line);
       border-radius: 8px;
     }
-    .catalog { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .catalog { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .section-title { font-size: 15px; font-weight: 700; }
+    .section-subtitle { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .metric-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .metric-chip {
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .metric-chip.ok { border-color: #bbf7d0; background: #f0fdf4; color: var(--success); }
+    .metric-chip.warn { border-color: #fed7aa; background: #fff7ed; color: #b45309; }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(200px, 1fr) 160px 80px;
+      grid-template-columns: minmax(240px, 1fr) 180px 88px;
       gap: 8px;
       padding: 8px;
       background: var(--soft);
@@ -185,8 +226,9 @@
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 6px;
+      transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
     }
-    .product:hover { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); }
+    .product:hover { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); transform: translateY(-1px); }
     .product img {
       width: 100%;
       height: 80px;
@@ -213,9 +255,27 @@
     .badge.service { background: #e8f5ee; color: var(--success); }
     .sale-panel {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
       gap: 0;
     }
+    .sale-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .summary-tile {
+      display: grid;
+      gap: 2px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--soft);
+    }
+    .summary-tile span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .summary-tile strong { font-size: 14px; }
     .customer-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 76px 76px 76px;
@@ -264,7 +324,7 @@
       color: var(--ink);
       font-size: 12px;
     }
-    .remove-btn { background: #fee4e2; color: var(--danger); }
+    .remove-btn { background: var(--danger-soft); color: var(--danger); }
     .remove-btn:hover { background: #fecaca; }
     .checkout-area {
       display: grid;
@@ -339,6 +399,12 @@
       font-size: 15px;
       font-weight: 700;
     }
+    .quick-cash-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .quick-cash-row button { min-height: 30px; padding: 4px 6px; font-size: 11px; }
     .statusbar {
       display: flex;
       align-items: center;
@@ -351,6 +417,17 @@
     }
     .status { min-height: 18px; color: var(--muted); font-size: 12px; }
     .error { color: var(--danger); }
+    .notice {
+      display: none;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: 1px solid #fed7aa;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .notice.show { display: block; }
     .receipt {
       white-space: pre-wrap;
       background: #111827;
@@ -453,7 +530,9 @@
       body { overflow: auto; }
       .app { height: auto; min-height: 100vh; }
       .workspace { grid-template-columns: 1fr; }
-      .toolbar, .customer-row, .payment-row { grid-template-columns: 1fr; }
+      .toolbar, .customer-row, .payment-row, .quick-cash-row { grid-template-columns: 1fr; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .metric-row { justify-content: flex-start; }
       .sale-panel { min-height: 640px; }
       .receipt-layout { grid-template-columns: 1fr; }
       .receipt-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 320px; }
@@ -490,6 +569,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <a id="mobileProductsLink" class="top-link" href="/mobile/products" target="_blank" rel="noopener">Mobile Products</a>
         <span id="userLabel">Cashier</span>
         <span id="clock"></span>
         <button id="logoutBtn" class="secondary" type="button">Logout</button>
@@ -498,6 +578,16 @@
 
     <section class="workspace">
       <section class="panel catalog">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Product Catalog</div>
+            <div class="section-subtitle">Search by name, SKU, or barcode. Press Enter to add an exact match.</div>
+          </div>
+          <div class="metric-row">
+            <span id="catalogCount" class="metric-chip">0 products</span>
+            <span id="catalogMode" class="metric-chip">All Categories</span>
+          </div>
+        </div>
         <div class="toolbar">
           <input id="search" placeholder="Search product, SKU, barcode">
           <select id="category"><option value="">All Categories</option></select>
@@ -507,11 +597,26 @@
       </section>
 
       <aside class="panel sale-panel">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Current Sale</div>
+            <div class="section-subtitle">Review cart, payment, and receipt options before checkout.</div>
+          </div>
+          <div class="metric-row">
+            <span id="saleModeChip" class="metric-chip ok">Cash</span>
+            <span id="customerChip" class="metric-chip">Walk-in</span>
+          </div>
+        </div>
         <div class="customer-row">
           <select id="customerSelect"><option value="">Walk-in Customer</option></select>
           <button id="receiptsBtn" class="secondary" type="button">Receipts</button>
           <button id="backupBtn" class="secondary" type="button">Hold</button>
           <button id="restoreBtn" class="secondary" type="button">Restore</button>
+        </div>
+        <div class="sale-summary">
+          <div class="summary-tile"><span>Items</span><strong id="summaryItems">0</strong></div>
+          <div class="summary-tile"><span>Total</span><strong id="summaryTotal">0 Ks</strong></div>
+          <div class="summary-tile"><span>Change</span><strong id="summaryChange">0 Ks</strong></div>
         </div>
 
         <section class="cart-box">
@@ -569,6 +674,13 @@
             <input id="payment" class="payment-input" type="number" min="0" value="0" placeholder="Received">
             <button id="checkoutBtn" class="checkout-btn" type="button">Checkout</button>
           </div>
+          <div class="quick-cash-row">
+            <button class="secondary" type="button" data-cash="exact">Exact</button>
+            <button class="secondary" type="button" data-cash="1000">+1,000</button>
+            <button class="secondary" type="button" data-cash="5000">+5,000</button>
+            <button class="secondary" type="button" data-cash="clear">Clear Pay</button>
+          </div>
+          <div id="httpsNotice" class="notice"></div>
           <div id="changeLine" class="status">Change: 0 Ks</div>
           <div id="status" class="status"></div>
           <div id="receipt" class="receipt" hidden></div>
@@ -673,6 +785,26 @@
     const money = value => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
     const isService = product => String(product.sold_by || "").toLowerCase().startsWith("service") || product.is_service;
     const cartKey = product => `${product.id}:${isService(product) ? "service" : "product"}`;
+
+    function updateCatalogMetrics() {
+      const category = document.getElementById("category").value || "All Categories";
+      document.getElementById("catalogCount").textContent = `${state.products.length} product${state.products.length === 1 ? "" : "s"}`;
+      document.getElementById("catalogMode").textContent = category;
+    }
+
+    function updateSecureNotice() {
+      const notice = document.getElementById("httpsNotice");
+      const link = document.getElementById("mobileProductsLink");
+      const httpsUrl = `https://${location.hostname}:8443/mobile/products`;
+      link.href = location.protocol === "https:" ? "/mobile/products" : httpsUrl;
+      if (location.protocol === "https:") {
+        notice.classList.remove("show");
+        notice.textContent = "";
+      } else {
+        notice.classList.add("show");
+        notice.textContent = `Phone camera scanning needs HTTPS. Open ${httpsUrl}`;
+      }
+    }
 
     function serializeCart() {
       return [...state.cart.values()].map(item => ({
@@ -982,6 +1114,7 @@
       const root = document.getElementById("products");
       if (!state.products.length) {
         root.innerHTML = '<div class="empty-cart">No products found</div>';
+        updateCatalogMetrics();
         return;
       }
       root.innerHTML = state.products.map(product => {
@@ -1010,12 +1143,14 @@
       root.querySelectorAll("button[data-id]").forEach(btn => {
         btn.addEventListener("click", () => addToCart(state.products.find(p => p.id === Number(btn.dataset.id))));
       });
+      updateCatalogMetrics();
     }
 
     function renderCart() {
       const items = [...state.cart.values()];
       const count = items.reduce((sum, item) => sum + item.qty, 0);
       document.getElementById("cartCount").textContent = `${count} item${count === 1 ? "" : "s"}`;
+      document.getElementById("summaryItems").textContent = String(count);
       document.getElementById("cartItems").innerHTML = items.length ? items.map(item => `
         <div class="cart-item">
           <div>
@@ -1076,6 +1211,7 @@
       document.getElementById("pointsText").textContent = `-${money(values.points)} Ks`;
       document.getElementById("taxText").textContent = `${money(values.tax)} Ks`;
       document.getElementById("total").textContent = `${money(values.total)} Ks`;
+      document.getElementById("summaryTotal").textContent = `${money(values.total)} Ks`;
       const payment = document.getElementById("payment");
       if (!state.paymentManual && !isCreditMode()) payment.value = Math.round(values.total);
       updateChange();
@@ -1088,6 +1224,7 @@
       const el = document.getElementById("changeLine");
       el.textContent = `Change: ${money(change)} Ks`;
       el.className = change < 0 ? "status error" : "status";
+      document.getElementById("summaryChange").textContent = `${money(change)} Ks`;
       updateCustomerDisplay();
     }
 
@@ -1098,6 +1235,7 @@
 
     function onCustomerChanged() {
       const customer = selectedCustomer();
+      document.getElementById("customerChip").textContent = customer ? customer.name : "Walk-in";
       document.getElementById("creditMode").disabled = !customer;
       if (!customer && isCreditMode()) document.getElementById("cashMode").checked = true;
       const points = Number(customer?.points || 0);
@@ -1120,6 +1258,9 @@
 
     function updateSaleMode() {
       const credit = isCreditMode();
+      const saleModeChip = document.getElementById("saleModeChip");
+      saleModeChip.textContent = credit ? "Credit" : "Cash";
+      saleModeChip.className = credit ? "metric-chip warn" : "metric-chip ok";
       document.getElementById("payment").disabled = credit;
       document.getElementById("paymentType").disabled = credit;
       if (credit) {
@@ -1128,6 +1269,23 @@
         state.paymentManual = false;
       }
       updateTotals();
+    }
+
+    function quickCash(action) {
+      const payment = document.getElementById("payment");
+      if (isCreditMode()) return;
+      const values = totals();
+      if (action === "exact") {
+        payment.value = Math.round(values.total);
+      } else if (action === "clear") {
+        payment.value = 0;
+      } else {
+        payment.value = Number(payment.value || 0) + Number(action || 0);
+      }
+      state.paymentManual = true;
+      updateChange();
+      payment.focus();
+      payment.select();
     }
 
     async function checkout() {
@@ -1461,6 +1619,7 @@
 
     async function bootstrap() {
       updateClock();
+      updateSecureNotice();
       setInterval(updateClock, 1000);
       if (!state.token) {
         document.getElementById("username").focus();
@@ -1529,6 +1688,9 @@
     document.getElementById("customerSelect").addEventListener("change", onCustomerChanged);
     document.getElementById("payment").addEventListener("input", () => { state.paymentManual = true; updateChange(); });
     document.getElementById("paymentType").addEventListener("change", updateChange);
+    document.querySelectorAll("[data-cash]").forEach(button => {
+      button.addEventListener("click", () => quickCash(button.dataset.cash));
+    });
     document.getElementById("applyDiscount").addEventListener("change", updateTotals);
     document.getElementById("discountValue").addEventListener("input", updateTotals);
     document.getElementById("usePoints").addEventListener("change", event => {
