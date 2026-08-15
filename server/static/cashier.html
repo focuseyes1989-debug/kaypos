@@ -1441,8 +1441,6 @@
     }
 
     function printReceiptText(text) {
-      const win = window.open("", "_blank", "width=420,height=640");
-      if (!win) return setStatus("Popup blocked. Please allow popups for receipt printing.", true);
       const receiptHtml = `
         <!doctype html>
         <html>
@@ -1450,40 +1448,51 @@
         <meta charset="utf-8">
         <title>Receipt</title>
         <style>
-          html, body { background: #fff; }
+          @page { size: 80mm auto; margin: 3mm; }
+          html,
+          body {
+            margin: 0;
+            background: #fff;
+          }
           body {
             font-family: Consolas, "Courier New", monospace;
             font-size: 12px;
             line-height: 1.35;
-            margin: 12px;
             color: #000;
-            white-space: pre-wrap;
+            padding: 10px;
           }
-          @page { margin: 4mm; }
-          @media print { body { margin: 0; } }
+          pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            font: inherit;
+          }
+          @media print {
+            body { padding: 0; }
+          }
         </style>
+        <script>
+          window.addEventListener("load", () => {
+            setTimeout(() => {
+              window.focus();
+              window.print();
+            }, 350);
+          });
+        <\/script>
         </head>
-        <body>${escapeHtml(text)}</body>
+        <body><pre>${escapeHtml(text)}</pre></body>
         </html>
       `;
-      win.document.open();
-      win.document.write(receiptHtml);
-      win.document.close();
-      win.focus();
-      const runPrint = () => {
-        try {
-          win.focus();
-          win.print();
-        } catch (_err) {
-          setStatus("Could not open receipt print preview.", true);
-        }
-      };
-      if (win.document.readyState === "complete") {
-        win.setTimeout(runPrint, 250);
-      } else {
-        win.addEventListener("load", () => win.setTimeout(runPrint, 250), { once: true });
-        win.setTimeout(runPrint, 700);
+
+      const receiptBlob = new Blob([receiptHtml], { type: "text/html;charset=utf-8" });
+      const receiptUrl = URL.createObjectURL(receiptBlob);
+      const win = window.open(receiptUrl, "_blank", "width=420,height=640");
+      if (!win) {
+        URL.revokeObjectURL(receiptUrl);
+        return setStatus("Popup blocked. Please allow popups for receipt printing.", true);
       }
+      setTimeout(() => URL.revokeObjectURL(receiptUrl), 60000);
     }
 
     async function copySelectedReceipt() {
