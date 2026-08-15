@@ -9,10 +9,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import uvicorn
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
 
 from utils.env_loader import load_project_env
 
@@ -37,6 +33,17 @@ def _can_bind(host: str, port: int) -> bool:
 
 
 def _ensure_https_cert(ip: str, cert_dir: Path) -> tuple[Path, Path]:
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "HTTPS mode requires the 'cryptography' package. "
+            "Install it with: python -m pip install -r requirements.txt"
+        ) from exc
+
     cert_dir.mkdir(parents=True, exist_ok=True)
     key_path = cert_dir / "kaypos-local.key"
     cert_path = cert_dir / "kaypos-local.crt"
