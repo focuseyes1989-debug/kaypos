@@ -17,6 +17,7 @@ from PyQt6.QtCore import QProcess, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
+    QCheckBox,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -456,7 +457,7 @@ class ServerManagerWindow(QMainWindow):
         layout.setSpacing(10)
 
         layout.addWidget(self._note(
-            f"Browser cashier URL for this network will be http://{local_ip()}:8000 after the service starts."
+            f"Mobile barcode scanning needs HTTPS. Use https://{local_ip()}:8443/mobile/products after starting with HTTPS enabled."
         ))
 
         pos_box = QGroupBox("Kay POS Browser/Cashier Server")
@@ -465,9 +466,12 @@ class ServerManagerWindow(QMainWindow):
         self.bind_host_input = QLineEdit("0.0.0.0")
         self.server_port_input = QSpinBox()
         self.server_port_input.setRange(1, 65535)
-        self.server_port_input.setValue(8000)
+        self.server_port_input.setValue(8443)
+        self.https_server_checkbox = QCheckBox("Enable HTTPS for mobile camera/barcode scanning")
+        self.https_server_checkbox.setChecked(True)
         form.addRow("Bind Host", self.bind_host_input)
         form.addRow("Port", self.server_port_input)
+        form.addRow("HTTPS", self.https_server_checkbox)
         pos_layout.addLayout(form)
 
         pos_buttons = QHBoxLayout()
@@ -902,8 +906,9 @@ class ServerManagerWindow(QMainWindow):
 
         bind_host = self.bind_host_input.text().strip() or "0.0.0.0"
         port = self.server_port_input.value()
+        scheme = self._server_scheme()
         if not can_bind_port(bind_host, port):
-            url = f"http://{local_ip()}:{port}"
+            url = f"{scheme}://{local_ip()}:{port}"
             message = f"Port {port} is already in use. Cashier Server may already be running at {url}"
             self.append_server_output(message)
             self._set_chip(self.server_status, message, "warn")
@@ -913,23 +918,29 @@ class ServerManagerWindow(QMainWindow):
         self.server_process = QProcess(self)
         self.server_process.setWorkingDirectory(str(PROJECT_ROOT))
         self.server_process.setProgram(sys.executable)
-        self.server_process.setArguments([
+        args = [
             "run_pos_server.py",
             "--host",
             bind_host,
             "--port",
             str(port),
-        ])
+        ]
+        if self.https_server_checkbox.isChecked():
+            args.append("--https")
+        self.server_process.setArguments(args)
         self.server_process.readyReadStandardOutput.connect(self._read_server_stdout)
         self.server_process.readyReadStandardError.connect(self._read_server_stderr)
         self.server_process.finished.connect(self._server_finished)
         self.server_process.start()
         self._set_chip(
             self.server_status,
-            f"Server status: starting. Network URL: http://{local_ip()}:{port}",
+            f"Server status: starting. Network URL: {scheme}://{local_ip()}:{port}",
             "warn",
         )
         self._update_server_buttons()
+
+    def _server_scheme(self) -> str:
+        return "https" if self.https_server_checkbox.isChecked() else "http"
 
     def stop_pos_server(self) -> None:
         if not self.server_process or self.server_process.state() == QProcess.ProcessState.NotRunning:
@@ -1069,7 +1080,7 @@ class ServerManagerWindow(QMainWindow):
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
             self._set_chip(
                 self.server_status,
-                f"Server status: running. Network URL: http://{local_ip()}:{self.server_port_input.value()}",
+                f"Server status: running. Network URL: {self._server_scheme()}://{local_ip()}:{self.server_port_input.value()}",
                 "ok",
             )
         self._update_server_buttons()
