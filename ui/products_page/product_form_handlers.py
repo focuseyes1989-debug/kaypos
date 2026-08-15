@@ -14,6 +14,7 @@ from utils.image_optimizer import ImageOptimizer
 from utils.product_image_store import save_product_image_blob
 from ui.widgets.modern_button import ModernButton
 from ui.products_page.product_form_ui_styles import ProductFormUIStyles
+from ui.products_page.product_table import load_product_pixmap
 from ui.themes.theme_manager import get_theme_colors
 from utils.wholesale_pricing import ensure_wholesale_schema, get_price_tiers, save_price_tiers
 from utils.unit_conversion import ensure_unit_conversion_schema, normalize_unit_settings
@@ -765,23 +766,22 @@ class ProductFormHandlers:
     def update_image_preview(self):
         """Update the image preview label"""
         d = self.dialog
-        if self.image_path and os.path.exists(self.image_path):
+        pixmap = load_product_pixmap(self.image_path, getattr(d, "product_id", None))
+        if pixmap and not pixmap.isNull():
             try:
-                pixmap = QPixmap(self.image_path)
-                if not pixmap.isNull():
-                    preview_width = d.image_preview.width() - 40
-                    preview_height = d.image_preview.height() - 40
-                    
-                    if preview_width > 0 and preview_height > 0:
-                        scaled_pixmap = pixmap.scaled(
-                            preview_width,
-                            preview_height,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        d.image_preview.setPixmap(scaled_pixmap)
-                        d.image_preview.setText("")
-                    return
+                preview_width = d.image_preview.width() - 40
+                preview_height = d.image_preview.height() - 40
+
+                if preview_width > 0 and preview_height > 0:
+                    scaled_pixmap = pixmap.scaled(
+                        preview_width,
+                        preview_height,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    d.image_preview.setPixmap(scaled_pixmap)
+                    d.image_preview.setText("")
+                return
             except Exception:
                 pass
         

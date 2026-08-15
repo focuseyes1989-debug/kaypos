@@ -85,18 +85,32 @@ class CashierProductListingTests(unittest.TestCase):
 
     @patch("server.cashier_service._active_product_discounts", return_value={})
     @patch("server.cashier_service._price_tiers_for_products", return_value={})
+    @patch("server.cashier_service._product_thumbnail_url", return_value="/product-images/thumbnails/thumb.jpg")
     def test_list_products_marks_only_sale_unavailable_products_out_of_stock(self, *_mocks) -> None:
         with patch("server.cashier_service.connect_db", self._connect):
             products = {row["name"]: row for row in cashier_service.list_products(limit=10)}
 
         self.assertEqual(products["Zero Stock"]["stock"], 0)
         self.assertTrue(products["Zero Stock"]["is_out_of_stock"])
+        self.assertEqual(products["Zero Stock"]["thumbnail_url"], "/product-images/thumbnails/thumb.jpg")
         self.assertEqual(products["Location Stock"]["stock"], 3)
         self.assertFalse(products["Location Stock"]["is_out_of_stock"])
         self.assertEqual(products["Phantom Location Stock"]["stock"], 0)
         self.assertTrue(products["Phantom Location Stock"]["is_out_of_stock"])
         self.assertTrue(products["Service Item"]["is_service"])
         self.assertFalse(products["Service Item"]["is_out_of_stock"])
+
+    @patch("server.cashier_service._active_product_discounts", return_value={})
+    @patch("server.cashier_service._price_tiers_for_products", return_value={})
+    def test_list_products_filters_selected_category_only(self, *_mocks) -> None:
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE products SET category = 'Drinks ' WHERE id = 2")
+        self.conn.commit()
+
+        with patch("server.cashier_service.connect_db", self._connect):
+            products = cashier_service.list_products(category="Drinks", limit=10)
+
+        self.assertEqual([product["name"] for product in products], ["Location Stock"])
 
     def test_clamp_location_stock_removes_phantom_quantity_above_master_stock(self) -> None:
         from models.database.stock_audit import clamp_location_stock_to_master

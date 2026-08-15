@@ -257,24 +257,35 @@
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 6px;
+      cursor: pointer;
       transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
     }
-    .product:hover { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); transform: translateY(-1px); }
-    .product.out-of-stock { border-color: #f3b6b6; background: #fff7f7; }
-    .product.out-of-stock img { filter: grayscale(.65); opacity: .72; }
+    .product:hover, .product:focus-visible { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); transform: translateY(-1px); outline: none; }
+    .product.out-of-stock { border-color: #f3b6b6; background: #fff7f7; cursor: not-allowed; }
+    .product.out-of-stock img,
+    .product.out-of-stock .product-image-placeholder { filter: grayscale(.65); opacity: .72; }
     .product.out-of-stock .price { color: #8a1f1f; }
     .product img {
       width: 100%;
       height: 80px;
-      object-fit: contain;
+      object-fit: cover;
       background: var(--soft);
       border-radius: 4px;
+    }
+    .product-image-placeholder {
+      height: 80px;
+      display: grid;
+      place-items: center;
+      border-radius: 4px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
     }
     .product-name { font-weight: 600; line-height: 1.2; word-break: break-word; font-size: 12px; }
     .product-meta, .muted { color: var(--muted); font-size: 11px; }
     .product-meta { display: flex; justify-content: space-between; gap: 4px; }
-    .product-footer { display: grid; grid-template-columns: minmax(0, 1fr) 48px; align-items: end; gap: 4px; }
-    .product-footer button { padding: 4px 6px; font-size: 11px; min-height: 26px; }
+    .product-footer { display: flex; align-items: end; justify-content: space-between; gap: 4px; }
     .price { color: var(--success); font-weight: 700; font-size: 13px; }
     .badge {
       display: inline-flex;
@@ -541,6 +552,10 @@
       color: #fff;
     }
     .modal-title { font-size: 15px; font-weight: 700; }
+    .sale-details-modal {
+      width: min(760px, 100%);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
     .modal-toolbar {
       display: grid;
       grid-template-columns: minmax(220px, 1fr) 80px;
@@ -723,58 +738,6 @@
             <button id="cashdrawerBtn" class="secondary" type="button">CashDrawer</button>
           </div>
 
-          <div id="detailsPanel" class="details" hidden>
-            <div class="details-grid">
-              <div class="setting-card">
-                <div class="setting-title">Payment Mode</div>
-                <div class="options-row">
-                  <label><input id="cashMode" name="saleMode" type="radio" value="Cash" checked> Cash</label>
-                  <label><input id="creditMode" name="saleMode" type="radio" value="Credit" disabled> Credit</label>
-                </div>
-              </div>
-              <div class="setting-card">
-                <div class="setting-title">Receipt Actions</div>
-                <div class="check-row">
-                  <label><input id="printReceipt" type="checkbox" checked> Print Receipt</label>
-                  <label><input id="openDrawer" type="checkbox" checked> Open Drawer</label>
-                </div>
-              </div>
-              <div class="setting-card wide">
-                <div class="setting-title">
-                  <span>Client Cash Drawer Helper</span>
-                  <button id="testHelperBtn" class="secondary" type="button">Test</button>
-                </div>
-                <div class="helper-row">
-                  <span class="muted">URL</span>
-                  <input id="clientHelperUrl" value="http://127.0.0.1:8765" title="Client cash drawer helper URL">
-                  <span id="helperStatus" class="helper-status">Ready to test</span>
-                </div>
-                <div class="setting-hint">Run run_client_cashdrawer_helper.bat on this cashier PC when the cash drawer is connected to a local receipt printer.</div>
-              </div>
-              <div class="setting-card">
-                <div class="setting-title">Discount</div>
-                <div class="discount-row">
-                  <label><input id="applyDiscount" type="checkbox"> Apply Discount</label>
-                  <input id="discountValue" type="number" min="0" value="0">
-                </div>
-              </div>
-              <div class="setting-card">
-                <div class="setting-title">Customer Points</div>
-                <div class="points-row">
-                  <label><input id="usePoints" type="checkbox" disabled> Use points <span id="pointsAvailable" class="muted">(0)</span></label>
-                  <input id="pointsValue" type="number" min="0" value="0" disabled>
-                </div>
-              </div>
-            </div>
-            <div class="totals-grid">
-              <div class="total-card"><span>Subtotal</span><strong id="subtotal">0 Ks</strong></div>
-              <div class="total-card"><span>Discount</span><strong id="discountText">0 Ks</strong></div>
-              <div class="total-card"><span>Points</span><strong id="pointsText">0 Ks</strong></div>
-              <div class="total-card"><span>Tax</span><strong id="taxText">0 Ks</strong></div>
-              <div class="total-card grand"><span>Grand Total</span><span id="total">0 Ks</span></div>
-            </div>
-          </div>
-
           <div class="payment-row">
             <select id="paymentType"><option>Cash</option></select>
             <input id="payment" class="payment-input" type="number" min="0" value="0" placeholder="Received">
@@ -792,6 +755,66 @@
           <div id="receipt" class="receipt" hidden></div>
         </section>
       </aside>
+    </section>
+
+    <section id="detailsModal" class="modal-backdrop" hidden>
+      <div class="modal sale-details-modal">
+        <div class="modal-header">
+          <div class="modal-title">Sale Details</div>
+          <button id="closeDetailsBtn" class="secondary" type="button">Close</button>
+        </div>
+        <div id="detailsPanel" class="details">
+          <div class="details-grid">
+            <div class="setting-card">
+              <div class="setting-title">Payment Mode</div>
+              <div class="options-row">
+                <label><input id="cashMode" name="saleMode" type="radio" value="Cash" checked> Cash</label>
+                <label><input id="creditMode" name="saleMode" type="radio" value="Credit" disabled> Credit</label>
+              </div>
+            </div>
+            <div class="setting-card">
+              <div class="setting-title">Receipt Actions</div>
+              <div class="check-row">
+                <label><input id="printReceipt" type="checkbox" checked> Print Receipt</label>
+                <label><input id="openDrawer" type="checkbox" checked> Open Drawer</label>
+              </div>
+            </div>
+            <div class="setting-card wide">
+              <div class="setting-title">
+                <span>Client Cash Drawer Helper</span>
+                <button id="testHelperBtn" class="secondary" type="button">Test</button>
+              </div>
+              <div class="helper-row">
+                <span class="muted">URL</span>
+                <input id="clientHelperUrl" value="http://127.0.0.1:8765" title="Client cash drawer helper URL">
+                <span id="helperStatus" class="helper-status">Ready to test</span>
+              </div>
+              <div class="setting-hint">Run run_client_cashdrawer_helper.bat on this cashier PC when the cash drawer is connected to a local receipt printer.</div>
+            </div>
+            <div class="setting-card">
+              <div class="setting-title">Discount</div>
+              <div class="discount-row">
+                <label><input id="applyDiscount" type="checkbox"> Apply Discount</label>
+                <input id="discountValue" type="number" min="0" value="0">
+              </div>
+            </div>
+            <div class="setting-card">
+              <div class="setting-title">Customer Points</div>
+              <div class="points-row">
+                <label><input id="usePoints" type="checkbox" disabled> Use points <span id="pointsAvailable" class="muted">(0)</span></label>
+                <input id="pointsValue" type="number" min="0" value="0" disabled>
+              </div>
+            </div>
+          </div>
+          <div class="totals-grid">
+            <div class="total-card"><span>Subtotal</span><strong id="subtotal">0 Ks</strong></div>
+            <div class="total-card"><span>Discount</span><strong id="discountText">0 Ks</strong></div>
+            <div class="total-card"><span>Points</span><strong id="pointsText">0 Ks</strong></div>
+            <div class="total-card"><span>Tax</span><strong id="taxText">0 Ks</strong></div>
+            <div class="total-card grand"><span>Grand Total</span><span id="total">0 Ks</span></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <footer class="statusbar">
@@ -885,16 +908,19 @@
       selectedExpenseCategory: "",
       clientHelperUrl: localStorage.getItem(HELPER_URL_KEY) || localStorage.getItem(OLD_HELPER_URL_KEY) || "http://127.0.0.1:8765",
       checkoutBusy: false,
-      healthTimer: null
+      healthTimer: null,
+      productsRequestId: 0,
+      productsController: null,
+      productImageObserver: null
     };
 
     const money = value => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
     const isService = product => String(product.sold_by || "").toLowerCase().startsWith("service") || product.is_service;
     const cartKey = product => `${product.id}:${isService(product) ? "service" : "product"}`;
 
-    function updateCatalogMetrics() {
+    function updateCatalogMetrics(countText = "") {
       const category = document.getElementById("category").value || "All Categories";
-      document.getElementById("catalogCount").textContent = `${state.products.length} product${state.products.length === 1 ? "" : "s"}`;
+      document.getElementById("catalogCount").textContent = countText || `${state.products.length} product${state.products.length === 1 ? "" : "s"}`;
       document.getElementById("catalogMode").textContent = category;
     }
 
@@ -1106,39 +1132,92 @@
       const suffix = state.settings.discount_type === "percentage" ? " %" : " Ks";
       document.getElementById("discountValue").title = `Discount${suffix}`;
       const paymentType = document.getElementById("paymentType");
-      paymentType.innerHTML = (state.settings.payment_types || ["Cash"])
-        .map(type => `<option>${escapeHtml(type)}</option>`).join("");
-      const cashIndex = [...paymentType.options].findIndex(option => option.text === "Cash");
+      setSelectOptions(
+        paymentType,
+        (state.settings.payment_types || ["Cash"]).map(type => ({ value: type, label: type }))
+      );
+      const cashIndex = [...paymentType.options].findIndex(option => option.value === "Cash");
       if (cashIndex >= 0) paymentType.selectedIndex = cashIndex;
     }
 
     async function loadCategories() {
       const data = await api("/api/categories");
-      document.getElementById("category").innerHTML = '<option value="">All Categories</option>' + data.categories
-        .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+      setSelectOptions(
+        document.getElementById("category"),
+        [
+          { value: "", label: "All Categories" },
+          ...data.categories.map(category => ({ value: category, label: category }))
+        ]
+      );
     }
 
     async function loadCustomers() {
       const data = await api("/api/customers?limit=200");
       state.customers = data.customers;
-      document.getElementById("customerSelect").innerHTML = '<option value="">Walk-in Customer</option>' + data.customers
-        .map(c => `<option value="${c.id}">${escapeHtml(c.name)} (Points: ${money(c.points)})</option>`).join("");
+      setSelectOptions(
+        document.getElementById("customerSelect"),
+        [
+          { value: "", label: "Walk-in Customer" },
+          ...data.customers.map(customer => ({
+            value: customer.id,
+            label: `${customer.name} (Points: ${money(customer.points)})`
+          }))
+        ]
+      );
       onCustomerChanged();
     }
 
     async function loadProducts() {
-      const q = encodeURIComponent(document.getElementById("search").value.trim());
-      const category = encodeURIComponent(document.getElementById("category").value);
+      const requestId = ++state.productsRequestId;
+      if (state.productsController) {
+        state.productsController.abort();
+      }
+      const searchValue = document.getElementById("search").value.trim();
+      const categoryValue = document.getElementById("category").value;
+      const q = encodeURIComponent(searchValue);
+      const category = encodeURIComponent(categoryValue);
       const root = document.getElementById("products");
+      const controller = new AbortController();
+      state.productsController = controller;
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      root.querySelectorAll("img").forEach(img => {
+        img.removeAttribute("src");
+        img.src = "";
+      });
       root.innerHTML = '<div class="empty-cart">Loading products...</div>';
+      updateCatalogMetrics("Loading...");
       try {
-        const data = await api(`/api/products?q=${q}&category=${category}&limit=150`);
+        const data = await api(`/api/products?q=${q}&category=${category}&limit=150`, {
+          signal: controller.signal,
+          cache: "no-store"
+        });
+        if (
+          requestId !== state.productsRequestId ||
+          searchValue !== document.getElementById("search").value.trim() ||
+          categoryValue !== document.getElementById("category").value
+        ) {
+          return;
+        }
         state.products = data.products;
         renderProducts();
       } catch (err) {
+        if (requestId !== state.productsRequestId) return;
+        const message = err.name === "AbortError" ? "Product loading timed out. Please retry." : err.message;
         state.products = [];
-        root.innerHTML = `<div class="empty-cart error">Could not load products: ${escapeHtml(err.message)}</div>`;
-        setStatus(`Could not load products: ${err.message}`, true);
+        updateCatalogMetrics();
+        root.innerHTML = `
+          <div class="empty-cart error">
+            Could not load products: ${escapeHtml(message)}
+            <div style="margin-top:10px;"><button id="retryProductsBtn" type="button">Retry</button></div>
+          </div>
+        `;
+        document.getElementById("retryProductsBtn")?.addEventListener("click", loadProducts);
+        setStatus(`Could not load products: ${message}`, true);
+      } finally {
+        clearTimeout(timeout);
+        if (state.productsController === controller) {
+          state.productsController = null;
+        }
       }
     }
 
@@ -1224,6 +1303,10 @@
 
     function renderProducts() {
       const root = document.getElementById("products");
+      if (state.productImageObserver) {
+        state.productImageObserver.disconnect();
+        state.productImageObserver = null;
+      }
       if (!state.products.length) {
         root.innerHTML = '<div class="empty-cart">No products found</div>';
         updateCatalogMetrics();
@@ -1234,9 +1317,12 @@
         const out = Boolean(product.is_out_of_stock) || (!service && Number(product.stock || 0) <= 0);
         const discount = Number(product.discount_percent || 0);
         const stockLabel = out ? '<span class="badge out-stock">Out of Stock</span>' : `Stock ${money(product.stock)}`;
+        const imageHtml = String(product.thumbnail_url || "").trim()
+          ? `<div class="product-image-placeholder" data-image-src="${escapeHtml(product.thumbnail_url)}">Image</div>`
+          : '<div class="product-image-placeholder">No Image</div>';
         return `
-          <article class="product ${out ? "out-of-stock" : ""}">
-            <img src="/api/products/${product.id}/image" alt="" onerror="this.style.visibility='hidden'">
+          <article class="product ${out ? "out-of-stock" : ""}" data-id="${product.id}" role="button" tabindex="${out ? "-1" : "0"}" aria-disabled="${out ? "true" : "false"}">
+            ${imageHtml}
             <div class="product-name">${escapeHtml(product.name || "")}</div>
             <div class="product-meta">
               <span>${escapeHtml(product.category || "Uncategorized")}</span>
@@ -1248,14 +1334,23 @@
             </div>
             <div class="product-footer">
               <div class="price">${money(product.price)} Ks</div>
-              <button ${out ? "disabled" : ""} data-id="${product.id}">${out ? "Out" : "Add"}</button>
             </div>
           </article>
         `;
       }).join("");
-      root.querySelectorAll("button[data-id]").forEach(btn => {
-        btn.addEventListener("click", () => addToCart(state.products.find(p => p.id === Number(btn.dataset.id))));
+      root.querySelectorAll(".product[data-id]").forEach(card => {
+        const addProduct = () => {
+          if (card.getAttribute("aria-disabled") === "true") return;
+          addToCart(state.products.find(p => p.id === Number(card.dataset.id)));
+        };
+        card.addEventListener("click", addProduct);
+        card.addEventListener("keydown", event => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          addProduct();
+        });
       });
+      hydrateVisibleProductImages(root);
       updateCatalogMetrics();
     }
 
@@ -1814,13 +1909,83 @@
       return String(value).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     }
 
+    function productImagePlaceholder() {
+      const placeholder = document.createElement("div");
+      placeholder.className = "product-image-placeholder";
+      placeholder.textContent = "No Image";
+      return placeholder;
+    }
+
+    function loadProductImagePlaceholder(placeholder) {
+      const src = placeholder.dataset.imageSrc;
+      if (!src || !placeholder.isConnected) return;
+      const img = document.createElement("img");
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.fetchPriority = "low";
+      img.onerror = () => img.replaceWith(productImagePlaceholder());
+      img.src = src;
+      placeholder.replaceWith(img);
+    }
+
+    function hydrateVisibleProductImages(root) {
+      const placeholders = [...root.querySelectorAll("[data-image-src]")];
+      if (!placeholders.length) return;
+
+      if (!("IntersectionObserver" in window)) {
+        placeholders.slice(0, 24).forEach(loadProductImagePlaceholder);
+        return;
+      }
+
+      state.productImageObserver = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          state.productImageObserver.unobserve(entry.target);
+          loadProductImagePlaceholder(entry.target);
+        }
+      }, {
+        root,
+        rootMargin: "160px",
+        threshold: 0.01
+      });
+      placeholders.forEach(placeholder => state.productImageObserver.observe(placeholder));
+    }
+
+    function setSelectOptions(select, options) {
+      const currentValue = select.value;
+      select.replaceChildren();
+      for (const item of options) {
+        const option = document.createElement("option");
+        option.value = item.value ?? "";
+        option.textContent = item.label ?? item.value ?? "";
+        select.appendChild(option);
+      }
+      if ([...select.options].some(option => option.value === currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
+    function openDetailsModal() {
+      document.getElementById("detailsModal").hidden = false;
+      updateTotals();
+    }
+
+    function closeDetailsModal() {
+      document.getElementById("detailsModal").hidden = true;
+    }
+
     document.getElementById("loginBtn").onclick = login;
     document.getElementById("logoutBtn").onclick = () => logout();
     document.getElementById("password").addEventListener("keydown", event => { if (event.key === "Enter") login(); });
     document.getElementById("refreshBtn").onclick = loadProducts;
     document.getElementById("checkoutBtn").onclick = checkout;
     document.getElementById("clearBtn").onclick = () => { if (state.cart.size && confirm("Remove all items from cart?")) { state.cart.clear(); renderCart(); } };
-    document.getElementById("detailsBtn").onclick = () => { document.getElementById("detailsPanel").hidden = !document.getElementById("detailsPanel").hidden; };
+    document.getElementById("detailsBtn").onclick = openDetailsModal;
+    document.getElementById("closeDetailsBtn").onclick = closeDetailsModal;
+    document.getElementById("detailsModal").addEventListener("click", event => {
+      if (event.target.id === "detailsModal") closeDetailsModal();
+    });
     document.getElementById("receiptsBtn").onclick = openReceipts;
     document.getElementById("closeReceiptsBtn").onclick = closeReceipts;
     document.getElementById("receiptRefreshBtn").onclick = loadReceipts;
@@ -1884,10 +2049,15 @@
         closeExpenseModal();
         return;
       }
+      if (event.key === "Escape" && !document.getElementById("detailsModal").hidden) {
+        event.preventDefault();
+        closeDetailsModal();
+        return;
+      }
       if (event.key === "F2") { event.preventDefault(); document.getElementById("search").focus(); }
       if (event.key === "F3") { event.preventDefault(); document.getElementById("customerSelect").focus(); }
       if (event.key === "F4") { event.preventDefault(); document.getElementById("payment").focus(); document.getElementById("payment").select(); }
-      if (event.key === "F7") { event.preventDefault(); document.getElementById("detailsPanel").hidden = false; document.getElementById("applyDiscount").click(); }
+      if (event.key === "F7") { event.preventDefault(); openDetailsModal(); document.getElementById("applyDiscount").click(); }
       if (event.key === "F9") { event.preventDefault(); document.getElementById("cashMode").checked = true; updateSaleMode(); }
       if (event.key === "F10") { event.preventDefault(); if (!document.getElementById("creditMode").disabled) { document.getElementById("creditMode").checked = true; updateSaleMode(); } }
       if (event.key === "F12") { event.preventDefault(); checkout(); }

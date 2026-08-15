@@ -15,6 +15,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from utils.env_loader import load_project_env
+from utils.paths import get_product_images_dir
 
 load_project_env()
 
@@ -24,6 +25,8 @@ from server.asyncio_errors import install_windows_disconnect_handler
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+PRODUCT_IMAGES_DIR = Path(get_product_images_dir())
+PRODUCT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="KAY POS Cashier Server", version="0.1.0")
 app.add_middleware(
@@ -35,6 +38,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/product-images", StaticFiles(directory=str(PRODUCT_IMAGES_DIR)), name="product_images")
 
 _TOKENS: Dict[str, Dict[str, Any]] = {}
 
@@ -104,7 +108,7 @@ def current_user(authorization: str = Header(default="")) -> Dict[str, Any]:
 
 @app.get("/", response_class=HTMLResponse)
 def cashier_home():
-    return FileResponse(STATIC_DIR / "cashier.html")
+    return FileResponse(STATIC_DIR / "cashier.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/mobile/products", response_class=HTMLResponse)

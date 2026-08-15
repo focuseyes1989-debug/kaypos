@@ -119,7 +119,8 @@ class ImageOptimizer:
         
         # Create thumbnail filename from original
         import hashlib
-        hash_id = hashlib.md5(image_path.encode()).hexdigest()[:12]
+        size_key = f"{int(size[0])}x{int(size[1])}"
+        hash_id = hashlib.md5(f"{image_path}|{size_key}".encode()).hexdigest()[:12]
         thumb_path = os.path.join(thumb_dir, f"thumb_{hash_id}.jpg")
         
         # Return existing thumbnail if it exists and is newer than source

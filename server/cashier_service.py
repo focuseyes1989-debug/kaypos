@@ -13,12 +13,15 @@ import mimetypes
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import quote
 
 from loguru import logger
 
 from models.database import connect_db
 from utils.db_compat import is_postgres_backend, quote_identifier, table_columns
+from utils.image_optimizer import ImageOptimizer
 from utils.paths import app_relative_path, get_product_images_dir
+from utils.product_image_store import cached_product_image_path
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
 
@@ -239,6 +242,60 @@ def _effective_stock(cursor, product_id: int) -> int:
     return int(row[0] or 0) if row else 0
 
 
+def _resolve_product_image_file(image_path: str) -> str:
+    raw_path = str(image_path or "").strip().strip('"')
+    if not raw_path:
+        return ""
+
+    normalized = raw_path.replace("\\", os.sep).replace("/", os.sep)
+    filename = os.path.basename(normalized)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    image_dir = get_product_images_dir()
+    candidates = []
+
+    if os.path.isabs(normalized):
+        candidates.append(normalized)
+    else:
+        candidates.extend([
+            os.path.join(base_dir, normalized),
+            os.path.join(os.getcwd(), normalized),
+        ])
+    if filename:
+        candidates.append(os.path.join(image_dir, filename))
+
+    seen = set()
+    for candidate in candidates:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            if os.path.exists(candidate):
+                return os.path.abspath(candidate)
+    return ""
+
+
+def _product_thumbnail_url(image_path: str, product_id: Optional[int] = None) -> str:
+    resolved_path = _resolve_product_image_file(image_path)
+    if not resolved_path and product_id:
+        resolved_path = cached_product_image_path(product_id, image_path)
+    if not resolved_path:
+        return ""
+
+    try:
+        thumbnail_path = ImageOptimizer.get_thumbnail_path(resolved_path, (80, 80))
+    except Exception as exc:
+        logger.debug(f"Cashier thumbnail generation skipped: {exc}")
+        thumbnail_path = resolved_path
+
+    if not thumbnail_path or not os.path.exists(thumbnail_path):
+        return ""
+
+    try:
+        relative_path = os.path.relpath(thumbnail_path, get_product_images_dir())
+    except ValueError:
+        return ""
+    url_path = relative_path.replace(os.sep, "/")
+    return f"/product-images/{quote(url_path)}"
+
+
 def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
@@ -280,10 +337,10 @@ def list_categories() -> List[str]:
     try:
         cursor.execute(
             """
-            SELECT DISTINCT category
+            SELECT DISTINCT TRIM(category) AS category
             FROM products
             WHERE category IS NOT NULL AND TRIM(category) != ''
-            ORDER BY category COLLATE NOCASE
+            ORDER BY TRIM(category) COLLATE NOCASE
             """
         )
         return [row[0] for row in cursor.fetchall()]
@@ -473,7 +530,7 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
             pattern = f"%{search}%"
             params.extend([pattern, pattern, pattern])
         if category:
-            where.append("category = ?")
+            where.append("TRIM(COALESCE(category, '')) = ?")
             params.append(category)
 
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
@@ -509,6 +566,7 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
             product["price"] = effective_price
             product["discount_source"] = discount.get("source", "")
             product["discount_percent"] = discount_percent
+            product["thumbnail_url"] = _product_thumbnail_url(product.get("image") or "", product_id)
             product["wholesale_tiers"] = [
                 tier for tier in tiers_by_product.get(product_id, [])
                 if int(tier.get("active", 1)) == 1
