@@ -522,7 +522,7 @@
     .receipt-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .helper-row {
       display: grid;
-      grid-template-columns: auto minmax(120px, 1fr);
+      grid-template-columns: auto minmax(120px, 1fr) auto;
       gap: 8px;
       align-items: center;
     }
@@ -651,6 +651,7 @@
             <div class="helper-row">
               <span class="muted">Client helper</span>
               <input id="clientHelperUrl" value="http://127.0.0.1:8765" title="Client cash drawer helper URL">
+              <button id="testHelperBtn" class="secondary" type="button">Test</button>
             </div>
             <div class="discount-row">
               <label><input id="applyDiscount" type="checkbox"> Apply Discount</label>
@@ -1338,11 +1339,15 @@
         if (document.getElementById("printReceipt").checked) {
           printReceiptText(receiptText);
         }
-        if (document.getElementById("openDrawer").checked) {
-          openClientCashDrawer(false);
-        }
         if (!document.getElementById("receiptsModal").hidden) loadReceipts();
-        setStatus(`Saved ${data.receipt.invoice_no}`);
+        if (document.getElementById("openDrawer").checked) {
+          const drawerOpened = await openClientCashDrawer(false);
+          setStatus(drawerOpened
+            ? `Saved ${data.receipt.invoice_no}. Cash drawer opened.`
+            : `Saved ${data.receipt.invoice_no}. Cash drawer not opened; start the client helper or uncheck Open Cash Drawer.`);
+        } else {
+          setStatus(`Saved ${data.receipt.invoice_no}`);
+        }
       } catch (err) {
         setStatus(err.message, true);
       } finally {
@@ -1593,8 +1598,15 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data.ok === false) throw new Error(data.error || "Client cash drawer helper failed");
         if (showMessage) setStatus(`Client cash drawer opened: ${data.printer_name || "local printer"}`);
+        return true;
       } catch (err) {
-        setStatus(`Client helper error: ${err.message}. Run run_client_cashdrawer_helper.py on this client PC.`, true);
+        const message = `Client helper error: ${err.message}. Run run_client_cashdrawer_helper.bat on this client PC.`;
+        if (showMessage) {
+          setStatus(message, true);
+        } else {
+          console.warn(message);
+        }
+        return false;
       }
     }
 
@@ -1718,6 +1730,7 @@
     document.getElementById("expenseCategorySearch").addEventListener("input", renderExpenseCategories);
     document.getElementById("clientHelperUrl").value = state.clientHelperUrl;
     document.getElementById("clientHelperUrl").addEventListener("change", helperUrl);
+    document.getElementById("testHelperBtn").onclick = () => openClientCashDrawer(true);
     document.getElementById("search").addEventListener("input", () => {
       clearTimeout(state.searchTimer);
       state.searchTimer = setTimeout(loadProducts, 180);
