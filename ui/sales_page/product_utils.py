@@ -8,7 +8,7 @@ from utils.product_image_store import cached_product_image_path
 
 
 def effective_stock_sql(alias: str = "p") -> str:
-    """Return location-backed stock when a product has location rows, otherwise master stock."""
+    """Return sale-available stock without exceeding the inventory master stock."""
     return f"""
         CASE
             WHEN EXISTS (
@@ -16,11 +16,20 @@ def effective_stock_sql(alias: str = "p") -> str:
                 FROM product_locations pl_stock_exists
                 WHERE pl_stock_exists.product_id = {alias}.id
             )
-            THEN COALESCE((
-                SELECT SUM(COALESCE(pl_stock.quantity, 0))
-                FROM product_locations pl_stock
-                WHERE pl_stock.product_id = {alias}.id
-            ), 0)
+            THEN
+                CASE
+                    WHEN COALESCE({alias}.stock, 0) <= COALESCE((
+                        SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                        FROM product_locations pl_stock
+                        WHERE pl_stock.product_id = {alias}.id
+                    ), 0)
+                    THEN COALESCE({alias}.stock, 0)
+                    ELSE COALESCE((
+                        SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                        FROM product_locations pl_stock
+                        WHERE pl_stock.product_id = {alias}.id
+                    ), 0)
+                END
             ELSE COALESCE({alias}.stock, 0)
         END
     """
@@ -36,11 +45,20 @@ def get_effective_stock(cursor, product_id: int) -> int:
                     FROM product_locations pl_stock_exists
                     WHERE pl_stock_exists.product_id = p.id
                 )
-                THEN COALESCE((
-                    SELECT SUM(COALESCE(pl_stock.quantity, 0))
-                    FROM product_locations pl_stock
-                    WHERE pl_stock.product_id = p.id
-                ), 0)
+                THEN
+                    CASE
+                        WHEN COALESCE(p.stock, 0) <= COALESCE((
+                            SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                            FROM product_locations pl_stock
+                            WHERE pl_stock.product_id = p.id
+                        ), 0)
+                        THEN COALESCE(p.stock, 0)
+                        ELSE COALESCE((
+                            SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                            FROM product_locations pl_stock
+                            WHERE pl_stock.product_id = p.id
+                        ), 0)
+                    END
                 ELSE COALESCE(p.stock, 0)
             END
         FROM products p

@@ -49,11 +49,13 @@ class CashierProductListingTests(unittest.TestCase):
             """,
             [
                 (1, "Zero Stock", 0, "Each"),
-                (2, "Location Stock", 0, "Each"),
+                (2, "Location Stock", 5, "Each"),
                 (3, "Service Item", 0, "Service"),
+                (4, "Phantom Location Stock", 0, "Each"),
             ],
         )
         cursor.execute("INSERT INTO product_locations (product_id, quantity) VALUES (2, 3)")
+        cursor.execute("INSERT INTO product_locations (product_id, quantity) VALUES (4, 3)")
         self.conn.commit()
         cashier_service._TABLE_COLUMNS_CACHE.clear()
 
@@ -75,6 +77,8 @@ class CashierProductListingTests(unittest.TestCase):
         self.assertTrue(products["Zero Stock"]["is_out_of_stock"])
         self.assertEqual(products["Location Stock"]["stock"], 3)
         self.assertFalse(products["Location Stock"]["is_out_of_stock"])
+        self.assertEqual(products["Phantom Location Stock"]["stock"], 0)
+        self.assertTrue(products["Phantom Location Stock"]["is_out_of_stock"])
         self.assertTrue(products["Service Item"]["is_service"])
         self.assertFalse(products["Service Item"]["is_out_of_stock"])
 

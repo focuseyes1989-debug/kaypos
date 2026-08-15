@@ -214,11 +214,20 @@ def _effective_stock_sql(alias: str = "p") -> str:
                 FROM product_locations pl_stock_exists
                 WHERE pl_stock_exists.product_id = {alias}.id
             )
-            THEN COALESCE((
-                SELECT SUM(COALESCE(pl_stock.quantity, 0))
-                FROM product_locations pl_stock
-                WHERE pl_stock.product_id = {alias}.id
-            ), 0)
+            THEN
+                CASE
+                    WHEN COALESCE({alias}.stock, 0) <= COALESCE((
+                        SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                        FROM product_locations pl_stock
+                        WHERE pl_stock.product_id = {alias}.id
+                    ), 0)
+                    THEN COALESCE({alias}.stock, 0)
+                    ELSE COALESCE((
+                        SELECT SUM(COALESCE(pl_stock.quantity, 0))
+                        FROM product_locations pl_stock
+                        WHERE pl_stock.product_id = {alias}.id
+                    ), 0)
+                END
             ELSE COALESCE({alias}.stock, 0)
         END
     """
@@ -649,7 +658,7 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
     )
     locations = cursor.fetchall()
     location_stock = sum(int(row[4] or 0) for row in locations)
-    available_stock = location_stock if locations else master_stock
+    available_stock = min(master_stock, location_stock) if locations else master_stock
     if available_stock < qty_needed:
         raise ValueError(f"Only {available_stock} left: {product_name}")
 
