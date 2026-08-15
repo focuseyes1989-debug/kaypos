@@ -336,6 +336,19 @@ def _save_mobile_product_image(image_bytes: bytes, filename: str, content_type: 
     return app_relative_path(image_path), image_bytes, mime_type, safe_filename
 
 
+def _generate_product_sku(cursor) -> str:
+    cursor.execute("SELECT COALESCE(MAX(id), 0) FROM products")
+    row = cursor.fetchone()
+    next_id = int(row[0] or 0) + 1 if row else 1
+
+    while True:
+        sku = f"ITM-{next_id:05d}"
+        cursor.execute("SELECT 1 FROM products WHERE sku = ? LIMIT 1", (sku,))
+        if not cursor.fetchone():
+            return sku
+        next_id += 1
+
+
 def create_mobile_product(
     *,
     name: str,
@@ -385,6 +398,8 @@ def create_mobile_product(
         if not is_postgres_backend():
             cursor.execute("BEGIN IMMEDIATE")
         _sync_postgres_id_sequences(cursor, ("products", "product_locations", "stock_movements"))
+        if not sku:
+            sku = _generate_product_sku(cursor)
         product_id = _execute_dynamic_insert(cursor, "products", {
             "name": name,
             "category": category,

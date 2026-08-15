@@ -113,6 +113,36 @@ class CashierProductListingTests(unittest.TestCase):
         self.assertEqual(cursor.fetchone(), ("Location Stock Clamp", 3, 3, 0))
         self.assertEqual(fixed[0]["removed"], 3)
 
+    @patch("server.cashier_service.is_postgres_backend", return_value=False)
+    def test_create_mobile_product_generates_sku_when_blank(self, _mock_backend) -> None:
+        with patch("server.cashier_service.connect_db", self._connect):
+            product = cashier_service.create_mobile_product(
+                name="Mobile Added",
+                sku="",
+                price=1500,
+            )
+
+        self.assertEqual(product["sku"], "ITM-00005")
+
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT sku FROM products WHERE id = ?", (product["id"],))
+        self.assertEqual(cursor.fetchone()[0], "ITM-00005")
+
+    @patch("server.cashier_service.is_postgres_backend", return_value=False)
+    def test_create_mobile_product_keeps_manual_sku(self, _mock_backend) -> None:
+        with patch("server.cashier_service.connect_db", self._connect):
+            product = cashier_service.create_mobile_product(
+                name="Manual SKU",
+                sku="CUSTOM-001",
+                price=1500,
+            )
+
+        self.assertEqual(product["sku"], "CUSTOM-001")
+
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT sku FROM products WHERE id = ?", (product["id"],))
+        self.assertEqual(cursor.fetchone()[0], "CUSTOM-001")
+
 
 if __name__ == "__main__":
     unittest.main()
