@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from loguru import logger
 
 from models.database import connect_db
-from utils.db_compat import is_postgres_backend, table_columns
+from utils.db_compat import is_postgres_backend, quote_identifier, table_columns
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
@@ -50,6 +50,26 @@ def _execute_dynamic_insert(cursor, table_name: str, values: Dict[str, Any]) -> 
         [filtered[name] for name in names],
     )
     return int(cursor.lastrowid)
+
+
+def _sync_postgres_id_sequences(cursor, table_names: Iterable[str]) -> None:
+    """Keep SERIAL sequences ahead of restored/imported rows."""
+    if not is_postgres_backend():
+        return
+    for table_name in table_names:
+        safe_table = quote_identifier(table_name)
+        try:
+            cursor.execute("SELECT pg_get_serial_sequence(%s, 'id')", (safe_table,))
+            row = cursor.fetchone()
+            sequence_name = row[0] if row else None
+            if not sequence_name:
+                continue
+            cursor.execute(
+                f"SELECT setval(%s, COALESCE((SELECT MAX(id) FROM {safe_table}), 0) + 1, false)",
+                (sequence_name,),
+            )
+        except Exception as exc:
+            logger.debug(f"Could not sync PostgreSQL sequence for {table_name}: {exc}")
 
 
 def _try_dynamic_insert(cursor, table_name: str, values: Dict[str, Any]) -> Optional[int]:
@@ -355,6 +375,7 @@ def create_mobile_product(
     try:
         if not is_postgres_backend():
             cursor.execute("BEGIN IMMEDIATE")
+        _sync_postgres_id_sequences(cursor, ("products", "product_locations", "stock_movements"))
         product_id = _execute_dynamic_insert(cursor, "products", {
             "name": name,
             "category": category,
@@ -735,6 +756,16 @@ def create_sale(
     try:
         if not is_postgres_backend():
             cursor.execute("BEGIN IMMEDIATE")
+        _sync_postgres_id_sequences(
+            cursor,
+            (
+                "sales",
+                "sale_items",
+                "stock_movements",
+                "credit_sales",
+                "customer_points_log",
+            ),
+        )
 
         sale_items: List[Dict[str, Any]] = []
         subtotal = 0.0
@@ -1066,6 +1097,7 @@ def add_expense(
     try:
         if not is_postgres_backend():
             cursor.execute("BEGIN IMMEDIATE")
+        _sync_postgres_id_sequences(cursor, ("expenses",))
         expense_id = _execute_dynamic_insert(
             cursor,
             "expenses",
