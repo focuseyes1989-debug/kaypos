@@ -945,6 +945,7 @@ def create_sale(
                 "cogs": cogs,
                 "gross_profit": gross_profit,
                 "net_profit": net_profit,
+                "created_by": created_by,
             },
         )
 

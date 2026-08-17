@@ -85,6 +85,7 @@ def ensure_postgres_app_schema(cursor):
             net_profit DOUBLE PRECISION DEFAULT 0
         )
     """)
+    ensure_column(cursor, "sales", "created_by", "TEXT")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sale_items (
             id SERIAL PRIMARY KEY,
@@ -213,6 +214,7 @@ def ensure_postgres_app_schema(cursor):
     _ensure_supporting_tables(cursor)
     _ensure_credit_tables(cursor)
     _ensure_user_tables(cursor)
+    _ensure_employee_tables(cursor)
     _ensure_audit_hold_tables(cursor)
     _ensure_restaurant_tables(cursor)
     _ensure_indexes(cursor)
@@ -222,6 +224,28 @@ def ensure_postgres_app_schema(cursor):
 def ensure_postgres_restaurant_pilot_schema(cursor):
     """Backward-compatible alias for older startup/smoke-test code."""
     ensure_postgres_app_schema(cursor)
+
+
+def _ensure_employee_tables(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS employees (
+        id SERIAL PRIMARY KEY, employee_no TEXT UNIQUE NOT NULL, user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL,
+        full_name TEXT NOT NULL, phone TEXT, address TEXT, date_of_birth TEXT, national_id TEXT, photo_path TEXT,
+        hire_date TEXT NOT NULL, position TEXT, department TEXT, branch TEXT, employment_status TEXT DEFAULT 'Active', zkteco_user_id TEXT,
+        emergency_contact_name TEXT, emergency_contact_phone TEXT, notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    ensure_column(cursor, "employees", "zkteco_user_id", "TEXT")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS shifts (id SERIAL PRIMARY KEY,name TEXT UNIQUE NOT NULL,start_time TEXT NOT NULL,end_time TEXT NOT NULL,break_minutes INTEGER DEFAULT 0,is_overnight INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS employee_shifts (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,shift_id INTEGER REFERENCES shifts(id) ON DELETE CASCADE,effective_from TEXT NOT NULL,effective_to TEXT,weekly_off_days TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS attendance (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,attendance_date TEXT NOT NULL,check_in TEXT,check_out TEXT,status TEXT DEFAULT 'Present',late_minutes INTEGER DEFAULT 0,notes TEXT,corrected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,correction_reason TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(employee_id,attendance_date))""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS payrolls (id SERIAL PRIMARY KEY,payroll_no TEXT UNIQUE NOT NULL,employee_id INTEGER REFERENCES employees(id) ON DELETE RESTRICT,period_month TEXT NOT NULL,basic_salary DOUBLE PRECISION DEFAULT 0,allowance DOUBLE PRECISION DEFAULT 0,overtime_amount DOUBLE PRECISION DEFAULT 0,bonus DOUBLE PRECISION DEFAULT 0,late_deduction DOUBLE PRECISION DEFAULT 0,absence_deduction DOUBLE PRECISION DEFAULT 0,advance_deduction DOUBLE PRECISION DEFAULT 0,other_deduction DOUBLE PRECISION DEFAULT 0,net_salary DOUBLE PRECISION DEFAULT 0,status TEXT DEFAULT 'Draft',paid_date TEXT,payment_method TEXT,expense_id INTEGER REFERENCES expenses(id) ON DELETE SET NULL,notes TEXT,created_by INTEGER,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(employee_id,period_month))""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS employee_leave (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,leave_type TEXT NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,days DOUBLE PRECISION DEFAULT 1,reason TEXT,status TEXT DEFAULT 'Pending',reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,reviewed_at TIMESTAMP,review_notes TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS employee_documents (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,document_type TEXT NOT NULL,document_no TEXT,file_path TEXT,issued_date TEXT,expiry_date TEXT,notes TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS salary_advances (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE RESTRICT,advance_date TEXT NOT NULL,amount DOUBLE PRECISION NOT NULL,repaid_amount DOUBLE PRECISION DEFAULT 0,status TEXT DEFAULT 'Outstanding',notes TEXT,created_by INTEGER,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS commission_rules (id SERIAL PRIMARY KEY,employee_id INTEGER UNIQUE REFERENCES employees(id) ON DELETE CASCADE,rate_percent DOUBLE PRECISION DEFAULT 0,target_amount DOUBLE PRECISION DEFAULT 0,active INTEGER DEFAULT 1,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS cash_sessions (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE RESTRICT,opened_at TIMESTAMP NOT NULL,opening_cash DOUBLE PRECISION DEFAULT 0,closed_at TIMESTAMP,expected_cash DOUBLE PRECISION,actual_cash DOUBLE PRECISION,difference DOUBLE PRECISION,status TEXT DEFAULT 'Open',notes TEXT,opened_by INTEGER,closed_by INTEGER)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_devices (id SERIAL PRIMARY KEY,device_no INTEGER UNIQUE NOT NULL,name TEXT,ip_address TEXT NOT NULL,port INTEGER DEFAULT 4370,comm_key INTEGER DEFAULT 0,serial_no TEXT,last_sync_at TIMESTAMP,is_active INTEGER DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_attendance_logs (id SERIAL PRIMARY KEY,device_id INTEGER REFERENCES zkteco_devices(id) ON DELETE CASCADE,device_user_id TEXT NOT NULL,employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,punch_time TIMESTAMP NOT NULL,status INTEGER,punch INTEGER,verification_type INTEGER,imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,is_valid INTEGER DEFAULT 1,validation_note TEXT,UNIQUE(device_id,device_user_id,punch_time,punch))""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_employee_mappings (id SERIAL PRIMARY KEY,device_id INTEGER REFERENCES zkteco_devices(id) ON DELETE CASCADE,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,device_user_id TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(device_id,device_user_id),UNIQUE(device_id,employee_id))""")
 
 
 def _ensure_sale_item_columns(cursor):

@@ -28,6 +28,7 @@ from ui.settings.telegram_setting import TelegramSettingWidget
 from ui.settings.update_setting import UpdateSettingWidget
 from ui.settings.users_setting import UsersSettingWidget
 from ui.settings.youtube_setting import YouTubeSettingWidget
+from ui.settings.zkteco_setting import ZKTecoSettingWidget
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
 from utils.language import lang
 from utils.permissions import Permission, PermissionManager
@@ -265,6 +266,9 @@ class SettingsCenterWidget(QWidget):
 
         self.database_connection_tab = DatabaseConnectionSettingWidget()
         self.add_page("database", "Database", "database connection cloud postgres sqlite", self.database_connection_tab)
+
+        self.zkteco_tab = ZKTecoSettingWidget()
+        self.add_page("zkteco", "ZKTeco Devices", "attendance fingerprint device ip port comm key mapping sync", self.zkteco_tab)
 
         if self.user_id and PermissionManager.user_has_permission(self.user_id, Permission.BACKUP):
             self.backup_tab = BackupResetSettingWidget(user_id=self.user_id)

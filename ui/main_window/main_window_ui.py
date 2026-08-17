@@ -61,8 +61,16 @@ class MainWindowUI(QMainWindow):
     customers_page: Optional[Any] = None
     expense_page: Optional[Any] = None
     discount_page: Optional[Any] = None
+    employee_page: Optional[Any] = None
     
     def setup_ui(self) -> None:
+        # Employee schema/role additions are idempotent and must exist before
+        # permission-filtered sidebar/page construction.
+        try:
+            from services.employee_service import ensure_employee_schema
+            ensure_employee_schema()
+        except Exception as exc:
+            logger.error(f"Employee module initialization failed: {exc}")
         # Get screen geometry for dynamic sizing
         screen = QApplication.primaryScreen()
         if screen:
@@ -181,6 +189,7 @@ class MainWindowUI(QMainWindow):
             (10, "Restaurant", self._build_restaurant_page, "sales"),
             (6, "Customers", self._build_customers_page, "customers"),
             (7, "Expense", self._build_expense_page, "expense"),
+            (11, "Employees", self._build_employee_page, "employees"),
         ]
         
         for index, name, builder, perm in page_definitions:
@@ -365,7 +374,7 @@ class MainWindowUI(QMainWindow):
     
     def _build_sales_page(self) -> QWidget:
         from ui.sales_page import SalesPage
-        page = SalesPage()
+        page = SalesPage(self.current_user)
         self.sales_page = page
         return page
 
@@ -382,6 +391,10 @@ class MainWindowUI(QMainWindow):
     def _build_expense_page(self) -> QWidget:
         from ui.expense import ExpensePage
         return ExpensePage(user_role=self.current_user["role"])
+
+    def _build_employee_page(self) -> QWidget:
+        from ui.employee_page import EmployeeManagementPage
+        return EmployeeManagementPage(self.current_user)
 
     # ============================================================
     # PAGE SWITCHING
@@ -447,6 +460,7 @@ class MainWindowUI(QMainWindow):
             10: "Restaurant",
             6: "Customers",
             7: "Expense",
+            11: "Employees",
         }
         if self.page_title:
             self.page_title.setText(page_names.get(index, ""))
@@ -464,6 +478,7 @@ class MainWindowUI(QMainWindow):
             10: "restaurant_page",
             6: "customers_page",
             7: "expense_page",
+            11: "employee_page",
         }
         attr_name = page_names.get(index)
         if attr_name:
@@ -485,6 +500,7 @@ class MainWindowUI(QMainWindow):
             10: "sales",
             6: "customers",
             7: "expense",
+            11: "employees",
         }
         for index, perm in page_permissions.items():
             if PermissionManager.user_can_view_page(user_id, perm) and is_sale_page_enabled(index, sale_mode):

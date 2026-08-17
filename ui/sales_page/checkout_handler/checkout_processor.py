@@ -17,12 +17,13 @@ class CheckoutProcessor:
                            payment_type, local_now, total_discount):
         """Create sale record in database"""
         cursor.execute("""
-            INSERT INTO sales (invoice_no, total, payment, change_amount, customer_id, 
-                              status, payment_type, created_at, discount_amount)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sales (invoice_no, total, payment, change_amount, customer_id,
+                              status, payment_type, created_at, discount_amount, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (invoice_no, grand_total, payment, change, 
               self.handler.selected_customer_id, 'completed', 
-              payment_type, local_now, total_discount))
+              payment_type, local_now, total_discount,
+              self.parent.current_user.get("username")))
         return cursor.lastrowid
     
     def create_sale_items(self, cursor, sale_id, cart):

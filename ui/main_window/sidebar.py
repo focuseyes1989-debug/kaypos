@@ -543,6 +543,7 @@ class Sidebar(QFrame):
             (4, "receipt", "Receipts", "receipts"),
             (6, "person", "Customers", "customers"),
             (7, "money", "Expense", "expense"),
+            (11, "person", "Employees", "employees"),
         ]
         
         user_id = None

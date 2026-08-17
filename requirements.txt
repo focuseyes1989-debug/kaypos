@@ -22,3 +22,4 @@ openpyxl>=3.1.0
 python-barcode>=0.15.1
 pyinstaller>=6.0.0
 psycopg[binary]>=3.1.0
+pyzk==0.9

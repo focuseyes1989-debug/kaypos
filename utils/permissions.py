@@ -59,6 +59,24 @@ class Permission(Enum):
     VIEW_CREDIT = "credit"
     CREATE_CREDIT_SALE = "credit_sale"
     COLLECT_PAYMENT = "payment_collection"
+
+    # Employee management
+    VIEW_EMPLOYEES = "employees"
+    MANAGE_EMPLOYEES = "manage_employees"
+    VIEW_ATTENDANCE = "attendance"
+    MANAGE_ATTENDANCE = "manage_attendance"
+    VIEW_SHIFTS = "shifts"
+    MANAGE_SHIFTS = "manage_shifts"
+    VIEW_PAYROLL = "payroll"
+    MANAGE_PAYROLL = "manage_payroll"
+    VIEW_LEAVE = "leave"
+    MANAGE_LEAVE = "manage_leave"
+    VIEW_EMPLOYEE_DOCUMENTS = "employee_documents"
+    VIEW_EMPLOYEE_FINANCE = "employee_finance"
+    MANAGE_EMPLOYEE_FINANCE = "manage_employee_finance"
+    VIEW_EMPLOYEE_PERFORMANCE = "employee_performance"
+    VIEW_CASH_SESSIONS = "cash_sessions"
+    MANAGE_CASH_SESSIONS = "manage_cash_sessions"
     
     # Users & Settings
     VIEW_USERS = "users"
@@ -140,6 +158,7 @@ class PermissionManager:
             "expense": Permission.VIEW_EXPENSE,
             "reports": Permission.VIEW_REPORTS,
             "credit": Permission.VIEW_CREDIT,
+            "employees": Permission.VIEW_EMPLOYEES,
             "users": Permission.VIEW_USERS,
             "settings": Permission.VIEW_SETTINGS,
         }
@@ -166,6 +185,13 @@ ROLE_PERMISSIONS = {
             Permission.MANAGE_EXPENSE_CATEGORIES,
             Permission.VIEW_REPORTS,
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
+            Permission.VIEW_EMPLOYEES, Permission.MANAGE_EMPLOYEES,
+            Permission.VIEW_ATTENDANCE, Permission.MANAGE_ATTENDANCE,
+            Permission.VIEW_SHIFTS, Permission.MANAGE_SHIFTS,
+            Permission.VIEW_PAYROLL, Permission.MANAGE_PAYROLL,
+            Permission.VIEW_LEAVE, Permission.MANAGE_LEAVE, Permission.VIEW_EMPLOYEE_DOCUMENTS,
+            Permission.VIEW_EMPLOYEE_FINANCE, Permission.MANAGE_EMPLOYEE_FINANCE,
+            Permission.VIEW_EMPLOYEE_PERFORMANCE, Permission.VIEW_CASH_SESSIONS, Permission.MANAGE_CASH_SESSIONS,
             Permission.VIEW_USERS, Permission.ADD_USER, Permission.EDIT_USER, Permission.DELETE_USER,
             Permission.VIEW_SETTINGS, Permission.EDIT_SETTINGS,
             Permission.BACKUP, Permission.RESTORE, Permission.FACTORY_RESET,
@@ -185,6 +211,11 @@ ROLE_PERMISSIONS = {
             Permission.MANAGE_EXPENSE_CATEGORIES,
             Permission.VIEW_REPORTS,
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
+            Permission.VIEW_EMPLOYEES, Permission.MANAGE_EMPLOYEES,
+            Permission.VIEW_ATTENDANCE, Permission.MANAGE_ATTENDANCE,
+            Permission.VIEW_SHIFTS, Permission.MANAGE_SHIFTS,
+            Permission.VIEW_LEAVE, Permission.MANAGE_LEAVE, Permission.VIEW_EMPLOYEE_DOCUMENTS,
+            Permission.VIEW_EMPLOYEE_PERFORMANCE,
             Permission.VIEW_SETTINGS, Permission.BACKUP,
         ]
     },
@@ -305,6 +336,22 @@ def get_permission_description(permission):
         Permission.VIEW_CREDIT: "View Credit",
         Permission.CREATE_CREDIT_SALE: "Create Credit Sale",
         Permission.COLLECT_PAYMENT: "Collect Payment",
+        Permission.VIEW_EMPLOYEES: "View Employees",
+        Permission.MANAGE_EMPLOYEES: "Manage Employees",
+        Permission.VIEW_ATTENDANCE: "View Attendance",
+        Permission.MANAGE_ATTENDANCE: "Manage Attendance",
+        Permission.VIEW_SHIFTS: "View Shifts",
+        Permission.MANAGE_SHIFTS: "Manage Shifts",
+        Permission.VIEW_PAYROLL: "View Payroll",
+        Permission.MANAGE_PAYROLL: "Manage Payroll",
+        Permission.VIEW_LEAVE: "View Leave",
+        Permission.MANAGE_LEAVE: "Manage Leave",
+        Permission.VIEW_EMPLOYEE_DOCUMENTS: "View Employee Documents",
+        Permission.VIEW_EMPLOYEE_FINANCE: "View Employee Finance",
+        Permission.MANAGE_EMPLOYEE_FINANCE: "Manage Employee Finance",
+        Permission.VIEW_EMPLOYEE_PERFORMANCE: "View Employee Performance",
+        Permission.VIEW_CASH_SESSIONS: "View Cash Sessions",
+        Permission.MANAGE_CASH_SESSIONS: "Manage Cash Sessions",
         Permission.VIEW_USERS: "View Users",
         Permission.ADD_USER: "Add User",
         Permission.EDIT_USER: "Edit User",

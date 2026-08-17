@@ -29,8 +29,9 @@ from ui.themes import theme_manager, get_current_theme, is_dark_theme, get_theme
 
 
 class SalesPage(QWidget):
-    def __init__(self):
+    def __init__(self, current_user=None):
         super().__init__()
+        self.current_user = current_user or {}
         self.setObjectName("salesPage")
         self.shop_name = "ZAY POS"
         self.receipt_header_text = ""
