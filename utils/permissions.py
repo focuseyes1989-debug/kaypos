@@ -96,6 +96,8 @@ class PermissionManager:
     @staticmethod
     def get_role_permissions(role_name):
         """Get permissions for a specific role"""
+        if str(role_name or "").strip().lower() == "admin":
+            return {permission.value for permission in Permission}
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("SELECT permissions FROM user_roles WHERE name = ?", (role_name,))
@@ -123,7 +125,16 @@ class PermissionManager:
             return set()
         
         role, user_perms, role_perms = row
-        
+
+        # Admin is the recovery/superuser role. Its access must not disappear
+        # because a stale client or an incomplete role migration rewrote the
+        # database permission string.
+        if str(role or "").strip().lower() == "admin":
+            permissions = {permission.value for permission in Permission}
+            if user_perms:
+                permissions.update(p for p in user_perms.split(',') if p)
+            return permissions
+
         # Start with role permissions
         if role_perms:
             permissions = set(role_perms.split(','))
