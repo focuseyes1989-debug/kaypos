@@ -359,7 +359,7 @@ class MainWindowUI(QMainWindow):
     def _build_ai_pages_page(self) -> QWidget:
         """Build AI Pages page"""
         from ui.ai_pages import AIPagesPage
-        return AIPagesPage()
+        return AIPagesPage(current_user=self.current_user)
     
     def _build_inventory_page(self) -> QWidget:
         from ui.inventory_page import InventoryPage

@@ -28,8 +28,9 @@ class AIPagesPage(QWidget):
     AI Pages - AI ဆိုင်ရာ စာမျက်နှာများ
     """
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, current_user=None):
         super().__init__(parent)
+        self.current_user = current_user or {}
         self._setup_ui()
     
     def _setup_ui(self):
@@ -56,7 +57,7 @@ class AIPagesPage(QWidget):
         # ============================================================
         # TAB 2: AI Chat Room
         # ============================================================
-        self.chat_room = AIChatRoom()
+        self.chat_room = AIChatRoom(user_id=self.current_user.get("id") or self.current_user.get("username"))
         chat_icon = self._load_colored_icon("chat")
         self.tabs.addTab(self.chat_room, chat_icon, "AI Chat")
         

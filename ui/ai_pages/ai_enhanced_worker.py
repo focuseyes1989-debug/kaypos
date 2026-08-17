@@ -20,6 +20,8 @@ from ui.ai_pages.ai_cache import _query_cache
 from ui.ai_pages.ai_product_search import AIProductSearch
 from ui.ai_pages.ai_troubleshooter import AITroubleshooter
 from ui.ai_pages.ai_settings_assistant import AISettingsAssistant
+from ui.ai_pages.ai_employee_queries import EmployeeQueryHandler
+from ui.ai_pages.ai_usage_guide import ProjectUsageGuide
 
 
 class EnhancedQueryWorker(QThread):
@@ -56,6 +58,13 @@ class EnhancedQueryWorker(QThread):
         try:
             self.progress.emit(10)
 
+            usage_result = ProjectUsageGuide.handle(self.query)
+            if usage_result is not None:
+                self.progress.emit(100)
+                result = usage_result
+                intent_result = {'intent': 'usage_guide', 'entities': {}}
+                return
+
             project_result = self._check_project_query()
             if project_result is not None:
                 self.progress.emit(100)
@@ -71,6 +80,13 @@ class EnhancedQueryWorker(QThread):
                 )
                 self.finished.emit(result)
                 result_emitted = True
+                return
+
+            employee_result = EmployeeQueryHandler.handle(self.query, self.user_id)
+            if employee_result is not None:
+                self.progress.emit(100)
+                result = employee_result
+                intent_result = {'intent': 'employee_query', 'entities': {}}
                 return
 
             receipts_result = self._check_receipts_query()
@@ -308,7 +324,8 @@ class EnhancedQueryWorker(QThread):
                 "• Customers: search customer, customer profile, top customers, customer statistics\n"
                 "• Credit/Debt: debt summary, customer debt, overdue debts, recent debts\n"
                 "• Expenses: today/monthly/total expenses, recent expenses, category expenses\n"
-                "• Profit: profit summary\n\n"
+                "• Profit: profit summary\n"
+                "• Employees: profiles, attendance issues, shifts, leave, payroll, advances, performance, cash sessions\n\n"
                 "Examples:\n"
                 "• today sales / ယနေ့ ရောင်းအား\n"
                 "• sales by category 31.7.2026 / 31.7.2026 အရောင်း အမျိုးအစား\n"
@@ -316,6 +333,8 @@ class EnhancedQueryWorker(QThread):
                 "• low stock / စတော့နည်း\n"
                 "• expense category ဈေးဖိုး / ဈေးဖိုး ဒီနေ့\n"
                 "• customer Mg Mg / ဖောက်သည် Mg Mg\n"
+                "• today employee attendance / ဒီနေ့ ဝန်ထမ်း attendance\n"
+                "• EMP-0008 shift / pending employee leave\n"
             )
             return {
                 'type': 'project_help',

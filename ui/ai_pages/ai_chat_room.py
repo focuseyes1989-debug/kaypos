@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QFrame, QScrollArea, QTextEdit, QSizePolicy,
     QApplication, QMessageBox, QFileDialog, QComboBox
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QSettings, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 from ui.themes.theme_manager import get_theme_colors
 from ui.ai_pages.ai_chat_widgets import CopyableMessageFrame
@@ -48,11 +48,14 @@ class AIChatRoom(QWidget):
     AI Chat Room - Database Query Assistant
     """
     
+    MAX_PROMPT_LENGTH = 2000
+
     # Signal for analytics
     query_logged = pyqtSignal(dict)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, user_id=None):
         super().__init__(parent)
+        self._user_id = str(user_id or "anonymous")
         self._worker = None
         self._is_processing = False
         self._analytics = AIAnalytics()
@@ -60,7 +63,9 @@ class AIChatRoom(QWidget):
         self._recent_prompts = []
         self._cancel_requested = False
         self._last_status = "Ready"
+        self._last_prompt = ""
         self._setup_ui()
+        self._load_recent_prompts()
         
         # Welcome message
         self._add_welcome_message()
@@ -102,8 +107,8 @@ class AIChatRoom(QWidget):
         input_frame = QFrame()
         self.input_frame = input_frame
         input_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        input_frame.setMinimumHeight(160)
-        input_frame.setMaximumHeight(172)
+        input_frame.setMinimumHeight(184)
+        input_frame.setMaximumHeight(198)
         input_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {colors.get('card_bg', '#ffffff')};
@@ -144,6 +149,14 @@ class AIChatRoom(QWidget):
         self.clear_btn.setFixedSize(92, 30)
         self.clear_btn.clicked.connect(self._clear_chat)
         quick_layout.addWidget(self.clear_btn)
+
+        self.retry_btn = ModernButton("Retry", ModernButton.SECONDARY)
+        self.retry_btn.set_icon("refresh", size=(15, 15))
+        self.retry_btn.setFixedSize(92, 30)
+        self.retry_btn.setEnabled(False)
+        self.retry_btn.setToolTip("Run the last prompt again")
+        self.retry_btn.clicked.connect(self._retry_last_prompt)
+        quick_layout.addWidget(self.retry_btn)
 
         self.analytics_btn = ModernButton("Stats", ModernButton.SECONDARY)
         self.analytics_btn.set_icon("bar_chart", size=(15, 15))
@@ -231,6 +244,20 @@ class AIChatRoom(QWidget):
         input_layout.addWidget(self.stop_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         input_frame_layout.addLayout(input_layout)
+
+        meta_layout = QHBoxLayout()
+        meta_layout.setContentsMargins(2, 0, 2, 0)
+        self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet(f"color: {colors.get('text_secondary', '#636e72')}; font-size: 8.5pt;")
+        self.char_count_label = QLabel(f"0 / {self.MAX_PROMPT_LENGTH}")
+        self.char_count_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.char_count_label.setStyleSheet(f"color: {colors.get('text_secondary', '#636e72')}; font-size: 8.5pt;")
+        meta_layout.addWidget(self.status_label)
+        meta_layout.addStretch()
+        meta_layout.addWidget(self.char_count_label)
+        input_frame_layout.addLayout(meta_layout)
+        self.input_field.textChanged.connect(self._update_input_meta)
+        self._update_input_meta()
         
         main_layout.addWidget(input_frame, stretch=0)
 
@@ -257,6 +284,8 @@ class AIChatRoom(QWidget):
 
     def _set_chat_status(self, text):
         self._last_status = text
+        if hasattr(self, "status_label"):
+            self.status_label.setText(text)
 
     def _message_timestamp(self):
         return datetime.now().strftime("%H:%M")
@@ -282,6 +311,29 @@ class AIChatRoom(QWidget):
         self.recent_combo.addItems(self._recent_prompts)
         self.recent_combo.setCurrentIndex(0)
         self.recent_combo.blockSignals(False)
+        QSettings("ZAY POS", "AI Chat").setValue(f"recent_prompts/{self._user_id}", self._recent_prompts)
+
+    def _load_recent_prompts(self):
+        prompts = QSettings("ZAY POS", "AI Chat").value(f"recent_prompts/{self._user_id}", [])
+        if isinstance(prompts, str):
+            prompts = [prompts]
+        for prompt in reversed(list(prompts or [])[:10]):
+            self._remember_prompt(str(prompt))
+
+    def _update_input_meta(self):
+        length = len(self.input_field.toPlainText())
+        over_limit = length > self.MAX_PROMPT_LENGTH
+        self.char_count_label.setText(f"{length:,} / {self.MAX_PROMPT_LENGTH:,}")
+        color = "#e74c3c" if over_limit else get_theme_colors().get("text_secondary", "#636e72")
+        self.char_count_label.setStyleSheet(f"color: {color}; font-size: 8.5pt;")
+        if not self._is_processing:
+            self.send_btn.setEnabled(bool(length) and not over_limit)
+
+    def _retry_last_prompt(self):
+        if not self._last_prompt or self._is_processing:
+            return
+        self.input_field.setPlainText(self._last_prompt)
+        self._send_message()
     
     def _add_welcome_message(self):
         """Add welcome message to chat"""
@@ -295,6 +347,7 @@ I can help you with:
 • 💰 **Expenses** - Today, monthly, total, recent, category
 • 📈 **Profit** - Profit summary
 • 💳 **Credit/Debt** - Debt summary, customer debt
+• 👤 **Employees** - Attendance, shifts, leave, payroll, performance
 
 **Try asking:**
 • "today sales" | "ယနေ့ရောင်းအား"
@@ -306,6 +359,8 @@ I can help you with:
 • "ယနေ့" | "မနေ့က" | "1.8.2027"
 • "profit" | "အမြတ်"
 • "debt summary" | "အကြွေးစာရင်း"
+• "today employee attendance" | "ဒီနေ့ ဝန်ထမ်း attendance"
+• "EMP-0008 shift" | "pending employee leave"
 
 💡 **Tip:** You can ask in English or Myanmar!
 
@@ -329,8 +384,13 @@ I can help you with:
         text = self.input_field.toPlainText().strip()
         if not text or self._is_processing:
             return
+        if len(text) > self.MAX_PROMPT_LENGTH:
+            QMessageBox.warning(self, "Prompt Too Long", f"Please shorten the prompt to {self.MAX_PROMPT_LENGTH:,} characters or fewer.")
+            return
         
         self.input_field.clear()
+        self._last_prompt = text
+        self.retry_btn.setEnabled(False)
         self._remember_prompt(text)
         self._add_user_message(text)
         
@@ -511,7 +571,7 @@ I can help you with:
         loading_bubble = self._add_bot_message("", is_loading=True)
         
         # Create and start enhanced worker
-        self._worker = EnhancedQueryWorker(text, user_id="user_001")
+        self._worker = EnhancedQueryWorker(text, user_id=self._user_id)
         self._worker.progress.connect(lambda p: self._update_progress(loading_bubble, p))
         self._worker.finished.connect(lambda r: self._on_query_finished(r, loading_bubble))
         self._worker.error.connect(lambda e: self._on_query_error(e, loading_bubble))
@@ -519,7 +579,9 @@ I can help you with:
     
     def _update_progress(self, loading_bubble, progress):
         """Update progress in loading message"""
-        pass
+        self._set_chat_status(f"Thinking... {progress}%")
+        if hasattr(self, '_loading_label'):
+            self._loading_label.setText(f"⏳ Thinking... {progress}%")
 
     def _stop_response(self):
         if not self._is_processing:
@@ -578,8 +640,10 @@ I can help you with:
         self.stop_btn.setEnabled(False)
         self.input_field.setEnabled(True)
         self.input_field.setFocus()
+        self.retry_btn.setEnabled(bool(self._last_prompt))
         self._cancel_requested = False
         self._set_chat_status("Ready")
+        self._update_input_meta()
     
     def _scroll_to_bottom(self):
         """Scroll chat to bottom"""
@@ -917,6 +981,19 @@ I can help you with:
 • "discounted receipts" - Discounted receipts
 • "credit receipts" - Credit receipts
 
+👤 **Employee Queries (permission required):**
+• "employee summary" - Active/on-leave/resigned employee counts
+• "today employee attendance" - Today's attendance
+• "missing check-in today" - Missing check-ins
+• "late employees today" - Late/after-shift employees
+• "EMP-0008 attendance" - One employee's attendance
+• "employee shifts" / "EMP-0008 shift" - Shift assignments
+• "pending employee leave" - Pending leave requests
+• "payroll 2026-08" - Monthly payroll
+• "outstanding salary advances" - Advance balances
+• "employee performance" - 30-day performance
+• "open cash sessions" - Open cash sessions
+
 💬 **Help:**
 • `/help` - Show this help
 • "help" - General help
@@ -961,6 +1038,10 @@ I can help you with:
                     font-size: 9pt;
                 }}
             """)
+        if hasattr(self, "status_label"):
+            secondary = colors.get('text_secondary', '#636e72')
+            self.status_label.setStyleSheet(f"color: {secondary}; font-size: 8.5pt;")
+            self._update_input_meta()
         
         for button in self.findChildren(ModernButton):
             button.update_theme()
