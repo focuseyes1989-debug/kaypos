@@ -384,6 +384,16 @@ I can help you with:
 • "daily executive summary" | "weekly business review" | "latest digest"
 • "my dashboard summary" | "my sales this month" | "ကိုယ်ပိုင်အရောင်း အခြေအနေပြပါ"
 • "dashboard AI audit history" | "dashboard စစ်ဆေးမှတ်တမ်း ပြပါ"
+• "ဒီနေ့ အရောင်းအကျဉ်းချုပ်ပြပါ" | "ဒီလ net sales ဘယ်လောက်လဲ"
+• "ဒီနေ့ transaction ဘယ်နှခုရှိလဲ" | "ဒီလ ပစ္စည်းဘယ်နှခုရောင်းရလဲ"
+• "ဒီနေ့နဲ့ မနေ့က အရောင်းနှိုင်းယှဉ်ပေးပါ" | "ဒီလ sales ကို အရင်လနဲ့ နှိုင်းပေးပါ"
+• "ဒီလ ရောင်းအားအကောင်းဆုံး ပစ္စည်း ၅ မျိုးပြပါ" | "ဘယ် category က အရောင်းအများဆုံးလဲ"
+• "ဒီလ payment method အလိုက် အရောင်းပြပါ" | "Cash နဲ့ KPay ဘယ်ဟာပိုများလဲ"
+• "ဒီလ အရောင်းအကောင်းဆုံး cashier သုံးယောက်ပြပါ" | "EMP-0008 sales performance ပြပါ"
+• "ဒီလ daily sales trend ဂရပ်ပြပါ" | "ဒီနေ့ နာရီအလိုက် အရောင်းပြပါ"
+• "ဒီနေ့ အရောင်းမှာ ပုံမှန်မဟုတ်တာရှိလား" | "sales alerts ပြပါ"
+• "ဒီလ အရောင်း ဘာကြောင့်ကျသွားတာလဲ" | "အရောင်းတိုးဖို့ ဘာလုပ်သင့်လဲ"
+• "daily sales closing" | "weekly sales review" | "sales AI audit history"
 
 💡 **Tip:** You can ask in English or Myanmar. Common spellings such as `ph`, `ဖုန်းနံပတ်`, `attendence`, `checkin`, and Myanmar digits such as `EMP-၀၀၀၈` are normalized automatically.
 💬 **Follow-up:** After selecting an employee and period, ask “နောက်ကျတဲ့ရက်တွေပဲပြ” or “သူ့ shift ကရော”. Clear Chat resets this context.
@@ -667,6 +677,8 @@ I can help you with:
         permissions=self._current_permissions();module=self._conversation_context.module
         if result.get("type") in ("dashboard_summary","dashboard_comparison","dashboard_chart","dashboard_alerts","dashboard_explanation","dashboard_digest"):
             return self._dashboard_navigation_actions(result,permissions)
+        if result.get("type")=="sales_summary_alerts":return self._sales_alert_navigation_actions(result,permissions)
+        if result.get("type")=="sales_summary_explanation":return self._sales_explanation_navigation_actions(result,permissions)
         specs=[]
         if result.get("type")=="employee_query":
             by_module={
@@ -708,6 +720,30 @@ I can help you with:
         navigation=self._navigation_for_result(result,module)
         if navigation:
             actions.append((navigation[0],self._navigation_callback(navigation[1])))
+        return actions
+
+    def _sales_alert_navigation_actions(self,result,permissions):
+        required={"sales_summary":"sales_summary","receipts":"receipts","employees":"employee_performance"};actions=[]
+        for row in result.get("data") or []:
+            page=row.get("Target");permission=required.get(page);tab=row.get("Tab") or ""
+            if not permission or permission not in permissions:continue
+            request={"page":page,"filters":{"start_date":result.get("start_date"),"end_date":result.get("end_date"),"tab":tab}}
+            if page=="employees":request["tab"]="performance"
+            actions.append((f"Open {row.get('Title')}",self._navigation_callback(request)))
+            if len(actions)==3:break
+        return actions
+
+    def _sales_explanation_navigation_actions(self,result,permissions):
+        mapping={"Product":("Open Product Evidence","sales_summary","sales_summary","top_products"),"Category":("Open Category Evidence","sales_summary","sales_summary","categories"),"Payment":("Open Payment Evidence","sales_summary","sales_summary","payments"),"Cashier":("Open Cashier Evidence","employee_performance","employees","performance"),"Metric":("Open Sales Items","sales_summary","sales_summary","items")};actions=[];seen=set()
+        for row in result.get("data") or []:
+            target=mapping.get(row.get("Dimension"))
+            if not target or target[0] in seen:continue
+            label,permission,page,tab=target
+            if permission not in permissions:continue
+            request={"page":page,"filters":{"start_date":result.get("start_date"),"end_date":result.get("end_date"),"tab":tab}}
+            if page=="employees":request["tab"]="performance"
+            actions.append((label,self._navigation_callback(request)));seen.add(label)
+            if len(actions)==3:break
         return actions
 
     def _dashboard_navigation_actions(self,result,permissions):
@@ -765,6 +801,14 @@ I can help you with:
         return actions
 
     def _navigation_for_result(self,result,module):
+        if result.get("type")=="sales_summary_breakdown" and result.get("analysis_kind")=="cashiers" and result.get("scope")=="personal" and "sales" in self._current_permissions():
+            return "Open Sales",{"page":"sales","filters":{"start_date":result.get("start_date"),"end_date":result.get("end_date")}}
+        if result.get("type") in ("sales_summary_foundation","sales_summary_comparison","sales_summary_breakdown","sales_summary_chart") and ({"sales_summary","reports"}&self._current_permissions()):
+            if result.get("analysis_kind")=="cashiers" and "employee_performance" in self._current_permissions():
+                return "Open Employee Performance",{"page":"employees","tab":"performance","filters":{"start_date":result.get("start_date"),"end_date":result.get("end_date"),"tab":"performance"}}
+            kind=result.get("analysis_kind") or result.get("chart_kind");tab={"categories":"categories","top_products":"top_products","low_products":"top_products","payments":"payments"}.get(kind,"items")
+            label={"categories":"Open Categories","top_products":"Open Top Products","low_products":"Open Top Products","payments":"Open Payments","daily_sales":"Open Sales Items","hourly_sales":"Open Sales Items"}.get(kind,"Open Sales Summary")
+            return label,{"page":"sales_summary","filters":{"start_date":result.get("start_date"),"end_date":result.get("end_date"),"tab":tab}}
         if result.get("type")=="employee_query" and module:
             permission={"employees":"employees","attendance":"attendance","shifts":"shifts","payroll":"payroll","leave":"leave","documents":"employee_documents","finance":"employee_finance","performance":"employee_performance","cash_sessions":"cash_sessions"}.get(module)
             if permission and permission in self._current_permissions():
@@ -775,7 +819,7 @@ I can help you with:
             if kind in ("attendance_health","late_ranking") and "attendance" in self._current_permissions():return "Open Attendance",AINavigationRequest.for_employee_module("attendance")
             if kind=="sales_attendance_correlation" and "employee_performance" in self._current_permissions():return "Open Performance",AINavigationRequest.for_employee_module("performance")
             if kind=="business_health" and ({"sales_summary","reports"}&self._current_permissions()):return "Open Sales Summary",{"page":"sales_summary","filters":{}}
-        page_by_type={"sales":"sales_summary","daily_summary":"sales_summary","sales_summary":"sales_summary","top_products":"products","low_stock":"inventory","expenses":"expense","expense_categories":"expense","receipts":"receipts","customer_search":"customers","customer_profile":"customers"}
+        page_by_type={"sales":"sales_summary","daily_summary":"sales_summary","sales_summary":"sales_summary","sales_summary_foundation":"sales_summary","sales_summary_comparison":"sales_summary","sales_summary_breakdown":"sales_summary","sales_summary_chart":"sales_summary","sales_summary_alerts":"sales_summary","sales_summary_explanation":"sales_summary","sales_summary_digest":"sales_summary","top_products":"products","low_stock":"inventory","expenses":"expense","expense_categories":"expense","receipts":"receipts","customer_search":"customers","customer_profile":"customers"}
         page=page_by_type.get(str(result.get("type") or "").lower())
         return (f"Open {page.replace('_',' ').title()}",{"page":page,"filters":{}}) if page else None
 
@@ -801,7 +845,7 @@ I can help you with:
             if "sales_summary" in required and ({"sales_summary","reports"}&permissions):required.remove("sales_summary")
             return required.issubset(permissions)
         alternatives={
-            "sales":{"sales","sales_summary","reports"},"daily_summary":{"sales_summary","reports"},"sales_summary":{"sales_summary","reports"},
+            "sales":{"sales","sales_summary","reports"},"daily_summary":{"sales_summary","reports"},"sales_summary":{"sales_summary","reports"},"sales_summary_foundation":{"sales_summary","reports"},"sales_summary_comparison":{"sales_summary","reports"},"sales_summary_breakdown":{"sales","sales_summary","reports"},"sales_summary_chart":{"sales_summary","reports"},"sales_summary_alerts":{"sales_summary","reports"},"sales_summary_explanation":{"sales_summary","reports"},"sales_summary_digest":{"sales","sales_summary","reports"},
             "top_products":{"products","reports"},"low_stock":{"inventory"},"expenses":{"expense","reports"},"expense_categories":{"expense","reports"},
             "debt_summary":{"credit"},"customer_debt":{"credit"},"overdue_debts":{"credit"},"recent_debts":{"credit"},
             "receipts":{"receipts"},"receipt_detail":{"receipts"},"customer_search":{"customers"},"customer_profile":{"customers"},"top_customers":{"customers","reports"},
@@ -1033,6 +1077,63 @@ I can help you with:
                 total=sum(self._as_number(row.get(value_key)) for row in rows)
                 return {"title":"Sales breakdown","cards":[{"label":"Groups","value":str(len(rows))},{"label":"Total","value":self._compact_number(total)}],
                         "bars":[{"label":row.get(label_key),"value":self._as_number(row.get(value_key)),"display":f"{self._compact_number(self._as_number(row.get(value_key)))} Ks"} for row in rows[:8]]}
+        if result_type=="sales_summary_foundation" and result.get("metrics"):
+            metrics=result["metrics"];meta=result.get("widget_meta") or {};money=lambda key:f"{self._compact_number(metrics.get(key))} Ks"
+            discount_rate=float(meta.get("discount_rate") or 0);refund_rate=float(meta.get("refund_rate") or 0)
+            cards=[
+                {"label":"Gross Sales","value":money("gross_sales"),"color":"#2e86de","subtitle":"Completed sales before discount"},
+                {"label":"Net Sales","value":money("net_sales"),"color":"#00a86b","subtitle":"Gross sales minus discounts"},
+                {"label":"Transactions","value":self._compact_number(metrics.get("transactions")),"color":"#6c5ce7","subtitle":f"{float(meta.get('items_per_transaction') or 0):.1f} items per sale"},
+                {"label":"Items Sold","value":self._compact_number(metrics.get("items_sold")),"color":"#0984e3","subtitle":"Completed-sale quantity"},
+                {"label":"Average Sale","value":money("average_sale"),"color":"#00b894","subtitle":"Net sales per transaction"},
+                {"label":"Discounts","value":money("discounts"),"color":"#d63031" if discount_rate>=10 else "#f39c12","subtitle":f"{discount_rate:.1f}% of gross sales"},
+                {"label":"Refunds","value":money("refunds"),"color":"#d63031" if refund_rate>=5 else "#e17055","subtitle":f"{refund_rate:.1f}% of gross sales"},
+                {"label":"Period Status","value":"Sales recorded" if meta.get("has_sales") else "No sales","color":"#00a86b" if meta.get("has_sales") else "#95a5a6","subtitle":"Selected date range"},
+            ]
+            bars=[
+                {"label":"Gross Sales","value":metrics.get("gross_sales") or 0,"display":money("gross_sales"),"color":"#2e86de"},
+                {"label":"Net Sales","value":metrics.get("net_sales") or 0,"display":money("net_sales"),"color":"#00a86b"},
+                {"label":"Discounts","value":metrics.get("discounts") or 0,"display":money("discounts"),"color":"#f39c12"},
+                {"label":"Refunds","value":metrics.get("refunds") or 0,"display":money("refunds"),"color":"#d63031"},
+            ]
+            return {"title":f"Sales Summary — {result.get('start_date')} to {result.get('end_date')}","cards":cards,"bars":bars}
+        if result_type=="sales_summary_comparison" and result.get("changes"):
+            changes=result["changes"];cards=[];bars=[]
+            for key,label,increase_good in (("net_sales","Net Sales",True),("transactions","Transactions",True),("items_sold","Items Sold",True),("average_sale","Average Sale",True),("discounts","Discounts",False),("refunds","Refunds",False)):
+                row=changes.get(key)
+                if not row:continue
+                pct=row.get("Change %");direction=row.get("Direction");display="NEW" if pct is None else f"{'↑' if direction=='up' else '↓' if direction=='down' else '→'} {abs(float(pct)):.1f}%"
+                favorable=(direction=="up" and increase_good) or (direction=="down" and not increase_good) or direction=="flat"
+                cards.append({"label":label,"value":display,"color":"#00a86b" if favorable else "#d63031","subtitle":f"Current {self._compact_number(row.get('Current'))} · Previous {self._compact_number(row.get('Previous'))}"})
+            for key,label in (("net_sales","Net Sales"),("transactions","Transactions"),("items_sold","Items Sold"),("average_sale","Average Sale")):
+                row=changes.get(key)
+                if not row:continue
+                suffix="" if key in ("transactions","items_sold") else " Ks"
+                bars.extend([{"label":f"Current {label}","value":row.get("Current") or 0,"display":f"{self._compact_number(row.get('Current'))}{suffix}","color":"#2e86de"},{"label":f"Previous {label}","value":row.get("Previous") or 0,"display":f"{self._compact_number(row.get('Previous'))}{suffix}","color":"#95a5a6"}])
+            return {"title":f"Sales comparison — {result.get('start_date')} to {result.get('end_date')}","cards":cards,"bars":bars}
+        if result_type=="sales_summary_breakdown" and rows:
+            kind=result.get("analysis_kind");title={"top_products":"Top-selling products","low_products":"Low-selling products","categories":"Sales by category","payments":"Sales by payment type"}.get(kind,"Sales analysis")
+            if kind=="cashiers":
+                total=sum(float(row.get("Sales") or 0) for row in rows);transactions=sum(int(row.get("Transactions") or 0) for row in rows)
+                scope="My sales performance" if result.get("scope")=="personal" else "Cashier sales performance"
+                return {"title":scope,"cards":[{"label":"Cashiers","value":str(len(rows)),"color":"#6c5ce7"},{"label":"Transactions","value":self._compact_number(transactions),"color":"#0984e3"},{"label":"Sales","value":f"{self._compact_number(total)} Ks","color":"#00a86b"}],"bars":[{"label":f"#{row.get('Rank')} {row.get('Employee')}","value":row.get("Sales") or 0,"display":f"{self._compact_number(row.get('Sales'))} Ks","color":"#2e86de"} for row in rows[:10]]}
+            quantity=sum(float(row.get("Quantity") or 0) for row in rows);transactions=sum(int(row.get("Transactions") or 0) for row in rows);total=float(result.get("total_revenue") or 0)
+            middle={"label":"Transactions","value":self._compact_number(transactions),"color":"#0984e3"} if kind=="payments" else {"label":"Quantity","value":self._compact_number(quantity),"color":"#0984e3"}
+            return {"title":title,"cards":[{"label":"Groups","value":str(len(rows)),"color":"#6c5ce7"},middle,{"label":"Revenue","value":f"{self._compact_number(total)} Ks","color":"#00a86b"}],"bars":[{"label":row.get("Label"),"value":row.get("Revenue") or 0,"display":f"{self._compact_number(row.get('Revenue'))} Ks · {float(row.get('Share %') or 0):.1f}%","color":"#2e86de"} for row in rows[:10]]}
+        if result_type=="sales_summary_chart" and rows:
+            kind=result.get("chart_kind");label_key="Hour" if kind=="hourly_sales" else "Date";title="Hourly sales pattern" if kind=="hourly_sales" else "Daily sales trend"
+            sales=sum(float(row.get("Sales") or 0) for row in rows);transactions=sum(int(row.get("Transactions") or 0) for row in rows)
+            return {"title":title,"cards":[{"label":"Sales","value":f"{self._compact_number(sales)} Ks","color":"#00a86b"},{"label":"Transactions","value":self._compact_number(transactions),"color":"#6c5ce7"},{"label":"Data Points","value":str(len(rows)),"color":"#0984e3"}],"series":[{"label":"Sales","color":"#2e86de","points":[{"label":row.get(label_key),"value":row.get("Sales") or 0} for row in rows]},{"label":"Transactions","color":"#6c5ce7","points":[{"label":row.get(label_key),"value":row.get("Transactions") or 0} for row in rows]}]}
+        if result_type=="sales_summary_alerts":
+            counts={severity:sum(row.get("Severity")==severity for row in rows) for severity in ("Critical","Warning","Info")}
+            return {"title":"Sales alert status","cards":[{"label":"Critical","value":str(counts["Critical"]),"color":"#d63031"},{"label":"Warning","value":str(counts["Warning"]),"color":"#f39c12"},{"label":"Info","value":str(counts["Info"]),"color":"#2e86de"},{"label":"Total Alerts","value":str(len(rows)),"color":"#6c5ce7"}],"bars":[{"label":row.get("Title"),"value":{"Critical":3,"Warning":2,"Info":1}.get(row.get("Severity"),1),"display":row.get("Severity"),"color":{"Critical":"#d63031","Warning":"#f39c12","Info":"#2e86de"}.get(row.get("Severity"))} for row in rows[:8]]}
+        if result_type=="sales_summary_explanation" and rows:
+            positive=sum(float(row.get("Impact") or 0) for row in rows if float(row.get("Impact") or 0)>0);negative=sum(float(row.get("Impact") or 0) for row in rows if float(row.get("Impact") or 0)<0)
+            return {"title":"Sales change evidence","cards":[{"label":"Evidence Signals","value":str(len(rows)),"color":"#6c5ce7"},{"label":"Positive Signals","value":f"{self._compact_number(positive)}","color":"#00a86b"},{"label":"Negative Signals","value":f"{self._compact_number(negative)}","color":"#d63031"},{"label":"Recommendations","value":str(len(result.get('recommendations') or [])),"color":"#0984e3"}],"bars":[{"label":f"{row.get('Dimension')}: {row.get('Segment')}","value":abs(float(row.get("Impact") or 0)),"display":f"{float(row.get('Impact') or 0):+,.0f}","color":"#00a86b" if float(row.get("Impact") or 0)>=0 else "#d63031"} for row in rows[:10]]}
+        if result_type=="sales_summary_digest" and result.get("payload"):
+            metrics=result["payload"].get("metrics") or {};changes=result["payload"].get("changes") or {};pct=lambda key:"N/A" if (changes.get(key) or {}).get("Change %") is None else f"{changes[key]['Change %']:+.1f}%"
+            title=f"{str(result.get('digest_kind') or 'Sales').title()} sales digest"+(" — Personal" if result.get("scope")=="personal" else "")
+            return {"title":title,"cards":[{"label":"Net Sales","value":f"{self._compact_number(metrics.get('net_sales'))} Ks","color":"#00a86b","subtitle":pct("net_sales")},{"label":"Transactions","value":self._compact_number(metrics.get("transactions")),"color":"#6c5ce7","subtitle":pct("transactions")},{"label":"Items Sold","value":self._compact_number(metrics.get("items_sold")),"color":"#0984e3","subtitle":pct("items_sold")},{"label":"Average Sale","value":f"{self._compact_number(metrics.get('average_sale'))} Ks","color":"#2e86de","subtitle":pct("average_sale")}]}
         return None
 
     @staticmethod

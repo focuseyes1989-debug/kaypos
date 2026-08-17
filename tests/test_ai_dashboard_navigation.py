@@ -84,6 +84,35 @@ class TestAIDashboardNavigation(unittest.TestCase):
         self.assertEqual(page.tabs.index,6)
         self.assertEqual(page.loads,1)
 
+    def test_sales_summary_foundation_opens_sales_summary(self):
+        builder=_ActionBuilder()
+        builder._current_permissions=lambda:{"sales_summary"}
+        result={"type":"sales_summary_foundation","start_date":"2026-08-01","end_date":"2026-08-18"}
+        label,request=AIChatRoom._navigation_for_result(builder,result,None)
+        self.assertEqual(label,"Open Sales Summary")
+        self.assertEqual(request["page"],"sales_summary")
+        self.assertEqual(request["filters"]["start_date"],"2026-08-01")
+
+    def test_sales_summary_phase_seven_routes_chart_and_breakdown_tabs(self):
+        builder=_ActionBuilder();builder._current_permissions=lambda:{"sales_summary"}
+        payment={"type":"sales_summary_breakdown","analysis_kind":"payments","start_date":"2026-08-01","end_date":"2026-08-18"}
+        label,request=AIChatRoom._navigation_for_result(builder,payment,None)
+        self.assertEqual(label,"Open Payments");self.assertEqual(request["filters"]["tab"],"payments")
+        trend={"type":"sales_summary_chart","chart_kind":"daily_sales","start_date":"2026-07-19","end_date":"2026-08-18"}
+        label,request=AIChatRoom._navigation_for_result(builder,trend,None)
+        self.assertEqual(label,"Open Sales Items");self.assertEqual(request["filters"]["start_date"],"2026-07-19")
+
+    def test_sales_alert_drilldowns_are_permission_safe(self):
+        result={"type":"sales_summary_alerts","start_date":"2026-08-01","end_date":"2026-08-18","data":[{"Title":"High refund rate","Target":"receipts","Tab":"refunds"},{"Title":"Product sales drop","Target":"sales_summary","Tab":"top_products"},{"Title":"Unusual cashier discounts","Target":"employees","Tab":"performance"}]}
+        actions=AIChatRoom._sales_alert_navigation_actions(_ActionBuilder(),result,{"sales_summary","receipts"})
+        self.assertEqual([label for label,_ in actions],["Open High refund rate","Open Product sales drop"])
+        self.assertEqual(actions[0][1]["filters"]["tab"],"refunds")
+
+    def test_sales_explanation_drilldowns_follow_evidence_dimensions(self):
+        result={"type":"sales_summary_explanation","start_date":"2026-08-01","end_date":"2026-08-18","data":[{"Dimension":"Product"},{"Dimension":"Payment"},{"Dimension":"Cashier"}]}
+        actions=AIChatRoom._sales_explanation_navigation_actions(_ActionBuilder(),result,{"sales_summary"})
+        self.assertEqual([label for label,_ in actions],["Open Product Evidence","Open Payment Evidence"])
+
     def test_common_adapter_selects_inventory_and_receipt_tabs(self):
         inventory=_Page();MainWindowUI._apply_ai_page_filters(inventory,"inventory",{"tab":"low_stock"})
         receipts=_Page();MainWindowUI._apply_ai_page_filters(receipts,"receipts",{"tab":"refunds"})

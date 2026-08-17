@@ -202,6 +202,8 @@ class MainWindow(MainWindowUI):
         try:
             from ui.ai_pages.ai_dashboard_digest import DashboardDigestScheduler
             DashboardDigestScheduler.run_due(self.user_id,self.current_user.get("role"))
+            from ui.ai_pages.ai_sales_summary_governance import SalesSummaryDigestScheduler
+            SalesSummaryDigestScheduler.run_due(self.user_id,self.current_user.get("role"))
         except Exception as exc:
             logger.warning(f"Dashboard digest scheduler skipped: {exc}")
 

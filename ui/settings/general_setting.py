@@ -251,8 +251,8 @@ class GeneralSettingWidget(QWidget):
         self.follow_system_theme_check.toggled.connect(self.on_follow_system_toggled)
         appearance_layout.addRow("", self.follow_system_theme_check)
 
-        self.dashboard_digest_enabled = QCheckBox("Generate local AI executive digests")
-        self.dashboard_digest_enabled.setToolTip("Creates completed daily, weekly and monthly reports locally while the app is running.")
+        self.dashboard_digest_enabled = QCheckBox("Generate local Dashboard and Sales AI digests")
+        self.dashboard_digest_enabled.setToolTip("Creates completed Dashboard and Sales daily, weekly and monthly reports locally while the app is running.")
         appearance_layout.addRow("", self.dashboard_digest_enabled)
         
         self.appearance_group.setLayout(appearance_layout)
@@ -332,7 +332,7 @@ class GeneralSettingWidget(QWidget):
             self.discount_type_manual.setText("လက်ဖြင့်ရိုက်ထည့်ရန်")
             self.appearance_group.setTitle("အပြင်အဆင်")
             self.follow_system_theme_check.setText("စနစ်၏အပြင်အဆင်ကို အလိုအလျောက်လိုက်ရန်")
-            self.dashboard_digest_enabled.setText("AI အုပ်ချုပ်မှုအစီရင်ခံစာများကို စက်အတွင်း ဖန်တီးမည်")
+            self.dashboard_digest_enabled.setText("Dashboard နှင့် Sales AI အစီရင်ခံစာများကို စက်အတွင်း ဖန်တီးမည်")
             self.btn_save.setText("သိမ်းဆည်းမည်")
         else:
             self.payment_group.setTitle("Payment Types")
@@ -372,7 +372,7 @@ class GeneralSettingWidget(QWidget):
             self.discount_type_manual.setText("Manual")
             self.appearance_group.setTitle("Appearance")
             self.follow_system_theme_check.setText("Follow system theme")
-            self.dashboard_digest_enabled.setText("Generate local AI executive digests")
+            self.dashboard_digest_enabled.setText("Generate local Dashboard and Sales AI digests")
             self.btn_save.setText("Save General Settings")
 
     def _load_resolution_options(self):

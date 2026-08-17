@@ -27,6 +27,8 @@ from ui.ai_pages.ai_burmese_normalizer import AIBurmeseNormalizer
 from ui.ai_pages.ai_dashboard_queries import AIDashboardQueryHandler
 from ui.ai_pages.ai_dashboard_digest import DashboardDigestService
 from ui.ai_pages.ai_dashboard_governance import DashboardAIGovernance
+from ui.ai_pages.ai_sales_summary_queries import AISalesSummaryQueryHandler
+from ui.ai_pages.ai_sales_summary_governance import SalesSummaryGovernance,SalesSummaryDigestService
 
 
 class EnhancedQueryWorker(QThread):
@@ -63,6 +65,10 @@ class EnhancedQueryWorker(QThread):
         try:
             self.progress.emit(10)
 
+            sales_audit_result=SalesSummaryGovernance.audit_history(self.query,self.user_id)
+            if sales_audit_result is not None:
+                self.progress.emit(100);result=sales_audit_result;intent_result={'intent':'sales_summary_audit','entities':{}};return
+
             audit_result = DashboardAIGovernance.handle(self.query, self.user_id)
             if audit_result is not None:
                 self.progress.emit(100)
@@ -84,6 +90,10 @@ class EnhancedQueryWorker(QThread):
                 intent_result = {'intent': 'usage_guide', 'entities': {}}
                 return
 
+            sales_digest_result=SalesSummaryDigestService.handle(self.query,self.user_id)
+            if sales_digest_result is not None:
+                self.progress.emit(100);result=sales_digest_result;intent_result={'intent':'sales_summary_digest','entities':{}};return
+
             digest_result = DashboardDigestService.handle(self.query, self.user_id)
             if digest_result is not None:
                 self.progress.emit(100)
@@ -96,6 +106,13 @@ class EnhancedQueryWorker(QThread):
                 self.progress.emit(100)
                 result = dashboard_result
                 intent_result = {'intent': 'dashboard_summary', 'entities': {}}
+                return
+
+            sales_foundation_result = AISalesSummaryQueryHandler.handle(self.query, self.user_id)
+            if sales_foundation_result is not None:
+                self.progress.emit(100)
+                result = sales_foundation_result
+                intent_result = {'intent': 'sales_summary_foundation', 'entities': {}}
                 return
 
             insight_plan=AINaturalLanguagePlanner.plan(self.query)
@@ -336,6 +353,8 @@ class EnhancedQueryWorker(QThread):
                 response_time = (datetime.now() - start_time).total_seconds()
                 DashboardAIGovernance.enrich(result)
                 DashboardAIGovernance.record(self.query, self.user_id, result, response_time, success)
+            if result.get("type") in SalesSummaryGovernance.RESULT_TYPES:
+                response_time=(datetime.now()-start_time).total_seconds();SalesSummaryGovernance.enrich(result);SalesSummaryGovernance.record(self.query,self.user_id,result,response_time,success)
             
             # Log analytics (skip if already logged for debt query or new intent)
             if not is_debt_query and not is_new_intent:

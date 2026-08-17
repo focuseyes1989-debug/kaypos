@@ -86,6 +86,8 @@ class AIResultVisual(QFrame):
                 value.setWordWrap(True);label.setWordWrap(True)
                 frame.setProperty("accentColor",str(card.get("color") or ""))
                 box.addWidget(value);box.addWidget(label)
+                if card.get("subtitle"):
+                    subtitle=QLabel(str(card.get("subtitle")));subtitle.setObjectName("visualSubtitle");subtitle.setWordWrap(True);box.addWidget(subtitle)
                 grid.addWidget(frame,index//columns,index%columns);self.card_frames.append(frame)
             layout.addLayout(grid)
         bars=self.spec.get("bars") or []
@@ -105,6 +107,7 @@ class AIResultVisual(QFrame):
             frame.setStyleSheet(f"QFrame{{background:{colors.get('background','#f7f8fa')};border:1px solid {accent};border-radius:9px;}}")
             for label in frame.findChildren(QLabel):
                 if label.objectName()=="visualValue":label.setStyleSheet(f"color:{accent};font-size:13pt;font-weight:700;background:transparent;border:none;")
+                elif label.objectName()=="visualSubtitle":label.setStyleSheet(f"color:{colors.get('text_secondary','#636e72')};font-size:7.5pt;background:transparent;border:none;")
                 else:label.setStyleSheet(f"color:{colors.get('text_secondary','#636e72')};font-size:8.5pt;background:transparent;border:none;")
         if hasattr(self,"chart"):self.chart.update()
         if hasattr(self,"trend_chart"):self.trend_chart.update()
