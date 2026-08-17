@@ -374,7 +374,7 @@ class CreditService:
             cursor.execute("""
                 INSERT INTO credit_payments 
                 (credit_sale_id, customer_id, amount, payment_date, payment_method, reference_no, note)
-                VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?, ?, ?)
+                VALUES (?, ?, ?, COALESCE(NULLIF(?, ''), CAST(CURRENT_TIMESTAMP AS TEXT)), ?, ?, ?)
             """, (credit_sale_id, customer_id, amount, payment_date, payment_method, reference_no, note))
             
             # Update customer current balance
@@ -618,7 +618,7 @@ class CreditService:
                 cursor.execute("""
                     INSERT INTO credit_payments 
                     (credit_sale_id, customer_id, amount, payment_date, payment_method, note)
-                    VALUES (?, ?, ?, datetime('now'), 'refund', ?)
+                    VALUES (?, ?, ?, CAST(CURRENT_TIMESTAMP AS TEXT), 'refund', ?)
                 """, (credit_sale_id, customer_id, -paid_amount, f"Refund: {reason}"))
             
             # Record in credit_adjustments for audit trail

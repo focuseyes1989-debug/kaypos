@@ -223,6 +223,7 @@ ROLE_PERMISSIONS = {
     "Cashier": {
         "permissions": [
             Permission.VIEW_SALES, Permission.CREATE_SALE,
+            Permission.VIEW_AI_PAGES,
             Permission.VIEW_RECEIPTS, Permission.PRINT_RECEIPT, Permission.REFUND_RECEIPT,
             Permission.VIEW_CUSTOMERS, Permission.ADD_CUSTOMER,
             Permission.VIEW_CREDIT, Permission.CREATE_CREDIT_SALE, Permission.COLLECT_PAYMENT,
@@ -251,7 +252,7 @@ ROLE_PERMISSIONS = {
 ROLE_DESCRIPTIONS = {
     "Admin": "Full access to every page and action",
     "Manager": "Manage daily operations, employees, attendance, leave, and cash sessions; payroll and advances remain admin-only",
-    "Cashier": "Process sales, print receipts, refund receipts, and manage sale customers; no company-wide employee access",
+    "Cashier": "Process sales, use AI pages, print receipts, refund receipts, and manage sale customers; no company-wide employee access",
     "Viewer": "Read-only access to business reports and non-financial employee operations",
 }
 
