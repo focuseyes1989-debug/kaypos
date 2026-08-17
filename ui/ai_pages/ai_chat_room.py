@@ -376,6 +376,14 @@ I can help you with:
 • "ဒီလ ဝန်ထမ်းတွေ အလုပ်တက်တာ အခြေအနေကောင်းလား"
 • "အလုပ်နောက်ကျဆုံးဝန်ထမ်း သုံးယောက်ပြ"
 • "ဒီလ business အခြေအနေကို အကျဉ်းချုပ်ပေး"
+• "ဒီနေ့ dashboard summary ပြပါ" | "ဒီလ dashboard data ပြပါ"
+• "ဒီနေ့နဲ့ မနေ့က dashboard နှိုင်းယှဉ်ပါ"
+• "ဒီလ dashboard sales vs expense chart" | "dashboard payment breakdown chart"
+• "ဒီနေ့ dashboard မှာ သတိထားရမယ့်အချက်တွေပြပါ"
+• "ဒီလ dashboard sales ဘာကြောင့်ကျတာလဲ" | "dashboard expense ဘာလို့များတာလဲ"
+• "daily executive summary" | "weekly business review" | "latest digest"
+• "my dashboard summary" | "my sales this month" | "ကိုယ်ပိုင်အရောင်း အခြေအနေပြပါ"
+• "dashboard AI audit history" | "dashboard စစ်ဆေးမှတ်တမ်း ပြပါ"
 
 💡 **Tip:** You can ask in English or Myanmar. Common spellings such as `ph`, `ဖုန်းနံပတ်`, `attendence`, `checkin`, and Myanmar digits such as `EMP-၀၀၀၈` are normalized automatically.
 💬 **Follow-up:** After selecting an employee and period, ask “နောက်ကျတဲ့ရက်တွေပဲပြ” or “သူ့ shift ကရော”. Clear Chat resets this context.
@@ -657,6 +665,8 @@ I can help you with:
         if not result or result.get("type") in ("error","usage_guide","diagnostic"):
             return []
         permissions=self._current_permissions();module=self._conversation_context.module
+        if result.get("type") in ("dashboard_summary","dashboard_comparison","dashboard_chart","dashboard_alerts","dashboard_explanation","dashboard_digest"):
+            return self._dashboard_navigation_actions(result,permissions)
         specs=[]
         if result.get("type")=="employee_query":
             by_module={
@@ -698,6 +708,60 @@ I can help you with:
         navigation=self._navigation_for_result(result,module)
         if navigation:
             actions.append((navigation[0],self._navigation_callback(navigation[1])))
+        return actions
+
+    def _dashboard_navigation_actions(self,result,permissions):
+        """Build at most three permission-safe drill-down buttons."""
+        filters={"start_date":result.get("start_date"),"end_date":result.get("end_date")}
+        # Personal answers must never deep-link to company-wide reports.  The
+        # Sales page applies its own logged-in role restrictions.
+        if result.get("scope")=="personal":
+            if "sales" not in permissions:return []
+            request={"page":"sales","filters":filters}
+            return [("Open Sales",self._navigation_callback(request))]
+        candidates=[];result_type=result.get("type");kind=result.get("chart_kind");metrics=result.get("metrics") or (result.get("payload") or {}).get("metrics") or {}
+        if result_type=="dashboard_explanation":
+            focus=result.get("explanation_focus")
+            if focus in ("sales","profit"):candidates.append(("Open Sales Breakdown","sales_summary","sales_summary","top_products"))
+            if focus in ("expenses","profit"):candidates.append(("Open Expense Breakdown","expense","expense","charts"))
+        elif result_type=="dashboard_alerts":
+            required_by_target={"sales_summary":"sales_summary","expense":"expense","receipts":"receipts","inventory":"inventory","employees":None,"customers":"customers"}
+            for item in result.get("data") or []:
+                page=item.get("Target");tab=item.get("Tab");required=required_by_target.get(page)
+                if page=="employees":required="attendance" if tab=="attendance" else "cash_sessions"
+                if page and required:candidates.append((f"Open {item.get('Title')}",required,page,tab or ""))
+        elif result_type=="dashboard_chart":
+            target={
+                "payments":("Open Payments","sales_summary","sales_summary","payments"),
+                "top_products":("Open Top Products","sales_summary","sales_summary","top_products"),
+                "categories":("Open Categories","sales_summary","sales_summary","categories"),
+                "sales_expenses":("Open Expense Charts","expense","expense","charts"),
+                "profit":("Open Sales Summary","sales_summary","sales_summary","top_products"),
+                "transactions":("Open Sales Summary","sales_summary","sales_summary","items"),
+                "daily_sales":("Open Sales Summary","sales_summary","sales_summary","items"),
+            }.get(kind)
+            if target:candidates.append(target)
+        else:
+            candidates.extend([("Open Sales Summary","sales_summary","sales_summary","items"),("Open Expenses","expense","expense","list")])
+            if float(metrics.get("refunds") or 0)>0:
+                candidates.insert(0,("Open Refunds","receipts","receipts","refunds"))
+            if float(metrics.get("discounts") or 0)>0:
+                candidates.insert(0,("Open Discounts","receipts","receipts","discounts"))
+            if float(metrics.get("low_stock") or 0)+float(metrics.get("out_of_stock") or 0)>0:
+                candidates.insert(0,("Open Low Stock","inventory","inventory","low_stock"))
+            if metrics.get("open_cash_sessions"):
+                candidates.insert(0,("Open Cash Sessions","cash_sessions","employees","cash_sessions"))
+            if metrics.get("attendance_issues"):
+                candidates.insert(0,("Open Attendance","attendance","employees","attendance"))
+            if metrics.get("outstanding_credit"):
+                candidates.insert(0,("Open Credit Customers","customers","customers","outstanding"))
+        actions=[]
+        for label,required,page,tab in candidates:
+            if required not in permissions:continue
+            request={"page":page,"filters":{**filters,"tab":tab}}
+            if page=="employees":request["tab"]=tab
+            actions.append((label,self._navigation_callback(request)))
+            if len(actions)==3:break
         return actions
 
     def _navigation_for_result(self,result,module):
@@ -834,6 +898,88 @@ I can help you with:
 
     def _build_business_visual(self,result):
         rows=result.get("data") or [];result_type=str(result.get("type") or "").lower()
+        if result_type=="dashboard_summary" and result.get("metrics"):
+            metrics=result["metrics"]
+            money=lambda key:f"{self._compact_number(metrics.get(key))} Ks"
+            cards=[
+                {"label":"Net Sales","value":money("net_sales"),"color":"#2e86de"},
+                {"label":"Transactions","value":str(metrics.get("transactions") or 0),"color":"#6c5ce7"},
+                {"label":"Gross Profit","value":money("gross_profit"),"color":"#00a86b" if float(metrics.get("gross_profit") or 0)>=0 else "#d63031"},
+            ]
+            if metrics.get("expenses") is not None:cards.append({"label":"Expenses","value":money("expenses"),"color":"#e17055"})
+            if metrics.get("net_profit") is not None:cards.append({"label":"Net Profit","value":money("net_profit"),"color":"#00a86b" if float(metrics.get("net_profit") or 0)>=0 else "#d63031"})
+            if metrics.get("low_stock") is not None:cards.append({"label":"Low / Out of Stock","value":f"{metrics.get('low_stock') or 0} / {metrics.get('out_of_stock') or 0}","color":"#f39c12"})
+            if metrics.get("outstanding_credit") is not None:
+                cards.append({"label":"Outstanding Credit","value":money("outstanding_credit"),"color":"#d63031"})
+            if metrics.get("open_cash_sessions") is not None:
+                cards.append({"label":"Open Cash Sessions","value":str(metrics.get("open_cash_sessions") or 0),"color":"#0984e3"})
+            if metrics.get("attendance_issues") is not None:
+                cards.append({"label":"Attendance Issues","value":str(metrics.get("attendance_issues") or 0),"color":"#e67e22"})
+            scope=f"Personal Dashboard — {result.get('scope_label')}" if result.get("scope")=="personal" else "Dashboard cards"
+            return {"title":f"{scope} — {result.get('start_date')} to {result.get('end_date')}","cards":cards}
+        if result_type=="dashboard_comparison" and result.get("changes"):
+            changes=result["changes"]
+            cards=[]
+            for key,label,increase_good in (("net_sales","Sales change",True),("gross_profit","Gross profit change",True),("expenses","Expense change",False),("net_profit","Net profit change",True),("transactions","Transaction change",True)):
+                row=changes.get(key)
+                if not row:continue
+                percentage=row.get("Change %");direction=row.get("Direction")
+                display="NEW" if percentage is None else f"{'↑' if direction=='up' else '↓' if direction=='down' else '→'} {abs(float(percentage)):.1f}%"
+                favorable=(direction=="up" and increase_good) or (direction=="down" and not increase_good) or direction=="flat"
+                cards.append({"label":label,"value":display,"color":"#00a86b" if favorable else "#d63031"})
+            bars=[]
+            for key,label in (("net_sales","Net Sales"),("gross_profit","Gross Profit"),("expenses","Expenses")):
+                row=changes.get(key)
+                if not row:continue
+                bars.extend([
+                    {"label":f"Current {label}","value":max(0,float(row.get('Current') or 0)),"display":f"{self._compact_number(row.get('Current'))} Ks","color":"#2e86de"},
+                    {"label":f"Previous {label}","value":max(0,float(row.get('Previous') or 0)),"display":f"{self._compact_number(row.get('Previous'))} Ks","color":"#95a5a6"},
+                ])
+            scope="Personal — " if result.get("scope")=="personal" else ""
+            return {"title":f"{scope}Current vs previous — {result.get('start_date')} to {result.get('end_date')}","cards":cards,"bars":bars}
+        if result_type=="dashboard_chart" and rows:
+            kind=result.get("chart_kind")
+            title={"daily_sales":"Daily sales trend","sales_expenses":"Sales vs expenses","profit":"Profit trend","transactions":"Transaction trend","payments":"Payment methods","top_products":"Top products","categories":"Sales by category"}.get(kind,"Dashboard chart")
+            if result.get("scope")=="personal":title=f"Personal — {title}"
+            if kind in ("payments","top_products","categories"):
+                total=sum(float(row.get("Value") or 0) for row in rows)
+                return {"title":title,"cards":[{"label":"Groups","value":str(len(rows)),"color":"#6c5ce7"},{"label":"Total","value":f"{self._compact_number(total)} Ks","color":"#2e86de"}],"bars":[{"label":row.get("Label"),"value":row.get("Value") or 0,"display":f"{self._compact_number(row.get('Value'))} Ks"} for row in rows[:10]]}
+            definitions={
+                "daily_sales":(("Sales","#2e86de"),),
+                "sales_expenses":(("Sales","#2e86de"),("Expenses","#e17055")),
+                "profit":(("Gross Profit","#00a86b"),("Net Profit","#6c5ce7")),
+                "transactions":(("Transactions","#0984e3"),),
+            }.get(kind,(("Sales","#2e86de"),))
+            series=[{"label":label,"color":color,"points":[{"label":row.get("Date"),"value":row.get(label) or 0} for row in rows]} for label,color in definitions]
+            cards=[]
+            for label,color in definitions:
+                total=sum(float(row.get(label) or 0) for row in rows)
+                suffix="" if label=="Transactions" else " Ks"
+                cards.append({"label":f"Total {label}","value":f"{self._compact_number(total)}{suffix}","color":color})
+            return {"title":title,"cards":cards,"series":series}
+        if result_type=="dashboard_alerts":
+            counts={severity:sum(str(row.get("Severity"))==severity for row in rows) for severity in ("Critical","Warning","Info")}
+            return {"title":"Operational alert status","cards":[
+                {"label":"Critical","value":str(counts["Critical"]),"color":"#d63031"},
+                {"label":"Warning","value":str(counts["Warning"]),"color":"#f39c12"},
+                {"label":"Info","value":str(counts["Info"]),"color":"#2e86de"},
+                {"label":"Total Alerts","value":str(len(rows)),"color":"#6c5ce7"},
+            ],"bars":[{"label":row.get("Title"),"value":{"Critical":3,"Warning":2,"Info":1}.get(row.get("Severity"),1),"display":row.get("Severity"),"color":{"Critical":"#d63031","Warning":"#f39c12","Info":"#2e86de"}.get(row.get("Severity"))} for row in rows[:8]]}
+        if result_type=="dashboard_explanation" and rows:
+            focus=result.get("explanation_focus");positive=sum(float(row.get("Impact") or 0) for row in rows if float(row.get("Impact") or 0)>0);negative=sum(float(row.get("Impact") or 0) for row in rows if float(row.get("Impact") or 0)<0)
+            return {"title":f"{str(focus or 'change').title()} contribution evidence","cards":[
+                {"label":"Segments Changed","value":str(len(rows)),"color":"#6c5ce7"},
+                {"label":"Positive Impact","value":f"{self._compact_number(positive)} Ks","color":"#00a86b"},
+                {"label":"Negative Impact","value":f"{self._compact_number(negative)} Ks","color":"#d63031"},
+            ],"bars":[{"label":f"{row.get('Dimension')}: {row.get('Segment')}","value":abs(float(row.get("Impact") or 0)),"display":f"{float(row.get('Impact') or 0):+,.0f} Ks","color":"#00a86b" if float(row.get("Impact") or 0)>=0 else "#d63031"} for row in rows[:8]]}
+        if result_type=="dashboard_digest" and result.get("payload"):
+            payload=result["payload"];metrics=payload.get("metrics") or {};alerts=payload.get("alerts") or []
+            return {"title":f"{str(result.get('digest_kind') or 'Executive').title()} executive digest","cards":[
+                {"label":"Net Sales","value":f"{self._compact_number(metrics.get('net_sales'))} Ks","color":"#2e86de"},
+                {"label":"Gross Profit","value":f"{self._compact_number(metrics.get('gross_profit'))} Ks","color":"#00a86b" if float(metrics.get('gross_profit') or 0)>=0 else "#d63031"},
+                {"label":"Net Profit","value":f"{self._compact_number(metrics.get('net_profit'))} Ks","color":"#00a86b" if float(metrics.get('net_profit') or 0)>=0 else "#d63031"},
+                {"label":"Alerts","value":str(len(alerts)),"color":"#d63031" if alerts else "#00a86b"},
+            ]}
         if result_type=="insight" and rows:
             kind=result.get("insight_kind")
             if kind=="attendance_health":

@@ -250,6 +250,10 @@ class GeneralSettingWidget(QWidget):
         self.follow_system_theme_check = QCheckBox("Follow system theme")
         self.follow_system_theme_check.toggled.connect(self.on_follow_system_toggled)
         appearance_layout.addRow("", self.follow_system_theme_check)
+
+        self.dashboard_digest_enabled = QCheckBox("Generate local AI executive digests")
+        self.dashboard_digest_enabled.setToolTip("Creates completed daily, weekly and monthly reports locally while the app is running.")
+        appearance_layout.addRow("", self.dashboard_digest_enabled)
         
         self.appearance_group.setLayout(appearance_layout)
         right_layout.addWidget(self.appearance_group)
@@ -328,6 +332,7 @@ class GeneralSettingWidget(QWidget):
             self.discount_type_manual.setText("လက်ဖြင့်ရိုက်ထည့်ရန်")
             self.appearance_group.setTitle("အပြင်အဆင်")
             self.follow_system_theme_check.setText("စနစ်၏အပြင်အဆင်ကို အလိုအလျောက်လိုက်ရန်")
+            self.dashboard_digest_enabled.setText("AI အုပ်ချုပ်မှုအစီရင်ခံစာများကို စက်အတွင်း ဖန်တီးမည်")
             self.btn_save.setText("သိမ်းဆည်းမည်")
         else:
             self.payment_group.setTitle("Payment Types")
@@ -367,6 +372,7 @@ class GeneralSettingWidget(QWidget):
             self.discount_type_manual.setText("Manual")
             self.appearance_group.setTitle("Appearance")
             self.follow_system_theme_check.setText("Follow system theme")
+            self.dashboard_digest_enabled.setText("Generate local AI executive digests")
             self.btn_save.setText("Save General Settings")
 
     def _load_resolution_options(self):
@@ -432,6 +438,8 @@ class GeneralSettingWidget(QWidget):
             self.resolution_combo.setCurrentIndex(index)
         elif self.resolution_combo.count() > 0:
             self.resolution_combo.setCurrentIndex(0)
+        cursor.execute("SELECT value FROM settings WHERE key='ai_dashboard_digest_enabled'")
+        row=cursor.fetchone();self.dashboard_digest_enabled.setChecked(str(row[0] if row else "1").lower() in ("1","true","yes","on"))
         conn.close()
 
         sale_mode = get_sale_mode()
@@ -459,6 +467,7 @@ class GeneralSettingWidget(QWidget):
                 "discount_value": self.discount_value.value(),
                 "theme": self.theme_combo.currentText(),
                 "window_resolution": self.resolution_combo.currentData() or "1366x768",
+                "ai_dashboard_digest_enabled": "1" if self.dashboard_digest_enabled.isChecked() else "0",
             }
 
             if self.discount_type_percent.isChecked():

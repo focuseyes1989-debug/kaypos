@@ -144,6 +144,13 @@ class MainWindow(MainWindowUI):
         self.background_activity_timer = QTimer(self)
         self.background_activity_timer.timeout.connect(self.update_background_activity_status)
 
+        # Local executive digests are generated for completed periods only.
+        self.dashboard_digest_timer = QTimer(self)
+        self.dashboard_digest_timer.setInterval(15 * 60 * 1000)
+        self.dashboard_digest_timer.timeout.connect(self._check_dashboard_digests)
+        self.dashboard_digest_timer.start()
+        QTimer.singleShot(5000, self._check_dashboard_digests)
+
         # ------------------------------------------------------------
         # ၁၀. Language ပြောင်းလဲမှုကို နားဆင်ခြင်း
         # ------------------------------------------------------------
@@ -190,6 +197,13 @@ class MainWindow(MainWindowUI):
         # ------------------------------------------------------------
         logger.info(f"✅ MainWindow initialised for user: {self.current_user['username']} (role: {self.current_user['role']})")
         logger.info(f"✅ Layout: Sajiwa POS Style with Lazy Loading and QSplitter")
+
+    def _check_dashboard_digests(self) -> None:
+        try:
+            from ui.ai_pages.ai_dashboard_digest import DashboardDigestScheduler
+            DashboardDigestScheduler.run_due(self.user_id,self.current_user.get("role"))
+        except Exception as exc:
+            logger.warning(f"Dashboard digest scheduler skipped: {exc}")
 
     def _start_background_services(self) -> None:
         """Start non-critical services after the main window has appeared."""

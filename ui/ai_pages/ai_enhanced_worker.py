@@ -24,6 +24,9 @@ from ui.ai_pages.ai_usage_guide import ProjectUsageGuide
 from ui.ai_pages.ai_error_diagnostics import AIErrorDiagnostics
 from ui.ai_pages.ai_natural_language import AINaturalLanguagePlanner, AIInsightHandler
 from ui.ai_pages.ai_burmese_normalizer import AIBurmeseNormalizer
+from ui.ai_pages.ai_dashboard_queries import AIDashboardQueryHandler
+from ui.ai_pages.ai_dashboard_digest import DashboardDigestService
+from ui.ai_pages.ai_dashboard_governance import DashboardAIGovernance
 
 
 class EnhancedQueryWorker(QThread):
@@ -60,6 +63,13 @@ class EnhancedQueryWorker(QThread):
         try:
             self.progress.emit(10)
 
+            audit_result = DashboardAIGovernance.handle(self.query, self.user_id)
+            if audit_result is not None:
+                self.progress.emit(100)
+                result = audit_result
+                intent_result = {'intent': 'dashboard_audit', 'entities': {}}
+                return
+
             diagnostic_result = AIErrorDiagnostics.handle(self.query)
             if diagnostic_result is not None:
                 self.progress.emit(100)
@@ -72,6 +82,20 @@ class EnhancedQueryWorker(QThread):
                 self.progress.emit(100)
                 result = usage_result
                 intent_result = {'intent': 'usage_guide', 'entities': {}}
+                return
+
+            digest_result = DashboardDigestService.handle(self.query, self.user_id)
+            if digest_result is not None:
+                self.progress.emit(100)
+                result = digest_result
+                intent_result = {'intent': 'dashboard_digest', 'entities': {}}
+                return
+
+            dashboard_result = AIDashboardQueryHandler.handle(self.query, self.user_id)
+            if dashboard_result is not None:
+                self.progress.emit(100)
+                result = dashboard_result
+                intent_result = {'intent': 'dashboard_summary', 'entities': {}}
                 return
 
             insight_plan=AINaturalLanguagePlanner.plan(self.query)
@@ -307,6 +331,11 @@ class EnhancedQueryWorker(QThread):
                     'message': message,
                     'sql': ''
                 }
+
+            if result.get("type") in DashboardAIGovernance.RESULT_TYPES:
+                response_time = (datetime.now() - start_time).total_seconds()
+                DashboardAIGovernance.enrich(result)
+                DashboardAIGovernance.record(self.query, self.user_id, result, response_time, success)
             
             # Log analytics (skip if already logged for debt query or new intent)
             if not is_debt_query and not is_new_intent:

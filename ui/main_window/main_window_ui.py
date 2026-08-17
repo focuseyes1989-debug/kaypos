@@ -462,8 +462,40 @@ class MainWindowUI(QMainWindow):
                 return
             if page_name=="employees" and hasattr(widget,"apply_ai_filters"):
                 widget.apply_ai_filters(request.get("tab") or "employees",request.get("filters") or {})
+            elif page_name!="employees":
+                self._apply_ai_page_filters(widget,page_name,request.get("filters") or {})
             if self.statusBar():self.statusBar().showMessage(f"Opened {self._page_names.get(index,page_name)} from AI Chat",4000)
         apply_filters()
+
+    @staticmethod
+    def _apply_ai_page_filters(widget,page_name,filters):
+        """Apply only known, read-only filters to an already-authorized page."""
+        filters=filters or {};start=filters.get("start_date");end=filters.get("end_date") or start
+        if start and hasattr(widget,"date_range") and hasattr(widget.date_range,"set_range"):
+            widget.date_range.set_range(str(start),str(end))
+        tab=str(filters.get("tab") or "")
+        if page_name=="sales_summary" and hasattr(widget,"tabs"):
+            index={"top_products":0,"items":1,"categories":3,"payments":6}.get(tab)
+            if index is not None and index<widget.tabs.count():widget.tabs.setCurrentIndex(index)
+            if hasattr(widget,"load_all_tabs"):widget.load_all_tabs()
+        elif page_name=="expense":
+            if hasattr(widget,"tab_widget"):widget.tab_widget.setCurrentIndex(2 if tab=="charts" else 0)
+            if hasattr(widget,"load_expenses"):widget.load_expenses()
+            if hasattr(widget,"update_cards"):widget.update_cards()
+        elif page_name=="inventory":
+            if hasattr(widget,"tabs"):
+                index={"current_stock":0,"low_stock":1}.get(tab,0);widget.tabs.setCurrentIndex(index)
+            if hasattr(widget,"refresh_all"):widget.refresh_all()
+        elif page_name=="receipts":
+            if hasattr(widget,"tab_widget"):
+                index={"receipts":0,"refunds":1,"discounts":2,"credit":3}.get(tab,0)
+                if index<widget.tab_widget.count() and widget.tab_widget.isTabEnabled(index):widget.tab_widget.setCurrentIndex(index)
+            if hasattr(widget,"load_all_tabs"):widget.load_all_tabs()
+        elif page_name=="dashboard" and hasattr(widget,"refresh_dashboard"):
+            widget.refresh_dashboard()
+        elif page_name=="customers" and hasattr(widget,"load_customers"):
+            widget.load_customers()
+        return True
     
     def _update_sidebar_buttons(self, index: int) -> None:
         """Update sidebar button selection state"""
