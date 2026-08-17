@@ -19,12 +19,13 @@ def ensure_employee_schema() -> None:
     conn = connect_db()
     cur = conn.cursor()
     pk = "SERIAL PRIMARY KEY" if is_postgres_backend() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    photo_blob_type = "BYTEA" if is_postgres_backend() else "BLOB"
     ensure_column(cur, "sales", "created_by", "TEXT")
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS employees (
             id {pk}, employee_no TEXT UNIQUE NOT NULL, user_id INTEGER UNIQUE,
             full_name TEXT NOT NULL, phone TEXT, address TEXT, date_of_birth TEXT,
-            national_id TEXT, photo_path TEXT, hire_date TEXT NOT NULL,
+            national_id TEXT, photo_path TEXT, photo_data {photo_blob_type}, hire_date TEXT NOT NULL,
             position TEXT, department TEXT, branch TEXT, employment_status TEXT DEFAULT 'Active',
             emergency_contact_name TEXT, emergency_contact_phone TEXT, notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -32,6 +33,7 @@ def ensure_employee_schema() -> None:
         )
     """)
     ensure_column(cur, "employees", "zkteco_user_id", "TEXT")
+    ensure_column(cur, "employees", "photo_data", photo_blob_type)
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS shifts (
             id {pk}, name TEXT UNIQUE NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL,
@@ -108,6 +110,7 @@ def ensure_employee_schema() -> None:
         "CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(attendance_date)",
         "CREATE INDEX IF NOT EXISTS idx_payroll_period ON payrolls(period_month, status)",
         "CREATE INDEX IF NOT EXISTS idx_employee_shifts_employee ON employee_shifts(employee_id, effective_from)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_employee_shifts_employee_effective ON employee_shifts(employee_id, effective_from)",
         "CREATE INDEX IF NOT EXISTS idx_employee_leave_dates ON employee_leave(start_date, end_date, status)",
         "CREATE INDEX IF NOT EXISTS idx_employee_documents_expiry ON employee_documents(expiry_date)",
         "CREATE INDEX IF NOT EXISTS idx_salary_advances_employee ON salary_advances(employee_id, status)",
@@ -159,7 +162,7 @@ def list_employees(search: str = "", status: str = "All") -> list[Dict[str, Any]
 
 def save_employee(data: Dict[str, Any], employee_id: Optional[int] = None) -> int:
     conn = connect_db(); cur = conn.cursor()
-    fields = ["employee_no","user_id","full_name","phone","address","date_of_birth","national_id","photo_path","hire_date","position","department","branch","employment_status","emergency_contact_name","emergency_contact_phone","notes","zkteco_user_id"]
+    fields = ["employee_no","user_id","full_name","phone","address","date_of_birth","national_id","photo_path","photo_data","hire_date","position","department","branch","employment_status","emergency_contact_name","emergency_contact_phone","notes","zkteco_user_id"]
     values = [data.get(f) or None for f in fields]
     try:
         if employee_id is not None:
@@ -215,6 +218,30 @@ def list_employee_shift_assignments() -> list[Dict[str,Any]]:
     conn=connect_db();cur=conn.cursor();cur.execute("""SELECT es.id,es.employee_id,e.employee_no,e.full_name,es.shift_id,s.name shift_name,s.start_time,s.end_time,es.effective_from,es.effective_to,es.weekly_off_days FROM employee_shifts es JOIN employees e ON e.id=es.employee_id JOIN shifts s ON s.id=es.shift_id ORDER BY es.effective_from DESC,e.full_name""");rows=_rows(cur);conn.close();return rows
 
 
+def update_shift_assignment(record_id: int, employee_id: int, shift_id: int, effective_from: str,
+                            effective_to: Optional[str] = None, weekly_off_days: str = "") -> int:
+    conn=connect_db();cur=conn.cursor()
+    try:
+        cur.execute("SELECT employee_id FROM employee_shifts WHERE id=?",(record_id,));row=cur.fetchone()
+        if not row:raise ValueError("Shift assignment was not found")
+        old_employee_id=int(row[0])
+        cur.execute("""UPDATE employee_shifts SET employee_id=?,shift_id=?,effective_from=?,effective_to=?,weekly_off_days=?
+                       WHERE id=?""",(employee_id,shift_id,effective_from,effective_to or None,weekly_off_days or None,record_id))
+        conn.commit();return old_employee_id
+    except Exception:conn.rollback();raise
+    finally:conn.close()
+
+
+def delete_shift_assignment(record_id: int) -> int:
+    conn=connect_db();cur=conn.cursor()
+    try:
+        cur.execute("SELECT employee_id FROM employee_shifts WHERE id=?",(record_id,));row=cur.fetchone()
+        if not row:raise ValueError("Shift assignment was not found")
+        employee_id=int(row[0]);cur.execute("DELETE FROM employee_shifts WHERE id=?",(record_id,));conn.commit();return employee_id
+    except Exception:conn.rollback();raise
+    finally:conn.close()
+
+
 def recalculate_attendance_categories(employee_id: Optional[int] = None) -> Dict[str,int]:
     """Classify imported attendance while preserving manually corrected rows."""
     conn=connect_db();cur=conn.cursor();sql="""SELECT a.id,a.employee_id,a.attendance_date,a.check_in,a.check_out,a.correction_reason FROM attendance a WHERE (a.correction_reason IS NULL OR a.correction_reason='')""";params=[]
@@ -236,10 +263,18 @@ def recalculate_attendance_categories(employee_id: Optional[int] = None) -> Dict
 
 def list_attendance(day: str, to_day: Optional[str] = None) -> list[Dict[str, Any]]:
     conn=connect_db(); cur=conn.cursor()
+    select_sql="""SELECT a.*,e.employee_no,e.full_name,
+        (SELECT s.start_time FROM employee_shifts es
+         JOIN shifts s ON s.id=es.shift_id
+         WHERE es.employee_id=a.employee_id
+           AND es.effective_from<=a.attendance_date
+           AND (es.effective_to IS NULL OR es.effective_to>=a.attendance_date)
+         ORDER BY es.effective_from DESC,es.id DESC LIMIT 1) AS shift_start
+        FROM attendance a JOIN employees e ON e.id=a.employee_id"""
     if to_day and to_day != day:
-        cur.execute("""SELECT a.*,e.employee_no,e.full_name FROM attendance a JOIN employees e ON e.id=a.employee_id WHERE a.attendance_date BETWEEN ? AND ? ORDER BY a.attendance_date DESC,e.full_name""",(day,to_day))
+        cur.execute(select_sql+" WHERE a.attendance_date BETWEEN ? AND ? ORDER BY a.attendance_date DESC,e.full_name",(day,to_day))
     else:
-        cur.execute("""SELECT a.*,e.employee_no,e.full_name FROM attendance a JOIN employees e ON e.id=a.employee_id WHERE a.attendance_date=? ORDER BY e.full_name""",(day,))
+        cur.execute(select_sql+" WHERE a.attendance_date=? ORDER BY e.full_name",(day,))
     rows=_rows(cur); conn.close(); return rows
 
 

@@ -229,11 +229,12 @@ def ensure_postgres_restaurant_pilot_schema(cursor):
 def _ensure_employee_tables(cursor):
     cursor.execute("""CREATE TABLE IF NOT EXISTS employees (
         id SERIAL PRIMARY KEY, employee_no TEXT UNIQUE NOT NULL, user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE SET NULL,
-        full_name TEXT NOT NULL, phone TEXT, address TEXT, date_of_birth TEXT, national_id TEXT, photo_path TEXT,
+        full_name TEXT NOT NULL, phone TEXT, address TEXT, date_of_birth TEXT, national_id TEXT, photo_path TEXT, photo_data BYTEA,
         hire_date TEXT NOT NULL, position TEXT, department TEXT, branch TEXT, employment_status TEXT DEFAULT 'Active', zkteco_user_id TEXT,
         emergency_contact_name TEXT, emergency_contact_phone TEXT, notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     ensure_column(cursor, "employees", "zkteco_user_id", "TEXT")
+    ensure_column(cursor, "employees", "photo_data", "BYTEA")
     cursor.execute("""CREATE TABLE IF NOT EXISTS shifts (id SERIAL PRIMARY KEY,name TEXT UNIQUE NOT NULL,start_time TEXT NOT NULL,end_time TEXT NOT NULL,break_minutes INTEGER DEFAULT 0,is_overnight INTEGER DEFAULT 0,is_active INTEGER DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS employee_shifts (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,shift_id INTEGER REFERENCES shifts(id) ON DELETE CASCADE,effective_from TEXT NOT NULL,effective_to TEXT,weekly_off_days TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS attendance (id SERIAL PRIMARY KEY,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,attendance_date TEXT NOT NULL,check_in TEXT,check_out TEXT,status TEXT DEFAULT 'Present',late_minutes INTEGER DEFAULT 0,notes TEXT,corrected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,correction_reason TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(employee_id,attendance_date))""")
@@ -246,6 +247,7 @@ def _ensure_employee_tables(cursor):
     cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_devices (id SERIAL PRIMARY KEY,device_no INTEGER UNIQUE NOT NULL,name TEXT,ip_address TEXT NOT NULL,port INTEGER DEFAULT 4370,comm_key INTEGER DEFAULT 0,serial_no TEXT,last_sync_at TIMESTAMP,is_active INTEGER DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_attendance_logs (id SERIAL PRIMARY KEY,device_id INTEGER REFERENCES zkteco_devices(id) ON DELETE CASCADE,device_user_id TEXT NOT NULL,employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,punch_time TIMESTAMP NOT NULL,status INTEGER,punch INTEGER,verification_type INTEGER,imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,is_valid INTEGER DEFAULT 1,validation_note TEXT,UNIQUE(device_id,device_user_id,punch_time,punch))""")
     cursor.execute("""CREATE TABLE IF NOT EXISTS zkteco_employee_mappings (id SERIAL PRIMARY KEY,device_id INTEGER REFERENCES zkteco_devices(id) ON DELETE CASCADE,employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,device_user_id TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE(device_id,device_user_id),UNIQUE(device_id,employee_id))""")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_employee_shifts_employee_effective ON employee_shifts(employee_id, effective_from)")
 
 
 def _ensure_sale_item_columns(cursor):

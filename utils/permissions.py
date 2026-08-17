@@ -216,6 +216,7 @@ ROLE_PERMISSIONS = {
             Permission.VIEW_SHIFTS, Permission.MANAGE_SHIFTS,
             Permission.VIEW_LEAVE, Permission.MANAGE_LEAVE, Permission.VIEW_EMPLOYEE_DOCUMENTS,
             Permission.VIEW_EMPLOYEE_PERFORMANCE,
+            Permission.VIEW_CASH_SESSIONS, Permission.MANAGE_CASH_SESSIONS,
             Permission.VIEW_SETTINGS, Permission.BACKUP,
         ]
     },
@@ -237,6 +238,11 @@ ROLE_PERMISSIONS = {
             Permission.VIEW_CUSTOMERS,
             Permission.VIEW_REPORTS,
             Permission.VIEW_CREDIT,
+            Permission.VIEW_EMPLOYEES,
+            Permission.VIEW_ATTENDANCE,
+            Permission.VIEW_SHIFTS,
+            Permission.VIEW_LEAVE,
+            Permission.VIEW_EMPLOYEE_PERFORMANCE,
         ]
     }
 }
@@ -244,9 +250,9 @@ ROLE_PERMISSIONS = {
 
 ROLE_DESCRIPTIONS = {
     "Admin": "Full access to every page and action",
-    "Manager": "Manage daily operations without user deletion, restore, or factory reset",
-    "Cashier": "Process sales, print receipts, refund receipts, and manage sale customers",
-    "Viewer": "Read-only access to dashboards, lists, receipts, reports, and credit",
+    "Manager": "Manage daily operations, employees, attendance, leave, and cash sessions; payroll and advances remain admin-only",
+    "Cashier": "Process sales, print receipts, refund receipts, and manage sale customers; no company-wide employee access",
+    "Viewer": "Read-only access to business reports and non-financial employee operations",
 }
 
 
@@ -267,12 +273,13 @@ def update_role_permissions_in_db():
             permissions_str = ','.join([p.value for p in role_data["permissions"]])
             description = ROLE_DESCRIPTIONS.get(role_name, f"{role_name} role")
             
-            cursor.execute("SELECT permissions FROM user_roles WHERE name = ?", (role_name,))
+            cursor.execute("SELECT permissions, description FROM user_roles WHERE name = ?", (role_name,))
             row = cursor.fetchone()
-            
+
             if row:
                 current_perms = row[0] or ''
-                if current_perms != permissions_str:
+                current_description = row[1] or ''
+                if current_perms != permissions_str or current_description != description:
                     cursor.execute("""
                         UPDATE user_roles
                         SET description = ?, permissions = ?
