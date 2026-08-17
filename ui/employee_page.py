@@ -270,17 +270,41 @@ class EmployeeManagementPage(QWidget):
         if "employee_finance" in perms:card_definitions.append(("outstanding_advances","Outstanding Advances",summary["outstanding_advances"],"payments","#16a085",True))
         for key,label,value,icon,color,is_currency in card_definitions:
             card=SummaryCardWidget(label,value,icon,color,icon_is_svg=True); card.set_value(value,currency_symbol="Ks" if is_currency else None,is_currency=is_currency); self.summary_cards[key]=card; cards.addWidget(card)
-        layout.addLayout(cards); tabs=QTabWidget(); employee_tab=EmployeesTab("manage_employees" in perms); employee_tab.data_changed.connect(self.refresh_summary); tabs.addTab(employee_tab,"Employees")
-        if "attendance" in perms: tabs.addTab(AttendanceTab(current_user["id"],"manage_attendance" in perms),"Attendance")
-        if "shifts" in perms: tabs.addTab(ShiftsTab("manage_shifts" in perms),"Shifts")
-        if "payroll" in perms: tabs.addTab(PayrollTab(current_user,"manage_payroll" in perms),"Payroll")
+        layout.addLayout(cards); self.tabs=QTabWidget(); self.tab_pages={}; employee_tab=EmployeesTab("manage_employees" in perms); employee_tab.data_changed.connect(self.refresh_summary); self.tabs.addTab(employee_tab,"Employees");self.tab_pages["employees"]=employee_tab
+        if "attendance" in perms: page=AttendanceTab(current_user["id"],"manage_attendance" in perms);self.tabs.addTab(page,"Attendance");self.tab_pages["attendance"]=page
+        if "shifts" in perms: page=ShiftsTab("manage_shifts" in perms);self.tabs.addTab(page,"Shifts");self.tab_pages["shifts"]=page
+        if "payroll" in perms: page=PayrollTab(current_user,"manage_payroll" in perms);self.tabs.addTab(page,"Payroll");self.tab_pages["payroll"]=page
         from ui.employee_phase_two import LeaveTab, DocumentsTab, FinanceTab, PerformanceTab, CashSessionsTab
-        if "leave" in perms: tabs.addTab(LeaveTab(current_user["id"],"manage_leave" in perms),"Leave")
-        if "employee_documents" in perms: tabs.addTab(DocumentsTab("manage_employees" in perms),"Documents")
-        if "employee_finance" in perms: tabs.addTab(FinanceTab(current_user["id"],"manage_employee_finance" in perms),"Advances & Commission")
-        if "employee_performance" in perms: tabs.addTab(PerformanceTab(),"Performance")
-        if "cash_sessions" in perms: tabs.addTab(CashSessionsTab(current_user["id"],"manage_cash_sessions" in perms),"Cash Sessions")
-        tabs.currentChanged.connect(lambda _index:self.refresh_summary()); layout.addWidget(tabs)
+        if "leave" in perms: page=LeaveTab(current_user["id"],"manage_leave" in perms);self.tabs.addTab(page,"Leave");self.tab_pages["leave"]=page
+        if "employee_documents" in perms: page=DocumentsTab("manage_employees" in perms);self.tabs.addTab(page,"Documents");self.tab_pages["documents"]=page
+        if "employee_finance" in perms: page=FinanceTab(current_user["id"],"manage_employee_finance" in perms);self.tabs.addTab(page,"Advances & Commission");self.tab_pages["finance"]=page
+        if "employee_performance" in perms: page=PerformanceTab();self.tabs.addTab(page,"Performance");self.tab_pages["performance"]=page
+        if "cash_sessions" in perms: page=CashSessionsTab(current_user["id"],"manage_cash_sessions" in perms);self.tabs.addTab(page,"Cash Sessions");self.tab_pages["cash_sessions"]=page
+        self.tabs.currentChanged.connect(lambda _index:self.refresh_summary()); layout.addWidget(self.tabs)
+
+    def apply_ai_filters(self,tab_name,filters=None):
+        """Select an authorized tab and apply read-only filters from AI Chat."""
+        page=self.tab_pages.get(tab_name)
+        if page is None:return False
+        self.tabs.setCurrentWidget(page);filters=filters or {};employee=filters.get("employee") or ""
+        if employee and hasattr(page,"search"):page.search.set_text(str(employee))
+        start=filters.get("start_date");end=filters.get("end_date") or start
+        if start and hasattr(page,"date_range"):page.date_range.set_range(str(start),str(end))
+        if tab_name=="payroll" and start:page.period.setText(str(start)[:7])
+        status=filters.get("status")
+        if status:
+            combo=getattr(page,"category",None) if tab_name in ("attendance","payroll","finance","cash_sessions") else getattr(page,"filter",None)
+            self._set_combo_text(combo,status)
+        issue=filters.get("issue")
+        if issue and hasattr(page,"issue"):self._set_combo_text(page.issue,issue)
+        if hasattr(page,"refresh"):page.refresh()
+        return True
+
+    @staticmethod
+    def _set_combo_text(combo,text):
+        if combo is None:return
+        index=combo.findText(str(text))
+        if index>=0:combo.setCurrentIndex(index)
 
     def refresh_summary(self):
         summary=service.employee_summary()

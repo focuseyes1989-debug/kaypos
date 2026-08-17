@@ -81,7 +81,7 @@ class AITroubleshooter:
             'solutions': solutions,
             'steps': steps,
             'severity': 'critical',
-            'quick_fix': cls._restart_print_spooler()
+            'quick_fix': "ℹ️ Restart Print Spooler manually only after confirming no print job is still being processed."
         }
     
     @classmethod
@@ -227,12 +227,5 @@ class AITroubleshooter:
     
     @staticmethod
     def _restart_print_spooler() -> str:
-        """Attempt to restart print spooler automatically"""
-        try:
-            if platform.system() == "Windows":
-                os.system('net stop spooler && net start spooler')
-                return "✅ Print Spooler restarted successfully"
-            else:
-                return "ℹ️ Please restart Print Spooler manually"
-        except Exception as e:
-            return f"❌ Could not restart Print Spooler: {str(e)}"
+        """Return guidance without changing operating-system services."""
+        return "ℹ️ Please restart Print Spooler manually if you are authorized to do so."

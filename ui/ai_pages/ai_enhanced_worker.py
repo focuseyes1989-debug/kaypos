@@ -12,7 +12,6 @@ from ui.ai_pages.ai_nlp_processor import NLProcessor
 from ui.ai_pages.ai_bilingual_terms import QueryLexicon
 from ui.ai_pages.ai_query_handlers import QueryHandlers
 from ui.ai_pages.ai_response_templates import ResponseTemplates
-from ui.ai_pages.ai_error_handler import AIErrorHandler
 from ui.ai_pages.ai_analytics import AIAnalytics
 from ui.ai_pages.ai_cache import _query_cache
 
@@ -22,6 +21,9 @@ from ui.ai_pages.ai_troubleshooter import AITroubleshooter
 from ui.ai_pages.ai_settings_assistant import AISettingsAssistant
 from ui.ai_pages.ai_employee_queries import EmployeeQueryHandler
 from ui.ai_pages.ai_usage_guide import ProjectUsageGuide
+from ui.ai_pages.ai_error_diagnostics import AIErrorDiagnostics
+from ui.ai_pages.ai_natural_language import AINaturalLanguagePlanner, AIInsightHandler
+from ui.ai_pages.ai_burmese_normalizer import AIBurmeseNormalizer
 
 
 class EnhancedQueryWorker(QThread):
@@ -32,7 +34,7 @@ class EnhancedQueryWorker(QThread):
     
     def __init__(self, query: str, user_id: str = None):
         super().__init__()
-        self.query = query
+        self.query = AIBurmeseNormalizer.normalize(query)
         self.user_id = user_id
         self._is_running = True
         
@@ -58,11 +60,26 @@ class EnhancedQueryWorker(QThread):
         try:
             self.progress.emit(10)
 
+            diagnostic_result = AIErrorDiagnostics.handle(self.query)
+            if diagnostic_result is not None:
+                self.progress.emit(100)
+                result = diagnostic_result
+                intent_result = {'intent': 'diagnostic', 'entities': {}}
+                return
+
             usage_result = ProjectUsageGuide.handle(self.query)
             if usage_result is not None:
                 self.progress.emit(100)
                 result = usage_result
                 intent_result = {'intent': 'usage_guide', 'entities': {}}
+                return
+
+            insight_plan=AINaturalLanguagePlanner.plan(self.query)
+            if insight_plan is not None:
+                self.progress.emit(40)
+                result=AIInsightHandler.handle(insight_plan,self.query,self.user_id)
+                self.progress.emit(100)
+                intent_result={'intent': insight_plan.get('intent','insight'), 'entities': {}}
                 return
 
             project_result = self._check_project_query()
@@ -264,14 +281,15 @@ class EnhancedQueryWorker(QThread):
             
         except Exception as e:
             success = False
-            error_msg = AIErrorHandler.handle_query_error(self.query, e)
+            diagnostic=AIErrorDiagnostics.diagnose(str(e))
             result = {
-                'type': 'error',
+                'type': 'diagnostic',
                 'data': [],
-                'message': error_msg,
-                'sql': ''
+                'message': AIErrorDiagnostics.format(diagnostic),
+                'sql': '',
+                'diagnostic': diagnostic,
             }
-            logger.error(f"Query error: {e}")
+            logger.error(f"Query error: {AIErrorDiagnostics.redact(e)}")
         
         finally:
             # Make sure result is not None before emitting
@@ -293,8 +311,9 @@ class EnhancedQueryWorker(QThread):
             # Log analytics (skip if already logged for debt query or new intent)
             if not is_debt_query and not is_new_intent:
                 response_time = (datetime.now() - start_time).total_seconds()
+                logged_query=AIErrorDiagnostics.redact(self.query) if result.get('type')=='diagnostic' else self.query
                 self.analytics.log_query(
-                    self.query,
+                    logged_query,
                     intent_result.get('intent', 'unknown'),
                     success,
                     response_time,

@@ -8,19 +8,23 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.widgets.modern_button import ModernButton
+from ui.ai_pages.ai_chat_visuals import AIResultVisual
 import os
 
 
 class CopyableMessageFrame(QFrame):
     """Frame with copy functionality for messages"""
     
-    def __init__(self, text, is_user=False, parent=None, timestamp=None, action_text=None, action_callback=None):
+    def __init__(self, text, is_user=False, parent=None, timestamp=None, action_text=None, action_callback=None, actions=None, visual_spec=None, utility_actions=None):
         super().__init__(parent)
         self._text = text
         self.is_user = is_user
         self.timestamp = timestamp
         self.action_text = action_text
         self.action_callback = action_callback
+        self.actions = list(actions or [])[:4]
+        self.visual_spec = visual_spec
+        self.utility_actions = list(utility_actions or [])[:4]
         self._setup_ui()
     
     def _setup_ui(self):
@@ -78,21 +82,40 @@ class CopyableMessageFrame(QFrame):
             """)
         layout.addWidget(self.text_label)
 
+        if not self.is_user and self.visual_spec:
+            self.result_visual=AIResultVisual(self.visual_spec,self)
+            layout.addWidget(self.result_visual)
+
+        if not self.is_user and self.utility_actions:
+            utility_row=QHBoxLayout();utility_row.setContentsMargins(0,2,0,0);utility_row.setSpacing(6)
+            utility_row.addWidget(QLabel("Result:"))
+            for label,callback in self.utility_actions:
+                button=ModernButton(str(label),ModernButton.TERTIARY);button.set_compact(True);button.setFixedHeight(28)
+                button.setCursor(Qt.CursorShape.PointingHandCursor);button.clicked.connect(callback);utility_row.addWidget(button)
+            utility_row.addStretch();layout.addLayout(utility_row)
+
         footer_layout = QHBoxLayout()
         footer_layout.setContentsMargins(0, 0, 0, 0)
         footer_layout.setSpacing(8)
         footer_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         has_footer = False
 
-        if not self.is_user and self.action_text and self.action_callback:
-            action_btn = ModernButton(self.action_text, ModernButton.SECONDARY)
-            action_btn.setCheckable(False)
-            action_btn.setAutoExclusive(False)
-            action_btn.setFixedHeight(30)
-            action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            action_btn.clicked.connect(self.action_callback)
-            footer_layout.addWidget(action_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
-            has_footer = True
+        available_actions=list(self.actions)
+        if self.action_text and self.action_callback:
+            available_actions.insert(0,(self.action_text,self.action_callback))
+        if not self.is_user:
+            for action in available_actions[:4]:
+                if isinstance(action,dict):
+                    label,callback=action.get("label"),action.get("callback")
+                else:
+                    label,callback=action
+                if not label or not callback:
+                    continue
+                action_btn=ModernButton(str(label),ModernButton.SECONDARY)
+                action_btn.setCheckable(False);action_btn.setAutoExclusive(False);action_btn.setFixedHeight(30)
+                action_btn.setCursor(Qt.CursorShape.PointingHandCursor);action_btn.clicked.connect(callback)
+                footer_layout.addWidget(action_btn,alignment=Qt.AlignmentFlag.AlignVCenter)
+                has_footer=True
 
         footer_layout.addStretch()
 
@@ -262,6 +285,8 @@ class CopyableMessageFrame(QFrame):
 
         for button in self.findChildren(ModernButton):
             button.update_theme()
+        if hasattr(self,"result_visual"):
+            self.result_visual.update_theme()
     
     def get_text(self):
         return self._text

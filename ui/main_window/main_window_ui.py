@@ -359,7 +359,9 @@ class MainWindowUI(QMainWindow):
     def _build_ai_pages_page(self) -> QWidget:
         """Build AI Pages page"""
         from ui.ai_pages import AIPagesPage
-        return AIPagesPage(current_user=self.current_user)
+        page=AIPagesPage(current_user=self.current_user)
+        page.chat_room.navigation_requested.connect(self.handle_ai_navigation)
+        return page
     
     def _build_inventory_page(self) -> QWidget:
         from ui.inventory_page import InventoryPage
@@ -439,6 +441,29 @@ class MainWindowUI(QMainWindow):
             
             lazy_widget.page_loaded.connect(on_page_loaded)
             logger.info(f"Started lazy loading page: {index} - {self._page_names.get(index, 'Unknown')}")
+
+    def handle_ai_navigation(self,request: Dict[str,Any]) -> None:
+        """Open an authorized page and apply safe, read-only AI filters."""
+        page_indices={"dashboard":0,"sales_summary":1,"products":2,"inventory":3,"receipts":4,"sales":5,"customers":6,"expense":7,"ai_pages":8,"employees":11}
+        page_name=str((request or {}).get("page") or "");index=page_indices.get(page_name)
+        if index is None:return
+        if index not in self._get_allowed_pages_for_role(self.current_user["id"]):
+            logger.warning(f"AI navigation denied for page: {page_name}");return
+        if page_name=="employees":
+            permission={"employees":"employees","attendance":"attendance","shifts":"shifts","payroll":"payroll","leave":"leave","documents":"employee_documents","finance":"employee_finance","performance":"employee_performance","cash_sessions":"cash_sessions"}.get(request.get("tab"),"employees")
+            if permission not in PermissionManager.get_user_permissions(self.current_user["id"]):
+                logger.warning(f"AI navigation denied for employee tab: {request.get('tab')}");return
+        self.switch_to_page(index)
+
+        def apply_filters(attempt=0):
+            widget=self._page_widgets.get(index)
+            if widget is None:
+                if attempt<40:QTimer.singleShot(50,lambda:apply_filters(attempt+1))
+                return
+            if page_name=="employees" and hasattr(widget,"apply_ai_filters"):
+                widget.apply_ai_filters(request.get("tab") or "employees",request.get("filters") or {})
+            if self.statusBar():self.statusBar().showMessage(f"Opened {self._page_names.get(index,page_name)} from AI Chat",4000)
+        apply_filters()
     
     def _update_sidebar_buttons(self, index: int) -> None:
         """Update sidebar button selection state"""
