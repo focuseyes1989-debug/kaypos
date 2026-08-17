@@ -18,6 +18,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.search_widget import ModernSearchWidget
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.date_range_widget import DateRangeWidget
+from ui.design_system.icon import load_svg_icon
 
 
 def _button(text, slot, primary=False):
@@ -120,9 +121,10 @@ class EmployeesTab(QWidget):
         self.table=_table(["Profile","Employee ID","Name","Position","Phone","Branch","POS Account","Status"]); self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); self.table.doubleClicked.connect(self.edit); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.search.search_changed.connect(lambda _text:self.refresh()); self.status.currentTextChanged.connect(lambda _status:self.refresh());self.position.currentTextChanged.connect(lambda _text:self.refresh());self.department.currentTextChanged.connect(lambda _text:self.refresh());self.branch.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
         rows=service.list_employees(self.search.get_text(),self.status.currentText());position=self.position.currentText();department=self.department.currentText();branch=self.branch.currentText();self.rows=[x for x in rows if (position=="All Positions" or str(x.get('position') or '')==position) and (department=="All Departments" or str(x.get('department') or '')==department) and (branch=="All Branches" or str(x.get('branch') or '')==branch)]; self.table.setRowCount(len(self.rows))
+        person_icon=load_svg_icon("person",38,"#7f8c8d")
         for r,item in enumerate(self.rows):
             self.table.setRowHeight(r,58);photo=QLabel();photo.setAlignment(Qt.AlignmentFlag.AlignCenter);pixmap=_photo_pixmap(_employee_photo_data(item),50)
-            if pixmap.isNull():photo.setText("👤")
+            if pixmap.isNull() and person_icon is not None:photo.setPixmap(person_icon)
             else:photo.setPixmap(pixmap)
             self.table.setCellWidget(r,0,photo)
             for c,key in enumerate(("employee_no","full_name","position","phone","branch","username","employment_status"),1): self.table.setItem(r,c,QTableWidgetItem(str(item.get(key) or "")))

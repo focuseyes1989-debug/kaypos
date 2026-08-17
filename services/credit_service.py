@@ -447,7 +447,7 @@ class CreditService:
                   AND status NOT IN ('paid', 'refunded')
                   AND COALESCE(balance_amount, 0) > 0
                 ORDER BY
-                  COALESCE(due_date, sale_date, created_at) ASC,
+                  COALESCE(NULLIF(due_date, ''), NULLIF(sale_date, ''), CAST(created_at AS TEXT)) ASC,
                   id ASC
             """, (customer_id,))
             invoices = cursor.fetchall()
