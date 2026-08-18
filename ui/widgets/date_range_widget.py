@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame, QGridLayout, QButtonGroup,
                              QDialog, QApplication, QSizePolicy, QComboBox)
 from PyQt6.QtCore import pyqtSignal, QDate, Qt
-from PyQt6.QtGui import QFont, QMouseEvent
+from PyQt6.QtGui import QFont, QIntValidator, QMouseEvent
 
 from ui.themes import theme_manager, get_theme_colors, is_dark_theme, get_current_theme
 from ui.widgets.modern_button import ModernButton
@@ -348,10 +348,20 @@ class DatePickerDialog(QDialog):
         # Year ComboBox
         self.year_combo = QComboBox()
         current_year = QDate.currentDate().year()
-        for year in range(current_year - 10, current_year + 11):
+        # Keep a useful DOB history in the dropdown while also allowing any
+        # QDate-supported year to be typed directly.
+        for year in range(current_year - 100, current_year + 11):
             self.year_combo.addItem(str(year))
+        self.year_combo.setEditable(True)
+        self.year_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.year_combo.lineEdit().setValidator(QIntValidator(1, 9999, self.year_combo))
+        self.year_combo.lineEdit().setPlaceholderText("Year")
+        self.year_combo.lineEdit().setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.year_combo.setCurrentText(str(current_year))
-        self.year_combo.currentTextChanged.connect(self._on_year_changed)
+        self.year_combo.textActivated.connect(self._on_year_changed)
+        self.year_combo.lineEdit().editingFinished.connect(
+            lambda: self._on_year_changed(self.year_combo.currentText())
+        )
         
         self.btn_prev_month.clicked.connect(self._prev_month)
         self.btn_next_month.clicked.connect(self._next_month)
@@ -444,11 +454,16 @@ class DatePickerDialog(QDialog):
     
     def _on_year_changed(self, year_text):
         """Handle year combo box change"""
-        if year_text:
-            new_year = int(year_text)
-            if new_year != self.current_month.year():
-                self.current_month = QDate(new_year, self.current_month.month(), 1)
-                self._update_calendar()
+        text = str(year_text or "").strip()
+        if not text.isdigit():
+            return
+        new_year = int(text)
+        if not 1 <= new_year <= 9999 or new_year == self.current_month.year():
+            return
+        candidate = QDate(new_year, self.current_month.month(), 1)
+        if candidate.isValid():
+            self.current_month = candidate
+            self._update_calendar()
     
     def _set_quick_range(self, range_type):
         """Handle quick range button clicks"""
@@ -487,7 +502,7 @@ class DatePickerDialog(QDialog):
         self.month_combo.blockSignals(False)
         
         self.year_combo.blockSignals(True)
-        self.year_combo.setCurrentText(str(self.current_month.year()))
+        self.year_combo.setEditText(str(self.current_month.year()))
         self.year_combo.blockSignals(False)
         
         first_day = QDate(self.current_month.year(), self.current_month.month(), 1)

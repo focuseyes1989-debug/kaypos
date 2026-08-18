@@ -8,7 +8,7 @@ from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QDoubleSpinBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QFileDialog, QMessageBox, QPushButton, QSpinBox, QTabWidget, QTableWidget,
+    QFileDialog, QGroupBox, QMessageBox, QPushButton, QSpinBox, QTabWidget, QTableWidget,
     QTableWidgetItem, QTextEdit, QTimeEdit, QVBoxLayout, QWidget,
 )
 
@@ -79,23 +79,87 @@ def _employee_photo_data(employee):
 
 class EmployeeDialog(QDialog):
     def __init__(self, employee=None, parent=None):
-        super().__init__(parent); self.employee = employee or {}; self.setWindowTitle("Employee Profile"); self.resize(560, 650)
-        form = QFormLayout(); self.fields = {}
-        for key, label in (("employee_no","Employee ID *"),("full_name","Full name *"),("zkteco_user_id","ZKTeco User ID"),("phone","Phone"),("national_id","National ID"),("position","Position"),("department","Department"),("branch","Branch"),("emergency_contact_name","Emergency contact"),("emergency_contact_phone","Emergency phone")):
-            field=QLineEdit(str(self.employee.get(key) or "")); self.fields[key]=field; form.addRow(label,field)
+        super().__init__(parent)
+        self.employee = employee or {}
+        self.setWindowTitle("Employee Profile")
+        self.resize(900, 620)
+        self.setMinimumSize(760, 560)
+
+        left_group = QGroupBox("Personal & Work Information")
+        left_form = QFormLayout(left_group)
+        left_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        left_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        right_group = QGroupBox("Employment & Contact Information")
+        right_form = QFormLayout(right_group)
+        right_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        right_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        self.fields = {}
+        field_definitions = (
+            ("employee_no", "Employee ID *", left_form),
+            ("full_name", "Full name *", left_form),
+            ("zkteco_user_id", "ZKTeco User ID", left_form),
+            ("phone", "Phone", left_form),
+            ("national_id", "National ID", left_form),
+            ("position", "Position", left_form),
+            ("department", "Department", left_form),
+            ("branch", "Branch", right_form),
+            ("emergency_contact_name", "Emergency contact", right_form),
+            ("emergency_contact_phone", "Emergency phone", right_form),
+        )
+        for key, label, target_form in field_definitions:
+            field = QLineEdit(str(self.employee.get(key) or ""))
+            self.fields[key] = field
+            target_form.addRow(label, field)
         if not self.fields["employee_no"].text(): self.fields["employee_no"].setText(service.next_number("EMP","employees"))
         self.hire=DateRangeWidget(); self.hire.set_range(self.employee.get("hire_date") or QDate.currentDate().toString("yyyy-MM-dd"))
-        form.addRow("Hire date *",self.hire)
-        self.has_dob=QCheckBox("Set date of birth"); self.has_dob.setChecked(bool(self.employee.get("date_of_birth"))); self.dob=DateRangeWidget(); self.dob.set_range(self.employee.get("date_of_birth") or QDate.currentDate().toString("yyyy-MM-dd")); self.dob.setEnabled(self.has_dob.isChecked()); self.has_dob.toggled.connect(self.dob.setEnabled); dob_row=QVBoxLayout(); dob_row.addWidget(self.has_dob); dob_row.addWidget(self.dob); form.addRow("Date of birth",dob_row)
-        self.status=QComboBox(); self.status.addItems(["Active","On Leave","Resigned"]); self.status.setCurrentText(self.employee.get("employment_status") or "Active"); form.addRow("Status",self.status)
+        right_form.addRow("Hire date *",self.hire)
+        self.has_dob=QCheckBox("Set date of birth"); self.has_dob.setChecked(bool(self.employee.get("date_of_birth"))); self.dob=DateRangeWidget(); self.dob.set_range(self.employee.get("date_of_birth") or QDate.currentDate().toString("yyyy-MM-dd")); self.dob.setEnabled(self.has_dob.isChecked()); self.has_dob.toggled.connect(self.dob.setEnabled); dob_row=QVBoxLayout(); dob_row.setContentsMargins(0,0,0,0); dob_row.addWidget(self.has_dob); dob_row.addWidget(self.dob); right_form.addRow("Date of birth",dob_row)
+        self.status=QComboBox(); self.status.addItems(["Active","On Leave","Resigned"]); self.status.setCurrentText(self.employee.get("employment_status") or "Active"); right_form.addRow("Status",self.status)
         self.user=QComboBox(); self.user.addItem("No POS account",None)
         for uid, username, full_name in service.list_users(): self.user.addItem(f"{username} — {full_name or ''}",uid)
-        linked=self.employee.get("user_id"); idx=self.user.findData(linked); self.user.setCurrentIndex(max(0,idx)); form.addRow("POS account",self.user)
-        self.photo_data=_employee_photo_data(self.employee);self.photo_preview=QLabel();self.photo_preview.setFixedSize(84,84);self.photo_preview.setAlignment(Qt.AlignmentFlag.AlignCenter);self.photo_preview.setStyleSheet("border: 1px solid #9aa0a6; border-radius: 8px;");self.photo=QLineEdit(self.employee.get("photo_path") or "");self.photo.setReadOnly(True);photo_buttons=QHBoxLayout();photo_buttons.addWidget(self.photo,1);photo_buttons.addWidget(_button("Browse...",self.choose_photo));photo_buttons.addWidget(_button("Remove",self.remove_photo));photo_box=QVBoxLayout();photo_box.addWidget(self.photo_preview);photo_box.addLayout(photo_buttons);form.addRow("Photo",photo_box);self.update_photo_preview()
-        self.address=QTextEdit(self.employee.get("address") or ""); self.address.setMaximumHeight(70); form.addRow("Address",self.address)
-        self.notes=QTextEdit(self.employee.get("notes") or ""); self.notes.setMaximumHeight(70); form.addRow("Notes",self.notes)
+        linked=self.employee.get("user_id"); idx=self.user.findData(linked); self.user.setCurrentIndex(max(0,idx)); right_form.addRow("POS account",self.user)
+        self.photo_data = _employee_photo_data(self.employee)
+        self.photo_preview = QLabel()
+        self.photo_preview.setFixedSize(84, 84)
+        self.photo_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.photo_preview.setStyleSheet("border: 1px solid #9aa0a6; border-radius: 8px;")
+        self.photo = QLineEdit(self.employee.get("photo_path") or "")
+        self.photo.setReadOnly(True)
+        self.photo.setPlaceholderText("No photo selected")
+
+        browse_button = _button("Browse...", self.choose_photo)
+        remove_button = _button("Remove", self.remove_photo)
+        browse_button.setMinimumWidth(96)
+        remove_button.setMinimumWidth(88)
+
+        photo_actions = QHBoxLayout()
+        photo_actions.setContentsMargins(0, 0, 0, 0)
+        photo_actions.setSpacing(6)
+        photo_actions.addWidget(browse_button)
+        photo_actions.addWidget(remove_button)
+        photo_actions.addStretch()
+
+        photo_controls = QVBoxLayout()
+        photo_controls.setContentsMargins(0, 0, 0, 0)
+        photo_controls.setSpacing(7)
+        photo_controls.addWidget(self.photo)
+        photo_controls.addLayout(photo_actions)
+        photo_controls.addStretch()
+
+        photo_box = QHBoxLayout()
+        photo_box.setContentsMargins(0, 2, 0, 2)
+        photo_box.setSpacing(10)
+        photo_box.addWidget(self.photo_preview, 0, Qt.AlignmentFlag.AlignTop)
+        photo_box.addLayout(photo_controls, 1)
+        right_form.addRow("Photo", photo_box)
+        self.update_photo_preview()
+        self.address=QTextEdit(self.employee.get("address") or ""); self.address.setMaximumHeight(82); left_form.addRow("Address",self.address)
+        self.notes=QTextEdit(self.employee.get("notes") or ""); self.notes.setMaximumHeight(82); right_form.addRow("Notes",self.notes)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(self.accept); buttons.rejected.connect(self.reject)
-        layout=QVBoxLayout(self); layout.addLayout(form); layout.addWidget(buttons)
+        columns=QHBoxLayout(); columns.setSpacing(14); columns.addWidget(left_group,1); columns.addWidget(right_group,1)
+        layout=QVBoxLayout(self); layout.setContentsMargins(14,14,14,12); layout.setSpacing(12); layout.addLayout(columns,1); layout.addWidget(buttons)
     def accept(self):
         if not self.fields["employee_no"].text().strip() or not self.fields["full_name"].text().strip(): QMessageBox.warning(self,"Required","Employee ID and full name are required."); return
         super().accept()
