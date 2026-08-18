@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QCheckBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -506,6 +507,14 @@ class ServerManagerWindow(QMainWindow):
         ))
         self.car_server_status = self._status_chip("Car server status: stopped")
         car_layout.addWidget(self.car_server_status)
+        car_actions = QHBoxLayout()
+        self.import_car_database_button = QPushButton("Import Legacy Database")
+        self.import_car_database_button.clicked.connect(self.import_car_database)
+        car_actions.addWidget(self.import_car_database_button)
+        car_actions.addStretch()
+        car_layout.addLayout(car_actions)
+        self.car_import_status = self._status_chip("Car database import: not started")
+        car_layout.addWidget(self.car_import_status)
 
         pg_box = QGroupBox("PostgreSQL Windows Service")
         pg_layout = QVBoxLayout(pg_box)
@@ -1003,6 +1012,82 @@ class ServerManagerWindow(QMainWindow):
     def restart_pos_server(self) -> None:
         self.stop_pos_server()
         self.start_pos_server()
+
+    def import_car_database(self) -> None:
+        """Run the safe legacy SQLite-to-PostgreSQL car migration tool."""
+        process = getattr(self, "car_import_process", None)
+        if process and process.state() != QProcess.ProcessState.NotRunning:
+            QMessageBox.information(self, "Car Database Import", "A car database import is already running.")
+            return
+
+        source_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Legacy Car Management Database",
+            "",
+            "SQLite Database (*.db *.sqlite *.sqlite3);;All Files (*.*)",
+        )
+        if not source_path:
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Import Car Management Database",
+            (
+                f"Import records from:\n{source_path}\n\n"
+                "Records keep their original IDs. IDs already present in PostgreSQL are skipped, "
+                "and existing records are not overwritten. Continue?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.car_import_process = QProcess(self)
+        self.car_import_process.setWorkingDirectory(str(PROJECT_ROOT))
+        self.car_import_process.setProgram(sys.executable)
+        self.car_import_process.setArguments([
+            "tools/migrate_car_sqlite.py",
+            source_path,
+        ])
+        self.car_import_process.readyReadStandardOutput.connect(self._read_car_import_stdout)
+        self.car_import_process.readyReadStandardError.connect(self._read_car_import_stderr)
+        self.car_import_process.finished.connect(self._car_import_finished)
+        self.import_car_database_button.setEnabled(False)
+        self._set_chip(self.car_import_status, "Car database import: running...", "warn")
+        self.append_server_output(f"Importing legacy Car Management database: {source_path}")
+        self.car_import_process.start()
+
+    def _read_car_import_stdout(self) -> None:
+        if not getattr(self, "car_import_process", None):
+            return
+        data = bytes(self.car_import_process.readAllStandardOutput()).decode(errors="ignore")
+        if data:
+            self.append_server_output(data)
+
+    def _read_car_import_stderr(self) -> None:
+        if not getattr(self, "car_import_process", None):
+            return
+        data = bytes(self.car_import_process.readAllStandardError()).decode(errors="ignore")
+        if data:
+            self.append_server_output(data)
+
+    def _car_import_finished(self, exit_code: int, _status) -> None:
+        self.import_car_database_button.setEnabled(True)
+        if exit_code == 0:
+            self._set_chip(self.car_import_status, "Car database import: completed", "ok")
+            QMessageBox.information(
+                self,
+                "Car Database Import",
+                "Import completed. Restart the POS Server, then refresh the Car Management client.",
+            )
+        else:
+            self._set_chip(self.car_import_status, "Car database import: failed", "bad")
+            QMessageBox.critical(
+                self,
+                "Car Database Import",
+                "Import failed. Check the Server Output panel for details.",
+            )
 
     def _read_server_stdout(self) -> None:
         if not self.server_process:
