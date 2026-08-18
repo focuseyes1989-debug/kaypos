@@ -52,7 +52,9 @@ def _as_bytes(value):
 
 def _photo_pixmap(photo_data, size):
     pixmap=QPixmap();data=_as_bytes(photo_data)
-    if not data or not pixmap.loadFromData(data,"PNG"):return QPixmap()
+    # Let Qt detect the encoded format. New photos are PNG, while older
+    # databases can contain JPEG/WebP bytes.
+    if not data or not pixmap.loadFromData(data):return QPixmap()
     scaled=pixmap.scaled(size,size,Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
     x=max(0,(scaled.width()-size)//2);y=max(0,(scaled.height()-size)//2)
     return scaled.copy(x,y,size,size)
@@ -187,7 +189,17 @@ class EmployeesTab(QWidget):
         rows=service.list_employees(self.search.get_text(),self.status.currentText());position=self.position.currentText();department=self.department.currentText();branch=self.branch.currentText();self.rows=[x for x in rows if (position=="All Positions" or str(x.get('position') or '')==position) and (department=="All Departments" or str(x.get('department') or '')==department) and (branch=="All Branches" or str(x.get('branch') or '')==branch)]; self.table.setRowCount(len(self.rows))
         person_icon=load_svg_icon("person",38,"#7f8c8d")
         for r,item in enumerate(self.rows):
-            self.table.setRowHeight(r,58);photo=QLabel();photo.setAlignment(Qt.AlignmentFlag.AlignCenter);pixmap=_photo_pixmap(_employee_photo_data(item),50)
+            photo_data=_employee_photo_data(item)
+            # Older versions stored only a path on the upload PC. The first
+            # time that PC can still read the file, migrate it into the shared
+            # database automatically for all other clients.
+            if photo_data and not _as_bytes(item.get("photo_data")):
+                try:
+                    service.save_employee_photo_data(item["id"], photo_data)
+                    item["photo_data"] = photo_data
+                except Exception:
+                    pass
+            self.table.setRowHeight(r,58);photo=QLabel();photo.setAlignment(Qt.AlignmentFlag.AlignCenter);pixmap=_photo_pixmap(photo_data,50)
             if pixmap.isNull() and person_icon is not None:photo.setPixmap(person_icon)
             else:photo.setPixmap(pixmap)
             self.table.setCellWidget(r,0,photo)

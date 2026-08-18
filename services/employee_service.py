@@ -160,6 +160,25 @@ def list_employees(search: str = "", status: str = "All") -> list[Dict[str, Any]
     cur.execute(sql + " ORDER BY e.id DESC", params); result = _rows(cur); conn.close(); return result
 
 
+def save_employee_photo_data(employee_id: int, photo_data: bytes) -> None:
+    """Persist a legacy local employee photo so every database client can render it."""
+    if not photo_data:
+        return
+    conn = connect_db(); cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE employees SET photo_data=?, updated_at=CURRENT_TIMESTAMP "
+            "WHERE id=? AND photo_data IS NULL",
+            (photo_data, employee_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def save_employee(data: Dict[str, Any], employee_id: Optional[int] = None) -> int:
     conn = connect_db(); cur = conn.cursor()
     fields = ["employee_no","user_id","full_name","phone","address","date_of_birth","national_id","photo_path","photo_data","hire_date","position","department","branch","employment_status","emergency_contact_name","emergency_contact_phone","notes","zkteco_user_id"]

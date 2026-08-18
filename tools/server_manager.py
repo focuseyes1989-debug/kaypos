@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -1020,7 +1020,7 @@ class ServerManagerWindow(QMainWindow):
         process_environment.insert("ZAY_CAR_SERVER_PORT", str(car_port))
         self.server_process.setProcessEnvironment(process_environment)
         args = [
-            "run_pos_server.py",
+            "--run-pos-server" if getattr(sys, "frozen", False) else "run_pos_server.py",
             "--host",
             bind_host,
             "--port",
@@ -1132,12 +1132,12 @@ class ServerManagerWindow(QMainWindow):
         try:
             startup_path = auto_start_file_path()
             startup_path.parent.mkdir(parents=True, exist_ok=True)
-            launcher_path = PROJECT_ROOT / "server_manager.py"
-            content = (
-                "@echo off\r\n"
-                f'cd /d "{PROJECT_ROOT}"\r\n'
-                f'start "" /min "{sys.executable}" "{launcher_path}" --auto-start --minimized\r\n'
-            )
+            if getattr(sys, "frozen", False):
+                launch_command = f'start "" /min "{sys.executable}" --auto-start --minimized'
+            else:
+                launcher_path = PROJECT_ROOT / "server_manager.py"
+                launch_command = f'start "" /min "{sys.executable}" "{launcher_path}" --auto-start --minimized'
+            content = "@echo off\r\n" f'cd /d "{PROJECT_ROOT}"\r\n' f"{launch_command}\r\n"
             startup_path.write_text(content, encoding="utf-8")
             self._update_auto_start_status()
             QMessageBox.information(
@@ -1204,7 +1204,7 @@ class ServerManagerWindow(QMainWindow):
         self.car_import_process.setWorkingDirectory(str(PROJECT_ROOT))
         self.car_import_process.setProgram(sys.executable)
         self.car_import_process.setArguments([
-            "tools/migrate_car_sqlite.py",
+            "--migrate-car-sqlite" if getattr(sys, "frozen", False) else "tools/migrate_car_sqlite.py",
             source_path,
         ])
         self.car_import_process.readyReadStandardOutput.connect(self._read_car_import_stdout)
@@ -1408,13 +1408,28 @@ class ServerManagerWindow(QMainWindow):
 
 
 def main() -> int:
+    if "--run-pos-server" in sys.argv:
+        sys.argv.remove("--run-pos-server")
+        from run_pos_server import main as run_pos_server
+
+        run_pos_server()
+        return 0
+    if "--migrate-car-sqlite" in sys.argv:
+        sys.argv.remove("--migrate-car-sqlite")
+        from tools.migrate_car_sqlite import main as migrate_car_sqlite
+
+        migrate_car_sqlite()
+        return 0
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--auto-start", action="store_true")
+    parser.add_argument("--no-auto-start", action="store_true")
     parser.add_argument("--minimized", action="store_true")
     args, qt_args = parser.parse_known_args(sys.argv[1:])
     app = QApplication([sys.argv[0], *qt_args])
     app.setQuitOnLastWindowClosed(False)
-    window = ServerManagerWindow(auto_start=True if args.auto_start else None)
+    auto_start = False if args.no_auto_start else (True if args.auto_start else None)
+    window = ServerManagerWindow(auto_start=auto_start)
     if args.minimized:
         window.showMinimized()
     else:
