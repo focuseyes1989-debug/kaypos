@@ -6,6 +6,7 @@ operations separate from the cashier/client app.
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import socket
@@ -59,6 +60,12 @@ from utils.product_image_store import save_product_image_blob
 
 POSTGRES_INSTALLER_URL = "https://www.enterprisedb.com/downloads/postgres-postgresql-downloads"
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+AUTO_START_FILE_NAME = "KayPOSServerManager.cmd"
+
+
+def auto_start_file_path() -> Path:
+    appdata = Path(os.getenv("APPDATA") or Path.home() / "AppData" / "Roaming")
+    return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / AUTO_START_FILE_NAME
 
 
 def local_ip() -> str:
@@ -89,7 +96,7 @@ def can_bind_port(host: str, port: int) -> bool:
 
 
 class ServerManagerWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, auto_start=False) -> None:
         super().__init__()
         self.setWindowTitle("Kay POS Server Manager")
         self.resize(1080, 720)
@@ -103,6 +110,9 @@ class ServerManagerWindow(QMainWindow):
         self._build_ui()
         self._load_config()
         self._refresh_all()
+
+        if auto_start:
+            QTimer.singleShot(1800, self._auto_start_services)
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self._refresh_all)
@@ -516,6 +526,24 @@ class ServerManagerWindow(QMainWindow):
         self.car_import_status = self._status_chip("Car database import: not started")
         car_layout.addWidget(self.car_import_status)
 
+        startup_box = QGroupBox("Windows Auto Start")
+        startup_layout = QVBoxLayout(startup_box)
+        startup_layout.addWidget(self._note(
+            "After Windows login, open Server Manager minimized and automatically start the POS and Car services. "
+            "The PostgreSQL Windows service should be configured as Automatic."
+        ))
+        startup_actions = QHBoxLayout()
+        self.enable_auto_start_button = QPushButton("Enable Auto Start")
+        self.disable_auto_start_button = QPushButton("Disable Auto Start")
+        self.enable_auto_start_button.clicked.connect(self.enable_windows_auto_start)
+        self.disable_auto_start_button.clicked.connect(self.disable_windows_auto_start)
+        startup_actions.addWidget(self.enable_auto_start_button)
+        startup_actions.addWidget(self.disable_auto_start_button)
+        startup_actions.addStretch()
+        startup_layout.addLayout(startup_actions)
+        self.auto_start_status = self._status_chip("Windows auto start: not checked")
+        startup_layout.addWidget(self.auto_start_status)
+
         pg_box = QGroupBox("PostgreSQL Windows Service")
         pg_layout = QVBoxLayout(pg_box)
         pg_form = QFormLayout()
@@ -541,6 +569,7 @@ class ServerManagerWindow(QMainWindow):
 
         layout.addWidget(pos_box)
         layout.addWidget(car_box)
+        layout.addWidget(startup_box)
         layout.addWidget(pg_box)
         layout.addWidget(self.server_output, 1)
         return page
@@ -1013,6 +1042,56 @@ class ServerManagerWindow(QMainWindow):
         self.stop_pos_server()
         self.start_pos_server()
 
+    def _auto_start_services(self) -> None:
+        """Start the integrated services after a Windows-login launch."""
+        if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
+            return
+        self.append_server_output("Windows auto start requested POS and Car services.")
+        self.start_pos_server()
+
+    def enable_windows_auto_start(self) -> None:
+        """Install a per-user Windows Startup launcher without requiring admin rights."""
+        try:
+            startup_path = auto_start_file_path()
+            startup_path.parent.mkdir(parents=True, exist_ok=True)
+            launcher_path = PROJECT_ROOT / "server_manager.py"
+            content = (
+                "@echo off\r\n"
+                f'cd /d "{PROJECT_ROOT}"\r\n'
+                f'start "" /min "{sys.executable}" "{launcher_path}" --auto-start --minimized\r\n'
+            )
+            startup_path.write_text(content, encoding="utf-8")
+            self._update_auto_start_status()
+            QMessageBox.information(
+                self,
+                "Windows Auto Start",
+                "Auto start enabled. POS and Car services will start after the next Windows login.",
+            )
+        except OSError as exc:
+            self._set_chip(self.auto_start_status, f"Windows auto start: failed ({exc})", "bad")
+            QMessageBox.critical(self, "Windows Auto Start", f"Could not enable auto start:\n{exc}")
+
+    def disable_windows_auto_start(self) -> None:
+        try:
+            startup_path = auto_start_file_path()
+            if startup_path.exists():
+                startup_path.unlink()
+            self._update_auto_start_status()
+            QMessageBox.information(self, "Windows Auto Start", "Auto start disabled.")
+        except OSError as exc:
+            self._set_chip(self.auto_start_status, f"Windows auto start: failed ({exc})", "bad")
+            QMessageBox.critical(self, "Windows Auto Start", f"Could not disable auto start:\n{exc}")
+
+    def _update_auto_start_status(self) -> None:
+        enabled = auto_start_file_path().is_file()
+        self._set_chip(
+            self.auto_start_status,
+            "Windows auto start: enabled (after user login)" if enabled else "Windows auto start: disabled",
+            "ok" if enabled else "neutral",
+        )
+        self.enable_auto_start_button.setEnabled(not enabled)
+        self.disable_auto_start_button.setEnabled(enabled)
+
     def import_car_database(self) -> None:
         """Run the safe legacy SQLite-to-PostgreSQL car migration tool."""
         process = getattr(self, "car_import_process", None)
@@ -1231,6 +1310,7 @@ class ServerManagerWindow(QMainWindow):
                 "ok",
             )
         self._update_server_buttons()
+        self._update_auto_start_status()
 
     def closeEvent(self, event) -> None:
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
@@ -1245,7 +1325,14 @@ class ServerManagerWindow(QMainWindow):
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
-    window = ServerManagerWindow()
-    window.show()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--auto-start", action="store_true")
+    parser.add_argument("--minimized", action="store_true")
+    args, qt_args = parser.parse_known_args(sys.argv[1:])
+    app = QApplication([sys.argv[0], *qt_args])
+    window = ServerManagerWindow(auto_start=args.auto_start)
+    if args.minimized:
+        window.showMinimized()
+    else:
+        window.show()
     return app.exec()
