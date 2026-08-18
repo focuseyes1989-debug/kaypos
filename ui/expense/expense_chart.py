@@ -1,590 +1,218 @@
-# ui/expense/expense_chart.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel
-from PyQt6.QtCore import Qt, QDate, QSize
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
-import matplotlib.pyplot as plt
+"""Simple native Qt charts for the Expense page.
+
+The visual language matches AI Dashboard charts: a quiet card, compact
+controls, rounded bars, short labels and no Matplotlib toolbar.
+"""
+
+from PyQt6.QtCore import QDate, QRectF, Qt
+from PyQt6.QtGui import QPainter, QPen
+from PyQt6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
 from models.database import connect_db
-from utils.currency import get_currency_symbol, format_money
-from datetime import datetime
-import numpy as np
-import os
-import logging
-import warnings
-from utils.matplotlib_fonts import configure_myanmar_matplotlib_font
+from ui.ai_pages.ai_dashboard.dashboard_charts import _DailySalesChart, _HorizontalValueChart
+from ui.themes.theme_manager import get_theme_colors, theme_manager
+from utils.currency import format_money
 
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
-logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
-configure_myanmar_matplotlib_font()
 
-# ✅ Import theme
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+class _MonthlyExpenseChart(_DailySalesChart):
+    """AI Dashboard-style bars sized sensibly for a small number of months."""
+
+    def paintEvent(self, event):
+        QWidget.paintEvent(self, event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        palette = self._palette()
+        painter.fillRect(self.rect(), palette["bg"])
+        rect = self.rect().adjusted(12, 10, -12, -12)
+        self._draw_title(painter, rect, palette)
+        chart_rect = rect.adjusted(0, 42, 0, -22)
+
+        data = [(label, value) for label, value in self._data[-12:] if value >= 0]
+        if not data:
+            self._draw_empty(painter, chart_rect, palette)
+            return
+
+        max_value = max(value for _, value in data) or 1
+        gap = 18
+        bar_width = min(72, max(24, (chart_rect.width() - gap * (len(data) - 1)) / len(data)))
+        content_width = bar_width * len(data) + gap * (len(data) - 1)
+        start_x = chart_rect.left() + max(0, (chart_rect.width() - content_width) / 2)
+
+        painter.setPen(QPen(palette["grid"], 1))
+        for index in range(4):
+            y = chart_rect.top() + chart_rect.height() * index / 3
+            painter.drawLine(chart_rect.left(), int(y), chart_rect.right(), int(y))
+
+        for index, (label, value) in enumerate(data):
+            x = start_x + index * (bar_width + gap)
+            height = (value / max_value) * max(1, chart_rect.height() - 28)
+            y = chart_rect.bottom() - height
+            color = palette["primary"] if index == len(data) - 1 else palette["accent"]
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawRoundedRect(QRectF(x, y, bar_width, max(2, height)), 4, 4)
+
+            painter.setPen(palette["muted"])
+            painter.drawText(
+                int(x - 18), int(max(chart_rect.top(), y - 20)), int(bar_width + 36), 17,
+                Qt.AlignmentFlag.AlignCenter, format_money(value),
+            )
+            month_label = str(label)[2:] if len(str(label)) == 7 else str(label)
+            painter.drawText(
+                int(x - 6), chart_rect.bottom() + 5, int(bar_width + 12), 17,
+                Qt.AlignmentFlag.AlignCenter, month_label,
+            )
 
 
 class ExpenseChartWidget(QWidget):
-    """Expense chart widget with multiple chart types"""
-    
-    # ✅ Bright, vibrant colors
-    VIBRANT_COLORS = [
-        '#E74C3C',  # Red
-        '#3498DB',  # Blue
-        '#2ECC71',  # Green
-        '#F39C12',  # Orange
-        '#9B59B6',  # Purple
-        '#1ABC9C',  # Teal
-        '#E67E22',  # Dark Orange
-        '#2C3E50',  # Dark Blue
-        '#E74C8B',  # Pink
-        '#27AE60',  # Dark Green
-        '#2980B9',  # Dark Blue
-        '#8E44AD',  # Dark Purple
-        '#16A085',  # Dark Teal
-        '#D35400',  # Burnt Orange
-        '#C0392B',  # Dark Red
-        '#6C3483',  # Deep Purple
-        '#1A5276',  # Navy
-        '#1E8449',  # Forest Green
-        '#B7950B',  # Gold
-        '#943126',  # Maroon
-    ]
-    
+    """Filtered expense charts using the same widgets as AI Dashboard."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.current_chart_type = "pie"
+        self.parent_page = parent
         self._from_date = None
         self._to_date = None
-        self.parent_page = parent
-        
-        # Connect theme change
-        theme_manager.theme_changed.connect(self.on_theme_changed)
-        
-        # Set matplotlib style based on theme
-        self.setup_ui()
+        self._category = "All Categories"
+        self._search_text = ""
+        self._setup_ui()
+        theme_manager.theme_changed.connect(self._on_theme_changed)
         self.load_chart()
-    
-    def on_theme_changed(self, theme_name):
-        """✅ Handle theme change - update tab icon and chart"""
-        self._update_tab_icon()
-        self.load_chart()
-    
-    def _update_tab_icon(self):
-        """✅ Update tab icon color based on theme"""
-        if self.parent_page and hasattr(self.parent_page, 'tab_widget'):
-            # Find this tab index
-            for idx in range(self.parent_page.tab_widget.count()):
-                if self.parent_page.tab_widget.widget(idx) == self:
-                    # Load colored icon
-                    icon = self._load_colored_tab_icon()
-                    self.parent_page.tab_widget.setTabIcon(idx, icon)
-                    break
-    
-    def _load_colored_tab_icon(self):
-        """✅ Load SVG icon with color based on theme"""
-        is_dark = is_dark_theme()
-        color_hex = "#ffffff" if is_dark else "#495057"
-        
-        # Try SVG first
-        paths = [
-            "assets/icons/analytics.svg",
-            "assets/icons/analytics.png",
-        ]
-        
-        for path in paths:
-            if os.path.exists(path):
-                try:
-                    pixmap = QPixmap(path)
-                    if not pixmap.isNull():
-                        scaled = pixmap.scaled(
-                            20, 20,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation
-                        )
-                        
-                        # Color the icon
-                        colored = scaled.copy()
-                        painter = QPainter(colored)
-                        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-                        painter.fillRect(colored.rect(), QColor(color_hex))
-                        painter.end()
-                        
-                        return QIcon(colored)
-                except Exception as e:
-                    print(f"Could not load icon {path}: {e}")
-        
-        return QIcon()
-    
+
+    def _setup_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 8, 0, 0)
+        root.setSpacing(10)
+
+        controls = QHBoxLayout()
+        controls.setContentsMargins(2, 0, 2, 0)
+        controls.setSpacing(8)
+        self.chart_type_label = QLabel("View:")
+        controls.addWidget(self.chart_type_label)
+
+        self.chart_type_combo = QComboBox()
+        self.chart_type_combo.addItems(["Expenses by Category", "Monthly Trend"])
+        self.chart_type_combo.setMinimumWidth(180)
+        self.chart_type_combo.currentIndexChanged.connect(self.load_chart)
+        controls.addWidget(self.chart_type_combo)
+
+        self.date_info_label = QLabel()
+        controls.addWidget(self.date_info_label)
+        controls.addStretch()
+
+        self.btn_refresh = QPushButton("Refresh")
+        self.btn_refresh.setFixedHeight(32)
+        self.btn_refresh.clicked.connect(self.load_chart)
+        controls.addWidget(self.btn_refresh)
+        root.addLayout(controls)
+
+        self.chart_frame = QFrame()
+        self.chart_frame.setMinimumHeight(430)
+        frame_layout = QVBoxLayout(self.chart_frame)
+        frame_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.category_chart = _HorizontalValueChart("danger", "warning")
+        self.category_chart.set_title("Expenses by Category")
+        self.trend_chart = _MonthlyExpenseChart()
+        self.trend_chart.set_title("Monthly Expense Trend")
+        frame_layout.addWidget(self.category_chart)
+        frame_layout.addWidget(self.trend_chart)
+        self.trend_chart.hide()
+        root.addWidget(self.chart_frame, 1)
+        self._apply_style()
+
+    def _apply_style(self):
+        colors = get_theme_colors()
+        self.chart_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {colors.get('card_bg', '#ffffff')};
+                border: 1px solid {colors.get('border', '#dde2e8')};
+                border-radius: 8px;
+            }}
+        """)
+        self.date_info_label.setStyleSheet(
+            f"color: {colors.get('text_secondary', '#6c757d')}; font-size: 10pt;"
+        )
+
+    def _on_theme_changed(self, _theme_name):
+        self._apply_style()
+        self.category_chart.update()
+        self.trend_chart.update()
+
     def set_date_range(self, from_date, to_date):
-        """Set date range from parent page"""
         self._from_date = from_date
         self._to_date = to_date
-    
+
+    def set_filters(self, category="All Categories", search_text=""):
+        self._category = category or "All Categories"
+        self._search_text = (search_text or "").strip().lower()
+
     def get_date_range(self):
-        """Get date range from parent page or default"""
         if self._from_date and self._to_date:
             return self._from_date, self._to_date
-        
-        # Fallback to last 30 days
         today = QDate.currentDate()
         return today.addDays(-30).toString("yyyy-MM-dd"), today.toString("yyyy-MM-dd")
-    
-    def setup_ui(self):
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # ========== Chart Controls ==========
-        control_layout = QHBoxLayout()
-        control_layout.setSpacing(10)
-        control_layout.setContentsMargins(0, 8, 0, 8)  # ✅ Added margin
-        
-        # Chart type selector
-        control_layout.addWidget(QLabel("Chart Type:"))
-        self.chart_type_combo = QComboBox()
-        self.chart_type_combo.addItems(["Pie Chart", "Bar Chart", "Monthly Trend", "Category Comparison"])
-        self.chart_type_combo.currentTextChanged.connect(self.on_chart_type_changed)
-        control_layout.addWidget(self.chart_type_combo)
-        
-        # Date info label
-        self.date_info_label = QLabel("Date: Loading...")
-        self.date_info_label.setStyleSheet("color: #6c757d; font-size: 10pt;")
-        control_layout.addWidget(self.date_info_label)
-        
-        control_layout.addStretch()
-        
-        # Refresh button
-        self.btn_refresh = QPushButton("🔄 Refresh")
-        self.btn_refresh.clicked.connect(self.load_chart)
-        control_layout.addWidget(self.btn_refresh)
-        
-        layout.addLayout(control_layout)
-        
-        # ========== Matplotlib Figure ==========
-        is_dark = is_dark_theme()
-        self.fig = Figure(figsize=(8, 5), dpi=100, facecolor='#2f3136' if is_dark else 'white')
-        self.canvas = FigureCanvas(self.fig)
-        self.canvas.setMinimumHeight(400)
-        
-        # Add navigation toolbar
-        self.toolbar = NavigationToolbar(self.canvas, self)
-        
-        layout.addWidget(self.toolbar)
-        layout.addWidget(self.canvas)
-        
-        self.setLayout(layout)
-        
-        # ✅ Apply tab icon
-        self._update_tab_icon()
-    
-    def is_dark_theme(self):
-        """Check if dark theme is active"""
-        return is_dark_theme()
-    
-    def get_lang(self):
-        try:
-            conn = connect_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key='language'")
-            row = cursor.fetchone()
-            conn.close()
-            return row[0] if row else "en"
-        except:
-            return "en"
-    
-    def on_chart_type_changed(self, chart_type):
-        self.current_chart_type = chart_type.lower().replace(" ", "_")
-        self.load_chart()
-    
-    def load_chart(self):
-        """Load the appropriate chart based on selection"""
-        from_date, to_date = self.get_date_range()
-        
-        # Update date info
-        lang = self.get_lang()
-        if lang == "my":
-            self.date_info_label.setText(f"ရက်စွဲ: {from_date} မှ {to_date} ထိ")
-        else:
-            self.date_info_label.setText(f"Date: {from_date} to {to_date}")
-        
-        if self.current_chart_type == "pie_chart":
-            self.draw_pie_chart(from_date, to_date)
-        elif self.current_chart_type == "bar_chart":
-            self.draw_bar_chart(from_date, to_date)
-        elif self.current_chart_type == "monthly_trend":
-            self.draw_monthly_trend(from_date, to_date)
-        elif self.current_chart_type == "category_comparison":
-            self.draw_category_comparison(from_date, to_date)
-        else:
-            self.draw_pie_chart(from_date, to_date)
-    
+
+    def _where_clause(self, from_date, to_date):
+        clauses = ["expense_date BETWEEN ? AND ?"]
+        params = [from_date, to_date]
+        if self._category != "All Categories":
+            clauses.append("category = ?")
+            params.append(self._category)
+        if self._search_text:
+            clauses.append(
+                "(LOWER(COALESCE(description, '')) LIKE ? "
+                "OR LOWER(COALESCE(reference_no, '')) LIKE ?)"
+            )
+            term = f"%{self._search_text}%"
+            params.extend([term, term])
+        return " AND ".join(clauses), params
+
     def get_expense_data(self, from_date, to_date):
-        """Get expense data grouped by category"""
+        where_sql, params = self._where_clause(from_date, to_date)
         conn = connect_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT category, COALESCE(SUM(amount), 0) as total
-            FROM expenses
-            WHERE expense_date BETWEEN ? AND ?
-            GROUP BY category
-            ORDER BY total DESC
-        """, (from_date, to_date))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        categories = []
-        amounts = []
-        
-        for cat, amt in rows:
-            if amt > 0:
-                categories.append(cat or "Uncategorized")
-                amounts.append(amt)
-        
-        return categories, amounts
-    
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT COALESCE(category, 'Uncategorized'), COALESCE(SUM(amount), 0) AS total
+                FROM expenses
+                WHERE {where_sql}
+                GROUP BY category
+                ORDER BY total DESC
+            """, params)
+            return [(category, float(amount or 0)) for category, amount in cursor.fetchall() if amount and amount > 0]
+        finally:
+            conn.close()
+
     def get_monthly_data(self, from_date, to_date):
-        """Get monthly expense data"""
+        where_sql, params = self._where_clause(from_date, to_date)
         conn = connect_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT strftime('%Y-%m', expense_date) as month,
-                   COALESCE(SUM(amount), 0) as total
-            FROM expenses
-            WHERE expense_date BETWEEN ? AND ?
-            GROUP BY strftime('%Y-%m', expense_date)
-            ORDER BY month
-        """, (from_date, to_date))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        months = []
-        amounts = []
-        
-        for month, amt in rows:
-            months.append(month)
-            amounts.append(amt)
-        
-        return months, amounts
-    
-    def get_category_monthly_data(self, from_date, to_date):
-        """Get category-wise monthly data for comparison"""
-        conn = connect_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT category, strftime('%Y-%m', expense_date) as month,
-                   COALESCE(SUM(amount), 0) as total
-            FROM expenses
-            WHERE expense_date BETWEEN ? AND ?
-            GROUP BY category, strftime('%Y-%m', expense_date)
-            ORDER BY month, total DESC
-        """, (from_date, to_date))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return rows
-    
-    def draw_pie_chart(self, from_date, to_date):
-        """Draw pie chart of expenses by category"""
-        categories, amounts = self.get_expense_data(from_date, to_date)
-        
-        if not categories or sum(amounts) == 0:
-            self.show_no_data_message("No expense data available for this period")
-            return
-        
-        self.fig.clear()
-        ax = self.fig.add_subplot(111)
-        
-        colors = self.VIBRANT_COLORS[:len(categories)]
-        total = sum(amounts)
-        symbol = get_currency_symbol()
-        explode = [0.03 if amt/total < 0.05 else 0 for amt in amounts]
-        
-        wedges, texts, autotexts = ax.pie(
-            amounts,
-            labels=None,
-            autopct=lambda pct: f'{pct:.1f}%' if pct > 2 else '',
-            startangle=90,
-            colors=colors,
-            explode=explode,
-            wedgeprops={'edgecolor': 'white', 'linewidth': 2, 'alpha': 0.9}
-        )
-        
-        is_dark = self.is_dark_theme()
-        for autotext in autotexts:
-            if is_dark:
-                autotext.set_color('white')
-            else:
-                autotext.set_color('black')
-            autotext.set_fontsize(10)
-            autotext.set_fontweight('normal')
-        
-        legend_labels = [f"{cat}: {format_money(amt, symbol)} ({amt/total*100:.1f}%)" 
-                        for cat, amt in zip(categories, amounts)]
-        
-        legend = ax.legend(wedges, legend_labels, 
-                          loc='center left', 
-                          bbox_to_anchor=(1, 0.5),
-                          fontsize=9,
-                          framealpha=0.9,
-                          facecolor='white' if not is_dark else '#2f3136',
-                          edgecolor='#dee2e6' if not is_dark else '#40444b')
-        
-        if is_dark:
-            for text in legend.get_texts():
-                text.set_color('white')
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT SUBSTR(expense_date, 1, 7) AS month, COALESCE(SUM(amount), 0) AS total
+                FROM expenses
+                WHERE {where_sql}
+                GROUP BY SUBSTR(expense_date, 1, 7)
+                ORDER BY month
+            """, params)
+            return [(month, float(amount or 0)) for month, amount in cursor.fetchall() if month]
+        finally:
+            conn.close()
+
+    def load_chart(self, *_args):
+        from_date, to_date = self.get_date_range()
+        self.date_info_label.setText(f"{from_date}  —  {to_date}")
+        show_categories = self.chart_type_combo.currentIndex() == 0
+        self.category_chart.setVisible(show_categories)
+        self.trend_chart.setVisible(not show_categories)
+        if show_categories:
+            self.category_chart.set_data(self.get_expense_data(from_date, to_date))
         else:
-            for text in legend.get_texts():
-                text.set_color('black')
-        
-        lang = self.get_lang()
-        if lang == "my":
-            title = f"အသုံးစရိတ်ခွဲခြမ်းစိတ်ဖြာချက် ({from_date} - {to_date})"
-        else:
-            title = f"Expense Breakdown ({from_date} - {to_date})"
-        ax.set_title(title, fontsize=14, fontweight='normal', pad=20)
-        
-        self.apply_theme_to_axes(ax)
-        self.fig.tight_layout()
-        self.canvas.draw()
-    
-    def draw_bar_chart(self, from_date, to_date):
-        """Draw bar chart of expenses by category"""
-        categories, amounts = self.get_expense_data(from_date, to_date)
-        
-        if not categories or sum(amounts) == 0:
-            self.show_no_data_message("No expense data available for this period")
-            return
-        
-        self.fig.clear()
-        ax = self.fig.add_subplot(111)
-        
-        colors = self.VIBRANT_COLORS[:len(categories)]
-        y_pos = np.arange(len(categories))
-        bars = ax.barh(y_pos, amounts, color=colors, alpha=0.85, edgecolor='white', linewidth=1)
-        
-        symbol = get_currency_symbol()
-        is_dark = self.is_dark_theme()
-        
-        for i, (bar, amt) in enumerate(zip(bars, amounts)):
-            ax.text(amt, bar.get_y() + bar.get_height()/2, 
-                   f'  {format_money(amt, symbol)}',
-                   va='center', 
-                   fontsize=10, 
-                   fontweight='normal',
-                   color='white' if is_dark else '#2c3e50')
-        
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels(categories, fontsize=10)
-        ax.set_ylabel('')
-        
-        lang = self.get_lang()
-        ax.set_xlabel('Amount' if lang != 'my' else 'ပမာဏ', fontsize=11, fontweight='normal')
-        ax.grid(axis='x', alpha=0.3, linestyle='--')
-        
-        if lang == "my":
-            title = f"အမျိုးအစားအလိုက် အသုံးစရိတ် ({from_date} - {to_date})"
-        else:
-            title = f"Expenses by Category ({from_date} - {to_date})"
-        ax.set_title(title, fontsize=14, fontweight='normal', pad=20)
-        
-        self.apply_theme_to_axes(ax)
-        self.fig.tight_layout()
-        self.canvas.draw()
-    
-    def draw_monthly_trend(self, from_date, to_date):
-        """Draw monthly trend line chart"""
-        months, amounts = self.get_monthly_data(from_date, to_date)
-        
-        if not months or sum(amounts) == 0:
-            self.show_no_data_message("No monthly data available for this period")
-            return
-        
-        self.fig.clear()
-        ax = self.fig.add_subplot(111)
-        
-        symbol = get_currency_symbol()
-        is_dark = self.is_dark_theme()
-        
-        ax.plot(months, amounts, marker='o', linewidth=3, markersize=10, 
-                color='#3498DB', markerfacecolor='#2980B9', markeredgecolor='white', markeredgewidth=2)
-        
-        for month, amt in zip(months, amounts):
-            ax.annotate(format_money(amt, symbol), 
-                       (month, amt), 
-                       textcoords="offset points", 
-                       xytext=(0, 12), 
-                       ha='center', 
-                       fontsize=10, 
-                       fontweight='normal',
-                       color='white' if is_dark else '#2c3e50')
-        
-        ax.fill_between(months, 0, amounts, alpha=0.25, color='#3498DB')
-        ax.set_xticklabels(months, rotation=45, ha='right', fontsize=10)
-        ax.grid(True, alpha=0.3, linestyle='--')
-        
-        lang = self.get_lang()
-        ax.set_xlabel('Month' if lang != 'my' else 'လ', fontsize=11, fontweight='normal')
-        ax.set_ylabel('Amount' if lang != 'my' else 'ပမာဏ', fontsize=11, fontweight='normal')
-        
-        if lang == "my":
-            title = f"လစဉ် အသုံးစရိတ် လမ်းကြောင်း ({from_date} - {to_date})"
-        else:
-            title = f"Monthly Expense Trend ({from_date} - {to_date})"
-        ax.set_title(title, fontsize=14, fontweight='normal', pad=20)
-        
-        self.apply_theme_to_axes(ax)
-        self.fig.tight_layout()
-        self.canvas.draw()
-    
-    def draw_category_comparison(self, from_date, to_date):
-        """Draw stacked bar chart comparing categories over months"""
-        data = self.get_category_monthly_data(from_date, to_date)
-        
-        if not data:
-            self.show_no_data_message("No data available for comparison")
-            return
-        
-        months = sorted(set(row[1] for row in data))
-        categories = {}
-        
-        for cat, month, amt in data:
-            if amt > 0:
-                if cat not in categories:
-                    categories[cat] = {}
-                categories[cat][month] = amt
-        
-        if not categories:
-            self.show_no_data_message("No data available for comparison")
-            return
-        
-        self.fig.clear()
-        ax = self.fig.add_subplot(111)
-        
-        bottom = np.zeros(len(months))
-        colors = self.VIBRANT_COLORS[:len(categories)]
-        symbol = get_currency_symbol()
-        is_dark = self.is_dark_theme()
-        
-        for idx, (cat, cat_data) in enumerate(categories.items()):
-            amounts = [cat_data.get(month, 0) for month in months]
-            bars = ax.bar(months, amounts, bottom=bottom, label=cat, 
-                         color=colors[idx % len(colors)], 
-                         alpha=0.85, 
-                         edgecolor='white', 
-                         linewidth=1)
-            bottom += np.array(amounts)
-        
-        ax.set_xticklabels(months, rotation=45, ha='right', fontsize=10)
-        ax.grid(axis='y', alpha=0.3, linestyle='--')
-        
-        lang = self.get_lang()
-        ax.set_xlabel('Month' if lang != 'my' else 'လ', fontsize=11, fontweight='normal')
-        ax.set_ylabel('Amount' if lang != 'my' else 'ပမာဏ', fontsize=11, fontweight='normal')
-        
-        legend = ax.legend(loc='center left', 
-                          bbox_to_anchor=(1, 0.5), 
-                          fontsize=9,
-                          framealpha=0.9,
-                          facecolor='white' if not is_dark else '#2f3136',
-                          edgecolor='#dee2e6' if not is_dark else '#40444b')
-        
-        if is_dark:
-            for text in legend.get_texts():
-                text.set_color('white')
-        else:
-            for text in legend.get_texts():
-                text.set_color('black')
-        
-        if lang == "my":
-            title = f"အမျိုးအစားအလိုက် လစဉ် နှိုင်းယှဉ်ချက် ({from_date} - {to_date})"
-        else:
-            title = f"Monthly Category Comparison ({from_date} - {to_date})"
-        ax.set_title(title, fontsize=14, fontweight='normal', pad=20)
-        
-        self.apply_theme_to_axes(ax)
-        self.fig.tight_layout()
-        self.canvas.draw()
-    
-    def apply_theme_to_axes(self, ax):
-        """Apply current theme to axes"""
-        is_dark = self.is_dark_theme()
-        
-        if is_dark:
-            self.fig.patch.set_facecolor('#2f3136')
-            ax.set_facecolor('#2f3136')
-            ax.tick_params(colors='#dcddde')
-            ax.xaxis.label.set_color('#dcddde')
-            ax.yaxis.label.set_color('#dcddde')
-            ax.title.set_color('#ffffff')
-            ax.spines['bottom'].set_color('#40444b')
-            ax.spines['top'].set_color('#40444b')
-            ax.spines['left'].set_color('#40444b')
-            ax.spines['right'].set_color('#40444b')
-        else:
-            self.fig.patch.set_facecolor('white')
-            ax.set_facecolor('#f8f9fa')
-            ax.tick_params(colors='#212529')
-            ax.xaxis.label.set_color('#212529')
-            ax.yaxis.label.set_color('#212529')
-            ax.title.set_color('#212529')
-            ax.spines['bottom'].set_color('#dee2e6')
-            ax.spines['top'].set_color('#dee2e6')
-            ax.spines['left'].set_color('#dee2e6')
-            ax.spines['right'].set_color('#dee2e6')
-    
-    def show_no_data_message(self, message):
-        """Show a message when no data is available"""
-        self.fig.clear()
-        ax = self.fig.add_subplot(111)
-        is_dark = self.is_dark_theme()
-        
-        ax.text(0.5, 0.5, message,
-               ha='center', va='center', fontsize=14, fontweight='normal',
-               color='white' if is_dark else '#e74c3c')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        
-        self.apply_theme_to_axes(ax)
-        self.fig.tight_layout()
-        self.canvas.draw()
-    
+            self.trend_chart.set_data(self.get_monthly_data(from_date, to_date))
+
     def refresh(self):
-        """Refresh the chart"""
         self.load_chart()
-    
+
     def retranslateUi(self):
-        """Retranslate UI elements"""
-        lang = self.get_lang()
-        
-        self.chart_type_combo.blockSignals(True)
-        current = self.chart_type_combo.currentText()
-        self.chart_type_combo.clear()
-        if lang == "my":
-            self.chart_type_combo.addItems(["အဝိုင်းပုံဇယား", "ဘားပုံဇယား", "လစဉ်လမ်းကြောင်း", "အမျိုးအစားနှိုင်းယှဉ်"])
-        else:
-            self.chart_type_combo.addItems(["Pie Chart", "Bar Chart", "Monthly Trend", "Category Comparison"])
-        idx = self.chart_type_combo.findText(current)
-        if idx >= 0:
-            self.chart_type_combo.setCurrentIndex(idx)
-        self.chart_type_combo.blockSignals(False)
-        
-        self.btn_refresh.setText("🔄 Refresh" if lang != "my" else "🔄 ပြန်လည်")
-        
-        # ✅ Update tab icon on language change
-        self._update_tab_icon()
-        
-        self.load_chart()
-    
-    def showEvent(self, event):
-        """Update tab icon when shown"""
-        self._update_tab_icon()
-        super().showEvent(event)
+        self.chart_type_label.setText("View:")
+        self.btn_refresh.setText("Refresh")

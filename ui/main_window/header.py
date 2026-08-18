@@ -5,7 +5,7 @@ Main Window Header Component with SVG Icons
 
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QWidget, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from loguru import logger
 import os
@@ -175,11 +175,13 @@ class Header(QFrame):
         user_layout.setContentsMargins(0, 0, 0, 0)
         user_layout.setSpacing(6)
         
-        # User icon (SVG)
+        # Employee profile photo for the logged-in POS account. Falls back to
+        # the existing person icon when no employee/photo is linked.
         self.user_icon = QLabel()
-        self.user_icon.setFixedSize(20, 20)
-        self.user_icon.setScaledContents(True)
-        self._load_svg_icon(self.user_icon, "person", "#ffffff")
+        self.user_icon.setFixedSize(38, 38)
+        self.user_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.user_icon.setStyleSheet("background: transparent; border: none;")
+        self._load_user_avatar()
         user_layout.addWidget(self.user_icon)
         
         # User name
@@ -239,6 +241,57 @@ class Header(QFrame):
         }
         label.setText(emoji_map.get(icon_name, ""))
         label.setStyleSheet(f"color: {color_hex}; font-size: 14pt; background: transparent;")
+
+    def _load_user_avatar(self):
+        """Load the linked employee photo and render it as a circular avatar."""
+        photo_data = None
+        current_user = getattr(self._parent, "current_user", {}) or {}
+        user_id = current_user.get("id")
+        if user_id is not None:
+            try:
+                from models.database import connect_db
+
+                conn = connect_db()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT photo_data FROM employees WHERE user_id=? LIMIT 1", (user_id,))
+                    row = cursor.fetchone()
+                    photo_data = bytes(row[0]) if row and row[0] else None
+                finally:
+                    conn.close()
+            except Exception as exc:
+                logger.debug(f"Could not load header profile photo: {exc}")
+
+        source = QPixmap()
+        if photo_data and source.loadFromData(photo_data):
+            size = self.user_icon.width()
+            scaled = source.scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = max(0, (scaled.width() - size) // 2)
+            y = max(0, (scaled.height() - size) // 2)
+            cropped = scaled.copy(x, y, size, size)
+            avatar = QPixmap(size, size)
+            avatar.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(avatar)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            clip = QPainterPath()
+            clip.addEllipse(1, 1, size - 2, size - 2)
+            painter.setClipPath(clip)
+            painter.drawPixmap(0, 0, cropped)
+            painter.setClipping(False)
+            painter.setPen(QPen(QColor(255, 255, 255, 210), 1.5))
+            painter.drawEllipse(1, 1, size - 2, size - 2)
+            painter.end()
+            self.user_icon.setText("")
+            self.user_icon.setPixmap(avatar)
+            self.user_icon.setToolTip(current_user.get("full_name") or current_user.get("username") or "User")
+            return
+
+        self.user_icon.setFixedSize(38, 38)
+        self._load_svg_icon(self.user_icon, "person", "#ffffff")
     
     def update_clock(self):
         """Update the clock display with current date and time"""
@@ -276,7 +329,7 @@ class Header(QFrame):
         # Update icon colors
         self._load_svg_icon(self.date_icon, "date", "#ffffff")
         self._load_svg_icon(self.clock_icon, "clock", "#ffffff")
-        self._load_svg_icon(self.user_icon, "person", "#ffffff")
+        self._load_user_avatar()
         self._apply_text_styles()
 
     def _apply_text_styles(self):

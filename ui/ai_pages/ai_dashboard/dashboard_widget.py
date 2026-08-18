@@ -5,7 +5,7 @@ Main Dashboard Widget - AI Sales Dashboard
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QScrollArea, QComboBox, QApplication, QSizePolicy,
+    QScrollArea, QApplication, QSizePolicy,
     QSpacerItem, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
@@ -15,13 +15,13 @@ from datetime import datetime
 
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.widgets.modern_button import ModernButton
+from ui.widgets.date_range_widget import DateRangeWidget
 from utils.currency import format_money
 
 from ui.ai_pages.ai_dashboard.dashboard_icons import DashboardIcons
 from ui.ai_pages.ai_dashboard.dashboard_cards import DashboardCards
 from ui.ai_pages.ai_dashboard.dashboard_charts import DashboardCharts
 from ui.ai_pages.ai_dashboard.dashboard_data import DashboardData, get_dashboard_data_sync
-from ui.ai_pages.ai_dashboard.dashboard_utils import DashboardUtils
 
 
 class AIDashboard(QWidget):
@@ -31,7 +31,6 @@ class AIDashboard(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._current_period = "Today"
         self._is_loading = False
         self._setup_ui()
         QTimer.singleShot(200, self._load_data)
@@ -144,31 +143,6 @@ class AIDashboard(QWidget):
                 background-color: transparent;
                 padding: 0px;
                 margin: 0px;
-            """)
-        if hasattr(self, "period_combo"):
-            self.period_combo.setStyleSheet(f"""
-                QComboBox {{
-                    padding: 2px 10px;
-                    border: 1px solid {colors.get('border', '#dee2e6')};
-                    border-radius: 6px;
-                    background-color: {colors.get('input_bg', '#f8f9fa')};
-                    color: {colors.get('text', '#2d3436')};
-                    font-size: 9pt;
-                }}
-                QComboBox:hover {{
-                    border-color: #5865f2;
-                }}
-                QComboBox::drop-down {{
-                    border: none;
-                    width: 18px;
-                }}
-                QComboBox::down-arrow {{
-                    image: none;
-                    border-left: 4px solid transparent;
-                    border-right: 4px solid transparent;
-                    border-top: 4px solid {colors.get('text_secondary', '#6c757d')};
-                    margin-right: 2px;
-                }}
             """)
 
     def _apply_bottom_theme(self, colors):
@@ -321,13 +295,12 @@ class AIDashboard(QWidget):
         layout.addLayout(status_layout)
         layout.addSpacing(12)
         
-        # ====== Period ComboBox ======
-        self.period_combo = QComboBox()
-        self.period_combo.addItems(["Today", "Yesterday", "This Week", "This Month", "Last 30 Days"])
-        self.period_combo.setFixedHeight(30)
-        self.period_combo.setMinimumWidth(130)
-        self.period_combo.currentIndexChanged.connect(self._on_period_changed)
-        layout.addWidget(self.period_combo)
+        # ====== Shared Date Range Widget ======
+        self.date_range = DateRangeWidget(self)
+        self.date_range.setMinimumWidth(260)
+        self.date_range.setMaximumWidth(390)
+        self.date_range.date_range_changed.connect(self._on_date_range_changed)
+        layout.addWidget(self.date_range)
         layout.addSpacing(8)
         
         # ====== Refresh Button ======
@@ -460,8 +433,8 @@ class AIDashboard(QWidget):
         QApplication.processEvents()
         
         try:
-            period = self.period_combo.currentText()
-            start_date, end_date = DashboardUtils.get_period_dates(period)
+            start_date = self.date_range.get_from_date()
+            end_date = self.date_range.get_to_date()
             
             # Load data
             (
@@ -608,8 +581,8 @@ class AIDashboard(QWidget):
     # PUBLIC METHODS
     # ================================================================
     
-    def _on_period_changed(self):
-        """Handle period change"""
+    def _on_date_range_changed(self, _from_date, _to_date):
+        """Reload every dashboard card and chart for the selected dates."""
         self._load_data()
     
     def refresh(self):

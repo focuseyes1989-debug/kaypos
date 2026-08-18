@@ -14,7 +14,6 @@ from PyQt6.QtCore import Qt, QDate, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
-from utils.db_compat import is_postgres_backend
 from utils.language import lang
 from ui.expense.expense_table import ExpenseTable
 from ui.expense.expense_export import ExpenseExport
@@ -329,14 +328,8 @@ class ExpensePage(QWidget):
         
         # === Tab 3: Charts ===
         logger.info("Creating chart tab for ExpensePage")
-        if is_postgres_backend():
-            self.chart_tab = QLabel(
-                "Charts are temporarily disabled while PostgreSQL compatibility is active"
-            )
-            self.chart_tab.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        else:
-            from ui.expense.expense_chart import ExpenseChartWidget
-            self.chart_tab = ExpenseChartWidget(self)
+        from ui.expense.expense_chart import ExpenseChartWidget
+        self.chart_tab = ExpenseChartWidget(self)
         self.tab_widget.addTab(self.chart_tab, self._load_colored_tab_icon(2), self.tab_names[2])
         
         # âœ… Apply tab bar style for dark theme
@@ -482,6 +475,7 @@ class ExpensePage(QWidget):
         if hasattr(self, 'chart_tab') and hasattr(self.chart_tab, 'set_date_range') and hasattr(self.chart_tab, 'load_chart'):
             try:
                 self.chart_tab.set_date_range(from_date, to_date)
+                self.chart_tab.set_filters(category, search_text)
                 self.chart_tab.load_chart()
             except Exception as e:
                 logger.error(f"Error refreshing chart: {e}")
