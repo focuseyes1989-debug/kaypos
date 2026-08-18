@@ -464,9 +464,10 @@ class AIDashboard(QWidget):
             start_date, end_date = DashboardUtils.get_period_dates(period)
             
             # Load data
-            sales_data, daily_data, category_data, recent_sales, expense_data = DashboardData.get_sales_data(
-                start_date, end_date
-            )
+            (
+                sales_data, daily_data, category_data, recent_sales,
+                expense_data, payment_data, expense_category_data,
+            ) = DashboardData.get_sales_data(start_date, end_date)
             
             # Update cards
             if sales_data:
@@ -478,6 +479,8 @@ class AIDashboard(QWidget):
             if hasattr(self, 'charts'):
                 self.charts.update_sales_chart(daily_data)
                 self.charts.update_category_chart(category_data)
+                self.charts.update_payment_chart(payment_data)
+                self.charts.update_expense_chart(expense_category_data)
             
             # Update activity
             self._update_activity(recent_sales)

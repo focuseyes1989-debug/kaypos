@@ -17,30 +17,58 @@ class DashboardCharts:
         self.category_frame = None
         self.sales_chart = None
         self.category_chart = None
+        self.payment_frame = None
+        self.expense_frame = None
+        self.payment_chart = None
+        self.expense_chart = None
 
     def setup(self, colors):
         charts_container = QFrame()
         charts_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        charts_container.setFixedHeight(300)
+        charts_container.setFixedHeight(612)
         charts_container.setStyleSheet("background-color: transparent;")
 
-        charts_layout = QHBoxLayout(charts_container)
+        charts_layout = QVBoxLayout(charts_container)
         charts_layout.setContentsMargins(0, 0, 0, 0)
         charts_layout.setSpacing(12)
+
+        top_row = QWidget()
+        top_row.setStyleSheet("background-color: transparent;")
+        top_layout = QHBoxLayout(top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(12)
 
         self.sales_frame, self.sales_chart = self._create_chart_frame(
             "Daily Sales Trend",
             _DailySalesChart(),
             colors,
         )
-        charts_layout.addWidget(self.sales_frame, 2)
+        top_layout.addWidget(self.sales_frame, 2)
 
         self.category_frame, self.category_chart = self._create_chart_frame(
             "Sales by Category",
             _HorizontalValueChart(),
             colors,
         )
-        charts_layout.addWidget(self.category_frame, 1)
+        top_layout.addWidget(self.category_frame, 1)
+        charts_layout.addWidget(top_row, 1)
+
+        bottom_row = QWidget()
+        bottom_row.setStyleSheet("background-color: transparent;")
+        bottom_layout = QHBoxLayout(bottom_row)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(12)
+
+        self.payment_frame, self.payment_chart = self._create_chart_frame(
+            "Sales by Payment", _HorizontalValueChart(), colors,
+        )
+        bottom_layout.addWidget(self.payment_frame, 1)
+
+        self.expense_frame, self.expense_chart = self._create_chart_frame(
+            "Expenses by Category", _HorizontalValueChart("danger", "warning"), colors,
+        )
+        bottom_layout.addWidget(self.expense_frame, 1)
+        charts_layout.addWidget(bottom_row, 1)
 
         return charts_container
 
@@ -68,12 +96,22 @@ class DashboardCharts:
             rows = [(row[0] or "Uncategorized", float(row[2] or 0)) for row in category_data or []]
             self.category_chart.set_data(rows)
 
+    def update_payment_chart(self, payment_data):
+        if self.payment_chart:
+            rows = [(row[0] or "Other", float(row[2] or 0)) for row in payment_data or []]
+            self.payment_chart.set_data(rows)
+
+    def update_expense_chart(self, expense_category_data):
+        if self.expense_chart:
+            rows = [(row[0] or "Uncategorized", float(row[2] or 0)) for row in expense_category_data or []]
+            self.expense_chart.set_data(rows)
+
     def update_theme(self):
         colors = get_theme_colors()
-        for frame in (self.sales_frame, self.category_frame):
+        for frame in (self.sales_frame, self.category_frame, self.payment_frame, self.expense_frame):
             if frame:
                 self._apply_frame_style(frame, colors)
-        for chart in (self.sales_chart, self.category_chart):
+        for chart in (self.sales_chart, self.category_chart, self.payment_chart, self.expense_chart):
             if chart:
                 chart.update()
 
@@ -110,6 +148,8 @@ class _BaseChart(QWidget):
             "muted": QColor(colors.get("text_secondary", "#6c757d")),
             "primary": QColor(colors.get("primary", "#5865f2")),
             "accent": QColor(colors.get("success", "#2ecc71")),
+            "danger": QColor(colors.get("danger", "#e74c3c")),
+            "warning": QColor(colors.get("warning", "#f39c12")),
             "grid": QColor(colors.get("border", "#dde2e8")),
         }
 
@@ -173,6 +213,11 @@ class _DailySalesChart(_BaseChart):
 
 
 class _HorizontalValueChart(_BaseChart):
+    def __init__(self, primary_color="primary", alternate_color="accent", parent=None):
+        super().__init__(parent)
+        self._primary_color = primary_color
+        self._alternate_color = alternate_color
+
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
@@ -206,7 +251,7 @@ class _HorizontalValueChart(_BaseChart):
             painter.drawText(chart_rect.left(), y, label_width, row_height, Qt.AlignmentFlag.AlignVCenter, label)
 
             width = int((value / max_value) * bar_width_max)
-            color = palette["primary"] if index % 2 == 0 else palette["accent"]
+            color = palette[self._primary_color] if index % 2 == 0 else palette[self._alternate_color]
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(color)
             painter.drawRoundedRect(QRectF(bar_left, y + 7, max(3, width), max(8, row_height - 14)), 4, 4)

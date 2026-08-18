@@ -13,12 +13,16 @@ class DashboardData:
     """Dashboard data loader"""
     
     @staticmethod
-    def get_sales_data(start_date: str, end_date: str) -> Tuple[Optional[tuple], List[tuple], List[tuple], List[tuple], Optional[tuple]]:
+    def get_sales_data(start_date: str, end_date: str) -> Tuple[
+        Optional[tuple], List[tuple], List[tuple], List[tuple], Optional[tuple],
+        List[tuple], List[tuple]
+    ]:
         """
         Get all sales data for the given period
         
         Returns:
-            Tuple of (sales_data, daily_data, category_data, recent_sales, expense_data)
+            Tuple of (sales_data, daily_data, category_data, recent_sales,
+            expense_data, payment_data, expense_category_data)
         """
         try:
             with DBContext() as conn:
@@ -93,12 +97,41 @@ class DashboardData:
                     WHERE date(expense_date) BETWEEN ? AND ?
                 """, (start_date, end_date))
                 expense_data = cursor.fetchone()
+
+                cursor.execute("""
+                    SELECT
+                        COALESCE(NULLIF(TRIM(payment_type), ''), 'Other') as payment_type,
+                        COUNT(*) as transactions,
+                        COALESCE(SUM(total), 0) as total
+                    FROM sales
+                    WHERE date(created_at) BETWEEN ? AND ?
+                    AND status = 'completed'
+                    GROUP BY COALESCE(NULLIF(TRIM(payment_type), ''), 'Other')
+                    ORDER BY total DESC
+                """, (start_date, end_date))
+                payment_data = cursor.fetchall()
+
+                cursor.execute("""
+                    SELECT
+                        COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') as category,
+                        COUNT(*) as entries,
+                        COALESCE(SUM(amount), 0) as total
+                    FROM expenses
+                    WHERE date(expense_date) BETWEEN ? AND ?
+                    GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized')
+                    ORDER BY total DESC
+                    LIMIT 8
+                """, (start_date, end_date))
+                expense_category_data = cursor.fetchall()
                 
-                return sales_data, daily_data, category_data, recent_sales, expense_data
+                return (
+                    sales_data, daily_data, category_data, recent_sales,
+                    expense_data, payment_data, expense_category_data,
+                )
                 
         except Exception as e:
             logger.error(f"Failed to load dashboard data: {e}")
-            return None, [], [], [], None
+            return None, [], [], [], None, [], []
 
 
 def get_dashboard_data_sync() -> Dict:
