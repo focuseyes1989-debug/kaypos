@@ -1,6 +1,6 @@
 # ui/products_page/products_page.py
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor
@@ -10,6 +10,7 @@ from ui.products_page.product_card import ProductCards
 from ui.products_page.product_table import ProductTable
 from ui.products_page.product_service import ProductService
 from ui.products_page.product_form_dialog import ProductFormDialog
+from ui.products_page.product_ai_chat_panel import ProductAIChatDialog
 from ui.products_page.manage_category_groups_dialog import ManageCategoryGroupsDialog
 from ui.print_barcode_dialog import PrintBarcodeDialog
 from utils.language import lang
@@ -31,12 +32,14 @@ class ProductsPage(QWidget):
     
     def __init__(self, user_role=None, user_id=None, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.user_role = user_role
         self.user_id = user_id
         self.current_filter = None
         self.current_page = 1
         self.items_per_page = 50
         self.selected_product_id = None
+        self.selected_product_context = None
         self.service = ProductService(self)
         self.setup_ui()
         self.load_categories()
@@ -47,14 +50,21 @@ class ProductsPage(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         self.destroyed.connect(lambda *_: self._disconnect_theme_signal())
         self.retranslateUi()
+        self._sync_ai_context()
         
         self.apply_permissions()
 
     def _on_theme_changed(self, theme_name):
         if hasattr(self, "action_toolbar"):
             self.action_toolbar.update_theme()
+        if hasattr(self, "ai_chat_panel"):
+            self.ai_chat_panel.update_theme()
+        if hasattr(self, "ai_chat_dialog"):
+            self.ai_chat_dialog.update_theme()
 
     def _disconnect_theme_signal(self):
+        if hasattr(self, "ai_chat_panel"):
+            self.ai_chat_panel.shutdown()
         try:
             theme_manager.theme_changed.disconnect(self._on_theme_changed)
         except Exception:
@@ -85,6 +95,12 @@ class ProductsPage(QWidget):
         self.action_toolbar = ActionToolbar(self)
         self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=112)
         self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_product, "edit", ModernButton.SECONDARY, width=86)
+        self.btn_ai_chat = self.action_toolbar.add_primary(
+            " AI Assistant", self.toggle_ai_chat, "smart_toy",
+            ModernButton.SECONDARY, width=126
+        )
+        self.btn_ai_chat.setCheckable(False)
+        self.btn_ai_chat.setAutoExclusive(False)
         self.action_delete = self.action_toolbar.add_more_action("Delete", self.delete_product, "delete")
         self.action_toolbar.add_separator()
         self.action_manage_cat = self.action_toolbar.add_more_action("Manage Categories", self.open_manage_categories, "category")
@@ -95,11 +111,22 @@ class ProductsPage(QWidget):
         top_layout.addWidget(self.action_toolbar)
         main_layout.addLayout(top_layout)
 
-        # Product table
+        # Product table; AI assistant lives in a non-modal floating dialog.
         self.table = ProductTable(self)
         self.table.product_selected.connect(self.on_product_selected)
         self.table.service_selected.connect(self.on_service_selected)
-        main_layout.addWidget(self.table)
+        main_layout.addWidget(self.table, 1)
+
+        self.ai_chat_dialog = ProductAIChatDialog(
+            self,
+            user_id=self.user_id,
+            can_view_sensitive=self._can_view_sensitive_ai_data(),
+        )
+        self.ai_chat_panel = self.ai_chat_dialog.panel
+        self.ai_chat_panel.product_action_requested.connect(self._handle_ai_product_action)
+        self.ai_chat_panel.audit_event.connect(self._handle_ai_audit_event)
+        self.ai_chat_dialog.visibility_changed.connect(self._on_ai_dialog_visibility_changed)
+        self.ai_chat_dialog.hide()
 
         # Bottom bar: Export Buttons (Excel + CSV)
         bottom_layout = QHBoxLayout()
@@ -118,6 +145,34 @@ class ProductsPage(QWidget):
         main_layout.addLayout(bottom_layout)
 
         self.setLayout(main_layout)
+
+    def toggle_ai_chat(self):
+        """Show or hide the floating Products AI assistant."""
+        if self.ai_chat_dialog.isVisible():
+            self.hide_ai_chat()
+            return
+        self._position_ai_dialog()
+        self.ai_chat_dialog.show()
+        self.ai_chat_dialog.raise_()
+        self.ai_chat_dialog.activateWindow()
+        self.ai_chat_panel.chat.input_field.setFocus()
+
+    def hide_ai_chat(self):
+        self.ai_chat_dialog.hide()
+
+    def _on_ai_dialog_visibility_changed(self, visible):
+        self.btn_ai_chat.setText(" Hide AI" if visible else " AI Assistant")
+
+    def _position_ai_dialog(self):
+        anchor = self.mapToGlobal(self.rect().bottomRight())
+        screen = QApplication.screenAt(anchor) or QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        x = anchor.x() - self.ai_chat_dialog.width() - 18
+        y = anchor.y() - self.ai_chat_dialog.height() - 18
+        if available:
+            x = max(available.left() + 8, min(x, available.right() - self.ai_chat_dialog.width() - 8))
+            y = max(available.top() + 8, min(y, available.bottom() - self.ai_chat_dialog.height() - 8))
+        self.ai_chat_dialog.move(x, y)
 
     def _set_button_icon(self, button, icon_name, size=18):
         """Set SVG icon for a button"""
@@ -169,20 +224,38 @@ class ProductsPage(QWidget):
             if not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):
                 self.btn_add.setEnabled(False)
                 self.btn_add.setToolTip("You don't have permission to add products")
+            if not PermissionManager.user_has_permission(self.user_id, Permission.VIEW_AI_PAGES):
+                self.btn_ai_chat.setEnabled(False)
+                self.btn_ai_chat.setToolTip("You don't have permission to use AI features")
+                self.ai_chat_dialog.hide()
+
+    def _can_view_sensitive_ai_data(self):
+        if not self.user_id:
+            return True
+        return (
+            PermissionManager.user_has_permission(self.user_id, Permission.EDIT_PRODUCT)
+            or PermissionManager.user_has_permission(self.user_id, Permission.VIEW_REPORTS)
+        )
 
     def on_card_filter(self, key):
         self.filters.reset()
+        self.selected_product_id = None
+        self.selected_product_context = None
         if key == "total_cost":
             self.current_filter = None
         else:
             self.current_filter = key
         self.current_page = 1
         self.apply_filter()
+        self._sync_ai_context()
 
     def on_filter_changed(self):
         self.current_filter = None
+        self.selected_product_id = None
+        self.selected_product_context = None
         self.current_page = 1
         self.apply_filter()
+        self._sync_ai_context()
 
     def on_barcode_scanned(self, keyword):
         main_window = self.window()
@@ -234,9 +307,259 @@ class ProductsPage(QWidget):
 
     def on_product_selected(self, prod_id, name, price, stock):
         self.selected_product_id = prod_id
+        self.selected_product_context = {
+            "id": prod_id, "name": name, "price": price, "stock": stock
+        }
+        self._sync_ai_context()
 
     def on_service_selected(self, prod_id, name, price):
         self.selected_product_id = prod_id
+        self.selected_product_context = {
+            "id": prod_id, "name": name, "price": price, "stock": None,
+            "is_service": True,
+        }
+        self._sync_ai_context()
+
+    def _sync_ai_context(self):
+        """Keep the assistant aware of the current Products page state."""
+        if not hasattr(self, "ai_chat_panel") or not hasattr(self, "filters"):
+            return
+        self.ai_chat_panel.set_product_context(
+            product=self.selected_product_context,
+            search_text=self.filters.get_search_text(),
+            category=self.filters.get_category(),
+            active_filter=self.current_filter,
+        )
+
+    def _handle_ai_product_action(self, action, product):
+        """Apply a safe AI result-card action to the Products page."""
+        if action == "prefill_add":
+            self._ai_prefill_add_product(product)
+            return
+        if action == "bulk_category":
+            self._ai_bulk_assign_category(product.get("category", ""))
+            return
+        if action == "export_filtered":
+            if self._confirm_ai_action(
+                "Export filtered products",
+                f"Export the {len(self.table.get_current_rows())} products currently shown in the table.",
+                "This opens a file chooser and does not change product data.",
+            ):
+                self.export_products()
+                self._log_ai_action("AI Export Products", "Exported current filtered product rows")
+            return
+        if action == "filter":
+            term = product.get("search_term") or product.get("category") or product.get("name") or ""
+            self.filters.search_widget.set_text(str(term))
+            return
+
+        product_id = product.get("id")
+        if not product_id:
+            return
+        if not self._select_ai_product(product_id, product.get("name", "")):
+            QMessageBox.warning(self, "Product Not Found", "The selected AI product is no longer available.")
+            return
+        if action == "apply_reorder":
+            self._ai_apply_reorder_alert(product)
+        elif action == "edit":
+            self.edit_product()
+        elif action == "barcode":
+            self.print_barcode()
+        elif action == "view":
+            self.table.on_cell_double_clicked(self.table.table.currentRow(), 2)
+
+    def _select_ai_product(self, product_id, product_name=""):
+        """Select an AI result in the table, filtering first when it is off-page."""
+        def find_row():
+            for row in range(self.table.table.rowCount()):
+                item = self.table.table.item(row, 0)
+                if item and str(item.text()) == str(product_id):
+                    return row
+            return -1
+
+        row = find_row()
+        if row < 0 and product_name:
+            self.filters.search_widget.set_text(str(product_name))
+            row = find_row()
+        if row < 0:
+            return False
+
+        self.table.table.selectRow(row)
+        name_item = self.table.table.item(row, 2)
+        stock_item = self.table.table.item(row, 7)
+        self.table.table.scrollToItem(name_item)
+        self.selected_product_id = int(product_id)
+        self.selected_product_context = {
+            "id": int(product_id),
+            "name": name_item.text() if name_item else str(product_name),
+            "price": 0,
+            "stock": int(stock_item.text()) if stock_item and stock_item.text().isdigit() else None,
+        }
+        self._sync_ai_context()
+        return True
+
+    def _ai_prefill_add_product(self, suggestion):
+        if not self._ai_has_permission(Permission.ADD_PRODUCT, "add products"):
+            return
+        name = str(suggestion.get("name") or "").strip()
+        if not name or len(name) > 200:
+            QMessageBox.warning(self, "Invalid Product Name", "Product names must be between 1 and 200 characters.")
+            return
+        dialog = ProductFormDialog(parent=self)
+        dialog.name_input.setText(name)
+        category = str(suggestion.get("category") or "").strip()
+        category_index = dialog.category_combo.findText(category)
+        if category_index >= 0:
+            dialog.category_combo.setCurrentIndex(category_index)
+        self.ai_chat_panel.chat._add_bot_message(
+            f"Prepared a new-product form for “{name}”. Review every field and click Save Product to confirm."
+        )
+        if dialog.exec():
+            self.load_categories()
+            self.load_products()
+            self.update_cards()
+            self._refresh_inventory_page_if_loaded()
+            self.categories_changed.emit()
+            self.refresh_current_stock_categories()
+            self._log_ai_action("AI Add Product", f"Created product from AI-prefilled form: {name}")
+
+    def _ai_apply_reorder_alert(self, suggestion):
+        if not self._ai_has_permission(Permission.EDIT_PRODUCT, "edit reorder alerts"):
+            return
+        product_id = suggestion.get("id")
+        proposed = int(suggestion.get("recommended_low_stock") or 0)
+        if not product_id or proposed < 1:
+            return
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, COALESCE(low_stock, 0) FROM products WHERE id=?", (product_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            QMessageBox.warning(self, "Product Not Found", "This product no longer exists.")
+            return
+        name, current = row
+        if not self._confirm_ai_action(
+            "Apply reorder alert",
+            f"Product: {name}\nCurrent low-stock alert: {current}\nSuggested alert: {proposed}",
+            "Only the low-stock alert level will change. Stock quantity will not be changed.",
+        ):
+            return
+        conn = connect_db()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE products SET low_stock=?, last_updated=CURRENT_TIMESTAMP WHERE id=?",
+                (proposed, product_id),
+            )
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            logger.exception(f"AI reorder alert update failed: {exc}")
+            QMessageBox.critical(self, "Update Failed", "The reorder alert was not changed.")
+            return
+        finally:
+            conn.close()
+        self.load_products()
+        self.update_cards()
+        self._refresh_inventory_page_if_loaded()
+        self._log_ai_action(
+            "AI Reorder Alert", f"Product {name} (ID {product_id}): low_stock {current} -> {proposed}"
+        )
+        self.ai_chat_panel.chat._add_bot_message(
+            f"Updated “{name}” low-stock alert from {current} to {proposed}. Stock quantity was not changed."
+        )
+
+    def _ai_bulk_assign_category(self, category):
+        if not self._ai_has_permission(Permission.EDIT_PRODUCT, "bulk-edit product categories"):
+            return
+        category = str(category or "").strip()
+        if len(category) > 100:
+            QMessageBox.warning(self, "Invalid Category", "Category names cannot exceed 100 characters.")
+            return
+        rows = self.table.get_current_rows()
+        product_ids = [int(row[0]) for row in rows if row]
+        if not category or not product_ids:
+            QMessageBox.warning(self, "Nothing to Update", "Choose a category and filter products first.")
+            return
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM categories WHERE LOWER(name)=LOWER(?)", (category,))
+        category_row = cursor.fetchone()
+        conn.close()
+        if not category_row:
+            QMessageBox.warning(self, "Unknown Category", f"Category “{category}” does not exist.")
+            return
+        if not self._confirm_ai_action(
+            "Bulk category assignment",
+            f"Assign {len(product_ids)} currently visible product(s) to category “{category}”.",
+            "This changes only the current table page. You can edit products individually afterward.",
+        ):
+            return
+        placeholders = ",".join("?" for _ in product_ids)
+        conn = connect_db()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE products SET category=?, category_id=?, last_updated=CURRENT_TIMESTAMP "
+                f"WHERE id IN ({placeholders})",
+                [category, category_row[0], *product_ids],
+            )
+            changed = cursor.rowcount
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            logger.exception(f"AI bulk category update failed: {exc}")
+            QMessageBox.critical(self, "Update Failed", "No category changes were committed.")
+            return
+        finally:
+            conn.close()
+        self.load_categories()
+        self.load_products()
+        self.update_cards()
+        self.categories_changed.emit()
+        self._refresh_inventory_page_if_loaded()
+        self._log_ai_action(
+            "AI Bulk Category", f"Assigned {changed} products to category {category}; IDs={product_ids}"
+        )
+        self.ai_chat_panel.chat._add_bot_message(
+            f"Assigned {changed} visible product(s) to category “{category}”."
+        )
+
+    def _ai_has_permission(self, permission, action_label):
+        if self.user_id and not PermissionManager.user_has_permission(self.user_id, permission):
+            QMessageBox.warning(self, "Access Denied", f"You do not have permission to {action_label}.")
+            return False
+        return True
+
+    def _confirm_ai_action(self, title, preview, impact):
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("Confirm AI Action")
+        box.setText(title)
+        box.setInformativeText(preview)
+        box.setDetailedText(f"Impact\n{impact}\n\nNothing will change unless you choose Apply.")
+        apply_button = box.addButton("Apply", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return box.clickedButton() is apply_button
+
+    def _log_ai_action(self, action, details):
+        main_window = self.window()
+        current_user = getattr(main_window, "current_user", None) or {}
+        user_id = current_user.get("id") or self.user_id
+        username = current_user.get("username") or self.user_role or "Unknown"
+        if user_id:
+            self.service.log_activity(user_id, username, action, details)
+        logger.info(f"{action}: {details}")
+
+    def _handle_ai_audit_event(self, event_type, payload):
+        """Persist concise product-AI audit events without storing business result data."""
+        safe_payload = {
+            key: value for key, value in dict(payload or {}).items()
+            if key in {"command", "focus", "success", "elapsed_ms", "feature", "rating"}
+        }
+        self._log_ai_action(f"Product AI {event_type}", str(safe_payload))
 
     def open_add_dialog(self):
         if self.user_id and not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):

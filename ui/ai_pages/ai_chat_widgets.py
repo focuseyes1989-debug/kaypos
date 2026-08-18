@@ -138,9 +138,13 @@ class CopyableMessageFrame(QFrame):
             copy_icon = self._load_copy_icon()
             if not copy_icon.isNull():
                 copy_btn.set_custom_icon(copy_icon, size=(14, 14))
+                copy_btn.setText("")
             else:
                 copy_btn.setText("Copy")
 
+            copy_btn.setToolTip("Copy response")
+            copy_btn.set_chatgpt_style(True)
+            copy_btn.setFixedSize(30, 28)
             copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             copy_btn.clicked.connect(self._copy_text)
             footer_layout.addWidget(copy_btn, alignment=Qt.AlignmentFlag.AlignVCenter)

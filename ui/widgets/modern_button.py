@@ -8,7 +8,7 @@ Support SVG icons with theme colors
 import os
 from PyQt6.QtWidgets import QPushButton
 from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QSize
 
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 
@@ -160,6 +160,7 @@ class ModernButton(QPushButton):
         self._dense = False
         self._is_dark = is_dark_theme()
         self._text_only = False
+        self._chatgpt_style = False
         self._updating_text = False
         
         # Icon data
@@ -184,10 +185,6 @@ class ModernButton(QPushButton):
         # Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
-        # Hover animation
-        self._hover_animation = QPropertyAnimation(self, b"iconSize")
-        self._hover_animation.setDuration(150)
-        self._hover_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
     
     def _on_theme_changed(self, theme_name):
         """Handle theme change - update button style and icon"""
@@ -400,6 +397,32 @@ class ModernButton(QPushButton):
                     font-size: 9pt;
                 }
             """
+
+        if self._chatgpt_style:
+            style_sheet += f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {tertiary_color};
+                    border: none;
+                    border-radius: 6px;
+                    padding: 4px;
+                }}
+                QPushButton:hover {{
+                    background-color: {bg_hover};
+                    color: {tertiary_hover};
+                    border: none;
+                }}
+                QPushButton:pressed, QPushButton:checked {{
+                    background-color: {bg_checked};
+                    color: {tertiary_hover};
+                    border: none;
+                }}
+                QPushButton:disabled {{
+                    background-color: transparent;
+                    color: {disabled_text};
+                    border: none;
+                }}
+            """
         
         self.setStyleSheet(style_sheet)
         
@@ -541,6 +564,15 @@ class ModernButton(QPushButton):
             self.setIconSize(QSize(16, 16))
             self.setMinimumWidth(0)
         self._apply_style()
+
+    def set_chatgpt_style(self, enabled=True):
+        """Use a quiet, borderless icon-button style with a subtle hover state."""
+        self._chatgpt_style = bool(enabled)
+        if enabled:
+            self._style = self.TERTIARY
+            self.setCheckable(False)
+            self.setAutoExclusive(False)
+        self._apply_style()
     
     def set_icon(self, icon_name, size=(16, 16)):
         """Set icon from SVG file with theme color support"""
@@ -590,22 +622,6 @@ class ModernButton(QPushButton):
     
     def has_icon(self):
         return self._has_icon
-    
-    def enterEvent(self, event):
-        if self._has_icon and not self.icon().isNull():
-            current_size = self.iconSize()
-            self._hover_animation.setStartValue(current_size)
-            self._hover_animation.setEndValue(QSize(current_size.width() + 2, current_size.height() + 2))
-            self._hover_animation.start()
-        super().enterEvent(event)
-    
-    def leaveEvent(self, event):
-        if self._has_icon and not self.icon().isNull():
-            current_size = self.iconSize()
-            self._hover_animation.setStartValue(current_size)
-            self._hover_animation.setEndValue(QSize(current_size.width() - 2, current_size.height() - 2))
-            self._hover_animation.start()
-        super().leaveEvent(event)
     
     def setText(self, text: str | None):
         safe_text = text if text is not None else ""

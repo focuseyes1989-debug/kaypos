@@ -8,7 +8,7 @@ from typing import Any
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, 
-    QPushButton, QLayout
+    QPushButton, QLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from loguru import logger
@@ -145,6 +145,8 @@ class LazyLoadingWidget(QWidget):
         
         # Show loading, hide retry button
         self.loading_container.show()
+        if self.layout():
+            self.layout().setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.retry_btn.hide()
         self.status_label.setStyleSheet("color: #6c757d;")
         
@@ -317,6 +319,17 @@ class LazyLoadingWidget(QWidget):
     def _show_loaded_widget(self):
         """Show the loaded widget"""
         if self._loaded_widget:
+            layout = self.layout()
+            if layout:
+                # AlignCenter is only for the temporary loading indicator. If it
+                # remains active, real pages collapse to their size hint and sit
+                # in the middle of a large empty area.
+                layout.setAlignment(Qt.AlignmentFlag(0))
+                layout.setStretchFactor(self.loading_container, 0)
+                layout.setStretchFactor(self._loaded_widget, 1)
+            self._loaded_widget.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            )
             self._loaded_widget.show()
             self.loading_container.hide()
             self._is_loaded = True

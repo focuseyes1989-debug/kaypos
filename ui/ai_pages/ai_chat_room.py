@@ -58,9 +58,13 @@ class AIChatRoom(QWidget):
     query_logged = pyqtSignal(dict)
     navigation_requested = pyqtSignal(dict)
     
-    def __init__(self, parent=None, user_id=None):
+    def __init__(self, parent=None, user_id=None, query_transform=None, result_renderer=None,
+                 command_handler=None):
         super().__init__(parent)
         self._user_id = str(user_id or "anonymous")
+        self._query_transform = query_transform
+        self._result_renderer = result_renderer
+        self._command_handler = command_handler
         self._worker = None
         self._is_processing = False
         self._analytics = AIAnalytics()
@@ -126,10 +130,12 @@ class AIChatRoom(QWidget):
             }}
         """)
         input_frame_layout = QVBoxLayout(input_frame)
+        self.input_frame_layout = input_frame_layout
         input_frame_layout.setContentsMargins(32, 8, 32, 8)
         input_frame_layout.setSpacing(5)
 
         quick_layout = QHBoxLayout()
+        self.quick_controls_layout = quick_layout
         quick_layout.setSpacing(8)
         quick_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
@@ -187,6 +193,7 @@ class AIChatRoom(QWidget):
         input_frame_layout.addLayout(quick_layout)
 
         chips_scroll = QScrollArea()
+        self.chips_scroll = chips_scroll
         chips_scroll.setWidgetResizable(True)
         chips_scroll.setFrameShape(QFrame.Shape.NoFrame)
         chips_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -210,6 +217,7 @@ class AIChatRoom(QWidget):
         input_frame_layout.addWidget(chips_scroll)
 
         input_layout = QHBoxLayout()
+        self.input_controls_layout = input_layout
         input_layout.setSpacing(10)
         input_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
@@ -270,6 +278,63 @@ class AIChatRoom(QWidget):
         self._update_input_meta()
         
         main_layout.addWidget(input_frame, stretch=0)
+
+    def set_compact_mode(self):
+        """Fit the shared chat controls into a narrow embedded side panel."""
+        if getattr(self, "_compact_mode_enabled", False):
+            return
+        self._compact_mode_enabled = True
+        self.recent_combo.hide()
+        self.analytics_btn.hide()
+        self.export_chat_btn.hide()
+        self.chips_scroll.hide()
+        for button, tooltip in (
+            (self.clear_btn, "Clear chat"),
+            (self.retry_btn, "Retry last message"),
+            (self.send_btn, "Send message"),
+            (self.stop_btn, "Stop response"),
+        ):
+            button.setText("")
+            button.setToolTip(tooltip)
+            button.set_compact(True)
+            button.set_chatgpt_style(True)
+            button.setFixedSize(32, 30)
+
+        # In compact dialogs, keep only Send beside the text field. Destructive
+        # and response-control actions live in a separate utility row below it.
+        self.quick_controls_layout.removeWidget(self.clear_btn)
+        self.quick_controls_layout.removeWidget(self.retry_btn)
+        self.input_controls_layout.removeWidget(self.stop_btn)
+        self.input_frame_layout.removeItem(self.quick_controls_layout)
+
+        self.compact_utility_layout = QHBoxLayout()
+        self.compact_utility_layout.setContentsMargins(0, 0, 0, 0)
+        self.compact_utility_layout.setSpacing(6)
+        self.compact_utility_layout.addStretch()
+        self.compact_utility_layout.addWidget(self.clear_btn)
+        self.compact_utility_layout.addWidget(self.retry_btn)
+        self.compact_utility_layout.addWidget(self.stop_btn)
+        self.input_frame_layout.insertLayout(
+            max(0, self.input_frame_layout.count() - 1),
+            self.compact_utility_layout,
+        )
+
+        self.input_frame.setMinimumHeight(132)
+        self.input_frame.setMaximumHeight(142)
+        self.input_frame_layout.setContentsMargins(10, 6, 10, 6)
+        self.input_field.setFixedHeight(50)
+        self.chat_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.chat_layout.setContentsMargins(10, 10, 10, 10)
+
+    def replace_welcome_message(self, message):
+        """Replace the broad welcome copy when chat is embedded in a focused module."""
+        while self.chat_layout.count() > 1:
+            item = self.chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._message_history.clear()
+        self._conversation_context.clear()
+        self._add_bot_message(message)
 
     def _add_quick_action(self, layout, text, prompt, icon_name, callback=None):
         button = ModernButton(text, ModernButton.SECONDARY)
@@ -421,6 +486,15 @@ I can help you with:
         if len(text) > self.MAX_PROMPT_LENGTH:
             QMessageBox.warning(self, "Prompt Too Long", f"Please shorten the prompt to {self.MAX_PROMPT_LENGTH:,} characters or fewer.")
             return
+        if callable(self._command_handler):
+            try:
+                if self._command_handler(text):
+                    self.input_field.clear()
+                    self._last_prompt = text
+                    self._remember_prompt(text)
+                    return
+            except Exception as exc:
+                logger.warning(f"AI custom command handler failed: {exc}")
         
         self.input_field.clear()
         self._last_prompt = text
@@ -605,6 +679,11 @@ I can help you with:
         self._set_chat_status("Thinking...")
         self._active_raw_query = text
         normalized_query = AIBurmeseNormalizer.normalize(text)
+        if callable(self._query_transform):
+            try:
+                normalized_query = self._query_transform(normalized_query) or normalized_query
+            except Exception as exc:
+                logger.warning(f"AI query context transform failed: {exc}")
         self._active_resolved_query = self._conversation_context.resolve(normalized_query)
         self._pending_navigation = AINavigationRequest.parse(normalized_query)
         
@@ -656,7 +735,14 @@ I can help you with:
         elif result.get('type') == 'error':
             self._add_bot_message(result.get('message', 'Unknown error occurred'))
         elif result.get('type') == 'product_search':
-            self._add_product_search_message(result)
+            rendered = False
+            if callable(self._result_renderer):
+                try:
+                    rendered = bool(self._result_renderer(result))
+                except Exception as exc:
+                    logger.warning(f"AI custom result renderer failed: {exc}")
+            if not rendered:
+                self._add_product_search_message(result)
         else:
             actions=self._build_follow_up_actions(result)
             visual_spec=self._build_result_visual(result)
