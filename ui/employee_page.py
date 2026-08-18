@@ -1,6 +1,6 @@
 """Employee Management page: profiles, attendance, shifts and payroll."""
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from PyQt6.QtCore import QByteArray, QBuffer, QDate, QIODevice, QTime, Qt, pyqtSignal
@@ -77,6 +77,43 @@ def _employee_photo_data(employee):
         try:return _normalized_photo_png(str(path))
         except ValueError:return b""
     return data
+
+
+def _employee_tenure(hire_date, today=None):
+    """Return completed calendar years, months and days since the hire date."""
+    if not hire_date:
+        return "—"
+    try:
+        hired = hire_date.date() if isinstance(hire_date, datetime) else (
+            hire_date if isinstance(hire_date, date) else date.fromisoformat(str(hire_date)[:10])
+        )
+    except (TypeError, ValueError):
+        return "—"
+    current = today or date.today()
+    if hired > current:
+        return "Not started"
+
+    years = current.year - hired.year
+    months = current.month - hired.month
+    days = current.day - hired.day
+    if days < 0:
+        months -= 1
+        previous_month = current.month - 1 or 12
+        previous_year = current.year if current.month > 1 else current.year - 1
+        from calendar import monthrange
+        days += monthrange(previous_year, previous_month)[1]
+    if months < 0:
+        years -= 1
+        months += 12
+
+    parts = []
+    if years:
+        parts.append(f"{years} year{'s' if years != 1 else ''}")
+    if months:
+        parts.append(f"{months} month{'s' if months != 1 else ''}")
+    if days or not parts:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    return ", ".join(parts)
 
 
 class EmployeeDialog(QDialog):
@@ -184,7 +221,7 @@ class EmployeesTab(QWidget):
     data_changed = pyqtSignal()
     def __init__(self, can_manage=True):
         super().__init__(); self.can_manage=can_manage; self.rows=[]; top=QHBoxLayout(); self.search=ModernSearchWidget("Search by name, employee ID or phone..."); self.status=QComboBox(); self.status.addItems(["All","Active","On Leave","Resigned"]); all_rows=service.list_employees(); self.position=QComboBox(); self.department=QComboBox(); self.branch=QComboBox(); self.position.addItem("All Positions");self.department.addItem("All Departments");self.branch.addItem("All Branches");[self.position.addItem(x) for x in sorted({str(e.get('position') or '') for e in all_rows if e.get('position')})];[self.department.addItem(x) for x in sorted({str(e.get('department') or '') for e in all_rows if e.get('department')})];[self.branch.addItem(x) for x in sorted({str(e.get('branch') or '') for e in all_rows if e.get('branch')})]; top.addWidget(self.search,1); top.addWidget(self.status);top.addWidget(self.position);top.addWidget(self.department);top.addWidget(self.branch); top.addWidget(_button("Add Employee",self.add,True)) if can_manage else None
-        self.table=_table(["Profile","Employee ID","Name","Position","Phone","Branch","POS Account","Status"]); self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); self.table.doubleClicked.connect(self.edit); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.search.search_changed.connect(lambda _text:self.refresh()); self.status.currentTextChanged.connect(lambda _status:self.refresh());self.position.currentTextChanged.connect(lambda _text:self.refresh());self.department.currentTextChanged.connect(lambda _text:self.refresh());self.branch.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
+        self.table=_table(["Profile","Employee ID","Name","Position","Phone","Branch","Tenure","POS Account","Status"]); self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); self.table.doubleClicked.connect(self.edit); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.search.search_changed.connect(lambda _text:self.refresh()); self.status.currentTextChanged.connect(lambda _status:self.refresh());self.position.currentTextChanged.connect(lambda _text:self.refresh());self.department.currentTextChanged.connect(lambda _text:self.refresh());self.branch.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
         rows=service.list_employees(self.search.get_text(),self.status.currentText());position=self.position.currentText();department=self.department.currentText();branch=self.branch.currentText();self.rows=[x for x in rows if (position=="All Positions" or str(x.get('position') or '')==position) and (department=="All Departments" or str(x.get('department') or '')==department) and (branch=="All Branches" or str(x.get('branch') or '')==branch)]; self.table.setRowCount(len(self.rows))
         person_icon=load_svg_icon("person",38,"#7f8c8d")
@@ -203,7 +240,8 @@ class EmployeesTab(QWidget):
             if pixmap.isNull() and person_icon is not None:photo.setPixmap(person_icon)
             else:photo.setPixmap(pixmap)
             self.table.setCellWidget(r,0,photo)
-            for c,key in enumerate(("employee_no","full_name","position","phone","branch","username","employment_status"),1): self.table.setItem(r,c,QTableWidgetItem(str(item.get(key) or "")))
+            values=(item.get("employee_no"),item.get("full_name"),item.get("position"),item.get("phone"),item.get("branch"),_employee_tenure(item.get("hire_date")),item.get("username"),item.get("employment_status"))
+            for c,value in enumerate(values,1): self.table.setItem(r,c,QTableWidgetItem(str(value or "")))
     def add(self):
         dialog=EmployeeDialog(parent=self)
         if dialog.exec():
