@@ -56,11 +56,22 @@ async def configure_asyncio_error_handling() -> None:
             logger.info(f"Clamped stale location stock for {len(fixed)} product(s)")
     except Exception as exc:
         logger.warning(f"Could not clamp stale location stock on cashier startup: {exc}")
+    try:
+        from server.car_management_service import car_server_enabled, create_configured_car_service
+        if car_server_enabled():
+            app.state.car_management_service = create_configured_car_service()
+            app.state.car_management_service.start()
+    except Exception as exc:
+        app.state.car_management_service = None
+        logger.error(f"Could not start Car Management service: {exc}")
 
 
 @app.on_event("shutdown")
 async def restore_asyncio_error_handling() -> None:
     """Restore the event loop handler when the cashier server stops."""
+    car_service = getattr(app.state, "car_management_service", None)
+    if car_service is not None:
+        car_service.stop()
     loop = getattr(app.state, "asyncio_loop", None)
     if loop is not None and not loop.is_closed():
         loop.set_exception_handler(

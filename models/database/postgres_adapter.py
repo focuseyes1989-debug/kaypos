@@ -8,6 +8,7 @@ from utils.db_compat import adapt_sql_placeholders
 
 
 AUTO_ID_TABLES = {
+    "cars",
     "categories",
     "category_groups",
     "app_metadata",

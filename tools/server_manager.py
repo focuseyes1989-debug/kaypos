@@ -13,7 +13,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from PyQt6.QtCore import QProcess, Qt, QTimer
+from PyQt6.QtCore import QProcess, QProcessEnvironment, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -489,6 +489,24 @@ class ServerManagerWindow(QMainWindow):
         self.server_status = self._status_chip("Server status: stopped")
         pos_layout.addWidget(self.server_status)
 
+        car_box = QGroupBox("Car Management LAN Service")
+        car_layout = QVBoxLayout(car_box)
+        car_form = QFormLayout()
+        self.car_server_enabled_checkbox = QCheckBox("Start automatically with the POS server")
+        self.car_server_enabled_checkbox.setChecked(True)
+        self.car_server_port_input = QSpinBox()
+        self.car_server_port_input.setRange(1, 65535)
+        self.car_server_port_input.setValue(12345)
+        car_form.addRow("Enabled", self.car_server_enabled_checkbox)
+        car_form.addRow("TCP Port", self.car_server_port_input)
+        car_layout.addLayout(car_form)
+        car_layout.addWidget(self._note(
+            f"Car clients on this LAN/Wi-Fi should connect to {local_ip()}:12345. "
+            "The service uses the same local PostgreSQL database as KAY POS."
+        ))
+        self.car_server_status = self._status_chip("Car server status: stopped")
+        car_layout.addWidget(self.car_server_status)
+
         pg_box = QGroupBox("PostgreSQL Windows Service")
         pg_layout = QVBoxLayout(pg_box)
         pg_form = QFormLayout()
@@ -513,6 +531,7 @@ class ServerManagerWindow(QMainWindow):
         self.server_output.setPlaceholderText("Service output and PostgreSQL service command results will appear here.")
 
         layout.addWidget(pos_box)
+        layout.addWidget(car_box)
         layout.addWidget(pg_box)
         layout.addWidget(self.server_output, 1)
         return page
@@ -906,6 +925,8 @@ class ServerManagerWindow(QMainWindow):
 
         bind_host = self.bind_host_input.text().strip() or "0.0.0.0"
         port = self.server_port_input.value()
+        car_enabled = self.car_server_enabled_checkbox.isChecked()
+        car_port = self.car_server_port_input.value()
         scheme = self._server_scheme()
         if not can_bind_port(bind_host, port):
             url = f"{scheme}://{local_ip()}:{port}"
@@ -914,10 +935,29 @@ class ServerManagerWindow(QMainWindow):
             self._set_chip(self.server_status, message, "warn")
             QMessageBox.information(self, "Cashier Server Already Running", message)
             return
+        if car_enabled and car_port == port:
+            message = "POS Server and Car Management service must use different ports."
+            self._set_chip(self.car_server_status, message, "bad")
+            QMessageBox.warning(self, "Duplicate Server Port", message)
+            return
+        if car_enabled and not can_bind_port(bind_host, car_port):
+            message = (
+                f"Car Management port {car_port} is already in use. Stop the old Car Server/Server.exe "
+                "or choose another port before starting KAY POS Server."
+            )
+            self.append_server_output(message)
+            self._set_chip(self.car_server_status, message, "bad")
+            QMessageBox.warning(self, "Car Server Port In Use", message)
+            return
 
         self.server_process = QProcess(self)
         self.server_process.setWorkingDirectory(str(PROJECT_ROOT))
         self.server_process.setProgram(sys.executable)
+        process_environment = QProcessEnvironment.systemEnvironment()
+        process_environment.insert("ZAY_CAR_SERVER_ENABLED", "1" if car_enabled else "0")
+        process_environment.insert("ZAY_CAR_SERVER_HOST", bind_host)
+        process_environment.insert("ZAY_CAR_SERVER_PORT", str(car_port))
+        self.server_process.setProcessEnvironment(process_environment)
         args = [
             "run_pos_server.py",
             "--host",
@@ -937,6 +977,11 @@ class ServerManagerWindow(QMainWindow):
             f"Server status: starting. Network URL: {scheme}://{local_ip()}:{port}",
             "warn",
         )
+        self._set_chip(
+            self.car_server_status,
+            f"Car server status: starting on {local_ip()}:{car_port}" if car_enabled else "Car server status: disabled",
+            "warn" if car_enabled else "neutral",
+        )
         self._update_server_buttons()
 
     def _server_scheme(self) -> str:
@@ -945,12 +990,14 @@ class ServerManagerWindow(QMainWindow):
     def stop_pos_server(self) -> None:
         if not self.server_process or self.server_process.state() == QProcess.ProcessState.NotRunning:
             self._set_chip(self.server_status, "Server status: stopped")
+            self._set_chip(self.car_server_status, "Car server status: stopped")
             self._update_server_buttons()
             return
         self.server_process.terminate()
         if not self.server_process.waitForFinished(3000):
             self.server_process.kill()
         self._set_chip(self.server_status, "Server status: stopped")
+        self._set_chip(self.car_server_status, "Car server status: stopped")
         self._update_server_buttons()
 
     def restart_pos_server(self) -> None:
@@ -963,6 +1010,12 @@ class ServerManagerWindow(QMainWindow):
         data = bytes(self.server_process.readAllStandardOutput()).decode(errors="ignore")
         if data:
             self.append_server_output(data)
+            if "Car Management service listening" in data:
+                self._set_chip(
+                    self.car_server_status,
+                    f"Car server status: running. LAN: {local_ip()}:{self.car_server_port_input.value()}",
+                    "ok",
+                )
 
     def _read_server_stderr(self) -> None:
         if not self.server_process:
@@ -970,9 +1023,18 @@ class ServerManagerWindow(QMainWindow):
         data = bytes(self.server_process.readAllStandardError()).decode(errors="ignore")
         if data:
             self.append_server_output(data)
+            if "Car Management service listening" in data:
+                self._set_chip(
+                    self.car_server_status,
+                    f"Car server status: running. LAN: {local_ip()}:{self.car_server_port_input.value()}",
+                    "ok",
+                )
+            elif "Could not start Car Management service" in data:
+                self._set_chip(self.car_server_status, "Car server status: failed to start", "bad")
 
     def _server_finished(self) -> None:
         self._set_chip(self.server_status, "Server status: stopped")
+        self._set_chip(self.car_server_status, "Car server status: stopped")
         self._update_server_buttons()
         self.append_server_output("POS server stopped.")
 

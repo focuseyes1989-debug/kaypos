@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import os
 import socket
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -117,6 +118,10 @@ def main() -> None:
         print(f"HTTPS certificate: {cert_path}", flush=True)
     print(f"Local:   {scheme}://127.0.0.1:{args.port}", flush=True)
     print(f"Network: {scheme}://{ip}:{args.port}", flush=True)
+    car_enabled = str(os.getenv("ZAY_CAR_SERVER_ENABLED", "1")).strip().lower() in {"1", "true", "yes", "on"}
+    if car_enabled:
+        car_port = int(os.getenv("ZAY_CAR_SERVER_PORT", "12345"))
+        print(f"Car Management: {ip}:{car_port} (LAN TCP)", flush=True)
     print("Keep this window open while browser cashier clients are using POS.", flush=True)
 
     uvicorn.run(
