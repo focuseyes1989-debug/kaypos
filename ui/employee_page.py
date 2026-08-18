@@ -3,12 +3,12 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, QBuffer, QDate, QIODevice, QTime, Qt, pyqtSignal
+from PyQt6.QtCore import QByteArray, QBuffer, QDate, QIODevice, QObject, QThread, QTime, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QDoubleSpinBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QFileDialog, QGroupBox, QMessageBox, QPushButton, QSpinBox, QTabWidget, QTableWidget,
+    QFileDialog, QGroupBox, QMessageBox, QProgressDialog, QPushButton, QSpinBox, QTabWidget, QTableWidget,
     QTableWidgetItem, QTextEdit, QTimeEdit, QVBoxLayout, QWidget,
 )
 
@@ -28,7 +28,7 @@ def _button(text, slot, primary=False):
             else "check_circle" if any(word in lowered for word in ("paid", "approve", "close session"))
             else "export" if "export" in lowered
             else "edit" if any(word in lowered for word in ("correct", "assign", "repayment", "rule"))
-            else "refresh" if "refresh" in lowered
+            else "refresh" if any(word in lowered for word in ("refresh", "sync"))
             else None)
     if icon:
         button.set_icon(icon)
@@ -255,9 +255,26 @@ class EmployeesTab(QWidget):
             except Exception as exc: QMessageBox.critical(self,"Could not save",str(exc))
 
 
+class AttendanceSyncWorker(QObject):
+    progress = pyqtSignal(int, int, str)
+    completed = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            from services.zkteco_service import sync_configured_mappings
+            results = sync_configured_mappings(
+                lambda current, total, message: self.progress.emit(current, total, message)
+            )
+            self.completed.emit(results)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class AttendanceTab(QWidget):
     def __init__(self,user_id,can_manage):
-        super().__init__(); self.user_id=user_id; self.can_manage=can_manage; self.rows=[]; top=QHBoxLayout(); self.date_range=DateRangeWidget(); self.search=ModernSearchWidget("Search employee or ID..."); self.employee_filter=QComboBox();self.employee_filter.addItem("All Employees",None);[self.employee_filter.addItem(f"{e['employee_no']} — {e['full_name']}",e['id']) for e in service.list_employees(status='Active')];self.issue=QComboBox();self.issue.addItems(["All Records","Missing Check-in","Missing Check-out","Check-in before Shift","Check-in after Shift"]); self.category=QComboBox(); self.category.addItems(["All Statuses","Present","Late","Incomplete","Absent","Half-day","Leave"]); top.addWidget(self.date_range,1); top.addWidget(self.search,1);top.addWidget(self.employee_filter);top.addWidget(self.issue); top.addWidget(self.category); top.addStretch(); top.addWidget(_button("Sync K20",self.sync_k20,True)) if can_manage else None; top.addWidget(_button("Add / Correct",self.record)) if can_manage else None
+        super().__init__(); self.user_id=user_id; self.can_manage=can_manage; self.rows=[]; self._sync_thread=None; self._sync_worker=None; self._sync_progress=None; top=QHBoxLayout(); self.date_range=DateRangeWidget(); self.search=ModernSearchWidget("Search employee or ID..."); self.employee_filter=QComboBox();self.employee_filter.addItem("All Employees",None);[self.employee_filter.addItem(f"{e['employee_no']} — {e['full_name']}",e['id']) for e in service.list_employees(status='Active')];self.issue=QComboBox();self.issue.addItems(["All Records","Missing Check-in","Missing Check-out","Check-in before Shift","Check-in after Shift"]); self.category=QComboBox(); self.category.addItems(["All Statuses","Present","Late","Incomplete","Absent","Half-day","Leave"]); top.addWidget(self.date_range,1); top.addWidget(self.search,1);top.addWidget(self.employee_filter);top.addWidget(self.issue); top.addWidget(self.category); top.addStretch(); self.sync_button=_button("Sync",self.sync_k20,True) if can_manage else None; top.addWidget(self.sync_button) if self.sync_button else None; top.addWidget(_button("Add / Correct",self.record)) if can_manage else None
         self.total_count=QLabel("Total Records: 0"); self.total_count.setStyleSheet("font-size: 14px; font-weight: 600; padding: 4px 2px;")
         self.table=_table(["Date","Employee ID","Name","Check in","Check out","Status","Late (min)","Notes","Correction reason"]); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.total_count); layout.addWidget(self.table); self.date_range.date_range_changed.connect(lambda _from,_to:self.refresh()); self.search.search_changed.connect(lambda _text:self.refresh());self.employee_filter.currentIndexChanged.connect(lambda _index:self.refresh());self.issue.currentTextChanged.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
@@ -277,10 +294,43 @@ class AttendanceTab(QWidget):
         dialog=QDialog(self); dialog.setWindowTitle("Attendance"); form=QFormLayout(dialog); employee=QComboBox(); [employee.addItem(f"{x['employee_no']} — {x['full_name']}",x['id']) for x in employees]; cin=QTimeEdit(QTime.currentTime()); cout=QTimeEdit(); cout.setSpecialValueText("Not set"); cout.setTime(QTime(0,0)); status=QComboBox(); status.addItems(["Present","Late","Incomplete","Absent","Half-day","Leave"]); notes=QLineEdit(); reason=QLineEdit(); form.addRow("Employee",employee); form.addRow("Check in",cin); form.addRow("Check out",cout); form.addRow("Status",status); form.addRow("Notes",notes); form.addRow("Correction reason",reason); buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
         if dialog.exec(): service.save_attendance(employee.currentData(),self.date_range.get_from_date(),cin.time().toString("HH:mm"),"" if cout.time()==QTime(0,0) else cout.time().toString("HH:mm"),status.currentText(),notes.text(),self.user_id,reason.text()); self.refresh()
     def sync_k20(self):
-        try:
-            from services.zkteco_service import sync_configured_mappings
-            results=sync_configured_mappings(); imported=sum(x["inserted"] for x in results); days=sum(x["attendance_days"] for x in results); self.refresh(); QMessageBox.information(self,"ZKTeco Sync",f"Sync complete.\nNew punches: {imported}\nAttendance days updated: {days}")
-        except Exception as exc: QMessageBox.critical(self,"ZKTeco Sync Failed",str(exc))
+        if self._sync_thread and self._sync_thread.isRunning():return
+        self.sync_button.setEnabled(False)
+        self._sync_progress=QProgressDialog("Connecting to ZKTeco device...",None,0,0,self)
+        self._sync_progress.setWindowTitle("Attendance Sync")
+        self._sync_progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self._sync_progress.setCancelButton(None)
+        self._sync_progress.setMinimumDuration(0)
+        self._sync_progress.setAutoClose(False)
+        self._sync_progress.setAutoReset(False)
+        self._sync_progress.show()
+        self._sync_thread=QThread(self);self._sync_worker=AttendanceSyncWorker();self._sync_worker.moveToThread(self._sync_thread)
+        self._sync_thread.started.connect(self._sync_worker.run)
+        self._sync_worker.progress.connect(self._update_sync_progress)
+        self._sync_worker.completed.connect(self._sync_completed)
+        self._sync_worker.failed.connect(self._sync_failed)
+        self._sync_worker.completed.connect(self._sync_thread.quit)
+        self._sync_worker.failed.connect(self._sync_thread.quit)
+        self._sync_thread.finished.connect(self._sync_worker.deleteLater)
+        self._sync_thread.finished.connect(self._sync_finished)
+        self._sync_thread.start()
+
+    def _update_sync_progress(self,current,total,message):
+        if not self._sync_progress:return
+        if self._sync_progress.maximum()!=total:self._sync_progress.setRange(0,total)
+        self._sync_progress.setLabelText(message);self._sync_progress.setValue(current)
+
+    def _sync_completed(self,results):
+        if self._sync_progress:self._sync_progress.close()
+        imported=sum(x["inserted"] for x in results);days=sum(x["attendance_days"] for x in results);self.refresh();QMessageBox.information(self,"ZKTeco Sync",f"Sync complete.\nNew punches: {imported}\nAttendance days updated: {days}")
+
+    def _sync_failed(self,message):
+        if self._sync_progress:self._sync_progress.close()
+        QMessageBox.critical(self,"ZKTeco Sync Failed",message)
+
+    def _sync_finished(self):
+        if self.sync_button:self.sync_button.setEnabled(True)
+        self._sync_progress=None;self._sync_worker=None;self._sync_thread.deleteLater();self._sync_thread=None
 
 
 class ShiftsTab(QWidget):

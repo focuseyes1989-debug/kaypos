@@ -2,7 +2,8 @@
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Dict
+import sys
+from typing import Any, Callable, Dict
 
 from models.database import connect_db
 from services.employee_service import ensure_employee_schema, recalculate_attendance_categories
@@ -58,8 +59,16 @@ def ensure_zkteco_schema() -> None:
 
 
 def _connect(ip:str,port:int,key:int):
-    try: from zk import ZK
-    except ImportError as exc: raise RuntimeError("pyzk is required; install requirements.txt") from exc
+    try:
+        from zk import ZK
+    except ImportError as exc:
+        raise RuntimeError(
+            "ZKTeco library could not be loaded.\n"
+            f"Import error: {exc}\n"
+            f"Python: {sys.executable}\n"
+            "Close KAY POS completely, then run:\n"
+            f'"{sys.executable}" -m pip install --upgrade pyzk==0.9 future'
+        ) from exc
     return ZK(ip,port=port,timeout=10,password=key,force_udp=False,ommit_ping=True).connect()
 
 
@@ -107,10 +116,17 @@ def sync_employee(device_no:int,ip:str,port:int,comm_key:int,device_user_id:str,
     return {"employee_id":employee_id,"employee_no":employee_no,"device_user_id":str(device_user_id),"total":len(all_logs),"inserted":inserted,"duplicates":skipped,"invalid":invalid,"attendance_days":len(affected),"serial":serial}
 
 
-def sync_configured_mappings() -> list[Dict[str,Any]]:
+def sync_configured_mappings(
+    progress_callback: Callable[[int, int, str], None] | None = None,
+) -> list[Dict[str,Any]]:
     ensure_zkteco_schema();conn=connect_db();cur=conn.cursor();cur.execute("""SELECT d.device_no,d.ip_address,d.port,d.comm_key,e.employee_no,m.device_user_id FROM zkteco_employee_mappings m JOIN zkteco_devices d ON d.id=m.device_id JOIN employees e ON e.id=m.employee_id WHERE d.is_active=1 AND e.employment_status='Active' ORDER BY d.device_no,e.id""");rows=cur.fetchall();conn.close()
     if not rows:raise ValueError("No active ZKTeco device/employee mappings are configured")
-    return [sync_employee(device_no,ip,port,key,user_id,employee_no) for device_no,ip,port,key,employee_no,user_id in rows]
+    results=[];total=len(rows)
+    for index,(device_no,ip,port,key,employee_no,user_id) in enumerate(rows):
+        if progress_callback:progress_callback(index,total,f"Syncing {employee_no}...")
+        results.append(sync_employee(device_no,ip,port,key,user_id,employee_no))
+        if progress_callback:progress_callback(index+1,total,f"Synced {employee_no}")
+    return results
 
 
 def list_devices() -> list[Dict[str,Any]]:
