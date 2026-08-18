@@ -1,6 +1,6 @@
 # ui/sales_page/options_widget.py
 from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QRadioButton, QCheckBox, QWidget, QLabel
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, QSettings, Qt
 from PyQt6.QtGui import QFont
 from utils.translations import tr
 from ui.themes import get_theme_colors
@@ -15,6 +15,7 @@ class OptionsWidget(QGroupBox):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.settings = QSettings("KAY POS", "Sales")
         self.setTitle("Options")
         self.hide_title = False
         
@@ -93,14 +94,20 @@ class OptionsWidget(QGroupBox):
         
         # Print Receipt
         self.print_receipt_check = QCheckBox("Print Receipt")
-        self.print_receipt_check.setChecked(True)
+        self.print_receipt_check.setChecked(
+            self.settings.value("sale_details/print_receipt", True, type=bool)
+        )
         self.print_receipt_check.toggled.connect(self.print_receipt_toggled.emit)
+        self.print_receipt_check.toggled.connect(self._save_persistent_options)
         options_layout.addWidget(self.print_receipt_check)
         
         # Open Cash Drawer
         self.open_drawer_check = QCheckBox("Open Cash Drawer")
-        self.open_drawer_check.setChecked(True)
+        self.open_drawer_check.setChecked(
+            self.settings.value("sale_details/open_cash_drawer", True, type=bool)
+        )
         self.open_drawer_check.toggled.connect(self.open_drawer_toggled.emit)
+        self.open_drawer_check.toggled.connect(self._save_persistent_options)
         options_layout.addWidget(self.open_drawer_check)
         
         options_layout.addStretch()
@@ -109,6 +116,12 @@ class OptionsWidget(QGroupBox):
         # Set initial credit radio state
         self.set_customer_selected(False)
         self.update_theme()
+
+    def _save_persistent_options(self, _checked=None):
+        """Keep operational Sale Details defaults across application restarts."""
+        self.settings.setValue("sale_details/print_receipt", self.print_receipt_check.isChecked())
+        self.settings.setValue("sale_details/open_cash_drawer", self.open_drawer_check.isChecked())
+        self.settings.sync()
     
     def is_print_receipt_enabled(self):
         """Return whether print receipt is enabled"""
