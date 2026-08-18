@@ -8,7 +8,7 @@ from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QDoubleSpinBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QFileDialog, QGroupBox, QMessageBox, QProgressDialog, QPushButton, QSpinBox, QTabWidget, QTableWidget,
+    QFileDialog, QGroupBox, QMessageBox, QProgressBar, QPushButton, QSpinBox, QTabWidget, QTableWidget,
     QTableWidgetItem, QTextEdit, QTimeEdit, QVBoxLayout, QWidget,
 )
 
@@ -255,6 +255,44 @@ class EmployeesTab(QWidget):
             except Exception as exc: QMessageBox.critical(self,"Could not save",str(exc))
 
 
+class AttendanceSyncProgressDialog(QDialog):
+    def __init__(self,parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Attendance Sync")
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setMinimumWidth(300)
+        self.status_label=QLabel("Connecting to ZKTeco device...")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_bar=QProgressBar()
+        self.progress_bar.setRange(0,0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFixedHeight(30)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #60646c;
+                border-radius: 6px;
+                background-color: #40444b;
+                color: #ffffff;
+                font-size: 10pt;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #5865f2;
+                border-radius: 5px;
+            }
+        """)
+        layout=QVBoxLayout(self)
+        layout.setContentsMargins(16,14,16,14)
+        layout.setSpacing(10)
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.progress_bar)
+
+    def setLabelText(self,text):self.status_label.setText(text)
+    def setRange(self,minimum,maximum):self.progress_bar.setRange(minimum,maximum)
+    def maximum(self):return self.progress_bar.maximum()
+    def setValue(self,value):self.progress_bar.setValue(value)
+
+
 class AttendanceSyncWorker(QObject):
     progress = pyqtSignal(int, int, str)
     completed = pyqtSignal(object)
@@ -296,13 +334,7 @@ class AttendanceTab(QWidget):
     def sync_k20(self):
         if self._sync_thread and self._sync_thread.isRunning():return
         self.sync_button.setEnabled(False)
-        self._sync_progress=QProgressDialog("Connecting to ZKTeco device...",None,0,0,self)
-        self._sync_progress.setWindowTitle("Attendance Sync")
-        self._sync_progress.setWindowModality(Qt.WindowModality.WindowModal)
-        self._sync_progress.setCancelButton(None)
-        self._sync_progress.setMinimumDuration(0)
-        self._sync_progress.setAutoClose(False)
-        self._sync_progress.setAutoReset(False)
+        self._sync_progress=AttendanceSyncProgressDialog(self)
         self._sync_progress.show()
         self._sync_thread=QThread(self);self._sync_worker=AttendanceSyncWorker();self._sync_worker.moveToThread(self._sync_thread)
         self._sync_thread.started.connect(self._sync_worker.run)
