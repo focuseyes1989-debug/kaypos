@@ -14,7 +14,8 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from PyQt6.QtCore import QProcess, QProcessEnvironment, Qt, QTimer
+from PyQt6.QtCore import QProcess, QProcessEnvironment, QSettings, Qt, QTimer
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -28,6 +29,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
@@ -35,6 +37,8 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QStyle,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
@@ -96,7 +100,7 @@ def can_bind_port(host: str, port: int) -> bool:
 
 
 class ServerManagerWindow(QMainWindow):
-    def __init__(self, auto_start=False) -> None:
+    def __init__(self, auto_start=None) -> None:
         super().__init__()
         self.setWindowTitle("Kay POS Server Manager")
         self.resize(1080, 720)
@@ -105,13 +109,21 @@ class ServerManagerWindow(QMainWindow):
         self.postgres_process: QProcess | None = None
         self.log_file: Path | None = None
         self.log_position = 0
+        self.settings = QSettings("KAY POS", "Server Manager")
+        self._allow_close = False
 
         load_project_env()
         self._build_ui()
+        self._setup_system_tray()
         self._load_config()
         self._refresh_all()
 
-        if auto_start:
+        should_auto_start = (
+            bool(auto_start)
+            if auto_start is not None
+            else self.settings.value("start_services_on_open", True, type=bool)
+        )
+        if should_auto_start:
             QTimer.singleShot(1800, self._auto_start_services)
 
         self.refresh_timer = QTimer(self)
@@ -528,6 +540,14 @@ class ServerManagerWindow(QMainWindow):
 
         startup_box = QGroupBox("Windows Auto Start")
         startup_layout = QVBoxLayout(startup_box)
+        self.start_services_on_open_checkbox = QCheckBox(
+            "Start POS and Car services automatically whenever Server Manager opens"
+        )
+        self.start_services_on_open_checkbox.setChecked(
+            self.settings.value("start_services_on_open", True, type=bool)
+        )
+        self.start_services_on_open_checkbox.toggled.connect(self._save_service_auto_start_setting)
+        startup_layout.addWidget(self.start_services_on_open_checkbox)
         startup_layout.addWidget(self._note(
             "After Windows login, open Server Manager minimized and automatically start the POS and Car services. "
             "The PostgreSQL Windows service should be configured as Automatic."
@@ -956,7 +976,7 @@ class ServerManagerWindow(QMainWindow):
         conn.close()
         self.append_db_output(f"Product image sync complete. synced={synced}, checked={len(rows)}")
 
-    def start_pos_server(self) -> None:
+    def start_pos_server(self, _checked=False, silent=False) -> None:
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
             self.append_server_output("POS server is already running.")
             return
@@ -971,12 +991,14 @@ class ServerManagerWindow(QMainWindow):
             message = f"Port {port} is already in use. Cashier Server may already be running at {url}"
             self.append_server_output(message)
             self._set_chip(self.server_status, message, "warn")
-            QMessageBox.information(self, "Cashier Server Already Running", message)
+            if not silent:
+                QMessageBox.information(self, "Cashier Server Already Running", message)
             return
         if car_enabled and car_port == port:
             message = "POS Server and Car Management service must use different ports."
             self._set_chip(self.car_server_status, message, "bad")
-            QMessageBox.warning(self, "Duplicate Server Port", message)
+            if not silent:
+                QMessageBox.warning(self, "Duplicate Server Port", message)
             return
         if car_enabled and not can_bind_port(bind_host, car_port):
             message = (
@@ -985,7 +1007,8 @@ class ServerManagerWindow(QMainWindow):
             )
             self.append_server_output(message)
             self._set_chip(self.car_server_status, message, "bad")
-            QMessageBox.warning(self, "Car Server Port In Use", message)
+            if not silent:
+                QMessageBox.warning(self, "Car Server Port In Use", message)
             return
 
         self.server_process = QProcess(self)
@@ -1044,10 +1067,65 @@ class ServerManagerWindow(QMainWindow):
 
     def _auto_start_services(self) -> None:
         """Start the integrated services after a Windows-login launch."""
+        if not self.start_services_on_open_checkbox.isChecked():
+            return
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
             return
         self.append_server_output("Windows auto start requested POS and Car services.")
-        self.start_pos_server()
+        self.start_pos_server(silent=True)
+
+    def _save_service_auto_start_setting(self, enabled: bool) -> None:
+        self.settings.setValue("start_services_on_open", bool(enabled))
+        self.settings.sync()
+
+    def _setup_system_tray(self) -> None:
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        self.tray_icon.setToolTip("KAY POS Server Manager")
+        tray_menu = QMenu(self)
+        show_action = QAction("Show Server Manager", self)
+        show_action.triggered.connect(self._show_from_tray)
+        stop_action = QAction("Stop POS and Car Services", self)
+        stop_action.triggered.connect(self.stop_pos_server)
+        exit_action = QAction("Exit Server Manager", self)
+        exit_action.triggered.connect(self._exit_manager)
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(stop_action)
+        tray_menu.addSeparator()
+        tray_menu.addAction(exit_action)
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        self.tray_icon.show()
+
+    def _show_from_tray(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason) -> None:
+        if reason in (
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+            QSystemTrayIcon.ActivationReason.Trigger,
+        ):
+            self._show_from_tray()
+
+    def _exit_manager(self) -> None:
+        running = bool(self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning)
+        if running:
+            answer = QMessageBox.question(
+                self,
+                "Exit Server Manager",
+                "Exiting Server Manager will stop POS and Car services. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self.stop_pos_server()
+        self._allow_close = True
+        self.tray_icon.hide()
+        self.close()
+        QApplication.quit()
 
     def enable_windows_auto_start(self) -> None:
         """Install a per-user Windows Startup launcher without requiring admin rights."""
@@ -1313,15 +1391,20 @@ class ServerManagerWindow(QMainWindow):
         self._update_auto_start_status()
 
     def closeEvent(self, event) -> None:
-        if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
-            answer = QMessageBox.question(
-                self,
-                "Stop POS Server?",
-                "POS server is still running. Stop it before closing Server Manager?",
+        if self._allow_close:
+            super().closeEvent(event)
+            return
+        event.ignore()
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.hide()
+            self.tray_icon.showMessage(
+                "KAY POS Server Manager",
+                "Server Manager is still running. POS and Car services were not stopped.",
+                QSystemTrayIcon.MessageIcon.Information,
+                3000,
             )
-            if answer == QMessageBox.StandardButton.Yes:
-                self.stop_pos_server()
-        super().closeEvent(event)
+        else:
+            self.showMinimized()
 
 
 def main() -> int:
@@ -1330,7 +1413,8 @@ def main() -> int:
     parser.add_argument("--minimized", action="store_true")
     args, qt_args = parser.parse_known_args(sys.argv[1:])
     app = QApplication([sys.argv[0], *qt_args])
-    window = ServerManagerWindow(auto_start=args.auto_start)
+    app.setQuitOnLastWindowClosed(False)
+    window = ServerManagerWindow(auto_start=True if args.auto_start else None)
     if args.minimized:
         window.showMinimized()
     else:
