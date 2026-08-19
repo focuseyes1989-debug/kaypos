@@ -1,0 +1,266 @@
+"""Persistent printer and manual page-sequence settings for car forms."""
+
+from __future__ import annotations
+
+import re
+
+from PyQt6.QtCore import QSettings, QRectF, Qt
+from PyQt6.QtGui import QPageLayout, QPageSize, QPainter
+from PyQt6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+)
+
+from car_client.form_templates import PAGE_NUMBERS, render_form_page
+
+
+SETTINGS_PREFIX = "form_print"
+
+
+def parse_page_sequence(value: str) -> list[int]:
+    """Parse a sequence such as ``1,1,2,3,4`` and reject unknown pages."""
+    tokens = [token for token in re.split(r"[\s,;]+", str(value or "").strip()) if token]
+    if not tokens:
+        raise ValueError("Enter at least one page number, for example: 1,2,3,4")
+    if any(not token.isdigit() or int(token) not in PAGE_NUMBERS for token in tokens):
+        raise ValueError("Only page numbers 1, 2, 3 and 4 are allowed.")
+    if len(tokens) > 100:
+        raise ValueError("A print sequence can contain at most 100 pages.")
+    return [int(token) for token in tokens]
+
+
+class FormPrintSettingsDialog(QDialog):
+    def __init__(self, record: dict | None, parent=None, settings: QSettings | None = None, embedded=False):
+        super().__init__(parent)
+        self.record = record or {}
+        self.embedded = embedded
+        self.settings = settings or QSettings("KAY POS", "Car Management Client")
+        if embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
+        self.setWindowTitle("Car Form Print Settings")
+        self.setMinimumWidth(520)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(14)
+        title = QLabel("Print Forms")
+        title.setStyleSheet("font-size: 16pt; font-weight: 700;")
+        layout.addWidget(title)
+        help_text = QLabel(
+            "Enter pages in the exact order required. Repeated pages are supported, "
+            "for example: 1,1,2,3,4,2,3,2,3,4"
+        )
+        help_text.setWordWrap(True)
+        layout.addWidget(help_text)
+
+        form = QFormLayout()
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(12)
+        self.pages_edit = QLineEdit()
+        self.pages_edit.setPlaceholderText("1,2,3,4")
+        form.addRow("Page sequence", self.pages_edit)
+
+        self.printer_combo = QComboBox()
+        available_names = [printer.printerName() for printer in QPrinterInfo.availablePrinters()]
+        for name in available_names:
+            self.printer_combo.addItem(name)
+        form.addRow("Printer", self.printer_combo)
+
+        self.copies_spin = QSpinBox()
+        self.copies_spin.setRange(1, 99)
+        form.addRow("Copies", self.copies_spin)
+
+        self.color_combo = QComboBox()
+        self.color_combo.addItem("Color", "color")
+        self.color_combo.addItem("Grayscale", "grayscale")
+        form.addRow("Color mode", self.color_combo)
+
+        self.duplex_combo = QComboBox()
+        self.duplex_combo.addItem("One-sided", "none")
+        self.duplex_combo.addItem("Two-sided · Long edge", "long")
+        self.duplex_combo.addItem("Two-sided · Short edge", "short")
+        form.addRow("Duplex", self.duplex_combo)
+        layout.addLayout(form)
+
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        actions = QHBoxLayout()
+        self.save_button = QPushButton("Save Settings")
+        self.preferences_button = QPushButton("Printer Preferences")
+        self.print_button = QPushButton("Print")
+        self.print_button.setObjectName("primary")
+        close_button = QPushButton("Close")
+        actions.addWidget(self.save_button)
+        actions.addWidget(self.preferences_button)
+        actions.addStretch()
+        actions.addWidget(close_button)
+        actions.addWidget(self.print_button)
+        layout.addLayout(actions)
+
+        self.save_button.clicked.connect(self.save_settings)
+        self.preferences_button.clicked.connect(self.open_printer_preferences)
+        self.print_button.clicked.connect(self.print_forms)
+        close_button.clicked.connect(self.reject)
+        if embedded:
+            close_button.hide()
+            self.print_button.hide()
+            self.status.setText("Settings saved here are used when printing a selected car record from Auto Fill Forms.")
+        self._load_settings(available_names)
+
+    def _key(self, name: str) -> str:
+        return f"{SETTINGS_PREFIX}/{name}"
+
+    def _load_settings(self, available_names: list[str]) -> None:
+        self.preference_resolution = int(self.settings.value(self._key("resolution"), 0))
+        self.preference_page_size = int(self.settings.value(self._key("page_size"), int(QPageSize.PageSizeId.A4.value)))
+        self.preference_orientation = int(self.settings.value(self._key("orientation"), int(QPageLayout.Orientation.Portrait.value)))
+        self.pages_edit.setText(str(self.settings.value(self._key("pages"), "1,2,3,4")))
+        self.copies_spin.setValue(int(self.settings.value(self._key("copies"), 1)))
+        saved_printer = str(self.settings.value(self._key("printer"), ""))
+        if saved_printer and saved_printer not in available_names:
+            self.printer_combo.addItem(f"{saved_printer} (Unavailable)", saved_printer)
+        if saved_printer:
+            for index in range(self.printer_combo.count()):
+                name = self.printer_combo.itemData(index) or self.printer_combo.itemText(index)
+                if name == saved_printer:
+                    self.printer_combo.setCurrentIndex(index)
+                    break
+        elif QPrinterInfo.defaultPrinter().printerName():
+            self.printer_combo.setCurrentText(QPrinterInfo.defaultPrinter().printerName())
+        self._select_data(self.color_combo, str(self.settings.value(self._key("color"), "color")))
+        self._select_data(self.duplex_combo, str(self.settings.value(self._key("duplex"), "none")))
+        if not available_names:
+            self.status.setText("No Windows printer is currently available.")
+            self.print_button.setEnabled(False)
+
+    @staticmethod
+    def _select_data(combo: QComboBox, value: str) -> None:
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _printer_name(self) -> str:
+        return str(self.printer_combo.currentData() or self.printer_combo.currentText()).strip()
+
+    def save_settings(self, show_message=True) -> bool:
+        try:
+            pages = parse_page_sequence(self.pages_edit.text())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid Page Sequence", str(exc))
+            return False
+        self.pages_edit.setText(",".join(map(str, pages)))
+        self.settings.setValue(self._key("pages"), self.pages_edit.text())
+        self.settings.setValue(self._key("printer"), self._printer_name())
+        self.settings.setValue(self._key("copies"), self.copies_spin.value())
+        self.settings.setValue(self._key("color"), self.color_combo.currentData())
+        self.settings.setValue(self._key("duplex"), self.duplex_combo.currentData())
+        self.settings.setValue(self._key("resolution"), getattr(self, "preference_resolution", 0))
+        self.settings.setValue(self._key("page_size"), getattr(self, "preference_page_size", int(QPageSize.PageSizeId.A4.value)))
+        self.settings.setValue(self._key("orientation"), getattr(self, "preference_orientation", int(QPageLayout.Orientation.Portrait.value)))
+        self.settings.sync()
+        self.status.setText("Print settings saved for the next app session.")
+        if show_message:
+            QMessageBox.information(self, "Print Settings", "Printer and page sequence settings were saved.")
+        return True
+
+    def open_printer_preferences(self) -> None:
+        try:
+            printer = self._configured_printer()
+        except Exception as exc:
+            QMessageBox.warning(self, "Printer Preferences", str(exc))
+            return
+        dialog = QPrintDialog(printer, self)
+        dialog.setWindowTitle("Printer Preferences")
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.printer_combo.setCurrentText(printer.printerName())
+        self.copies_spin.setValue(max(1, printer.copyCount()))
+        self._select_data(self.color_combo, "grayscale" if printer.colorMode() == QPrinter.ColorMode.GrayScale else "color")
+        duplex_value = {
+            QPrinter.DuplexMode.DuplexLongSide: "long",
+            QPrinter.DuplexMode.DuplexShortSide: "short",
+        }.get(printer.duplex(), "none")
+        self._select_data(self.duplex_combo, duplex_value)
+        self.preference_resolution = printer.resolution()
+        self.preference_page_size = int(printer.pageLayout().pageSize().id().value)
+        self.preference_orientation = int(printer.pageLayout().orientation().value)
+        self.save_settings(show_message=False)
+        self.status.setText("Windows printer preferences captured and saved.")
+
+    def _configured_printer(self) -> QPrinter:
+        printer_name = self._printer_name()
+        available_names = {printer.printerName() for printer in QPrinterInfo.availablePrinters()}
+        if not printer_name or printer_name not in available_names:
+            raise RuntimeError("The selected printer is not currently available.")
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setPrinterName(printer_name)
+        printer.setCopyCount(self.copies_spin.value())
+        saved_size = int(self.settings.value(self._key("page_size"), int(QPageSize.PageSizeId.A4.value)))
+        saved_orientation = int(self.settings.value(self._key("orientation"), int(QPageLayout.Orientation.Portrait.value)))
+        saved_resolution = int(self.settings.value(self._key("resolution"), 0))
+        try:
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId(saved_size)))
+        except ValueError:
+            printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        try:
+            printer.setPageOrientation(QPageLayout.Orientation(saved_orientation))
+        except ValueError:
+            printer.setPageOrientation(QPageLayout.Orientation.Portrait)
+        if saved_resolution > 0:
+            printer.setResolution(saved_resolution)
+        printer.setColorMode(
+            QPrinter.ColorMode.GrayScale
+            if self.color_combo.currentData() == "grayscale"
+            else QPrinter.ColorMode.Color
+        )
+        duplex = {
+            "long": QPrinter.DuplexMode.DuplexLongSide,
+            "short": QPrinter.DuplexMode.DuplexShortSide,
+        }.get(self.duplex_combo.currentData(), QPrinter.DuplexMode.DuplexNone)
+        printer.setDuplex(duplex)
+        return printer
+
+    def print_forms(self) -> None:
+        try:
+            pages = parse_page_sequence(self.pages_edit.text())
+            printer = self._configured_printer()
+            if not self.save_settings(show_message=False):
+                return
+            painter = QPainter(printer)
+            if not painter.isActive():
+                raise RuntimeError("Windows could not start the selected printer job.")
+            try:
+                for index, page_number in enumerate(pages):
+                    if index and not printer.newPage():
+                        raise RuntimeError("The printer could not create the next page.")
+                    image = render_form_page(self.record, page_number)
+                    page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+                    scaled = image.size().scaled(page_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio)
+                    target = QRectF(
+                        page_rect.x() + (page_rect.width() - scaled.width()) / 2,
+                        page_rect.y() + (page_rect.height() - scaled.height()) / 2,
+                        scaled.width(),
+                        scaled.height(),
+                    )
+                    painter.drawImage(target, image)
+            finally:
+                painter.end()
+        except Exception as exc:
+            QMessageBox.critical(self, "Could Not Print Forms", str(exc))
+            return
+        self.status.setText(f"Sent {len(pages)} page(s) to {self._printer_name()}.")
+        QMessageBox.information(
+            self,
+            "Print Job Sent",
+            f"Sent {len(pages)} page(s) to {self._printer_name()}.\nSequence: {','.join(map(str, pages))}",
+        )
