@@ -34,6 +34,53 @@ allow inbound TCP port `12345` through Windows Firewall on the server PC.
 The client stores only host, port, and timeout settings in the current Windows
 user profile. It does not contain or store PostgreSQL credentials.
 
+## Dashboard Phase 1
+
+Dashboard is the default landing page. Its responsive foundation includes a
+manual refresh action, asynchronous Car Management service/PostgreSQL health
+check, loading feedback, contextual retry, and error handling. Summary card
+slots are prepared for Phase 2 without calculating business totals yet.
+
+## Dashboard Phase 2
+
+Dashboard refresh now loads PostgreSQL records asynchronously and calculates
+Total Records, Unique Cars, unique Drivers, Multiple-driver Cars, Added Today,
+and Missing Information. Cars are normalized by Car Number; drivers use NRC as
+their primary identity with normalized name/phone as a fallback. A record is
+flagged incomplete when any important vehicle or driver detail is blank.
+
+## Dashboard Phase 3
+
+Recent Activity shows the latest 5, 10, or 20 timestamped records with car,
+driver, vehicle, phone, and update time. Double-click a row or use **View
+Record** for full details. Successful save, edit, and delete operations mark the
+dashboard stale so it refreshes automatically when the user returns. The legacy
+schema has one timestamp, so created and edited events cannot yet be separated.
+
+## Dashboard Phase 4
+
+Data Quality & Alerts provides clickable filters for missing age, phone,
+address, engine, and frame values, plus possible duplicate car-driver records
+and conflicting vehicle details. Alerts open a filtered table with full record
+details on double-click. A shared car with different driver NRC values remains
+valid and is not treated as a duplicate.
+
+## Dashboard Phase 5
+
+Charts & Insights adds dependency-free charts for monthly additions, car type,
+car kind, most reused cars by distinct driver count, and complete versus
+incomplete records. Filters include Today, This Week, This Month, This Year,
+All Time, and a calendar-based Custom Range. The dashboard is scrollable so the
+charts remain usable on smaller displays.
+
+## Dashboard Phase 6
+
+Quick Actions link directly to new-car entry, existing-car/new-driver entry,
+record search, auto-filled forms, Print, and refresh. Dashboard Settings controls
+summary-card visibility and requires at least one visible card. Card visibility,
+recent-activity row count, chart period, and custom start/end dates persist in
+the current Windows user profile across app restarts.
+
 ## Auto-filled car forms
 
 On **Car Records**, select a database row and click **Auto Fill Forms**. The
@@ -64,3 +111,7 @@ The sidebar **Print** page manages these defaults without opening a record.
 preferences exposed by Qt, including printer, paper size/orientation, resolution,
 copies, color mode, and duplex mode. Driver-only options remain subject to the
 installed Windows printer driver.
+
+While a print job is being prepared, the Print button and related controls are
+disabled and a per-page progress bar is shown. Controls are enabled again only
+after every requested page has been submitted, or safely restored after an error.

@@ -1,17 +1,20 @@
 """Phase 1 user interface for the standalone Car Management client."""
 
+from datetime import date, datetime
+from collections import Counter
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QDate, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QCloseEvent, QIcon
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QComboBox, QDialog, QDialogButtonBox, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QScrollArea, QSpinBox, QStackedWidget,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from car_client.config import ServerSettings, SettingsStore
+from car_client.dashboard_charts import CompletenessChart, HorizontalBarChart
 from car_client.form_preview_dialog import FormPreviewDialog
 from car_client.form_print_dialog import FormPrintSettingsDialog
 from car_client.network import CarServerClient
@@ -59,6 +62,130 @@ QLabel#status[status="working"] { background: #31375b; color: #aeb5ff; }
 
 def _busy_bar():
     bar=QProgressBar();bar.setObjectName("busy");bar.setRange(0,0);bar.setTextVisible(False);bar.hide();return bar
+
+
+def _normalized(value) -> str:
+    return " ".join(str(value or "").strip().casefold().split())
+
+
+def _driver_identity(record: dict) -> str:
+    nrc = _normalized(record.get("nrc_number"))
+    if nrc:
+        return f"nrc:{nrc}"
+    return f"fallback:{_normalized(record.get('driver_name'))}|{_normalized(record.get('phone_number'))}"
+
+
+def calculate_dashboard_summary(records, today: date | None = None) -> dict[str, int]:
+    """Calculate Phase 2 cards without treating repeated car-driver rows as unique."""
+    records = list(records or [])
+    today = today or date.today()
+    unique_cars = set()
+    unique_drivers = set()
+    drivers_by_car = {}
+    added_today = 0
+    missing_information = 0
+    important_fields = ("kind_of_car", "type_of_car", "age", "phone_number", "address", "engine_number", "frame_number")
+    for record in records:
+        car = _normalized(record.get("car_number"))
+        driver = _driver_identity(record)
+        if car:
+            unique_cars.add(car)
+            drivers_by_car.setdefault(car, set()).add(driver)
+        if driver != "fallback:|":
+            unique_drivers.add(driver)
+        stamp = str(record.get("timestamp") or "").strip()
+        try:
+            if datetime.fromisoformat(stamp.replace("Z", "+00:00")).date() == today:
+                added_today += 1
+        except ValueError:
+            pass
+        if any(not str(record.get(field) or "").strip() for field in important_fields):
+            missing_information += 1
+    return {
+        "total_records": len(records),
+        "unique_cars": len(unique_cars),
+        "total_drivers": len(unique_drivers),
+        "multiple_driver_cars": sum(1 for drivers in drivers_by_car.values() if len(drivers) > 1),
+        "added_today": added_today,
+        "missing_information": missing_information,
+    }
+
+
+def recent_dashboard_records(records, limit=10) -> list[dict]:
+    """Return the latest activity rows using the legacy timestamp field."""
+    limit = max(1, int(limit))
+    return sorted(
+        list(records or []),
+        key=lambda record: str(record.get("timestamp") or "").strip().replace("T", " "),
+        reverse=True,
+    )[:limit]
+
+
+def calculate_dashboard_alerts(records) -> dict[str, list[dict]]:
+    """Group actionable quality issues while allowing one car to have many drivers."""
+    records = list(records or [])
+    alerts = {
+        "missing_age": [row for row in records if not str(row.get("age") or "").strip()],
+        "missing_phone": [row for row in records if not str(row.get("phone_number") or "").strip()],
+        "missing_address": [row for row in records if not str(row.get("address") or "").strip()],
+        "missing_engine": [row for row in records if not str(row.get("engine_number") or "").strip()],
+        "missing_frame": [row for row in records if not str(row.get("frame_number") or "").strip()],
+    }
+    duplicate_groups = {}
+    cars = {}
+    for row in records:
+        car = _normalized(row.get("car_number"))
+        nrc = _normalized(row.get("nrc_number"))
+        if car and nrc:
+            duplicate_groups.setdefault((car, nrc), []).append(row)
+        if car:
+            cars.setdefault(car, []).append(row)
+    alerts["possible_duplicates"] = [
+        row for group in duplicate_groups.values() if len(group) > 1 for row in group
+    ]
+    conflicting_cars = {
+        car for car, rows in cars.items()
+        if len({tuple(_normalized(row.get(field)) for field in ("kind_of_car", "type_of_car", "engine_number", "frame_number")) for row in rows}) > 1
+    }
+    alerts["vehicle_conflicts"] = [row for row in records if _normalized(row.get("car_number")) in conflicting_cars]
+    return alerts
+
+
+def _record_date(record: dict) -> date | None:
+    stamp=str(record.get("timestamp") or "").strip()
+    try:return datetime.fromisoformat(stamp.replace("Z","+00:00")).date()
+    except ValueError:return None
+
+
+def filter_dashboard_records(records,period="all",today:date|None=None,start:date|None=None,end:date|None=None):
+    today=today or date.today();period=str(period or "all")
+    if period=="all":return list(records or [])
+    if period=="today":start=end=today
+    elif period=="week":start=date.fromordinal(today.toordinal()-today.weekday());end=today
+    elif period=="month":start=today.replace(day=1);end=today
+    elif period=="year":start=today.replace(month=1,day=1);end=today
+    elif period=="custom" and start and end:
+        if start>end:start,end=end,start
+    else:return list(records or [])
+    return [record for record in records or [] if (stamp:=_record_date(record)) is not None and start<=stamp<=end]
+
+
+def calculate_dashboard_insights(records) -> dict:
+    records=list(records or []);type_cars={};kind_cars={};months=Counter();drivers_by_car={};car_labels={}
+    important=("kind_of_car","type_of_car","age","phone_number","address","engine_number","frame_number")
+    complete=0
+    for index,record in enumerate(records):
+        type_name=str(record.get("type_of_car") or "Unknown").strip() or "Unknown";kind_name=str(record.get("kind_of_car") or "Unknown").strip() or "Unknown"
+        stamp=_record_date(record)
+        if stamp:months[stamp.strftime("%Y-%m")]+=1
+        car=_normalized(record.get("car_number"));driver=_driver_identity(record);car_key=car or f"row:{index}"
+        type_cars.setdefault(type_name,set()).add(car_key);kind_cars.setdefault(kind_name,set()).add(car_key)
+        if car:drivers_by_car.setdefault(car,set()).add(driver);car_labels.setdefault(car,str(record.get("car_number") or car))
+        if all(str(record.get(field) or "").strip() for field in important):complete+=1
+    month_data=sorted(months.items())[-6:]
+    reused=sorted(((car_labels[car],len(drivers)) for car,drivers in drivers_by_car.items()),key=lambda item:(-item[1],item[0]))[:6]
+    types=Counter({label:len(cars) for label,cars in type_cars.items()});kinds=Counter({label:len(cars) for label,cars in kind_cars.items()})
+    return {"monthly":month_data,"types":types.most_common(6),"kinds":kinds.most_common(6),"reused":reused,"complete":complete,"incomplete":len(records)-complete}
 
 
 class ConnectionTestThread(QThread):
@@ -155,11 +282,50 @@ class CarRecordDialog(QDialog):
         self.accept()
 
 
+class DashboardAlertDialog(QDialog):
+    def __init__(self,title:str,records:list[dict],parent=None):
+        super().__init__(parent);self.records=list(records or [])
+        self.setWindowTitle(title);self.setMinimumSize(820,480);self.resize(980,600)
+        layout=QVBoxLayout(self);heading=QLabel(title);heading.setStyleSheet("font-size: 16pt; font-weight: 700;");layout.addWidget(heading)
+        summary=QLabel(f"{len(self.records):,} affected record(s)");summary.setObjectName("muted");layout.addWidget(summary)
+        headers=("ID","Car Number","Driver","Age","NRC","Phone","Engine No.","Frame No.")
+        self.table=QTableWidget(len(self.records),len(headers));self.table.setHorizontalHeaderLabels(headers);self.table.setAlternatingRowColors(True);self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.table.verticalHeader().setVisible(False)
+        for row,record in enumerate(self.records):
+            nrc=" ".join(part for part in (str(record.get("nrc_place") or "").strip(),str(record.get("nrc_number") or "").strip()) if part)
+            values=(record.get("id"),record.get("car_number"),record.get("driver_name"),record.get("age"),nrc,record.get("phone_number"),record.get("engine_number"),record.get("frame_number"))
+            for column,value in enumerate(values):self.table.setItem(row,column,QTableWidgetItem(str(value or "")))
+        header=self.table.horizontalHeader();header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents);header.setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch);layout.addWidget(self.table,1)
+        actions=QHBoxLayout();actions.addStretch();view=QPushButton("View Record");close=QPushButton("Close");view.clicked.connect(self.view_record);close.clicked.connect(self.accept);self.table.doubleClicked.connect(self.view_record);actions.addWidget(view);actions.addWidget(close);layout.addLayout(actions)
+
+    def view_record(self,*_args):
+        row=self.table.currentRow()
+        if row<0 or row>=len(self.records):
+            QMessageBox.information(self,"Data Quality Alert","Select a record first.");return
+        CarRecordDialog(self.records[row],self,False).exec()
+
+
+class DashboardSettingsDialog(QDialog):
+    CARD_LABELS=(("total_records","Total Records"),("unique_cars","Unique Cars"),("total_drivers","Total Drivers"),("multiple_driver_cars","Multiple-driver Cars"),("added_today","Added Today"),("missing_information","Missing Information"))
+
+    def __init__(self,visibility:dict[str,bool],parent=None):
+        super().__init__(parent);self.setWindowTitle("Dashboard Settings");self.setMinimumWidth(390);layout=QVBoxLayout(self)
+        title=QLabel("Visible Summary Cards");title.setStyleSheet("font-size: 15pt; font-weight: 700;");layout.addWidget(title);description=QLabel("Choose which summary cards appear on the Dashboard.");description.setObjectName("muted");layout.addWidget(description);self.checks={}
+        for key,label in self.CARD_LABELS:
+            check=QCheckBox(label);check.setChecked(visibility.get(key,True));layout.addWidget(check);self.checks[key]=check
+        buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel);buttons.accepted.connect(self._save);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
+
+    def _save(self):
+        if not any(check.isChecked() for check in self.checks.values()):
+            QMessageBox.warning(self,"Dashboard Settings","Keep at least one summary card visible.");return
+        self.visibility={key:check.isChecked() for key,check in self.checks.items()};self.accept()
+
+
 class CarClientWindow(QMainWindow):
     def __init__(self, store: SettingsStore | None = None):
         super().__init__()
         self.store = store or SettingsStore()
         self.connection_thread = None
+        self.dashboard_thread = None
         self.save_thread = None
         self.records_thread = None
         self.car_picker_thread = None
@@ -167,6 +333,7 @@ class CarClientWindow(QMainWindow):
         self.duplicate_thread = None
         self.pending_duplicate_action = None
         self.records = [];self.current_page=1;self.records_loaded=False
+        self.dashboard_needs_refresh=True;self.dashboard_recent_records=[];self.dashboard_alert_records={};self.dashboard_all_records=[]
         self.last_record_term = ""
         self.setWindowTitle("KAY Car Management")
         self.setMinimumSize(860, 520)
@@ -183,12 +350,13 @@ class CarClientWindow(QMainWindow):
         brand = QLabel("KAY CAR"); brand.setObjectName("brand")
         subtitle = QLabel("Management Client"); subtitle.setObjectName("muted")
         side.addWidget(brand); side.addWidget(subtitle); side.addSpacing(24)
+        self.dashboard_nav=QPushButton("Dashboard");self.dashboard_nav.setObjectName("nav");self.dashboard_nav.setCheckable(True)
         self.input_nav=QPushButton("Car Data Input");self.input_nav.setObjectName("nav");self.input_nav.setCheckable(True)
         self.records_nav=QPushButton("Car Records");self.records_nav.setObjectName("nav");self.records_nav.setCheckable(True)
         self.print_nav=QPushButton("Print");self.print_nav.setObjectName("nav");self.print_nav.setCheckable(True)
         self.connection_nav=QPushButton("Server Connection");self.connection_nav.setObjectName("nav");self.connection_nav.setCheckable(True)
-        side.addWidget(self.input_nav);side.addWidget(self.records_nav);side.addWidget(self.print_nav);side.addWidget(self.connection_nav);side.addStretch()
-        version = QLabel("LAN Client · Phase 2"); version.setObjectName("muted"); side.addWidget(version)
+        side.addWidget(self.dashboard_nav);side.addWidget(self.input_nav);side.addWidget(self.records_nav);side.addWidget(self.print_nav);side.addWidget(self.connection_nav);side.addStretch()
+        version = QLabel("LAN Client"); version.setObjectName("muted"); side.addWidget(version)
         shell.addWidget(sidebar)
 
         content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(38, 32, 38, 32); body.setSpacing(18)
@@ -212,8 +380,130 @@ class CarClientWindow(QMainWindow):
         body.addWidget(card); body.addStretch()
         note = QLabel("No PostgreSQL password is stored on this client. Data access stays behind the KAY POS server.")
         note.setObjectName("muted"); note.setWordWrap(True); body.addWidget(note)
-        self.pages=QStackedWidget();self.pages.addWidget(self._build_input_page());self.pages.addWidget(self._build_records_page());self.pages.addWidget(self._build_print_page());self.pages.addWidget(content);shell.addWidget(self.pages,1)
-        self.input_nav.clicked.connect(lambda:self._show_page(0));self.records_nav.clicked.connect(lambda:self._show_page(1));self.print_nav.clicked.connect(lambda:self._show_page(2));self.connection_nav.clicked.connect(lambda:self._show_page(3));self._show_page(0)
+        self.pages=QStackedWidget();self.pages.addWidget(self._build_dashboard_page());self.pages.addWidget(self._build_input_page());self.pages.addWidget(self._build_records_page());self.pages.addWidget(self._build_print_page());self.pages.addWidget(content);shell.addWidget(self.pages,1)
+        self.dashboard_nav.clicked.connect(lambda:self._show_page(0));self.input_nav.clicked.connect(lambda:self._show_page(1));self.records_nav.clicked.connect(lambda:self._show_page(2));self.print_nav.clicked.connect(lambda:self._show_page(3));self.connection_nav.clicked.connect(lambda:self._show_page(4));self._show_page(0)
+        QTimer.singleShot(0,self.refresh_dashboard)
+
+    def _build_dashboard_page(self):
+        page=QWidget();outer=QVBoxLayout(page);outer.setContentsMargins(0,0,0,0);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QFrame.Shape.NoFrame);content=QWidget();body=QVBoxLayout(content);body.setContentsMargins(34,30,34,28);body.setSpacing(16);scroll.setWidget(content);outer.addWidget(scroll)
+        heading=QHBoxLayout();titles=QVBoxLayout();title=QLabel("Dashboard");title.setObjectName("pageTitle");description=QLabel("Car Management overview and service health.");description.setObjectName("muted");titles.addWidget(title);titles.addWidget(description);heading.addLayout(titles);heading.addStretch()
+        self.dashboard_settings_button=QPushButton("Settings");self.dashboard_settings_button.clicked.connect(self.open_dashboard_settings);heading.addWidget(self.dashboard_settings_button);self.dashboard_refresh_button=QPushButton("Refresh");self.dashboard_refresh_button.setObjectName("primary");self.dashboard_refresh_button.clicked.connect(self.refresh_dashboard);heading.addWidget(self.dashboard_refresh_button);body.addLayout(heading)
+        status_card=QFrame();status_card.setObjectName("card");status_layout=QVBoxLayout(status_card);status_layout.setContentsMargins(22,18,22,18);status_layout.setSpacing(10)
+        status_header=QHBoxLayout();status_title=QLabel("Server & Database");status_title.setStyleSheet("font-size: 12pt; font-weight: 700;");self.dashboard_connection_badge=QLabel("Not checked");self.dashboard_connection_badge.setObjectName("status");status_header.addWidget(status_title);status_header.addStretch();status_header.addWidget(self.dashboard_connection_badge);status_layout.addLayout(status_header)
+        self.dashboard_status=QLabel("Checking the Car Management service...");self.dashboard_status.setObjectName("muted");self.dashboard_status.setWordWrap(True);status_layout.addWidget(self.dashboard_status)
+        retry_row=QHBoxLayout();retry_row.addStretch();self.dashboard_retry_button=QPushButton("Retry");self.dashboard_retry_button.clicked.connect(self.refresh_dashboard);self.dashboard_retry_button.hide();retry_row.addWidget(self.dashboard_retry_button);status_layout.addLayout(retry_row)
+        self.dashboard_busy=_busy_bar();status_layout.addWidget(self.dashboard_busy);body.addWidget(status_card)
+        quick_title=QLabel("Quick Actions");quick_title.setStyleSheet("font-size: 12pt; font-weight: 700;");body.addWidget(quick_title);quick_actions=QGridLayout();quick_actions.setHorizontalSpacing(8);quick_actions.setVerticalSpacing(8)
+        quick_definitions=(("Add New Car",self.dashboard_add_new),("Existing Car · New Driver",self.dashboard_add_driver),("Search Records",self.dashboard_search_records),("Auto Fill Forms",self.dashboard_open_forms),("Open Print Page",lambda:self._show_page(3)),("Refresh Dashboard",self.refresh_dashboard))
+        for index,(label,callback) in enumerate(quick_definitions):button=QPushButton(label);button.clicked.connect(callback);quick_actions.addWidget(button,index//3,index%3)
+        for column in range(3):quick_actions.setColumnStretch(column,1)
+        body.addLayout(quick_actions)
+        cards=QGridLayout();cards.setHorizontalSpacing(14);cards.setVerticalSpacing(14)
+        self.dashboard_values={};self.dashboard_cards={}
+        card_definitions=(("total_records","Total Records","All car-driver records"),("unique_cars","Unique Cars","Counted by Car Number"),("total_drivers","Total Drivers","Unique NRC or name/phone"),("multiple_driver_cars","Multiple-driver Cars","Cars used by 2+ drivers"),("added_today","Added Today","Records created today"),("missing_information","Missing Information","Records needing completion"))
+        for index,(key,label,hint) in enumerate(card_definitions):
+            card=QFrame();card.setObjectName("card");layout=QVBoxLayout(card);layout.setContentsMargins(20,18,20,18);caption=QLabel(label);caption.setStyleSheet("font-weight: 700;");value=QLabel("—");value.setStyleSheet("font-size: 22pt; font-weight: 700;");note=QLabel(hint);note.setObjectName("muted");layout.addWidget(caption);layout.addWidget(value);layout.addWidget(note);cards.addWidget(card,index//2,index%2);self.dashboard_values[key]=value;self.dashboard_cards[key]=card;card.setVisible(self.store.settings.value(f"dashboard/cards/{key}",True,type=bool))
+        cards.setColumnStretch(0,1);cards.setColumnStretch(1,1);body.addLayout(cards)
+        alerts_title=QLabel("Data Quality & Alerts");alerts_title.setStyleSheet("font-size: 12pt; font-weight: 700;");body.addWidget(alerts_title)
+        alerts_grid=QGridLayout();alerts_grid.setHorizontalSpacing(8);alerts_grid.setVerticalSpacing(8);self.dashboard_alert_buttons={}
+        alert_definitions=(("missing_age","Missing Age"),("missing_phone","Missing Phone"),("missing_address","Missing Address"),("missing_engine","Missing Engine"),("missing_frame","Missing Frame"),("possible_duplicates","Possible Duplicates"),("vehicle_conflicts","Vehicle Conflicts"))
+        for index,(key,label) in enumerate(alert_definitions):
+            button=QPushButton(f"{label}  —");button.clicked.connect(lambda _checked=False,alert_key=key,alert_title=label:self.open_dashboard_alert(alert_key,alert_title));alerts_grid.addWidget(button,index//4,index%4);self.dashboard_alert_buttons[key]=button
+        for column in range(4):alerts_grid.setColumnStretch(column,1)
+        body.addLayout(alerts_grid)
+        activity_header=QHBoxLayout();activity_title=QLabel("Recent Activity");activity_title.setStyleSheet("font-size: 12pt; font-weight: 700;");activity_header.addWidget(activity_title);activity_header.addStretch();activity_header.addWidget(QLabel("Show:"));self.dashboard_activity_limit=QComboBox();self.dashboard_activity_limit.addItems(["5","10","20"]);saved_limit=str(self.store.settings.value("dashboard/activity_limit","10"));self.dashboard_activity_limit.setCurrentText(saved_limit if saved_limit in {"5","10","20"} else "10");self.dashboard_activity_limit.currentTextChanged.connect(self._dashboard_activity_limit_changed);activity_header.addWidget(self.dashboard_activity_limit);self.dashboard_view_button=QPushButton("View Record");self.dashboard_view_button.clicked.connect(self.view_dashboard_record);activity_header.addWidget(self.dashboard_view_button);body.addLayout(activity_header)
+        activity_headers=("Updated","Car Number","Driver","Vehicle","Phone")
+        self.dashboard_activity_table=QTableWidget(0,len(activity_headers));self.dashboard_activity_table.setHorizontalHeaderLabels(activity_headers);self.dashboard_activity_table.setAlternatingRowColors(True);self.dashboard_activity_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);self.dashboard_activity_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.dashboard_activity_table.verticalHeader().setVisible(False);self.dashboard_activity_table.doubleClicked.connect(self.view_dashboard_record)
+        activity_table_header=self.dashboard_activity_table.horizontalHeader();activity_table_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents);activity_table_header.setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch);activity_table_header.setSectionResizeMode(3,QHeaderView.ResizeMode.Stretch);self.dashboard_activity_table.setFixedHeight(235);body.addWidget(self.dashboard_activity_table)
+        insights_header=QHBoxLayout();insights_title=QLabel("Charts & Insights");insights_title.setStyleSheet("font-size: 12pt; font-weight: 700;");insights_header.addWidget(insights_title);insights_header.addStretch();insights_header.addWidget(QLabel("Date:"));self.dashboard_period=QComboBox();self.dashboard_period.addItem("All Time","all");self.dashboard_period.addItem("Today","today");self.dashboard_period.addItem("This Week","week");self.dashboard_period.addItem("This Month","month");self.dashboard_period.addItem("This Year","year");self.dashboard_period.addItem("Custom Range","custom");saved_period=str(self.store.settings.value("dashboard/period","all"));saved_period_index=self.dashboard_period.findData(saved_period);self.dashboard_period.setCurrentIndex(saved_period_index if saved_period_index>=0 else 0);self.dashboard_period.currentIndexChanged.connect(self._dashboard_period_changed);insights_header.addWidget(self.dashboard_period)
+        saved_start=QDate.fromString(str(self.store.settings.value("dashboard/start_date","")),Qt.DateFormat.ISODate);saved_end=QDate.fromString(str(self.store.settings.value("dashboard/end_date","")),Qt.DateFormat.ISODate);self.dashboard_start_date=QDateEdit(saved_start if saved_start.isValid() else QDate.currentDate().addMonths(-1));self.dashboard_end_date=QDateEdit(saved_end if saved_end.isValid() else QDate.currentDate());self.dashboard_start_date.setCalendarPopup(True);self.dashboard_end_date.setCalendarPopup(True);self.dashboard_start_date.setDisplayFormat("dd MMM yyyy");self.dashboard_end_date.setDisplayFormat("dd MMM yyyy");self.dashboard_start_date.dateChanged.connect(self._dashboard_dates_changed);self.dashboard_end_date.dateChanged.connect(self._dashboard_dates_changed);custom=saved_period=="custom";self.dashboard_start_date.setVisible(custom);self.dashboard_end_date.setVisible(custom);insights_header.addWidget(self.dashboard_start_date);insights_header.addWidget(self.dashboard_end_date);body.addLayout(insights_header)
+        charts=QGridLayout();charts.setHorizontalSpacing(14);charts.setVerticalSpacing(14)
+        def chart_card(title_text,widget,row,column,column_span=1):
+            card=QFrame();card.setObjectName("card");layout=QVBoxLayout(card);layout.setContentsMargins(16,14,16,14);caption=QLabel(title_text);caption.setStyleSheet("font-weight: 700;");layout.addWidget(caption);layout.addWidget(widget,1);charts.addWidget(card,row,column,1,column_span)
+        self.monthly_chart=HorizontalBarChart("#5865f2");self.type_chart=HorizontalBarChart("#3ba5d8");self.kind_chart=HorizontalBarChart("#e89b18");self.reused_chart=HorizontalBarChart("#9b7bf2");self.completeness_chart=CompletenessChart()
+        chart_card("Records Added by Month",self.monthly_chart,0,0);chart_card("Cars by Type",self.type_chart,0,1);chart_card("Cars by Kind",self.kind_chart,1,0);chart_card("Most Reused Cars · Drivers",self.reused_chart,1,1);chart_card("Complete vs Incomplete",self.completeness_chart,2,0,2);charts.setColumnStretch(0,1);charts.setColumnStretch(1,1);body.addLayout(charts)
+        return page
+
+    def _set_dashboard_status(self,text,status="",retry=False):
+        self.dashboard_status.setText(text);self.dashboard_connection_badge.setText("Connected" if status=="success" else "Unavailable" if status=="error" else "Checking...")
+        self.dashboard_connection_badge.setProperty("status",status);self.dashboard_connection_badge.style().unpolish(self.dashboard_connection_badge);self.dashboard_connection_badge.style().polish(self.dashboard_connection_badge)
+        self.dashboard_busy.setVisible(status=="working");self.dashboard_retry_button.setVisible(bool(retry and status=="error"))
+
+    def refresh_dashboard(self):
+        if self.dashboard_thread and self.dashboard_thread.isRunning():return
+        try:settings=self.store.load()
+        except ValueError as exc:self._set_dashboard_status(str(exc),"error",True);return
+        self.dashboard_refresh_button.setEnabled(False);self._set_dashboard_status(f"Connecting to {settings.host}:{settings.port}...","working")
+        self.dashboard_thread=LoadCarsThread(settings,"",self);self.dashboard_thread.succeeded.connect(self._dashboard_ready);self.dashboard_thread.failed.connect(self._dashboard_failed);self.dashboard_thread.finished.connect(self._dashboard_thread_finished);self.dashboard_thread.start()
+
+    def _dashboard_ready(self,records):
+        self.dashboard_all_records=list(records or [])
+        summary=calculate_dashboard_summary(records)
+        for key,label in self.dashboard_values.items():label.setText(f"{summary[key]:,}")
+        self.dashboard_alert_records=calculate_dashboard_alerts(records)
+        for key,button in self.dashboard_alert_buttons.items():
+            count=len(self.dashboard_alert_records.get(key,[]));base=button.text().rsplit("  ",1)[0];button.setText(f"{base}  {count:,}");button.setEnabled(count>0)
+        self.dashboard_recent_records=list(records or []);self._render_dashboard_activity();self._update_dashboard_charts();self.dashboard_needs_refresh=False
+        self._set_dashboard_status(f"Dashboard refreshed successfully from {summary['total_records']:,} PostgreSQL record(s).","success")
+
+    def open_dashboard_alert(self,key,title):
+        records=self.dashboard_alert_records.get(key,[])
+        if records:DashboardAlertDialog(title,records,self).exec()
+
+    def open_dashboard_settings(self):
+        current={key:not card.isHidden() for key,card in self.dashboard_cards.items()};dialog=DashboardSettingsDialog(current,self)
+        if not dialog.exec():return
+        for key,visible in dialog.visibility.items():self.dashboard_cards[key].setVisible(visible);self.store.settings.setValue(f"dashboard/cards/{key}",visible)
+        self.store.settings.sync()
+
+    def dashboard_add_new(self):
+        self._show_page(1);self.entry_mode.setCurrentIndex(self.entry_mode.findData("new"));self.car_inputs["car_number"].setFocus()
+
+    def dashboard_add_driver(self):
+        self._show_page(1);self.entry_mode.setCurrentIndex(self.entry_mode.findData("existing"));self.existing_car_combo.setFocus()
+
+    def dashboard_search_records(self):
+        self._show_page(2);self.record_search.setFocus();self.record_search.selectAll()
+
+    def dashboard_open_forms(self):
+        self._show_page(2)
+        if self.records_loaded:self._set_records_status("Select a record, then click Auto Fill Forms.","success")
+
+    def _dashboard_period_changed(self,*_args):
+        custom=self.dashboard_period.currentData()=="custom";self.dashboard_start_date.setVisible(custom);self.dashboard_end_date.setVisible(custom);self.store.settings.setValue("dashboard/period",self.dashboard_period.currentData());self.store.settings.sync();self._update_dashboard_charts()
+
+    def _dashboard_dates_changed(self,*_args):
+        self.store.settings.setValue("dashboard/start_date",self.dashboard_start_date.date().toString(Qt.DateFormat.ISODate));self.store.settings.setValue("dashboard/end_date",self.dashboard_end_date.date().toString(Qt.DateFormat.ISODate));self.store.settings.sync();self._update_dashboard_charts()
+
+    def _dashboard_activity_limit_changed(self,*_args):
+        self.store.settings.setValue("dashboard/activity_limit",self.dashboard_activity_limit.currentText());self.store.settings.sync();self._render_dashboard_activity()
+
+    def _update_dashboard_charts(self,*_args):
+        if not hasattr(self,"monthly_chart"):return
+        records=filter_dashboard_records(self.dashboard_all_records,self.dashboard_period.currentData(),start=self.dashboard_start_date.date().toPyDate(),end=self.dashboard_end_date.date().toPyDate());insights=calculate_dashboard_insights(records)
+        self.monthly_chart.set_data(insights["monthly"]);self.type_chart.set_data(insights["types"]);self.kind_chart.set_data(insights["kinds"]);self.reused_chart.set_data(insights["reused"]);self.completeness_chart.set_data(insights["complete"],insights["incomplete"])
+
+    def _render_dashboard_activity(self,*_args):
+        if not hasattr(self,"dashboard_activity_table"):return
+        limit=int(self.dashboard_activity_limit.currentText());visible=recent_dashboard_records(self.dashboard_recent_records,limit);self.dashboard_visible_activity=visible;self.dashboard_activity_table.setRowCount(len(visible))
+        for row,record in enumerate(visible):
+            vehicle=" ".join(part for part in (str(record.get("kind_of_car") or "").strip(),str(record.get("type_of_car") or "").strip()) if part)
+            values=(record.get("timestamp"),record.get("car_number"),record.get("driver_name"),vehicle,record.get("phone_number"))
+            for column,value in enumerate(values):self.dashboard_activity_table.setItem(row,column,QTableWidgetItem(str(value or "")))
+        self.dashboard_view_button.setEnabled(bool(visible))
+
+    def view_dashboard_record(self,*_args):
+        row=self.dashboard_activity_table.currentRow()
+        if row<0 or row>=len(getattr(self,"dashboard_visible_activity",[])):
+            QMessageBox.information(self,"Recent Activity","Select a record first.");return
+        CarRecordDialog(self.dashboard_visible_activity[row],self,False).exec()
+
+    def _dashboard_failed(self,message):
+        self._set_dashboard_status(message,"error",True)
+
+    def _dashboard_thread_finished(self):
+        self.dashboard_refresh_button.setEnabled(True);thread=self.dashboard_thread;self.dashboard_thread=None
+        if thread:thread.deleteLater()
 
     def _build_print_page(self):
         page=QWidget();body=QVBoxLayout(page);body.setContentsMargins(38,32,38,32);body.setSpacing(14)
@@ -306,8 +596,9 @@ class CarClientWindow(QMainWindow):
         return page
 
     def _show_page(self,index):
-        self.pages.setCurrentIndex(index);self.input_nav.setChecked(index==0);self.records_nav.setChecked(index==1);self.print_nav.setChecked(index==2);self.connection_nav.setChecked(index==3)
-        if index==1 and not self.records_loaded:self.refresh_records()
+        self.pages.setCurrentIndex(index);self.dashboard_nav.setChecked(index==0);self.input_nav.setChecked(index==1);self.records_nav.setChecked(index==2);self.print_nav.setChecked(index==3);self.connection_nav.setChecked(index==4)
+        if index==0 and self.dashboard_needs_refresh:self.refresh_dashboard()
+        if index==2 and not self.records_loaded:self.refresh_records()
 
     def _set_records_status(self,text,status="",retry=False):
         self.records_status.setText(text);self.records_status.setProperty("status",status)
@@ -381,7 +672,7 @@ class CarClientWindow(QMainWindow):
         self.record_action_thread=RecordActionThread(settings,action,payload,self);self.record_action_thread.succeeded.connect(lambda:self._record_action_succeeded(action));self.record_action_thread.failed.connect(lambda message:self._set_records_status(message,"error"));self.record_action_thread.finished.connect(self._record_action_finished);self.record_action_thread.start()
 
     def _record_action_succeeded(self,action):
-        self._set_records_status("Record updated successfully." if action=="update" else "Record deleted successfully.","success");self.records_loaded=False
+        self._set_records_status("Record updated successfully." if action=="update" else "Record deleted successfully.","success");self.records_loaded=False;self.dashboard_needs_refresh=True
 
     def _record_action_finished(self):
         self._set_record_actions_enabled(True);thread=self.record_action_thread;self.record_action_thread=None
@@ -451,7 +742,7 @@ class CarClientWindow(QMainWindow):
         else:
             for editor in self.car_inputs.values():editor.clear()
             focus=self.car_inputs["car_number"]
-        self.records_loaded=False;self._set_input_status("Car record saved successfully.","success");focus.setFocus()
+        self.records_loaded=False;self.dashboard_needs_refresh=True;self._set_input_status("Car record saved successfully.","success");focus.setFocus()
 
     def _car_save_failed(self,message):self._set_input_status(message,"error",True)
 
@@ -509,13 +800,15 @@ class CarClientWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent):
         if ((self.connection_thread and self.connection_thread.isRunning()) or
+                (self.dashboard_thread and self.dashboard_thread.isRunning()) or
                 (self.save_thread and self.save_thread.isRunning()) or
                 (self.records_thread and self.records_thread.isRunning()) or
                 (self.car_picker_thread and self.car_picker_thread.isRunning()) or
                 (self.record_action_thread and self.record_action_thread.isRunning()) or
                 (self.duplicate_thread and self.duplicate_thread.isRunning())):
-            if self.pages.currentIndex()==0:self._set_input_status("A server request is still running. Please wait before closing.","working")
-            elif self.pages.currentIndex()==1:self._set_records_status("A server request is still running. Please wait before closing.","working")
+            if self.pages.currentIndex()==0:self._set_dashboard_status("A server request is still running. Please wait before closing.","working")
+            elif self.pages.currentIndex()==1:self._set_input_status("A server request is still running. Please wait before closing.","working")
+            elif self.pages.currentIndex()==2:self._set_records_status("A server request is still running. Please wait before closing.","working")
             else:self._set_status("A server request is still running. Please wait before closing.", "working")
             event.ignore(); return
         super().closeEvent(event)

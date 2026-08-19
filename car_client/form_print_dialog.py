@@ -8,6 +8,7 @@ from PyQt6.QtCore import QSettings, QRectF, Qt
 from PyQt6.QtGui import QPageLayout, QPageSize, QPainter
 from PyQt6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
 from PyQt6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QProgressBar,
     QSpinBox,
     QVBoxLayout,
 )
@@ -94,6 +96,13 @@ class FormPrintSettingsDialog(QDialog):
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.print_progress = QProgressBar()
+        self.print_progress.setRange(0, 100)
+        self.print_progress.setValue(0)
+        self.print_progress.setTextVisible(True)
+        self.print_progress.setFormat("Ready")
+        self.print_progress.hide()
+        layout.addWidget(self.print_progress)
         actions = QHBoxLayout()
         self.save_button = QPushButton("Save Settings")
         self.preferences_button = QPushButton("Printer Preferences")
@@ -230,12 +239,34 @@ class FormPrintSettingsDialog(QDialog):
         printer.setDuplex(duplex)
         return printer
 
+    def _set_print_busy(self, busy: bool, total_pages=0) -> None:
+        self.print_button.setEnabled(not busy)
+        self.print_button.setText("Printing..." if busy else "Print")
+        self.save_button.setEnabled(not busy)
+        self.preferences_button.setEnabled(not busy)
+        self.pages_edit.setEnabled(not busy)
+        self.printer_combo.setEnabled(not busy)
+        self.copies_spin.setEnabled(not busy)
+        self.color_combo.setEnabled(not busy)
+        self.duplex_combo.setEnabled(not busy)
+        if busy:
+            self.print_progress.setRange(0, max(1, int(total_pages)))
+            self.print_progress.setValue(0)
+            self.print_progress.setFormat("Preparing print job...")
+            self.print_progress.show()
+        QApplication.processEvents()
+
     def print_forms(self) -> None:
+        busy_started = False
         try:
             pages = parse_page_sequence(self.pages_edit.text())
             printer = self._configured_printer()
             if not self.save_settings(show_message=False):
                 return
+            self._set_print_busy(True, len(pages))
+            busy_started = True
+            self.status.setText(f"Preparing {len(pages)} page(s) for {self._printer_name()}...")
+            QApplication.processEvents()
             painter = QPainter(printer)
             if not painter.isActive():
                 raise RuntimeError("Windows could not start the selected printer job.")
@@ -253,12 +284,25 @@ class FormPrintSettingsDialog(QDialog):
                         scaled.height(),
                     )
                     painter.drawImage(target, image)
+                    completed = index + 1
+                    self.print_progress.setValue(completed)
+                    self.print_progress.setFormat(f"Printing page {completed} of {len(pages)} · %p%")
+                    self.status.setText(f"Printing page {completed} of {len(pages)}...")
+                    QApplication.processEvents()
             finally:
                 painter.end()
         except Exception as exc:
+            if busy_started:
+                self.print_progress.setFormat("Print failed")
+                self.status.setText(f"Print failed: {exc}")
             QMessageBox.critical(self, "Could Not Print Forms", str(exc))
             return
-        self.status.setText(f"Sent {len(pages)} page(s) to {self._printer_name()}.")
+        finally:
+            if busy_started:
+                self._set_print_busy(False)
+        self.print_progress.setValue(len(pages))
+        self.print_progress.setFormat("Completed · 100%")
+        self.status.setText(f"Completed — sent {len(pages)} page(s) to {self._printer_name()}.")
         QMessageBox.information(
             self,
             "Print Job Sent",
