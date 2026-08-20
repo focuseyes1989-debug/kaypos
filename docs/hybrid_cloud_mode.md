@@ -51,6 +51,29 @@ https://YOUR-CLOUD-DOMAIN/mobile/products
 https://YOUR-CLOUD-DOMAIN/
 ```
 
+## Car Management Hybrid Mode
+
+Set a strong shared API key on the hosted service. Keep it outside source
+control:
+
+```text
+ZAY_CAR_API_KEY=GENERATE_A_LONG_RANDOM_SECRET
+```
+
+In the Car Management client, open **Server Connection** and configure:
+
+```text
+Server IP / port: the shop LAN server (primary)
+Cloud HTTPS URL: https://YOUR-CLOUD-DOMAIN
+Cloud API key: the same ZAY_CAR_API_KEY value
+Allow local offline use: enabled
+```
+
+The client tries LAN first and Cloud HTTPS second. If neither is reachable,
+writes are saved to the current Windows user's local offline database. Pending
+operations are replayed automatically before the next successful read or write.
+Do not expose the raw LAN TCP port `12345` to the public internet.
+
 The cloud URL uses real HTTPS from the host, so mobile camera barcode scanning
 is more reliable than local self-signed HTTPS.
 

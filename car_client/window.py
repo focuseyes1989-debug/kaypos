@@ -189,7 +189,7 @@ def calculate_dashboard_insights(records) -> dict:
 
 
 class ConnectionTestThread(QThread):
-    succeeded = pyqtSignal()
+    succeeded = pyqtSignal(str)
     failed = pyqtSignal(str)
 
     def __init__(self, settings: ServerSettings, parent=None):
@@ -198,14 +198,14 @@ class ConnectionTestThread(QThread):
 
     def run(self):
         try:
-            CarServerClient(self.settings).test_connection()
-            self.succeeded.emit()
+            client=CarServerClient(self.settings);client.test_connection()
+            self.succeeded.emit(client.last_mode)
         except Exception as exc:
             self.failed.emit(str(exc))
 
 
 class SaveCarThread(QThread):
-    succeeded = pyqtSignal()
+    succeeded = pyqtSignal(str)
     failed = pyqtSignal(str)
 
     def __init__(self, settings: ServerSettings, record: dict, parent=None):
@@ -213,26 +213,28 @@ class SaveCarThread(QThread):
 
     def run(self):
         try:
-            CarServerClient(self.settings).save_car(self.record)
-            self.succeeded.emit()
+            client=CarServerClient(self.settings);client.save_car(self.record)
+            self.succeeded.emit(client.last_mode)
         except Exception as exc:
             self.failed.emit(str(exc))
 
 
 class LoadCarsThread(QThread):
-    succeeded = pyqtSignal(object)
+    succeeded = pyqtSignal(object, str)
     failed = pyqtSignal(str)
 
     def __init__(self, settings: ServerSettings, term: str = "", parent=None):
         super().__init__(parent);self.settings=settings;self.term=term
 
     def run(self):
-        try:self.succeeded.emit(CarServerClient(self.settings).search_cars(self.term))
+        try:
+            client=CarServerClient(self.settings);records=client.search_cars(self.term)
+            self.succeeded.emit(records,client.last_mode)
         except Exception as exc:self.failed.emit(str(exc))
 
 
 class RecordActionThread(QThread):
-    succeeded = pyqtSignal()
+    succeeded = pyqtSignal(str)
     failed = pyqtSignal(str)
 
     def __init__(self, settings: ServerSettings, action: str, payload, parent=None):
@@ -244,7 +246,7 @@ class RecordActionThread(QThread):
             if self.action=="update":client.update_car(self.payload)
             elif self.action=="delete":client.delete_car(self.payload)
             else:raise ValueError("Unknown record action.")
-            self.succeeded.emit()
+            self.succeeded.emit(client.last_mode)
         except Exception as exc:self.failed.emit(str(exc))
 
 
@@ -356,7 +358,7 @@ class CarClientWindow(QMainWindow):
         self.print_nav=QPushButton("Print");self.print_nav.setObjectName("nav");self.print_nav.setCheckable(True)
         self.connection_nav=QPushButton("Server Connection");self.connection_nav.setObjectName("nav");self.connection_nav.setCheckable(True)
         side.addWidget(self.dashboard_nav);side.addWidget(self.input_nav);side.addWidget(self.records_nav);side.addWidget(self.print_nav);side.addWidget(self.connection_nav);side.addStretch()
-        version = QLabel("LAN Client"); version.setObjectName("muted"); side.addWidget(version)
+        version = QLabel("Hybrid · LAN / Cloud / Offline"); version.setObjectName("muted"); side.addWidget(version)
         shell.addWidget(sidebar)
 
         content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(38, 32, 38, 32); body.setSpacing(18)
@@ -372,13 +374,18 @@ class CarClientWindow(QMainWindow):
         port_box = QVBoxLayout(); port_box.addWidget(QLabel("Port")); self.port_input = QSpinBox(); self.port_input.setRange(1, 65535); port_box.addWidget(self.port_input)
         timeout_box = QVBoxLayout(); timeout_box.addWidget(QLabel("Timeout (seconds)")); self.timeout_input = QSpinBox(); self.timeout_input.setRange(1, 30); timeout_box.addWidget(self.timeout_input)
         row.addLayout(port_box, 1); row.addLayout(timeout_box, 1); form.addLayout(row)
+        form.addWidget(QLabel("Cloud HTTPS URL (optional)"))
+        self.cloud_url_input=QLineEdit();self.cloud_url_input.setPlaceholderText("https://your-cloud-domain.example");form.addWidget(self.cloud_url_input)
+        form.addWidget(QLabel("Cloud API key"))
+        self.cloud_api_key_input=QLineEdit();self.cloud_api_key_input.setEchoMode(QLineEdit.EchoMode.Password);form.addWidget(self.cloud_api_key_input)
+        self.offline_enabled_check=QCheckBox("Allow local offline use and sync when a connection returns");self.offline_enabled_check.setChecked(True);form.addWidget(self.offline_enabled_check)
         connection_feedback=QHBoxLayout();self.status_label = QLabel("Settings loaded. Test the connection before continuing."); self.status_label.setObjectName("status");self.retry_connection_button=QPushButton("Retry");self.retry_connection_button.hide();self.retry_connection_button.clicked.connect(self.test_connection);connection_feedback.addWidget(self.status_label,1);connection_feedback.addWidget(self.retry_connection_button);form.addLayout(connection_feedback);self.connection_busy=_busy_bar();form.addWidget(self.connection_busy)
         actions = QHBoxLayout(); actions.addStretch()
         self.save_button = QPushButton("Save Settings"); self.test_button = QPushButton("Test Connection"); self.test_button.setObjectName("primary")
         self.save_button.clicked.connect(self.save_settings); self.test_button.clicked.connect(self.test_connection)
         actions.addWidget(self.save_button); actions.addWidget(self.test_button); form.addLayout(actions)
         body.addWidget(card); body.addStretch()
-        note = QLabel("No PostgreSQL password is stored on this client. Data access stays behind the KAY POS server.")
+        note = QLabel("Connection order: shop LAN, then Cloud HTTPS, then local storage under this Windows user profile. Pending offline changes sync automatically when a server returns.")
         note.setObjectName("muted"); note.setWordWrap(True); body.addWidget(note)
         self.pages=QStackedWidget();self.pages.addWidget(self._build_dashboard_page());self.pages.addWidget(self._build_input_page());self.pages.addWidget(self._build_records_page());self.pages.addWidget(self._build_print_page());self.pages.addWidget(content);shell.addWidget(self.pages,1)
         self.dashboard_nav.clicked.connect(lambda:self._show_page(0));self.input_nav.clicked.connect(lambda:self._show_page(1));self.records_nav.clicked.connect(lambda:self._show_page(2));self.print_nav.clicked.connect(lambda:self._show_page(3));self.connection_nav.clicked.connect(lambda:self._show_page(4));self._show_page(0)
@@ -436,7 +443,7 @@ class CarClientWindow(QMainWindow):
         self.dashboard_refresh_button.setEnabled(False);self._set_dashboard_status(f"Connecting to {settings.host}:{settings.port}...","working")
         self.dashboard_thread=LoadCarsThread(settings,"",self);self.dashboard_thread.succeeded.connect(self._dashboard_ready);self.dashboard_thread.failed.connect(self._dashboard_failed);self.dashboard_thread.finished.connect(self._dashboard_thread_finished);self.dashboard_thread.start()
 
-    def _dashboard_ready(self,records):
+    def _dashboard_ready(self,records,mode="lan"):
         self.dashboard_all_records=list(records or [])
         summary=calculate_dashboard_summary(records)
         for key,label in self.dashboard_values.items():label.setText(f"{summary[key]:,}")
@@ -444,7 +451,8 @@ class CarClientWindow(QMainWindow):
         for key,button in self.dashboard_alert_buttons.items():
             count=len(self.dashboard_alert_records.get(key,[]));base=button.text().rsplit("  ",1)[0];button.setText(f"{base}  {count:,}");button.setEnabled(count>0)
         self.dashboard_recent_records=list(records or []);self._render_dashboard_activity();self._update_dashboard_charts();self.dashboard_needs_refresh=False
-        self._set_dashboard_status(f"Dashboard refreshed successfully from {summary['total_records']:,} PostgreSQL record(s).","success")
+        source="local offline cache" if mode=="offline" else f"{mode.upper()} database"
+        self._set_dashboard_status(f"Dashboard loaded {summary['total_records']:,} record(s) from {source}.","success")
 
     def open_dashboard_alert(self,key,title):
         records=self.dashboard_alert_records.get(key,[])
@@ -554,7 +562,7 @@ class CarClientWindow(QMainWindow):
         self.load_existing_cars_button.setEnabled(False);self._set_input_status("Loading existing cars...","working")
         self.car_picker_thread=LoadCarsThread(settings,"",self);self.car_picker_thread.succeeded.connect(self._existing_cars_received);self.car_picker_thread.failed.connect(lambda message:self._set_input_status(message,"error"));self.car_picker_thread.finished.connect(self._car_picker_finished);self.car_picker_thread.start()
 
-    def _existing_cars_received(self,records):
+    def _existing_cars_received(self,records,mode="lan"):
         unique={}
         for record in records or []:
             key=str(record.get("car_number") or "").strip().casefold()
@@ -562,7 +570,7 @@ class CarClientWindow(QMainWindow):
         self.existing_car_combo.blockSignals(True);self.existing_car_combo.clear();self.existing_car_combo.addItem("Select or type a car number...",None)
         for record in sorted(unique.values(),key=lambda item:str(item.get("car_number") or "").casefold()):
             detail=str(record.get("type_of_car") or record.get("kind_of_car") or "").strip();label=f"{record.get('car_number')} — {detail}" if detail else str(record.get("car_number"));self.existing_car_combo.addItem(label,record)
-        self.existing_car_combo.setCurrentIndex(0);self.existing_car_combo.blockSignals(False);self._set_input_status(f"Loaded {len(unique):,} unique car(s). Choose one, then enter the new driver information.","success")
+        self.existing_car_combo.setCurrentIndex(0);self.existing_car_combo.blockSignals(False);self._set_input_status(f"Loaded {len(unique):,} unique car(s) via {mode.upper()}. Choose one, then enter the new driver information.","success")
 
     def _car_picker_finished(self):
         self.load_existing_cars_button.setEnabled(True);thread=self.car_picker_thread;self.car_picker_thread=None
@@ -615,8 +623,8 @@ class CarClientWindow(QMainWindow):
         self.last_record_term=str(term or "").strip();self.search_button.setEnabled(False);self.refresh_button.setEnabled(False);self._set_records_status("Loading records from the server...","working")
         self.records_thread=LoadCarsThread(settings,self.last_record_term,self);self.records_thread.succeeded.connect(self._records_received);self.records_thread.failed.connect(lambda message:self._set_records_status(message,"error",True));self.records_thread.finished.connect(self._records_thread_finished);self.records_thread.start()
 
-    def _records_received(self,records):
-        self.records=list(records or []);self.current_page=1;self.records_loaded=True;self._render_records_page();self._set_records_status(f"Loaded {len(self.records):,} record(s).","success")
+    def _records_received(self,records,mode="lan"):
+        self.records=list(records or []);self.current_page=1;self.records_loaded=True;self._render_records_page();self._set_records_status(f"Loaded {len(self.records):,} record(s) via {mode.upper()}.","success")
 
     def _records_thread_finished(self):
         self.search_button.setEnabled(True);self.refresh_button.setEnabled(True)
@@ -669,10 +677,11 @@ class CarClientWindow(QMainWindow):
         try:settings=self.store.load()
         except ValueError as exc:self._set_records_status(str(exc),"error");return
         self._set_record_actions_enabled(False);self._set_records_status("Updating the server..." if action=="update" else "Deleting record...","working")
-        self.record_action_thread=RecordActionThread(settings,action,payload,self);self.record_action_thread.succeeded.connect(lambda:self._record_action_succeeded(action));self.record_action_thread.failed.connect(lambda message:self._set_records_status(message,"error"));self.record_action_thread.finished.connect(self._record_action_finished);self.record_action_thread.start()
+        self.record_action_thread=RecordActionThread(settings,action,payload,self);self.record_action_thread.succeeded.connect(lambda mode:self._record_action_succeeded(action,mode));self.record_action_thread.failed.connect(lambda message:self._set_records_status(message,"error"));self.record_action_thread.finished.connect(self._record_action_finished);self.record_action_thread.start()
 
-    def _record_action_succeeded(self,action):
-        self._set_records_status("Record updated successfully." if action=="update" else "Record deleted successfully.","success");self.records_loaded=False;self.dashboard_needs_refresh=True
+    def _record_action_succeeded(self,action,mode="lan"):
+        verb="updated" if action=="update" else "deleted";message=f"Record {verb} successfully via {mode.upper()}." if mode!="offline" else f"Record {verb} locally; pending automatic sync."
+        self._set_records_status(message,"success");self.records_loaded=False;self.dashboard_needs_refresh=True
 
     def _record_action_finished(self):
         self._set_record_actions_enabled(True);thread=self.record_action_thread;self.record_action_thread=None
@@ -735,14 +744,15 @@ class CarClientWindow(QMainWindow):
         settings=self.store.load();self.save_car_button.setEnabled(False);self.clear_button.setEnabled(False);self._set_input_status("Saving record to the server...","working")
         self.save_thread=SaveCarThread(settings,record,self);self.save_thread.succeeded.connect(self._car_saved);self.save_thread.failed.connect(self._car_save_failed);self.save_thread.finished.connect(self._save_thread_finished);self.save_thread.start()
 
-    def _car_saved(self):
+    def _car_saved(self,mode="lan"):
         if self.entry_mode.currentData()=="existing":
             for field in DRIVER_FIELDS:self.car_inputs[field].clear()
             self._existing_car_selected(self.existing_car_combo.currentIndex());focus=self.car_inputs["driver_name"]
         else:
             for editor in self.car_inputs.values():editor.clear()
             focus=self.car_inputs["car_number"]
-        self.records_loaded=False;self.dashboard_needs_refresh=True;self._set_input_status("Car record saved successfully.","success");focus.setFocus()
+        message=f"Car record saved successfully via {mode.upper()}." if mode!="offline" else "Car record saved offline; pending automatic sync."
+        self.records_loaded=False;self.dashboard_needs_refresh=True;self._set_input_status(message,"success");focus.setFocus()
 
     def _car_save_failed(self,message):self._set_input_status(message,"error",True)
 
@@ -757,9 +767,14 @@ class CarClientWindow(QMainWindow):
         except ValueError:
             value = ServerSettings()
         self.host_input.setText(value.host); self.port_input.setValue(value.port); self.timeout_input.setValue(value.timeout)
+        self.cloud_url_input.setText(value.cloud_url);self.cloud_api_key_input.setText(value.cloud_api_key);self.offline_enabled_check.setChecked(value.offline_enabled)
 
     def current_settings(self) -> ServerSettings:
-        return ServerSettings(self.host_input.text(), self.port_input.value(), self.timeout_input.value()).validated()
+        return ServerSettings(
+            self.host_input.text(), self.port_input.value(), self.timeout_input.value(),
+            self.cloud_url_input.text(), self.cloud_api_key_input.text(),
+            self.offline_enabled_check.isChecked(),
+        ).validated()
 
     def _set_status(self, text: str, status: str = "", retry=False):
         self.status_label.setText(text); self.status_label.setProperty("status", status)
@@ -782,14 +797,14 @@ class CarClientWindow(QMainWindow):
         self.test_button.setEnabled(False); self.save_button.setEnabled(False)
         self._set_status(f"Connecting to {value.host}:{value.port}...", "working")
         self.connection_thread = ConnectionTestThread(value, self)
-        self.connection_thread.succeeded.connect(lambda: self._connection_finished(True, ""))
+        self.connection_thread.succeeded.connect(lambda mode: self._connection_finished(True, mode))
         self.connection_thread.failed.connect(lambda message: self._connection_finished(False, message))
         self.connection_thread.finished.connect(self._thread_finished)
         self.connection_thread.start()
 
     def _connection_finished(self, success: bool, message: str):
         if success:
-            self._set_status("Connected successfully. Car Management service and database are ready.", "success")
+            self._set_status(f"Connected successfully via {message.upper()}. Car Management service and database are ready.", "success")
         else:
             self._set_status(message, "error", True)
 

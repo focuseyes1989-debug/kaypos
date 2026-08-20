@@ -6,8 +6,11 @@ import json
 import socket
 import time
 import uuid
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from car_client.config import ServerSettings
+from car_client.offline_store import OfflineCarStore
 
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -28,6 +31,8 @@ class CarProtocolError(CarClientError):
 class CarServerClient:
     def __init__(self, settings: ServerSettings):
         self.settings = settings.validated()
+        self.offline = OfflineCarStore()
+        self.last_mode = "unknown"
 
     def request(self, request_type: str, data=None, retries: int = 0) -> dict:
         last_error = None
@@ -86,23 +91,119 @@ class CarServerClient:
             raise CarProtocolError(str(response.get("message") or "Server request failed."))
         return response
 
+    def _cloud_request(self, request_type: str, data=None) -> dict:
+        if not self.settings.cloud_url:
+            raise CarConnectionError("Cloud service is not configured.")
+        body = json.dumps({"type": str(request_type).upper(), "data": data}, ensure_ascii=False).encode("utf-8")
+        request = Request(
+            f"{self.settings.cloud_url}/api/car/request",
+            data=body,
+            headers={"Content-Type": "application/json", "X-Car-API-Key": self.settings.cloud_api_key},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.settings.timeout) as response:
+                result = json.loads(response.read(MAX_RESPONSE_BYTES).decode("utf-8"))
+        except HTTPError as exc:
+            try:
+                detail = json.loads(exc.read().decode("utf-8")).get("detail")
+            except Exception:
+                detail = None
+            raise CarProtocolError(str(detail or f"Cloud server rejected the request ({exc.code}).")) from exc
+        except (URLError, OSError, ValueError, json.JSONDecodeError) as exc:
+            raise CarConnectionError(f"Could not connect to the cloud Car service: {exc}") from exc
+        if result.get("status") != "SUCCESS":
+            raise CarProtocolError(str(result.get("message") or "Cloud server request failed."))
+        return result
+
+    def _online_request(self, request_type: str, data=None) -> dict:
+        try:
+            result = self.request(request_type, data, retries=1)
+            self.last_mode = "lan"
+            return result
+        except CarConnectionError as lan_error:
+            if not self.settings.cloud_url:
+                raise lan_error
+            result = self._cloud_request(request_type, data)
+            self.last_mode = "cloud"
+            return result
+
+    def _sync_pending(self) -> int:
+        synced = 0
+        for item in self.offline.pending():
+            payload = dict(item["payload"])
+            operation = item["operation"]
+            if operation == "SAVE_DATA":
+                payload.pop("id", None)
+            self._online_request(operation, payload)
+            self.offline.complete(item["queue_id"])
+            synced += 1
+        if synced:
+            records = list(self._online_request("GET_DATA").get("data") or [])
+            self.offline.replace_cache(records)
+        return synced
+
     def test_connection(self) -> None:
         # A unique search validates both the TCP service and its database access
         # without downloading the existing car records.
-        self.request("SEARCH_DATA", f"__connection_test_{uuid.uuid4().hex}__", retries=1)
+        self._online_request("SEARCH_DATA", f"__connection_test_{uuid.uuid4().hex}__")
+        self._sync_pending()
 
     def save_car(self, data: dict) -> None:
-        self.request("SAVE_DATA", data)
+        try:
+            self._sync_pending()
+            self._online_request("SAVE_DATA", data)
+        except CarConnectionError:
+            if not self.settings.offline_enabled:
+                raise
+            self.last_mode = "offline"
+            self.offline.queue_save(data)
 
     def get_cars(self) -> list[dict]:
-        return list(self.request("GET_DATA", retries=1).get("data") or [])
+        try:
+            self._sync_pending()
+            records = list(self._online_request("GET_DATA").get("data") or [])
+            self.offline.replace_cache(records)
+            return records
+        except CarConnectionError:
+            if not self.settings.offline_enabled:
+                raise
+            self.last_mode = "offline"
+            return self.offline.all()
 
     def search_cars(self, term: str) -> list[dict]:
         term = str(term or "").strip()
-        return self.get_cars() if not term else list(self.request("SEARCH_DATA", term, retries=1).get("data") or [])
+        if not term:
+            return self.get_cars()
+        try:
+            self._sync_pending()
+            return list(self._online_request("SEARCH_DATA", term).get("data") or [])
+        except CarConnectionError:
+            if not self.settings.offline_enabled:
+                raise
+            self.last_mode = "offline"
+            return self.offline.search(term)
 
     def update_car(self, data: dict) -> None:
-        self.request("UPDATE_DATA", data)
+        try:
+            self._sync_pending()
+            self._online_request("UPDATE_DATA", data)
+        except CarConnectionError:
+            if not self.settings.offline_enabled:
+                raise
+            self.last_mode = "offline"
+            if int(data.get("id") or 0) < 0:
+                raise CarProtocolError("A newly-created offline record must sync before it can be edited.")
+            self.offline.queue_update(data)
 
     def delete_car(self, record_id: int) -> None:
-        self.request("DELETE_DATA", {"id": int(record_id)})
+        try:
+            self._sync_pending()
+            self._online_request("DELETE_DATA", {"id": int(record_id)})
+        except CarConnectionError:
+            if not self.settings.offline_enabled:
+                raise
+            self.last_mode = "offline"
+            if int(record_id) < 0:
+                raise CarProtocolError("A newly-created offline record must sync before it can be deleted.")
+            self.offline.queue_delete(record_id)

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import os
 import secrets
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -43,6 +45,39 @@ app.mount("/product-images", StaticFiles(directory=str(PRODUCT_IMAGES_DIR)), nam
 _TOKENS: Dict[str, Dict[str, Any]] = {}
 
 
+async def _start_car_management_service_with_retry(
+    attempts: int = 12,
+    delay_seconds: float = 5.0,
+) -> None:
+    """Start the Car service once PostgreSQL is ready during Windows boot."""
+    from server.car_management_service import create_configured_car_service
+
+    for attempt in range(1, attempts + 1):
+        try:
+            service = create_configured_car_service()
+            service.start()
+            app.state.car_management_service = service
+            app.state.car_management_retry_task = None
+            if attempt > 1:
+                logger.info(f"Car Management service started after retry {attempt}/{attempts}")
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            app.state.car_management_service = None
+            if attempt >= attempts:
+                logger.error(
+                    f"Could not start Car Management service after {attempts} attempts: {exc}"
+                )
+                app.state.car_management_retry_task = None
+                return
+            logger.warning(
+                f"Car Management service is not ready ({exc}); "
+                f"retrying in {delay_seconds:g} seconds ({attempt}/{attempts})"
+            )
+            await asyncio.sleep(delay_seconds)
+
+
 @app.on_event("startup")
 async def configure_asyncio_error_handling() -> None:
     """Keep expected Windows browser disconnects out of the server console."""
@@ -56,19 +91,23 @@ async def configure_asyncio_error_handling() -> None:
             logger.info(f"Clamped stale location stock for {len(fixed)} product(s)")
     except Exception as exc:
         logger.warning(f"Could not clamp stale location stock on cashier startup: {exc}")
-    try:
-        from server.car_management_service import car_server_enabled, create_configured_car_service
-        if car_server_enabled():
-            app.state.car_management_service = create_configured_car_service()
-            app.state.car_management_service.start()
-    except Exception as exc:
-        app.state.car_management_service = None
-        logger.error(f"Could not start Car Management service: {exc}")
+    app.state.car_management_service = None
+    app.state.car_management_retry_task = None
+    from server.car_management_service import car_server_enabled
+    if car_server_enabled():
+        app.state.car_management_retry_task = asyncio.create_task(
+            _start_car_management_service_with_retry()
+        )
 
 
 @app.on_event("shutdown")
 async def restore_asyncio_error_handling() -> None:
     """Restore the event loop handler when the cashier server stops."""
+    retry_task = getattr(app.state, "car_management_retry_task", None)
+    if retry_task is not None and not retry_task.done():
+        retry_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await retry_task
     car_service = getattr(app.state, "car_management_service", None)
     if car_service is not None:
         car_service.stop()
@@ -82,6 +121,27 @@ async def restore_asyncio_error_handling() -> None:
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+@app.post("/api/car/request")
+def car_management_https_request(
+    payload: Dict[str, Any],
+    x_car_api_key: Optional[str] = Header(default=None),
+):
+    """Authenticated HTTPS transport for remote Car Management clients."""
+    configured_key = os.getenv("ZAY_CAR_API_KEY", "").strip()
+    if not configured_key:
+        raise HTTPException(status_code=503, detail="Cloud Car Management is not configured.")
+    if not x_car_api_key or not secrets.compare_digest(x_car_api_key, configured_key):
+        raise HTTPException(status_code=401, detail="Invalid Car Management API key.")
+    from server.car_management_service import CarRequestHandler
+
+    handler = CarRequestHandler()
+    handler.repository.ensure_schema()
+    result = handler.process(payload)
+    if result.get("status") != "SUCCESS":
+        raise HTTPException(status_code=400, detail=result.get("message") or "Car request failed.")
+    return result
 
 
 class CartItem(BaseModel):

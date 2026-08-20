@@ -13,3 +13,5 @@ services:
         value: "1"
       - key: ZAY_POS_DATABASE_URL
         sync: false
+      - key: ZAY_CAR_API_KEY
+        sync: false

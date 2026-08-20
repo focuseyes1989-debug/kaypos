@@ -16,6 +16,8 @@ from utils.env_loader import load_project_env
 
 load_project_env()
 os.environ.setdefault("ZAY_POS_DB_BACKEND", "postgres")
+# Hosted platforms expose HTTPS, not the LAN-only raw TCP listener.
+os.environ.setdefault("ZAY_CAR_SERVER_ENABLED", "0")
 
 if os.getenv("DATABASE_URL") and not os.getenv("ZAY_POS_DATABASE_URL"):
     os.environ["ZAY_POS_DATABASE_URL"] = os.environ["DATABASE_URL"]
