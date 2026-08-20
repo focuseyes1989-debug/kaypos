@@ -34,7 +34,7 @@
   <main id="app" class="shell" hidden>
     <aside class="side">
       <div class="logo"><div class="mark"><img src="/assets/kay/kay_128x128.png" alt="KAY POS"></div><div><h1>KAY POS</h1><p>Cloud workspace</p></div></div>
-      <nav class="nav"><a class="active" href="/"><span>Dashboard</span></a><a href="/cashier"><span>Cashier</span></a></nav>
+      <nav class="nav"><a class="active" href="/"><span>Dashboard</span></a><a href="/cashier"><span>Cashier</span></a><a href="/receipts"><span>Receipts</span></a></nav>
       <div class="side-foot"><b>Cloud Database</b><br><span id="serverStatus">Checking connection…</span></div>
     </aside>
     <section class="main">
@@ -48,7 +48,7 @@
       </section>
       <section class="grid">
         <article class="card section"><div class="section-title"><h2>Sales Trend</h2><span id="chartPeriod">Daily revenue</span></div><div id="chart" class="chart"></div></article>
-        <article class="card section"><div class="section-title"><h2>Quick actions</h2><span>Open workspace</span></div><div class="quick"><a href="/cashier">Start a new sale <b>→</b></a><a href="/cashier">Search receipts <b>→</b></a></div></article>
+        <article class="card section"><div class="section-title"><h2>Quick actions</h2><span>Open workspace</span></div><div class="quick"><a href="/cashier">Start a new sale <b>→</b></a><a href="/receipts">Search receipts <b>→</b></a></div></article>
       </section>
       <div class="analytics-title"><div><h2>Business Analytics</h2><p>Sales, expenses and credit performance grouped for management review.</p></div><span id="analyticsPeriod" class="period-badge">Today</span></div>
       <section class="card table-card"><div class="table-head"><h2>Top 10 Selling Items</h2><span>Ranked by sales amount</span></div><table><thead><tr><th>#</th><th>Item</th><th>Quantity</th><th>Sales</th></tr></thead><tbody id="topItems"></tbody></table></section>

@@ -187,6 +187,11 @@ def cashier_home():
     return FileResponse(STATIC_DIR / "cashier.html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/receipts", response_class=HTMLResponse)
+def receipts_home():
+    return FileResponse(STATIC_DIR / "receipts.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/mobile/products", response_class=HTMLResponse)
 def mobile_products_home():
     return FileResponse(STATIC_DIR / "mobile_products.html", headers={"Cache-Control": "no-store"})
@@ -370,6 +375,33 @@ def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_use
     except Exception as exc:
         logger.exception("Browser cashier checkout failed")
         raise HTTPException(status_code=500, detail=f"Checkout failed: {exc}") from exc
+
+
+@app.get("/api/receipts/overview")
+def receipts_overview(
+    from_date: str = Query(...),
+    to_date: str = Query(...),
+    tab: str = Query(default="receipts"),
+    q: str = Query(default=""),
+    payment_type: str = Query(default=""),
+    customer_type: str = Query(default=""),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return cashier_service.get_receipts_overview(
+            from_date=from_date,
+            to_date=to_date,
+            tab=tab,
+            search=q.strip(),
+            payment_type=payment_type.strip(),
+            customer_type=customer_type.strip().lower(),
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/receipts/{sale_id}")

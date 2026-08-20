@@ -1139,6 +1139,128 @@ def list_receipts(
         conn.close()
 
 
+def get_receipts_overview(
+    from_date: str,
+    to_date: str,
+    tab: str = "receipts",
+    search: str = "",
+    payment_type: str = "",
+    customer_type: str = "",
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Return desktop-style receipt summaries and a filtered receipt page."""
+    try:
+        start = datetime.strptime(from_date, "%Y-%m-%d").date()
+        end = datetime.strptime(to_date, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("Dates must use YYYY-MM-DD format.") from exc
+    if start > end:
+        raise ValueError("From date cannot be after To date.")
+    if (end - start).days > 366:
+        raise ValueError("Date range cannot exceed 366 days.")
+
+    tab = str(tab or "receipts").strip().lower()
+    if tab not in {"receipts", "refunded", "discounted", "credit"}:
+        raise ValueError("Unknown receipt tab.")
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status = 'completed' THEN total ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status = 'completed' THEN discount_amount ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status = 'refunded' THEN total ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status = 'completed' AND LOWER(COALESCE(payment_type, '')) = 'credit' THEN total ELSE 0 END), 0)
+            FROM sales
+            WHERE date(created_at) BETWEEN ? AND ?
+            """,
+            (from_date, to_date),
+        )
+        summary_row = cursor.fetchone()
+
+        where = ["date(s.created_at) BETWEEN ? AND ?"]
+        params: List[Any] = [from_date, to_date]
+        if tab == "receipts":
+            where.append("s.status = 'completed'")
+        elif tab == "refunded":
+            where.append("s.status = 'refunded'")
+        elif tab == "discounted":
+            where.extend(["s.status = 'completed'", "COALESCE(s.discount_amount, 0) > 0"])
+        else:
+            where.extend(["s.status = 'completed'", "LOWER(COALESCE(s.payment_type, '')) = 'credit'"])
+
+        if search:
+            pattern = f"%{search}%"
+            where.append(
+                "(LOWER(COALESCE(s.invoice_no, '')) LIKE LOWER(?) "
+                "OR LOWER(COALESCE(c.name, '')) LIKE LOWER(?) "
+                "OR LOWER(COALESCE(s.payment_type, '')) LIKE LOWER(?))"
+            )
+            params.extend([pattern, pattern, pattern])
+        if payment_type:
+            where.append("LOWER(COALESCE(s.payment_type, '')) = LOWER(?)")
+            params.append(payment_type)
+        if customer_type == "walk-in":
+            where.append("s.customer_id IS NULL")
+        elif customer_type == "registered":
+            where.append("s.customer_id IS NOT NULL")
+
+        where_sql = " AND ".join(where)
+        cursor.execute(
+            f"SELECT COUNT(*) FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE {where_sql}",
+            params,
+        )
+        total_count = int(cursor.fetchone()[0] or 0)
+
+        page_params = [*params, max(1, min(int(limit or 50), 200)), max(0, int(offset or 0))]
+        cursor.execute(
+            f"""
+            SELECT s.id, s.invoice_no, s.created_at, s.total, s.payment,
+                   s.change_amount, COALESCE(s.discount_amount, 0) AS discount_amount,
+                   s.payment_type, s.status,
+                   COALESCE(c.name, 'Walk-in Customer') AS customer_name,
+                   COUNT(si.id) AS item_count
+            FROM sales s
+            LEFT JOIN customers c ON c.id = s.customer_id
+            LEFT JOIN sale_items si ON si.sale_id = s.id
+            WHERE {where_sql}
+            GROUP BY s.id, c.name
+            ORDER BY s.created_at DESC, s.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            page_params,
+        )
+        columns = [description[0] for description in cursor.description]
+        rows = [
+            {columns[index]: row[index] for index in range(len(columns))}
+            for row in cursor.fetchall()
+        ]
+        cursor.execute("SELECT name FROM payment_types ORDER BY name")
+        payment_types = [str(row[0]) for row in cursor.fetchall() if row and row[0]]
+        return {
+            "period": {"from_date": from_date, "to_date": to_date},
+            "summary": {
+                "receipts": int(summary_row[0] or 0),
+                "sales": float(summary_row[1] or 0),
+                "discount": float(summary_row[2] or 0),
+                "refund": float(summary_row[3] or 0),
+                "credit": float(summary_row[4] or 0),
+            },
+            "tab": tab,
+            "rows": rows,
+            "total_count": total_count,
+            "limit": int(page_params[-2]),
+            "offset": int(page_params[-1]),
+            "payment_types": payment_types,
+        }
+    finally:
+        conn.close()
+
+
 def get_dashboard_summary(
     from_date: str = "", to_date: str = "", trend_days: int = 10
 ) -> Dict[str, Any]:
