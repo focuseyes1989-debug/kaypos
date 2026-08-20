@@ -27,6 +27,7 @@ from server.asyncio_errors import install_windows_disconnect_handler
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+ASSETS_DIR = BASE_DIR.parent / "assets"
 PRODUCT_IMAGES_DIR = Path(get_product_images_dir())
 PRODUCT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -40,6 +41,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 app.mount("/product-images", StaticFiles(directory=str(PRODUCT_IMAGES_DIR)), name="product_images")
 
 _TOKENS: Dict[str, Dict[str, Any]] = {}

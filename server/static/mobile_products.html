@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="/assets/kay/kay_32x32.ico">
   <title>KAY POS Mobile Products</title>
   <style>
     :root {
@@ -81,7 +82,7 @@
     .title { flex: 1; min-width: 0; }
     .title strong { display: block; font-size: 17px; }
     .title span { color: var(--muted); font-size: 12px; }
-    .mobile-mark { display: grid; place-items: center; width: 38px; height: 38px; padding-top: 1px; border-radius: 10px; background: var(--brand); color: #fff; font-size: 17px; font-weight: 800; line-height: 1; }
+    .mobile-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; overflow:hidden; }.mobile-mark img{display:block;width:100%;height:100%;object-fit:contain}
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(280px, .82fr);
@@ -142,7 +143,7 @@
       box-shadow: 0 28px 80px rgba(6, 17, 39, .4);
     }
     .login-logo { display: flex; align-items: center; gap: 13px; margin-bottom: 28px; }
-    .login-mark { display: grid; place-items: center; width: 46px; height: 46px; padding-top: 2px; border-radius: 13px; background: var(--login-blue); color: #fff; font-size: 22px; font-weight: 800; line-height: 1; }
+    .login-mark { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px; overflow:hidden; }.login-mark img{display:block;width:100%;height:100%;object-fit:contain}
     .login-logo h1 { margin: 0; color: #132238; font-size: 22px; line-height: 1.25; }
     .login-logo p { margin: 2px 0 0; color: #6b778c; font-size: 13px; line-height: 1.35; }
     .login-card label { display: block; margin: 15px 0 7px; color: #132238; font-size: 13px; font-weight: 650; }
@@ -220,7 +221,7 @@
 <body>
   <section id="loginView" class="login">
     <form id="loginForm" class="login-card">
-      <div class="login-logo"><div class="login-mark">K</div><div><h1>KAY POS Mobile</h1><p>Product entry for phones and tablets</p></div></div>
+      <div class="login-logo"><div class="login-mark"><img src="/assets/kay/kay_128x128.ico" alt="KAY POS"></div><div><h1>KAY POS Mobile</h1><p>Product entry for phones and tablets</p></div></div>
       <label for="loginUser">Username</label><input id="loginUser" autocomplete="username" required>
       <label for="loginPass">Password</label><input id="loginPass" type="password" autocomplete="current-password" required>
       <button type="submit">Login to Mobile Products</button>
@@ -230,7 +231,7 @@
 
   <main id="appView" class="shell" hidden>
     <div class="topbar">
-      <div class="mobile-mark">K</div>
+      <div class="mobile-mark"><img src="/assets/kay/kay_128x128.ico" alt="KAY POS"></div>
       <div class="title">
         <strong>Mobile Product Entry</strong>
         <span id="userLabel">Ready</span>

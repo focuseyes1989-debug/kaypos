@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/assets/kay/kay_32x32.ico">
   <title>KAY POS Cashier</title>
   <style>
     :root {
@@ -95,13 +96,9 @@
       border-radius: 13px;
       display: grid;
       place-items: center;
-      background: var(--brand);
-      color: #fff;
-      font-size: 22px;
-      font-weight: 800;
-      line-height: 1;
-      padding-top: 2px;
+      overflow: hidden;
     }
+    .brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
     .brand-title { font-size: 22px; line-height: 1.25; font-weight: 700; }
     .brand-subtitle { color: var(--muted); margin-top: 2px; font-size: 13px; line-height: 1.35; }
     .login-header {
@@ -711,7 +708,7 @@
     <section class="login-card">
       <div class="login-header">
         <div class="brand-row">
-          <div class="brand-mark">K</div>
+          <div class="brand-mark"><img src="/assets/kay/kay_128x128.ico" alt="KAY POS"></div>
           <div>
             <div class="brand-title">KAY POS Cashier</div>
             <div class="brand-subtitle">Browser cashier terminal</div>
@@ -728,7 +725,7 @@
   <main id="app" class="app" hidden>
     <aside class="cashier-side">
       <div class="brand-row">
-        <div class="brand-mark">K</div>
+        <div class="brand-mark"><img src="/assets/kay/kay_128x128.ico" alt="KAY POS"></div>
         <div><div class="brand-title">KAY POS</div><div class="brand-subtitle">Cloud workspace</div></div>
       </div>
       <nav class="cashier-nav">
@@ -740,7 +737,7 @@
     </aside>
     <header class="topbar">
       <div class="brand-row">
-        <div class="brand-mark">K</div>
+        <div class="brand-mark"><img src="/assets/kay/kay_128x128.ico" alt="KAY POS"></div>
         <div>
           <div class="brand-title">Cashier Mode</div>
           <div class="brand-subtitle">Server database mode</div>
