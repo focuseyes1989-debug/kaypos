@@ -374,6 +374,7 @@ class CarClientWindow(QMainWindow):
         port_box = QVBoxLayout(); port_box.addWidget(QLabel("Port")); self.port_input = QSpinBox(); self.port_input.setRange(1, 65535); port_box.addWidget(self.port_input)
         timeout_box = QVBoxLayout(); timeout_box.addWidget(QLabel("Timeout (seconds)")); self.timeout_input = QSpinBox(); self.timeout_input.setRange(1, 30); timeout_box.addWidget(self.timeout_input)
         row.addLayout(port_box, 1); row.addLayout(timeout_box, 1); form.addLayout(row)
+        form.addSpacing(12)
         form.addWidget(QLabel("Cloud HTTPS URL (optional)"))
         self.cloud_url_input=QLineEdit();self.cloud_url_input.setPlaceholderText("https://your-cloud-domain.example");form.addWidget(self.cloud_url_input)
         form.addWidget(QLabel("Cloud API key"))
