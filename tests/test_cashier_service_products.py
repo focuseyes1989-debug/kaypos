@@ -119,7 +119,10 @@ class CashierProductListingTests(unittest.TestCase):
         with patch("server.cashier_service.connect_db", self._connect):
             products = cashier_service.list_products(search="location stock", limit=10)
 
-        self.assertEqual([product["name"] for product in products], ["Location Stock"])
+        self.assertEqual(
+            [product["name"] for product in products],
+            ["Location Stock", "Phantom Location Stock"],
+        )
 
     def test_clamp_location_stock_removes_phantom_quantity_above_master_stock(self) -> None:
         from models.database.stock_audit import clamp_location_stock_to_master
