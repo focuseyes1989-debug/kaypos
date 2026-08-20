@@ -1149,7 +1149,7 @@ def get_dashboard_summary() -> Dict[str, Any]:
         )
         month_transactions, month_sales = cursor.fetchone()
 
-        cursor.execute("SELECT COUNT(*) FROM products WHERE COALESCE(active, 1) = 1")
+        cursor.execute("SELECT COUNT(*) FROM products")
         product_count = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM customers")
         customer_count = cursor.fetchone()[0]
@@ -1159,8 +1159,7 @@ def get_dashboard_summary() -> Dict[str, Any]:
             f"""
             SELECT COUNT(*)
             FROM products p
-            WHERE COALESCE(p.active, 1) = 1
-              AND LOWER(COALESCE(p.sold_by, '')) NOT LIKE 'service%'
+            WHERE LOWER(COALESCE(p.sold_by, '')) NOT LIKE 'service%'
               AND {stock_expr} <= COALESCE(p.low_stock, 0)
             """
         )
