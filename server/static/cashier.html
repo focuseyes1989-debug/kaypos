@@ -347,18 +347,19 @@
       background: var(--soft);
       border-bottom: 1px solid var(--line);
     }
-    .cart-box { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .cart-box { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: #f7f9fc; }
     .cart-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--line);
+      background: var(--panel);
     }
-    .cart-title { font-size: 14px; font-weight: 700; }
+    .cart-title { font-size: 15px; font-weight: 700; }
     .secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
     .secondary:hover { background: var(--brand-soft); border-color: rgba(50, 103, 232, .28); }
-    .cart-items { min-height: 0; overflow: auto; }
+    .cart-items { min-height: 0; overflow: auto; padding: 10px; }
     .empty-cart {
       min-height: 100%;
       display: grid;
@@ -371,24 +372,43 @@
     .cart-item {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      padding: 8px;
-      border-bottom: 1px solid var(--line);
+      gap: 10px 14px;
+      margin-bottom: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 4px 14px rgba(35, 52, 80, .055);
       font-size: 12px;
     }
-    .cart-item strong { word-break: break-word; font-weight: 600; }
-    .cart-line { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    .qty { display: flex; align-items: center; gap: 4px; }
+    .cart-item:last-child { margin-bottom: 0; }
+    .cart-item-main { display: flex; min-width: 0; gap: 10px; align-items: flex-start; }
+    .cart-item-index { flex: 0 0 28px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-size: 11px; font-weight: 700; }
+    .cart-item-info { min-width: 0; }
+    .cart-item-info > strong { display: block; color: var(--ink); word-break: break-word; font-size: 13px; font-weight: 600; line-height: 1.4; }
+    .cart-line { margin-top: 5px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .cart-unit-price { color: var(--muted); font-size: 11px; }
+    .cart-item-total { min-width: 92px; text-align: right; }
+    .cart-item-total span { display: block; color: var(--muted); font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+    .cart-item-total strong { display: block; margin-top: 3px; color: var(--ink); font-size: 14px; }
+    .qty { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 5px; padding-top: 2px; border-top: 1px solid #eef1f5; }
     .qty button {
-      width: 26px;
-      min-height: 26px;
+      width: 30px;
+      min-height: 30px;
       padding: 0;
-      background: var(--hover);
-      color: var(--ink);
-      font-size: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--brand);
+      font-size: 15px;
     }
+    .qty button:hover { border-color: #9bb4f4; background: var(--brand-soft); }
+    .qty .qty-value { width: 42px; color: var(--ink); font-size: 12px; font-weight: 600; }
     .remove-btn { background: var(--danger-soft); color: var(--danger); }
     .remove-btn:hover { background: #fecaca; }
+    .cart-items .empty-cart > div { display: grid; justify-items: center; gap: 8px; }
+    .empty-cart-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--brand-soft); color: var(--brand); font-size: 22px; }
+    .empty-cart-title { color: var(--ink); font-size: 14px; font-weight: 600; }
+    .empty-cart-hint { max-width: 220px; line-height: 1.5; }
     .checkout-area {
       display: grid;
       gap: 6px;
@@ -1388,24 +1408,31 @@
       const count = items.reduce((sum, item) => sum + item.qty, 0);
       document.getElementById("cartCount").textContent = `${count} item${count === 1 ? "" : "s"}`;
       document.getElementById("summaryItems").textContent = String(count);
-      document.getElementById("cartItems").innerHTML = items.length ? items.map(item => `
+      document.getElementById("cartItems").innerHTML = items.length ? items.map((item, index) => `
         <div class="cart-item">
-          <div>
-            <strong>${escapeHtml(item.name)}</strong>
+          <div class="cart-item-main">
+            <div class="cart-item-index">${index + 1}</div>
+            <div class="cart-item-info">
+              <strong>${escapeHtml(item.name)}</strong>
             <div class="cart-line muted">
-              <span>${money(item.price)} Ks x ${item.qty}</span>
+                <span class="cart-unit-price">${money(item.price)} Ks each</span>
               ${isService(item) ? '<span class="badge service">Service</span>' : ""}
               ${item.wholesale_tier_id ? `<span class="badge service">Wholesale ${escapeHtml(item.wholesale_min_qty)}+</span>` : ""}
             </div>
+            </div>
+          </div>
+          <div class="cart-item-total">
+            <span>Line Total</span>
+            <strong>${money(Number(item.price || 0) * item.qty)} Ks</strong>
           </div>
           <div class="qty">
-            <button data-dec="${escapeHtml(item.key)}">-</button>
-            <button class="secondary" data-edit="${escapeHtml(item.key)}">${item.qty}</button>
-            <button data-inc="${escapeHtml(item.key)}">+</button>
-            <button class="remove-btn" data-remove="${escapeHtml(item.key)}">x</button>
+            <button data-dec="${escapeHtml(item.key)}" type="button" aria-label="Decrease quantity">−</button>
+            <button class="qty-value" data-edit="${escapeHtml(item.key)}" type="button" aria-label="Edit quantity">${item.qty}</button>
+            <button data-inc="${escapeHtml(item.key)}" type="button" aria-label="Increase quantity">+</button>
+            <button class="remove-btn" data-remove="${escapeHtml(item.key)}" type="button" aria-label="Remove item">×</button>
           </div>
         </div>
-      `).join("") : '<div class="empty-cart">Add products to start selling</div>';
+      `).join("") : '<div class="empty-cart"><div><span class="empty-cart-icon">+</span><strong class="empty-cart-title">Your cart is empty</strong><span class="empty-cart-hint">Select a product to add it to the current sale.</span></div></div>';
       document.querySelectorAll("[data-dec]").forEach(btn => btn.onclick = () => changeQty(btn.dataset.dec, -1));
       document.querySelectorAll("[data-inc]").forEach(btn => btn.onclick = () => changeQty(btn.dataset.inc, 1));
       document.querySelectorAll("[data-edit]").forEach(btn => btn.onclick = () => editQty(btn.dataset.edit));
