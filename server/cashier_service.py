@@ -1333,6 +1333,17 @@ def get_dashboard_summary(
 
         cursor.execute(
             """
+            SELECT COUNT(*), COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE date(expense_date) BETWEEN ? AND ?
+            """,
+            (start_text, end_text),
+        )
+        expense_count, expense_total = cursor.fetchone()
+        period_profit = float(period_sales or 0) - float(expense_total or 0)
+
+        cursor.execute(
+            """
             SELECT COUNT(*), COALESCE(SUM(total_amount), 0),
                    COALESCE(SUM(paid_amount), 0), COALESCE(SUM(balance_amount), 0),
                    COALESCE(SUM(CASE WHEN balance_amount > 0 AND due_date IS NOT NULL
@@ -1402,6 +1413,11 @@ def get_dashboard_summary(
             "group_sales": group_sales,
             "payment_sales": payment_sales,
             "expense_groups": expense_groups,
+            "expenses": {
+                "count": int(expense_count or 0),
+                "total": float(expense_total or 0),
+            },
+            "profit": period_profit,
             "credit_summary": credit_summary,
             "credit_accounts": credit_accounts,
         }
