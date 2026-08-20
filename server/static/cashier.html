@@ -724,7 +724,6 @@
         </div>
       </div>
       <div class="top-actions">
-        <a id="mobileProductsLink" class="top-link" href="/mobile/products" target="_blank" rel="noopener">Mobile Products</a>
         <span id="userLabel">Cashier</span>
         <span id="clock"></span>
         <button id="logoutBtn" class="secondary" type="button">Logout</button>
@@ -981,9 +980,7 @@
 
     function updateSecureNotice() {
       const notice = document.getElementById("httpsNotice");
-      const link = document.getElementById("mobileProductsLink");
       const httpsUrl = `https://${location.hostname}:8443/mobile/products`;
-      link.href = location.protocol === "https:" ? "/mobile/products" : httpsUrl;
       if (location.protocol === "https:") {
         notice.classList.remove("show");
         notice.textContent = "";
