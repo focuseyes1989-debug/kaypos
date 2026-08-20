@@ -200,7 +200,7 @@
       border-radius: 16px;
       box-shadow: var(--shadow);
     }
-    .catalog { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+    .catalog { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); }
     .section-head {
       display: flex;
       align-items: center;
@@ -236,6 +236,29 @@
       background: var(--soft);
       border-bottom: 1px solid var(--line);
     }
+    .quick-categories {
+      display: flex;
+      gap: 7px;
+      min-width: 0;
+      overflow-x: auto;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      scrollbar-width: thin;
+    }
+    .quick-category {
+      flex: 0 0 auto;
+      min-height: 32px;
+      padding: 6px 12px 5px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .quick-category:hover { border-color: #9bb4f4; background: #f6f8ff; }
+    .quick-category.active { border-color: var(--brand); background: var(--brand); color: #fff; }
     .products {
       min-height: 0;
       overflow: auto;
@@ -747,6 +770,7 @@
           <select id="category"><option value="">All Categories</option></select>
           <button id="refreshBtn" class="secondary">Refresh</button>
         </div>
+        <div id="quickCategories" class="quick-categories" aria-label="Quick categories"></div>
         <div id="products" class="products"></div>
       </section>
 
@@ -941,6 +965,7 @@
       token: localStorage.getItem(TOKEN_KEY) || localStorage.getItem(OLD_TOKEN_KEY),
       user: null,
       products: [],
+      categories: [],
       customers: [],
       cart: new Map(),
       settings: {
@@ -1194,13 +1219,31 @@
 
     async function loadCategories() {
       const data = await api("/api/categories");
+      state.categories = data.categories || [];
       setSelectOptions(
         document.getElementById("category"),
         [
           { value: "", label: "All Categories" },
-          ...data.categories.map(category => ({ value: category, label: category }))
+          ...state.categories.map(category => ({ value: category, label: category }))
         ]
       );
+      renderQuickCategories();
+    }
+
+    function renderQuickCategories() {
+      const selected = document.getElementById("category").value;
+      const categories = [{ value: "", label: "All" }, ...state.categories.map(category => ({ value: category, label: category }))];
+      const root = document.getElementById("quickCategories");
+      root.innerHTML = categories.map(category => `
+        <button class="quick-category${category.value === selected ? " active" : ""}" type="button" data-quick-category="${escapeHtml(category.value)}" aria-pressed="${category.value === selected}">${escapeHtml(category.label)}</button>
+      `).join("");
+      root.querySelectorAll("[data-quick-category]").forEach(button => {
+        button.onclick = () => {
+          document.getElementById("category").value = button.dataset.quickCategory;
+          renderQuickCategories();
+          loadProducts();
+        };
+      });
     }
 
     async function loadCustomers() {
@@ -2090,7 +2133,10 @@
         addExactSearchMatch().catch(err => setStatus(err.message, true));
       }
     });
-    document.getElementById("category").addEventListener("change", loadProducts);
+    document.getElementById("category").addEventListener("change", () => {
+      renderQuickCategories();
+      loadProducts();
+    });
     document.getElementById("customerSelect").addEventListener("change", onCustomerChanged);
     document.getElementById("payment").addEventListener("input", () => { state.paymentManual = true; updateChange(); });
     document.getElementById("paymentType").addEventListener("change", updateChange);
