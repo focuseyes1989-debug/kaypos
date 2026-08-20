@@ -20,6 +20,7 @@ from utils.env_loader import load_project_env
 
 
 DEFAULT_SYNC_TABLES = (
+    "cars",
     "category_groups",
     "categories",
     "suppliers",
@@ -68,6 +69,30 @@ def _metadata_sql(table: str) -> str:
     """
 
 
+def _ensure_car_cloud_schema(cursor) -> None:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cars (
+            id BIGSERIAL PRIMARY KEY,
+            car_number TEXT NOT NULL,
+            driver_name TEXT NOT NULL,
+            kind_of_car TEXT,
+            type_of_car TEXT,
+            age TEXT,
+            nrc_place TEXT,
+            nrc_number TEXT NOT NULL,
+            phone_number TEXT,
+            address TEXT,
+            engine_number TEXT,
+            frame_number TEXT,
+            timestamp TEXT
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_number ON cars(car_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_driver_name ON cars(driver_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_nrc_number ON cars(nrc_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_timestamp ON cars(timestamp)")
+
+
 def _ensure_cloud_schema(cursor) -> None:
     previous_backend = os.getenv("ZAY_POS_DB_BACKEND")
     os.environ["ZAY_POS_DB_BACKEND"] = "postgres"
@@ -79,6 +104,7 @@ def _ensure_cloud_schema(cursor) -> None:
         else:
             os.environ["ZAY_POS_DB_BACKEND"] = previous_backend
     cursor.execute(_metadata_sql("cloud_sync_metadata"))
+    _ensure_car_cloud_schema(cursor)
 
 
 def _local_table_exists(cursor, table_name: str) -> bool:
@@ -181,6 +207,21 @@ def _upsert_cloud_rows(cursor, table_name: str, columns: Sequence[str], rows: It
     params = [value for row in rows for value in row]
     cursor.execute(sql, params)
     return len(rows)
+
+
+def _sync_cloud_id_sequence(cursor, table_name: str) -> None:
+    """Keep PostgreSQL-generated IDs above explicitly synced local IDs."""
+    cursor.execute("SELECT pg_get_serial_sequence(%s, 'id')", (table_name,))
+    row = cursor.fetchone()
+    sequence_name = row[0] if row else None
+    if not sequence_name:
+        return
+    safe_table = quote_identifier(table_name)
+    cursor.execute(
+        f"SELECT setval(%s, COALESCE((SELECT MAX(id) FROM {safe_table}), 1), "
+        f"EXISTS (SELECT 1 FROM {safe_table}))",
+        (sequence_name,),
+    )
 
 
 def _upsert_local_rows(cursor, table_name: str, columns: Sequence[str], rows: Iterable[Sequence[Any]]) -> int:
@@ -369,6 +410,9 @@ class CloudSyncService:
                 _ensure_cloud_schema(cloud_cursor)
                 _set_metadata(cloud_cursor, "schema_initialized", "1")
                 cloud_conn.commit()
+            elif "cars" in self.tables:
+                _ensure_car_cloud_schema(cloud_cursor)
+                cloud_conn.commit()
 
             for table_name in self.tables:
                 if not _local_table_exists(local_cursor, table_name):
@@ -393,6 +437,8 @@ class CloudSyncService:
                         table_rows += _upsert_cloud_rows(cloud_cursor, table_name, columns, rows)
                     offset += self.batch_size
                 if table_rows or total_rows == 0:
+                    if "id" in columns:
+                        _sync_cloud_id_sequence(cloud_cursor, table_name)
                     synced_tables += 1
                     synced_rows += table_rows
                     cloud_conn.commit()
