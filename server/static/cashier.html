@@ -687,6 +687,28 @@
       display: grid;
       gap: 5px;
     }
+    @media (max-width: 1400px) and (min-width: 981px) {
+      .app { grid-template-columns: 210px minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) 24px; }
+      .cashier-side { padding: 20px 16px; }
+      .cashier-side .brand-row { margin-bottom: 28px; }
+      .cashier-nav { gap: 5px; }
+      .cashier-nav a { padding: 10px 12px; }
+      .topbar { padding: 0 14px; }
+      .workspace { grid-template-columns: minmax(500px, 7fr) minmax(310px, 3fr); gap: 8px; padding: 0 10px 10px; }
+      .section-head { padding: 11px 12px; }
+      .toolbar { grid-template-columns: minmax(200px, 1fr) 150px 78px; gap: 6px; padding: 7px; }
+      .quick-categories { padding: 0 7px 7px; }
+      .products { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 5px; padding: 5px; }
+      .sale-summary, .customer-row, .cart-header { padding-left: 10px; padding-right: 10px; }
+      .sale-summary { gap: 6px; }
+      .summary-tile { padding: 7px; }
+      .cart-items { padding: 7px; }
+      .cart-item { padding: 8px; }
+      .cart-item-main { gap: 7px; }
+      .cart-item-index { flex-basis: 24px; width: 24px; height: 24px; }
+      .cart-item-thumb { flex-basis: 42px; width: 42px; height: 42px; }
+      .cart-item-total { min-width: 76px; }
+    }
     @media (max-width: 980px) {
       body { overflow: auto; }
       .app { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: 56px auto 28px; }
