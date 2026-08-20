@@ -280,7 +280,9 @@ def _product_thumbnail_url(image_path: str, product_id: Optional[int] = None) ->
         return ""
 
     try:
-        thumbnail_path = ImageOptimizer.get_thumbnail_path(resolved_path, (80, 80))
+        # Cashier tiles are image-first and may render around 140px wide on
+        # desktop. Keep a 2x source so images remain sharp on HiDPI displays.
+        thumbnail_path = ImageOptimizer.get_thumbnail_path(resolved_path, (320, 320))
     except Exception as exc:
         logger.debug(f"Cashier thumbnail generation skipped: {exc}")
         thumbnail_path = resolved_path
@@ -526,7 +528,11 @@ def list_products(search: str = "", category: str = "", limit: int = 100, offset
         where = []
         params: List[Any] = []
         if search:
-            where.append("(name LIKE ? OR sku LIKE ? OR barcode LIKE ?)")
+            where.append(
+                "(LOWER(COALESCE(p.name, '')) LIKE LOWER(?) "
+                "OR LOWER(COALESCE(p.sku, '')) LIKE LOWER(?) "
+                "OR LOWER(COALESCE(p.barcode, '')) LIKE LOWER(?))"
+            )
             pattern = f"%{search}%"
             params.extend([pattern, pattern, pattern])
         if category:

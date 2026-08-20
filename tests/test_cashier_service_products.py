@@ -112,6 +112,15 @@ class CashierProductListingTests(unittest.TestCase):
 
         self.assertEqual([product["name"] for product in products], ["Location Stock"])
 
+    @patch("server.cashier_service._active_product_discounts", return_value={})
+    @patch("server.cashier_service._price_tiers_for_products", return_value={})
+    @patch("server.cashier_service._product_thumbnail_url", return_value="")
+    def test_list_products_search_is_case_insensitive(self, *_mocks) -> None:
+        with patch("server.cashier_service.connect_db", self._connect):
+            products = cashier_service.list_products(search="location stock", limit=10)
+
+        self.assertEqual([product["name"] for product in products], ["Location Stock"])
+
     def test_clamp_location_stock_removes_phantom_quantity_above_master_stock(self) -> None:
         from models.database.stock_audit import clamp_location_stock_to_master
 
