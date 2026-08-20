@@ -176,6 +176,11 @@ def current_user(authorization: str = Header(default="")) -> Dict[str, Any]:
 
 
 @app.get("/", response_class=HTMLResponse)
+def dashboard_home():
+    return FileResponse(STATIC_DIR / "dashboard.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/cashier", response_class=HTMLResponse)
 def cashier_home():
     return FileResponse(STATIC_DIR / "cashier.html", headers={"Cache-Control": "no-store"})
 
@@ -203,6 +208,11 @@ def login(payload: LoginRequest):
 @app.get("/api/me")
 def me(user: Dict[str, Any] = Depends(current_user)):
     return {"user": user}
+
+
+@app.get("/api/dashboard/summary")
+def dashboard_summary(_: Dict[str, Any] = Depends(current_user)):
+    return cashier_service.get_dashboard_summary()
 
 
 @app.get("/api/categories")

@@ -1124,6 +1124,83 @@ def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Di
         conn.close()
 
 
+def get_dashboard_summary() -> Dict[str, Any]:
+    """Return a compact, database-backed summary for the cloud dashboard."""
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE COALESCE(status, 'completed') != 'deleted'
+              AND date(created_at) = date('now')
+            """
+        )
+        today_transactions, today_sales = cursor.fetchone()
+
+        cursor.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE COALESCE(status, 'completed') != 'deleted'
+              AND date(created_at) >= date('now', 'start of month')
+            """
+        )
+        month_transactions, month_sales = cursor.fetchone()
+
+        cursor.execute("SELECT COUNT(*) FROM products WHERE COALESCE(active, 1) = 1")
+        product_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM customers")
+        customer_count = cursor.fetchone()[0]
+
+        stock_expr = _effective_stock_sql("p")
+        cursor.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM products p
+            WHERE COALESCE(p.active, 1) = 1
+              AND LOWER(COALESCE(p.sold_by, '')) NOT LIKE 'service%'
+              AND {stock_expr} <= COALESCE(p.low_stock, 0)
+            """
+        )
+        low_stock_count = cursor.fetchone()[0]
+
+        cursor.execute(
+            """
+            SELECT date(created_at) AS sale_day, COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE COALESCE(status, 'completed') != 'deleted'
+              AND date(created_at) >= date('now', '-7 days')
+            GROUP BY date(created_at)
+            ORDER BY sale_day
+            """
+        )
+        sales_by_day = [
+            {"date": str(row[0]), "total": float(row[1] or 0)} for row in cursor.fetchall()
+        ]
+
+        return {
+            "today": {
+                "sales": float(today_sales or 0),
+                "transactions": int(today_transactions or 0),
+            },
+            "month": {
+                "sales": float(month_sales or 0),
+                "transactions": int(month_transactions or 0),
+            },
+            "inventory": {
+                "products": int(product_count or 0),
+                "low_stock": int(low_stock_count or 0),
+            },
+            "customers": int(customer_count or 0),
+            "sales_by_day": sales_by_day,
+            "recent_sales": list_receipts(limit=8),
+        }
+    finally:
+        conn.close()
+
+
 def get_receipt_settings() -> Dict[str, str]:
     conn = connect_db()
     cursor = conn.cursor()
