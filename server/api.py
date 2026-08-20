@@ -211,8 +211,15 @@ def me(user: Dict[str, Any] = Depends(current_user)):
 
 
 @app.get("/api/dashboard/summary")
-def dashboard_summary(_: Dict[str, Any] = Depends(current_user)):
-    return cashier_service.get_dashboard_summary()
+def dashboard_summary(
+    from_date: str = Query(default=""),
+    to_date: str = Query(default=""),
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return cashier_service.get_dashboard_summary(from_date, to_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/categories")

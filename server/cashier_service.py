@@ -1075,7 +1075,13 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
     return sale
 
 
-def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+def list_receipts(
+    search: str = "",
+    limit: int = 50,
+    offset: int = 0,
+    from_date: str = "",
+    to_date: str = "",
+) -> List[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -1093,6 +1099,9 @@ def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Di
             )
             pattern = f"%{search}%"
             params.extend([pattern, pattern, pattern])
+        if from_date and to_date:
+            where.append("date(s.created_at) BETWEEN ? AND ?")
+            params.extend([from_date, to_date])
 
         params.extend([max(1, min(limit, 200)), max(0, offset)])
         cursor.execute(
@@ -1124,8 +1133,21 @@ def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Di
         conn.close()
 
 
-def get_dashboard_summary() -> Dict[str, Any]:
+def get_dashboard_summary(from_date: str = "", to_date: str = "") -> Dict[str, Any]:
     """Return a compact, database-backed summary for the cloud dashboard."""
+    today = datetime.now().date()
+    try:
+        period_start = datetime.strptime(from_date, "%Y-%m-%d").date() if from_date else today
+        period_end = datetime.strptime(to_date, "%Y-%m-%d").date() if to_date else today
+    except ValueError as exc:
+        raise ValueError("Dates must use YYYY-MM-DD format.") from exc
+    if period_start > period_end:
+        raise ValueError("From date cannot be after To date.")
+    if (period_end - period_start).days > 366:
+        raise ValueError("Date range cannot exceed 366 days.")
+    start_text = period_start.isoformat()
+    end_text = period_end.isoformat()
+
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -1144,10 +1166,11 @@ def get_dashboard_summary() -> Dict[str, Any]:
             SELECT COUNT(*), COALESCE(SUM(total), 0)
             FROM sales
             WHERE COALESCE(status, 'completed') != 'deleted'
-              AND date(created_at) >= date('now', 'start of month')
-            """
+              AND date(created_at) BETWEEN ? AND ?
+            """,
+            (start_text, end_text),
         )
-        month_transactions, month_sales = cursor.fetchone()
+        period_transactions, period_sales = cursor.fetchone()
 
         cursor.execute("SELECT COUNT(*) FROM products")
         product_count = cursor.fetchone()[0]
@@ -1170,16 +1193,17 @@ def get_dashboard_summary() -> Dict[str, Any]:
             SELECT date(created_at) AS sale_day, COALESCE(SUM(total), 0)
             FROM sales
             WHERE COALESCE(status, 'completed') != 'deleted'
-              AND date(created_at) >= date('now', '-7 days')
+              AND date(created_at) BETWEEN ? AND ?
             GROUP BY date(created_at)
             ORDER BY sale_day
-            """
+            """,
+            (start_text, end_text),
         )
         sales_by_day = [
             {"date": str(row[0]), "total": float(row[1] or 0)} for row in cursor.fetchall()
         ]
 
-        period_where = "s.status = 'completed' AND date(s.created_at) >= date('now', 'start of month')"
+        period_where = "s.status = 'completed' AND date(s.created_at) BETWEEN ? AND ?"
         cursor.execute(
             f"""
             SELECT COALESCE(NULLIF(TRIM(si.product_name), ''), p.name, 'Unknown Item'),
@@ -1191,7 +1215,8 @@ def get_dashboard_summary() -> Dict[str, Any]:
             GROUP BY COALESCE(NULLIF(TRIM(si.product_name), ''), p.name, 'Unknown Item')
             ORDER BY 3 DESC
             LIMIT 10
-            """
+            """,
+            (start_text, end_text),
         )
         top_items = [
             {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
@@ -1210,7 +1235,8 @@ def get_dashboard_summary() -> Dict[str, Any]:
             GROUP BY COALESCE(NULLIF(TRIM(p.category), ''), 'Uncategorized')
             ORDER BY 3 DESC
             LIMIT 10
-            """
+            """,
+            (start_text, end_text),
         )
         category_sales = [
             {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
@@ -1232,7 +1258,8 @@ def get_dashboard_summary() -> Dict[str, Any]:
             GROUP BY COALESCE(pc.name, 'No Parent')
             ORDER BY 3 DESC
             LIMIT 10
-            """
+            """,
+            (start_text, end_text),
         )
         parent_sales = [
             {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
@@ -1254,7 +1281,8 @@ def get_dashboard_summary() -> Dict[str, Any]:
             GROUP BY COALESCE(cg.name, 'No Group')
             ORDER BY 3 DESC
             LIMIT 10
-            """
+            """,
+            (start_text, end_text),
         )
         group_sales = [
             {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
@@ -1267,10 +1295,11 @@ def get_dashboard_summary() -> Dict[str, Any]:
                    COALESCE(SUM(total), 0)
             FROM sales
             WHERE status = 'completed'
-              AND date(created_at) >= date('now', 'start of month')
+              AND date(created_at) BETWEEN ? AND ?
             GROUP BY COALESCE(NULLIF(TRIM(payment_type), ''), 'Other')
             ORDER BY 3 DESC
-            """
+            """,
+            (start_text, end_text),
         )
         payment_sales = [
             {"label": row[0], "count": int(row[1] or 0), "total": float(row[2] or 0)}
@@ -1282,11 +1311,12 @@ def get_dashboard_summary() -> Dict[str, Any]:
             SELECT COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized'), COUNT(*),
                    COALESCE(SUM(amount), 0)
             FROM expenses
-            WHERE date(expense_date) >= date('now', 'start of month')
+            WHERE date(expense_date) BETWEEN ? AND ?
             GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized')
             ORDER BY 3 DESC
             LIMIT 10
-            """
+            """,
+            (start_text, end_text),
         )
         expense_groups = [
             {"label": row[0], "count": int(row[1] or 0), "total": float(row[2] or 0)}
@@ -1335,9 +1365,14 @@ def get_dashboard_summary() -> Dict[str, Any]:
                 "sales": float(today_sales or 0),
                 "transactions": int(today_transactions or 0),
             },
-            "month": {
-                "sales": float(month_sales or 0),
-                "transactions": int(month_transactions or 0),
+            "period": {
+                "from_date": start_text,
+                "to_date": end_text,
+                "label": "Today" if period_start == today and period_end == today else (
+                    start_text if period_start == period_end else f"{start_text} to {end_text}"
+                ),
+                "sales": float(period_sales or 0),
+                "transactions": int(period_transactions or 0),
             },
             "inventory": {
                 "products": int(product_count or 0),
@@ -1345,8 +1380,7 @@ def get_dashboard_summary() -> Dict[str, Any]:
             },
             "customers": int(customer_count or 0),
             "sales_by_day": sales_by_day,
-            "recent_sales": list_receipts(limit=8),
-            "analytics_period": "This month",
+            "recent_sales": list_receipts(limit=8, from_date=start_text, to_date=end_text),
             "top_items": top_items,
             "category_sales": category_sales,
             "parent_sales": parent_sales,
