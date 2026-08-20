@@ -16,13 +16,14 @@
       --danger: #b42318;
       --success: #137a3a;
       --soft: #edf7f5;
+      --login-blue: #3267e8;
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Myanmar Text", "Segoe UI", Arial, sans-serif;
+      font-family: Inter, "Segoe UI", Arial, "Myanmar Text", sans-serif;
       background: var(--bg);
       color: var(--ink);
       font-size: 15px;
@@ -120,17 +121,27 @@
       min-height: 100vh;
       display: grid;
       place-items: center;
-      padding: 16px;
+      padding: 24px;
+      background: linear-gradient(135deg, #101a2d, #173568);
     }
     .login-card {
-      width: min(360px, 100%);
-      display: grid;
-      gap: 11px;
+      width: min(430px, 100%);
       background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 16px;
+      border: 0;
+      border-radius: 22px;
+      padding: 34px;
+      box-shadow: 0 28px 80px rgba(6, 17, 39, .4);
     }
+    .login-logo { display: flex; align-items: center; gap: 13px; margin-bottom: 28px; }
+    .login-mark { display: grid; place-items: center; width: 46px; height: 46px; padding-top: 2px; border-radius: 13px; background: var(--login-blue); color: #fff; font-size: 22px; font-weight: 800; line-height: 1; }
+    .login-logo h1 { margin: 0; color: #132238; font-size: 22px; line-height: 1.25; }
+    .login-logo p { margin: 2px 0 0; color: #6b778c; font-size: 13px; line-height: 1.35; }
+    .login-card label { display: block; margin: 15px 0 7px; color: #132238; font-size: 13px; font-weight: 650; }
+    .login-card input { min-height: 0; padding: 12px 13px; border-color: #e3e8f0; border-radius: 10px; }
+    .login-card input:focus { border-color: var(--login-blue); box-shadow: 0 0 0 3px rgba(50, 103, 232, .1); }
+    .login-card button { width: 100%; min-height: 42px; margin-top: 20px; border-radius: 10px; background: var(--login-blue); padding: 12px 18px; font-weight: 400; }
+    .login-card button:hover { background: #2758cf; }
+    .login-card .status { min-height: 20px; margin-top: 12px; padding: 0; border: 0; background: transparent; color: #d13b4b; font-size: 13px; }
     .recent { display: grid; gap: 8px; }
     .recent-item {
       border: 1px solid var(--line);
@@ -200,13 +211,10 @@
 <body>
   <section id="loginView" class="login">
     <form id="loginForm" class="login-card">
-      <div>
-        <strong style="font-size: 20px;">KAY POS Mobile</strong>
-        <div class="muted">Product entry for phones and tablets</div>
-      </div>
-      <label>Username <input id="loginUser" autocomplete="username" required></label>
-      <label>Password <input id="loginPass" type="password" autocomplete="current-password" required></label>
-      <button type="submit">Login</button>
+      <div class="login-logo"><div class="login-mark">K</div><div><h1>KAY POS Mobile</h1><p>Product entry for phones and tablets</p></div></div>
+      <label for="loginUser">Username</label><input id="loginUser" autocomplete="username" required>
+      <label for="loginPass">Password</label><input id="loginPass" type="password" autocomplete="current-password" required>
+      <button type="submit">Login to Mobile Products</button>
       <div id="loginStatus" class="status" hidden></div>
     </form>
   </section>
