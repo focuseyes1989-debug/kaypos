@@ -338,8 +338,8 @@ class CarClientWindow(QMainWindow):
         self.dashboard_needs_refresh=True;self.dashboard_recent_records=[];self.dashboard_alert_records={};self.dashboard_all_records=[]
         self.last_record_term = ""
         self.setWindowTitle("KAY Car Management")
-        self.setMinimumSize(860, 520)
-        self.resize(980, 620)
+        self.setMinimumSize(900, 560)
+        self.resize(1120, 720)
         self.setStyleSheet(APP_STYLE)
         self._build_ui()
         self._load_settings()
