@@ -1112,7 +1112,7 @@ def list_receipts(search: str = "", limit: int = 50, offset: int = 0) -> List[Di
             LEFT JOIN customers c ON s.customer_id = c.id
             LEFT JOIN sale_items si ON si.sale_id = s.id
             WHERE {' AND '.join(where)}
-            GROUP BY s.id
+            GROUP BY s.id, c.name
             ORDER BY s.created_at DESC, s.id DESC
             LIMIT ? OFFSET ?
             """,
