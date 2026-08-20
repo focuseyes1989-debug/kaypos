@@ -250,49 +250,60 @@
       min-height: 0;
       overflow: auto;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-      gap: 8px;
-      padding: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+      gap: 5px;
+      padding: 6px;
       align-content: start;
     }
     .product {
-      display: grid;
-      grid-template-rows: 80px minmax(32px, auto) auto auto;
-      gap: 6px;
+      position: relative;
+      min-height: 104px;
+      aspect-ratio: 1.14 / 1;
       min-width: 0;
-      padding: 6px;
+      padding: 0;
+      overflow: hidden;
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 5px;
       cursor: pointer;
       transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
     }
     .product:hover, .product:focus-visible { border-color: #9bb6ea; box-shadow: 0 4px 10px rgba(37, 99, 235, .08); transform: translateY(-1px); outline: none; }
-    .product.out-of-stock { border-color: #f3b6b6; background: #fff7f7; cursor: not-allowed; }
+    .product.out-of-stock { border: 2px solid #ef4444; background: #fff7f7; cursor: not-allowed; }
     .product.out-of-stock img,
     .product.out-of-stock .product-image-placeholder { filter: grayscale(.65); opacity: .72; }
-    .product.out-of-stock .price { color: #8a1f1f; }
     .product img {
       width: 100%;
-      height: 80px;
+      height: 100%;
       object-fit: cover;
       background: var(--soft);
-      border-radius: 4px;
+      display: block;
     }
     .product-image-placeholder {
-      height: 80px;
+      width: 100%;
+      height: 100%;
       display: grid;
       place-items: center;
-      border-radius: 4px;
       background: var(--soft);
       color: var(--muted);
       font-size: 11px;
       font-weight: 600;
     }
-    .product-name { font-weight: 600; line-height: 1.2; word-break: break-word; font-size: 12px; }
+    .product-caption {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 6px 5px 5px;
+      color: #fff;
+      text-align: center;
+      background: linear-gradient(transparent, rgba(8, 15, 28, .86) 35%);
+      text-shadow: 0 1px 2px rgba(0,0,0,.65);
+    }
+    .product-name { overflow: hidden; font-weight: 400; line-height: 1.15; word-break: break-word; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+    .product-price { margin-top: 2px; font-size: 10px; color: #e9f2ff; }
+    .product-flags { position: absolute; z-index: 2; top: 4px; right: 4px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; max-width: calc(100% - 8px); }
     .product-meta, .muted { color: var(--muted); font-size: 11px; }
-    .product-meta { display: flex; justify-content: space-between; gap: 4px; }
-    .product-footer { display: flex; align-items: end; justify-content: space-between; gap: 4px; }
     .price { color: var(--success); font-weight: 700; font-size: 13px; }
     .badge {
       display: inline-flex;
@@ -1340,24 +1351,20 @@
         const service = isService(product);
         const out = Boolean(product.is_out_of_stock) || (!service && Number(product.stock || 0) <= 0);
         const discount = Number(product.discount_percent || 0);
-        const stockLabel = out ? '<span class="badge out-stock">Out of Stock</span>' : `Stock ${money(product.stock)}`;
         const imageHtml = String(product.thumbnail_url || "").trim()
           ? `<div class="product-image-placeholder" data-image-src="${escapeHtml(product.thumbnail_url)}">Image</div>`
           : '<div class="product-image-placeholder">No Image</div>';
         return `
           <article class="product ${out ? "out-of-stock" : ""}" data-id="${product.id}" role="button" tabindex="${out ? "-1" : "0"}" aria-disabled="${out ? "true" : "false"}">
             ${imageHtml}
-            <div class="product-name">${escapeHtml(product.name || "")}</div>
-            <div class="product-meta">
-              <span>${escapeHtml(product.category || "Uncategorized")}</span>
-              <span>${service ? '<span class="badge service">Service</span>' : stockLabel}</span>
-            </div>
-            <div>
+            <div class="product-flags">
+              ${out ? '<span class="badge out-stock">Out of Stock</span>' : ""}
+              ${service ? '<span class="badge service">Service</span>' : ""}
               ${discount > 0 ? `<span class="badge">-${money(discount)}%</span>` : ""}
-              ${(product.wholesale_tiers || []).length ? `<span class="badge service">Wholesale</span>` : ""}
             </div>
-            <div class="product-footer">
-              <div class="price">${money(product.price)} Ks</div>
+            <div class="product-caption">
+              <div class="product-name" title="${escapeHtml(product.name || "")}">${escapeHtml(product.name || "")}</div>
+              <div class="product-price">${money(product.price)} Ks</div>
             </div>
           </article>
         `;
