@@ -1133,7 +1133,9 @@ def list_receipts(
         conn.close()
 
 
-def get_dashboard_summary(from_date: str = "", to_date: str = "") -> Dict[str, Any]:
+def get_dashboard_summary(
+    from_date: str = "", to_date: str = "", trend_days: int = 10
+) -> Dict[str, Any]:
     """Return a compact, database-backed summary for the cloud dashboard."""
     today = datetime.now().date()
     try:
@@ -1147,6 +1149,12 @@ def get_dashboard_summary(from_date: str = "", to_date: str = "") -> Dict[str, A
         raise ValueError("Date range cannot exceed 366 days.")
     start_text = period_start.isoformat()
     end_text = period_end.isoformat()
+    trend_days = max(0, min(int(trend_days or 0), 31))
+    trend_start = period_start
+    trend_end = period_end
+    if trend_days:
+        trend_end = today
+        trend_start = today - timedelta(days=trend_days - 1)
 
     conn = connect_db()
     cursor = conn.cursor()
@@ -1197,7 +1205,7 @@ def get_dashboard_summary(from_date: str = "", to_date: str = "") -> Dict[str, A
             GROUP BY date(created_at)
             ORDER BY sale_day
             """,
-            (start_text, end_text),
+            (trend_start.isoformat(), trend_end.isoformat()),
         )
         sales_by_day = [
             {"date": str(row[0]), "total": float(row[1] or 0)} for row in cursor.fetchall()
@@ -1373,6 +1381,13 @@ def get_dashboard_summary(from_date: str = "", to_date: str = "") -> Dict[str, A
                 ),
                 "sales": float(period_sales or 0),
                 "transactions": int(period_transactions or 0),
+            },
+            "trend": {
+                "from_date": trend_start.isoformat(),
+                "to_date": trend_end.isoformat(),
+                "label": f"Last {trend_days} days" if trend_days else (
+                    start_text if period_start == period_end else f"{start_text} to {end_text}"
+                ),
             },
             "inventory": {
                 "products": int(product_count or 0),

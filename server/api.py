@@ -214,10 +214,11 @@ def me(user: Dict[str, Any] = Depends(current_user)):
 def dashboard_summary(
     from_date: str = Query(default=""),
     to_date: str = Query(default=""),
+    trend_days: int = Query(default=0, ge=0, le=31),
     _: Dict[str, Any] = Depends(current_user),
 ):
     try:
-        return cashier_service.get_dashboard_summary(from_date, to_date)
+        return cashier_service.get_dashboard_summary(from_date, to_date, trend_days)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
