@@ -1179,6 +1179,157 @@ def get_dashboard_summary() -> Dict[str, Any]:
             {"date": str(row[0]), "total": float(row[1] or 0)} for row in cursor.fetchall()
         ]
 
+        period_where = "s.status = 'completed' AND date(s.created_at) >= date('now', 'start of month')"
+        cursor.execute(
+            f"""
+            SELECT COALESCE(NULLIF(TRIM(si.product_name), ''), p.name, 'Unknown Item'),
+                   COALESCE(SUM(si.qty), 0), COALESCE(SUM(si.total), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
+            WHERE {period_where}
+            GROUP BY COALESCE(NULLIF(TRIM(si.product_name), ''), p.name, 'Unknown Item')
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        top_items = [
+            {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            f"""
+            SELECT COALESCE(NULLIF(TRIM(p.category), ''), 'Uncategorized'),
+                   COALESCE(SUM(si.qty), 0), COALESCE(SUM(si.total), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
+                OR (si.product_id IS NULL AND p.name = si.product_name)
+            WHERE {period_where}
+            GROUP BY COALESCE(NULLIF(TRIM(p.category), ''), 'Uncategorized')
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        category_sales = [
+            {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            f"""
+            SELECT COALESCE(pc.name, 'No Parent'), COALESCE(SUM(si.qty), 0),
+                   COALESCE(SUM(si.total), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
+                OR (si.product_id IS NULL AND p.name = si.product_name)
+            LEFT JOIN categories c ON c.id = p.category_id
+                OR (p.category_id IS NULL AND c.name = p.category)
+            LEFT JOIN categories pc ON pc.id = c.parent_id
+            WHERE {period_where}
+            GROUP BY COALESCE(pc.name, 'No Parent')
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        parent_sales = [
+            {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            f"""
+            SELECT COALESCE(cg.name, 'No Group'), COALESCE(SUM(si.qty), 0),
+                   COALESCE(SUM(si.total), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
+                OR (si.product_id IS NULL AND p.name = si.product_name)
+            LEFT JOIN categories c ON c.id = p.category_id
+                OR (p.category_id IS NULL AND c.name = p.category)
+            LEFT JOIN category_groups cg ON cg.id = c.group_id
+            WHERE {period_where}
+            GROUP BY COALESCE(cg.name, 'No Group')
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        group_sales = [
+            {"label": row[0], "qty": float(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(payment_type), ''), 'Other'), COUNT(*),
+                   COALESCE(SUM(total), 0)
+            FROM sales
+            WHERE status = 'completed'
+              AND date(created_at) >= date('now', 'start of month')
+            GROUP BY COALESCE(NULLIF(TRIM(payment_type), ''), 'Other')
+            ORDER BY 3 DESC
+            """
+        )
+        payment_sales = [
+            {"label": row[0], "count": int(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            """
+            SELECT COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized'), COUNT(*),
+                   COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE date(expense_date) >= date('now', 'start of month')
+            GROUP BY COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized')
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        expense_groups = [
+            {"label": row[0], "count": int(row[1] or 0), "total": float(row[2] or 0)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(total_amount), 0),
+                   COALESCE(SUM(paid_amount), 0), COALESCE(SUM(balance_amount), 0),
+                   COALESCE(SUM(CASE WHEN balance_amount > 0 AND due_date IS NOT NULL
+                                      AND date(due_date) < date('now') THEN 1 ELSE 0 END), 0)
+            FROM credit_sales
+            WHERE COALESCE(status, 'pending') != 'cancelled'
+            """
+        )
+        credit_row = cursor.fetchone()
+        credit_summary = {
+            "accounts": int(credit_row[0] or 0),
+            "total": float(credit_row[1] or 0),
+            "paid": float(credit_row[2] or 0),
+            "balance": float(credit_row[3] or 0),
+            "overdue": int(credit_row[4] or 0),
+        }
+        cursor.execute(
+            """
+            SELECT COALESCE(c.name, 'Unknown Customer'), COUNT(cs.id),
+                   COALESCE(SUM(cs.balance_amount), 0), MIN(cs.due_date)
+            FROM credit_sales cs
+            LEFT JOIN customers c ON c.id = cs.customer_id
+            WHERE cs.balance_amount > 0
+              AND COALESCE(cs.status, 'pending') != 'cancelled'
+            GROUP BY c.id, c.name
+            ORDER BY 3 DESC
+            LIMIT 10
+            """
+        )
+        credit_accounts = [
+            {"label": row[0], "count": int(row[1] or 0), "balance": float(row[2] or 0),
+             "due_date": str(row[3] or "")}
+            for row in cursor.fetchall()
+        ]
+
         return {
             "today": {
                 "sales": float(today_sales or 0),
@@ -1195,6 +1346,15 @@ def get_dashboard_summary() -> Dict[str, Any]:
             "customers": int(customer_count or 0),
             "sales_by_day": sales_by_day,
             "recent_sales": list_receipts(limit=8),
+            "analytics_period": "This month",
+            "top_items": top_items,
+            "category_sales": category_sales,
+            "parent_sales": parent_sales,
+            "group_sales": group_sales,
+            "payment_sales": payment_sales,
+            "expense_groups": expense_groups,
+            "credit_summary": credit_summary,
+            "credit_accounts": credit_accounts,
         }
     finally:
         conn.close()
