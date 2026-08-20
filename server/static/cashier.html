@@ -36,8 +36,9 @@
       overflow: hidden;
       font-family: Inter, "Segoe UI", Arial, "Myanmar Text", sans-serif;
       font-size: 13px;
-      background: var(--bg);
-      color: var(--ink);
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(50, 103, 232, .2);
     }
     button, input, select { font: inherit; }
     button {
@@ -162,9 +163,10 @@
     }
     .topbar .brand-mark { width: 28px; height: 28px; border-radius: 6px; font-size: 14px; }
     .topbar .brand-title { font-size: 15px; font-weight: 600; }
-    .topbar .brand-subtitle { font-size: 11px; color: var(--muted); }
-    .top-actions { display: flex; gap: 8px; align-items: center; color: var(--muted); white-space: nowrap; font-size: 12px; }
-    .top-actions button { min-height: 32px; padding: 5px 11px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+    .topbar .brand-subtitle { font-size: 11px; color: #dce7ff; }
+    .top-actions { display: flex; gap: 8px; align-items: center; color: #dce7ff; white-space: nowrap; font-size: 12px; }
+    .top-actions button { min-height: 32px; padding: 5px 11px; background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.32); }
+    .topbar .top-actions button:hover { background: rgba(255,255,255,.24); border-color: rgba(255,255,255,.5); }
     .top-link {
       min-height: 28px;
       display: inline-flex;
