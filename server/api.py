@@ -136,9 +136,7 @@ def car_management_https_request(
         raise HTTPException(status_code=401, detail="Invalid Car Management API key.")
     from server.car_management_service import CarRequestHandler
 
-    handler = CarRequestHandler()
-    handler.repository.ensure_schema()
-    result = handler.process(payload)
+    result = CarRequestHandler().process(payload)
     if result.get("status") != "SUCCESS":
         raise HTTPException(status_code=400, detail=result.get("message") or "Car request failed.")
     return result

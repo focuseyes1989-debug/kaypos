@@ -102,7 +102,10 @@ class CarServerClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.settings.timeout) as response:
+            # Cloud hosts and remote PostgreSQL can take longer than the LAN,
+            # especially while a free instance is warming up or returning a
+            # large initial record set.
+            with urlopen(request, timeout=max(self.settings.timeout, 30)) as response:
                 result = json.loads(response.read(MAX_RESPONSE_BYTES).decode("utf-8"))
         except HTTPError as exc:
             try:

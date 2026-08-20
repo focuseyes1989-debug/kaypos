@@ -28,6 +28,8 @@ from models.database import safe_initialize_database  # noqa: E402
 if os.getenv("ZAY_POS_AUTO_INIT_DB", "1").strip().lower() in {"1", "true", "yes", "on"}:
     if not safe_initialize_database():
         raise RuntimeError("Could not initialize PostgreSQL schema for cloud POS.")
+    from server.car_management_service import CarRepository  # noqa: E402
+    CarRepository().ensure_schema()
     logger.info("Cloud PostgreSQL schema is ready.")
 
 from server.api import app  # noqa: E402
