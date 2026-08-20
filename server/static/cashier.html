@@ -87,19 +87,20 @@
       padding: 34px;
       box-shadow: var(--shadow);
     }
-    .brand-row { display: flex; align-items: center; gap: 10px; }
+    .brand-row { display: flex; align-items: center; gap: 13px; }
     .brand-mark {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
+      width: 46px;
+      height: 46px;
+      border-radius: 13px;
       display: grid;
       place-items: center;
       background: var(--brand);
       color: #fff;
-      font-weight: 700;
+      font-size: 22px;
+      font-weight: 800;
     }
-    .brand-title { font-size: 18px; line-height: 1.1; font-weight: 700; }
-    .brand-subtitle { color: var(--muted); margin-top: 2px; font-size: 12px; }
+    .brand-title { font-size: 22px; line-height: 1.1; font-weight: 700; }
+    .brand-subtitle { color: var(--muted); margin-top: 4px; font-size: 13px; }
     .login-header {
       display: grid;
       gap: 12px;
@@ -136,7 +137,7 @@
     .app {
       height: 100vh;
       display: grid;
-      grid-template-columns: 228px minmax(0, 1fr);
+      grid-template-columns: 245px minmax(0, 1fr);
       grid-template-rows: 64px minmax(0, 1fr) 28px;
     }
     .cashier-side {
@@ -230,11 +231,11 @@
       gap: 5px;
       padding: 3px 8px;
       border-radius: 999px;
-      border: 1px solid #cbd5e1;
-      background: var(--soft);
-      color: var(--ink);
+      border: 0;
+      background: var(--brand-soft);
+      color: var(--brand);
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 600;
     }
     .metric-chip.ok { border-color: rgba(19, 122, 58, .35); background: rgba(19, 122, 58, .08); color: var(--success); }
     .metric-chip.warn { border-color: rgba(240, 140, 0, .35); background: rgba(240, 140, 0, .12); color: var(--warning-ink); }
@@ -366,8 +367,8 @@
       border-bottom: 1px solid var(--line);
     }
     .cart-title { font-size: 14px; font-weight: 700; }
-    .secondary { background: var(--hover); color: var(--ink); border: 1px solid transparent; }
-    .secondary:hover { background: var(--brand-soft); border-color: rgba(37, 99, 235, .24); }
+    .secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+    .secondary:hover { background: var(--brand-soft); border-color: rgba(50, 103, 232, .28); }
     .cart-items { min-height: 0; overflow: auto; }
     .empty-cart {
       min-height: 100%;
@@ -735,7 +736,7 @@
         <div class="toolbar">
           <input id="search" placeholder="Search product, SKU, barcode">
           <select id="category"><option value="">All Categories</option></select>
-          <button id="refreshBtn">Refresh</button>
+          <button id="refreshBtn" class="secondary">Refresh</button>
         </div>
         <div id="products" class="products"></div>
       </section>
