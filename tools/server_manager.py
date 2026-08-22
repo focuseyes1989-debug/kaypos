@@ -475,13 +475,16 @@ class ServerManagerWindow(QMainWindow):
 
     def _server_tab(self) -> QWidget:
         page = QWidget()
-        layout = QVBoxLayout(page)
+        layout = QGridLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
+        layout.setHorizontalSpacing(12)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
 
         layout.addWidget(self._note(
             f"Mobile barcode scanning needs HTTPS. Use https://{local_ip()}:8443/mobile/products after starting with HTTPS enabled."
-        ))
+        ), 0, 0, 1, 2)
 
         pos_box = QGroupBox("Kay POS Browser/Cashier Server")
         pos_layout = QVBoxLayout(pos_box)
@@ -587,11 +590,12 @@ class ServerManagerWindow(QMainWindow):
         self.server_output.setReadOnly(True)
         self.server_output.setPlaceholderText("Service output and PostgreSQL service command results will appear here.")
 
-        layout.addWidget(pos_box)
-        layout.addWidget(car_box)
-        layout.addWidget(startup_box)
-        layout.addWidget(pg_box)
-        layout.addWidget(self.server_output, 1)
+        layout.addWidget(pos_box, 1, 0)
+        layout.addWidget(car_box, 1, 1)
+        layout.addWidget(startup_box, 2, 0)
+        layout.addWidget(pg_box, 2, 1)
+        layout.addWidget(self.server_output, 3, 0, 1, 2)
+        layout.setRowStretch(3, 1)
         return page
 
     def _activity_tab(self) -> QWidget:
