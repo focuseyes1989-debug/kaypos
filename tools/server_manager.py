@@ -14,6 +14,11 @@ import sys
 import webbrowser
 from pathlib import Path
 
+try:
+    import winreg
+except ImportError:  # pragma: no cover - Server Manager is a Windows utility.
+    winreg = None
+
 from PyQt6.QtCore import QProcess, QProcessEnvironment, QSettings, Qt, QTimer
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
@@ -65,11 +70,41 @@ from utils.product_image_store import save_product_image_blob
 POSTGRES_INSTALLER_URL = "https://www.enterprisedb.com/downloads/postgres-postgresql-downloads"
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 AUTO_START_FILE_NAME = "KayPOSServerManager.cmd"
+AUTO_START_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
+AUTO_START_APPROVED_PATH = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+AUTO_START_REGISTRY_NAME = "Kay POS Server Manager"
 
 
 def auto_start_file_path() -> Path:
     appdata = Path(os.getenv("APPDATA") or Path.home() / "AppData" / "Roaming")
     return appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / AUTO_START_FILE_NAME
+
+
+def auto_start_command() -> str:
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}" --auto-start --minimized'
+    launcher_path = PROJECT_ROOT / "server_manager.py"
+    return f'"{sys.executable}" "{launcher_path}" --auto-start --minimized'
+
+
+def auto_start_registry_state() -> str:
+    """Return missing, enabled, or disabled for the current user's startup entry."""
+    if winreg is None:
+        return "missing"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTO_START_REGISTRY_PATH) as key:
+            winreg.QueryValueEx(key, AUTO_START_REGISTRY_NAME)
+    except FileNotFoundError:
+        return "missing"
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTO_START_APPROVED_PATH) as key:
+            approval, _ = winreg.QueryValueEx(key, AUTO_START_REGISTRY_NAME)
+        if isinstance(approval, bytes) and approval and approval[0] == 3:
+            return "disabled"
+    except FileNotFoundError:
+        pass
+    return "enabled"
 
 
 def local_ip() -> str:
@@ -1132,22 +1167,30 @@ class ServerManagerWindow(QMainWindow):
         QApplication.quit()
 
     def enable_windows_auto_start(self) -> None:
-        """Install a per-user Windows Startup launcher without requiring admin rights."""
+        """Register Server Manager in the current user's Windows Startup Apps."""
         try:
-            startup_path = auto_start_file_path()
-            startup_path.parent.mkdir(parents=True, exist_ok=True)
-            if getattr(sys, "frozen", False):
-                launch_command = f'start "" /min "{sys.executable}" --auto-start --minimized'
-            else:
-                launcher_path = PROJECT_ROOT / "server_manager.py"
-                launch_command = f'start "" /min "{sys.executable}" "{launcher_path}" --auto-start --minimized'
-            content = "@echo off\r\n" f'cd /d "{PROJECT_ROOT}"\r\n' f"{launch_command}\r\n"
-            startup_path.write_text(content, encoding="utf-8")
+            if winreg is None:
+                raise OSError("Windows Registry is unavailable on this system.")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, AUTO_START_REGISTRY_PATH) as key:
+                winreg.SetValueEx(key, AUTO_START_REGISTRY_NAME, 0, winreg.REG_SZ, auto_start_command())
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    AUTO_START_APPROVED_PATH,
+                    0,
+                    winreg.KEY_SET_VALUE,
+                ) as key:
+                    winreg.DeleteValue(key, AUTO_START_REGISTRY_NAME)
+            except FileNotFoundError:
+                pass
+            legacy_path = auto_start_file_path()
+            if legacy_path.exists():
+                legacy_path.unlink()
             self._update_auto_start_status()
             QMessageBox.information(
                 self,
                 "Windows Auto Start",
-                "Auto start enabled. POS and Car services will start after the next Windows login.",
+                "Auto start enabled. Kay POS Server Manager is now listed in Task Manager > Startup Apps.",
             )
         except OSError as exc:
             self._set_chip(self.auto_start_status, f"Windows auto start: failed ({exc})", "bad")
@@ -1155,24 +1198,55 @@ class ServerManagerWindow(QMainWindow):
 
     def disable_windows_auto_start(self) -> None:
         try:
-            startup_path = auto_start_file_path()
-            if startup_path.exists():
-                startup_path.unlink()
+            if winreg is None:
+                raise OSError("Windows Registry is unavailable on this system.")
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    AUTO_START_REGISTRY_PATH,
+                    0,
+                    winreg.KEY_SET_VALUE,
+                ) as key:
+                    winreg.DeleteValue(key, AUTO_START_REGISTRY_NAME)
+            except FileNotFoundError:
+                pass
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    AUTO_START_APPROVED_PATH,
+                    0,
+                    winreg.KEY_SET_VALUE,
+                ) as key:
+                    winreg.DeleteValue(key, AUTO_START_REGISTRY_NAME)
+            except FileNotFoundError:
+                pass
+            legacy_path = auto_start_file_path()
+            if legacy_path.exists():
+                legacy_path.unlink()
             self._update_auto_start_status()
-            QMessageBox.information(self, "Windows Auto Start", "Auto start disabled.")
+            QMessageBox.information(self, "Windows Auto Start", "Auto start entry removed from Windows Startup Apps.")
         except OSError as exc:
             self._set_chip(self.auto_start_status, f"Windows auto start: failed ({exc})", "bad")
             QMessageBox.critical(self, "Windows Auto Start", f"Could not disable auto start:\n{exc}")
 
     def _update_auto_start_status(self) -> None:
-        enabled = auto_start_file_path().is_file()
+        state = auto_start_registry_state()
+        legacy_enabled = auto_start_file_path().is_file()
+        if state == "enabled":
+            text, tone = "Windows auto start: enabled (Task Manager > Startup Apps)", "ok"
+        elif state == "disabled":
+            text, tone = "Windows auto start: disabled in Task Manager", "warn"
+        elif legacy_enabled:
+            text, tone = "Windows auto start: legacy entry detected; click Enable to migrate", "warn"
+        else:
+            text, tone = "Windows auto start: not registered", "neutral"
         self._set_chip(
             self.auto_start_status,
-            "Windows auto start: enabled (after user login)" if enabled else "Windows auto start: disabled",
-            "ok" if enabled else "neutral",
+            text,
+            tone,
         )
-        self.enable_auto_start_button.setEnabled(not enabled)
-        self.disable_auto_start_button.setEnabled(enabled)
+        self.enable_auto_start_button.setEnabled(state != "enabled" or legacy_enabled)
+        self.disable_auto_start_button.setEnabled(state != "missing" or legacy_enabled)
 
     def import_car_database(self) -> None:
         """Run the safe legacy SQLite-to-PostgreSQL car migration tool."""
