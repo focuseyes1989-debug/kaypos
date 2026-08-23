@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from collections import Counter
+import os
 from pathlib import Path
 
 from PyQt6.QtCore import QDate, QThread, QTimer, Qt, pyqtSignal
@@ -16,7 +17,7 @@ from PyQt6.QtWidgets import (
 from car_client.config import ServerSettings, SettingsStore
 from car_client.dashboard_charts import CompletenessChart, HorizontalBarChart
 from car_client.form_preview_dialog import FormPreviewDialog
-from car_client.form_print_dialog import FormPrintSettingsDialog, automatic_print_ready, print_record_pages
+from car_client.form_print_dialog import FormPrintSettingsDialog, available_printer_names, print_record_pages, saved_printer_name
 from car_client.network import CarServerClient
 from car_client.qr_code import CarQrDialog, qr_access_url
 from car_client.records import DRIVER_FIELDS, FIELD_DEFINITIONS, VEHICLE_FIELDS, find_duplicate_records, validated_record
@@ -276,8 +277,10 @@ class PrintAgentNetworkThread(QThread):
         try:
             client=CarServerClient(self.settings)
             if self.action=="poll":
-                jobs=client.pending_print_jobs(1)
-                result=client.claim_print_job(jobs[0]["job_id"]) if jobs else None
+                printers=list(self.payload.get("printers") or [])
+                client.register_print_agent(self.payload.get("client_name","Car Client"),printers,self.payload.get("default_printer",""))
+                jobs=client.pending_print_jobs(1,printers)
+                result=client.claim_print_job(jobs[0]["job_id"],printers) if jobs else None
             elif self.action=="status":
                 result=client.update_print_job(
                     self.payload["job_id"],self.payload["status"],self.payload.get("error_message","")
@@ -582,15 +585,16 @@ class CarClientWindow(QMainWindow):
     def poll_print_agent(self):
         if not self.print_agent_enabled.isChecked():return
         if self.print_agent_thread and self.print_agent_thread.isRunning():return
-        ready,printer=automatic_print_ready(self.store.settings)
-        if not ready:
-            self._set_print_agent_status(printer,"error");return
+        printers=available_printer_names()
+        if not printers:
+            self._set_print_agent_status("No Windows printers are available on this computer.","error");return
+        default_printer=saved_printer_name(self.store.settings)
         try:settings=self.store.load()
         except ValueError as exc:self._set_print_agent_status(str(exc),"error");return
         if self.pending_print_status:
             action="status";payload=dict(self.pending_print_status);message=f"Updating job {payload['job_id'][:8]} status..."
         else:
-            action="poll";payload={};message=f"Checking print queue · {printer}"
+            action="poll";payload={"printers":printers,"default_printer":default_printer,"client_name":os.getenv("COMPUTERNAME","Car Client")};message=f"Checking print queue · {default_printer or str(len(printers))+' available printer(s)'}"
         self.print_agent_poll_button.setEnabled(False);self._set_print_agent_status(message,"working")
         self.print_agent_thread=PrintAgentNetworkThread(settings,action,payload,self)
         self.print_agent_thread.succeeded.connect(lambda result,mode:self._print_agent_network_succeeded(action,result,mode))
@@ -609,7 +613,7 @@ class CarClientWindow(QMainWindow):
         self._set_print_agent_status(f"Printing job {job_id[:8]} · {job.get('car_number') or ''}...","working")
         QApplication.processEvents()
         try:
-            printer=print_record_pages(job.get("record") or {},job.get("page_sequence") or [],job.get("copies",1),self.store.settings)
+            printer=print_record_pages(job.get("record") or {},job.get("page_sequence") or [],job.get("copies",1),self.store.settings,job.get("printer_name") or "")
             self.pending_print_status={"job_id":job_id,"status":"completed","error_message":""}
             self._set_print_agent_status(f"Sent job {job_id[:8]} to {printer}; confirming completion...","working")
         except Exception as exc:

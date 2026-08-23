@@ -87,32 +87,33 @@ class CarManagementServiceTests(unittest.TestCase):
         self.handler.process({"type": "SAVE_DATA", "data": self.record()})
         record_id = self.repository.all()[0]["id"]
         token = self.repository.issue_qr_token(record_id)["token"]
-        first = self.repository.create_print_job(token, "request-key-123456789", 1)
-        duplicate = self.repository.create_print_job(token, "request-key-123456789", 1)
+        self.repository.register_print_printers("TEST-PC", ["Test Printer"], "Test Printer")
+        first = self.repository.create_print_job(token, "request-key-123456789", 2, "Test Printer")
+        duplicate = self.repository.create_print_job(token, "request-key-123456789", 2, "Test Printer")
         self.assertEqual(first["job_id"], duplicate["job_id"])
         self.assertEqual(first["status"], "pending")
+        self.assertEqual(first["copies"], 2)
+        self.assertEqual(first["printer_name"], "Test Printer")
         self.assertEqual(first["page_sequence"], [1, 2, 3, 4, 2, 3, 2, 3, 4])
-        self.assertEqual(len(self.repository.pending_print_jobs()), 1)
+        self.assertEqual(len(self.repository.pending_print_jobs(printer_names=["Test Printer"])), 1)
 
-        printing = self.repository.claim_print_job(first["job_id"])
+        printing = self.repository.claim_print_job(first["job_id"], ["Test Printer"])
         self.assertEqual(printing["status"], "printing")
         self.assertEqual(printing["record"]["nrc_number"], "123456")
         with self.assertRaises(ValueError):
-            self.repository.claim_print_job(first["job_id"])
+            self.repository.claim_print_job(first["job_id"], ["Test Printer"])
         completed = self.repository.update_print_job_status(first["job_id"], "completed")
         self.assertEqual(completed["status"], "completed")
-        self.assertEqual(self.repository.pending_print_jobs(), [])
+        self.assertEqual(self.repository.pending_print_jobs(printer_names=["Test Printer"]), [])
         with self.assertRaises(ValueError):
             self.repository.update_print_job_status(first["job_id"], "pending")
-        with self.assertRaisesRegex(ValueError, "STAFF_PIN_REQUIRED"):
-            self.repository.create_print_job(token, "second-request-key-12345", 1)
-        reprint = self.repository.create_print_job(token, "second-request-key-12345", 1, allow_reprint=True)
+        reprint = self.repository.create_print_job(token, "second-request-key-12345", 1, "Test Printer")
         self.assertNotEqual(reprint["job_id"], first["job_id"])
         events = [row["event"] for row in self.repository.print_audit()]
         self.assertIn("job_created", events)
         self.assertIn("job_claimed", events)
         self.assertIn("status_completed", events)
-        self.assertIn("reprint_requested", events)
+        self.assertGreaterEqual(events.count("job_created"), 2)
 
     def test_print_job_rejects_disabled_qr(self):
         self.handler.process({"type": "SAVE_DATA", "data": self.record()})
@@ -126,8 +127,9 @@ class CarManagementServiceTests(unittest.TestCase):
         self.handler.process({"type": "SAVE_DATA", "data": self.record()})
         record_id = self.repository.all()[0]["id"]
         token = self.repository.issue_qr_token(record_id)["token"]
-        job = self.repository.create_print_job(token, "stale-request-key-123", 1)
-        self.repository.claim_print_job(job["job_id"])
+        self.repository.register_print_printers("TEST-PC", ["Test Printer"], "Test Printer")
+        job = self.repository.create_print_job(token, "stale-request-key-123", 1, "Test Printer")
+        self.repository.claim_print_job(job["job_id"], ["Test Printer"])
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute("UPDATE car_print_jobs SET updated_at='2020-01-01 00:00:00' WHERE public_id=?", (job["job_id"],))

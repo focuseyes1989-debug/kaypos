@@ -13,7 +13,7 @@ from typing import Callable
 from loguru import logger
 
 from models.database import connect_db
-from utils.db_compat import integer_primary_key_sql, is_postgres_backend
+from utils.db_compat import ensure_column, integer_primary_key_sql, is_postgres_backend
 
 
 CAR_COLUMNS = (
@@ -85,7 +85,16 @@ class CarRepository:
                     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
                 )
             """)
+            ensure_column(cursor, "car_print_jobs", "printer_name", "TEXT")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_print_job_status ON car_print_jobs(status, requested_at)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS car_print_printers (
+                    printer_name TEXT PRIMARY KEY,
+                    client_name TEXT NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    last_seen TEXT NOT NULL
+                )
+            """)
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS car_print_audit (
                     id {integer_primary_key_sql()},
@@ -328,6 +337,7 @@ class CarRepository:
             "car_number": str(row.get("car_number") or "").strip(),
             "page_sequence": sequence,
             "copies": int(row.get("copies") or 1),
+            "printer_name": str(row.get("printer_name") or ""),
             "status": str(row.get("status") or "pending"),
             "error_message": str(row.get("error_message") or ""),
             "requested_at": str(row.get("requested_at") or ""),
@@ -360,7 +370,7 @@ class CarRepository:
             str(actor or "system")[:80], datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ))
 
-    def create_print_job(self, qr_token, request_key, copies=1, allow_reprint=False) -> dict:
+    def create_print_job(self, qr_token, request_key, copies=1, printer_name="") -> dict:
         qr_token = str(qr_token or "").strip()
         request_key = str(request_key or "").strip()
         copies = int(copies or 1)
@@ -370,6 +380,7 @@ class CarRepository:
             raise ValueError("A valid request key is required.")
         if not 1 <= copies <= 5:
             raise ValueError("Copies must be between 1 and 5.")
+        printer_name = str(printer_name or "").strip()
         conn = self._connection_factory()
         try:
             cursor = conn.cursor()
@@ -394,21 +405,26 @@ class CarRepository:
             latest = latest_rows[0] if latest_rows else None
             if latest and str(latest.get("status")) in {"pending", "printing"}:
                 return self._public_print_job(latest)
-            if latest and str(latest.get("status")) == "completed" and not allow_reprint:
-                raise ValueError("STAFF_PIN_REQUIRED")
+            online_printers = self._available_print_printers(cursor)
+            online_names = {item["printer_name"] for item in online_printers}
+            if not printer_name:
+                default = next((item for item in online_printers if item["is_default"]), None)
+                printer_name = str((default or (online_printers[0] if online_printers else {})).get("printer_name") or "")
+            if not printer_name or printer_name not in online_names:
+                raise ValueError("Select an available printer.")
             stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             public_id = secrets.token_urlsafe(24)
             cursor.execute("""
                 INSERT INTO car_print_jobs
-                    (public_id, request_key, car_id, page_sequence, copies, status, error_message, requested_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'pending', '', ?, ?)
+                    (public_id, request_key, car_id, page_sequence, copies, printer_name, status, error_message, requested_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', '', ?, ?)
                 ON CONFLICT (request_key) DO NOTHING
             """, (
                 public_id, request_key, int(car["id"]),
-                json.dumps(DEFAULT_PRINT_SEQUENCE, separators=(",", ":")), copies, stamp, stamp,
+                json.dumps(DEFAULT_PRINT_SEQUENCE, separators=(",", ":")), copies, printer_name, stamp, stamp,
             ))
             if cursor.rowcount > 0:
-                self._audit(cursor, public_id, "reprint_requested" if allow_reprint else "job_created", f"car_id={car['id']}", "owner_web")
+                self._audit(cursor, public_id, "job_created", f"car_id={car['id']}; copies={copies}; printer={printer_name}", "owner_web")
             conn.commit()
             job = self._find_print_job(cursor, "request_key", request_key)
             return self._public_print_job(job or {})
@@ -430,8 +446,54 @@ class CarRepository:
         finally:
             conn.close()
 
-    def pending_print_jobs(self, limit=20) -> list[dict]:
+    @staticmethod
+    def _available_print_printers(cursor) -> list[dict]:
+        cutoff = (datetime.now() - timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            SELECT printer_name, client_name, is_default, last_seen
+            FROM car_print_printers WHERE last_seen>=?
+            ORDER BY is_default DESC, printer_name
+        """, (cutoff,))
+        columns = [str(column[0]) for column in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def register_print_printers(self, client_name, printer_names, default_printer="") -> list[dict]:
+        client_name = str(client_name or "Car Client").strip()[:120]
+        names = list(dict.fromkeys(str(name or "").strip() for name in (printer_names or []) if str(name or "").strip()))[:50]
+        default_printer = str(default_printer or "").strip()
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            for name in names:
+                cursor.execute("""
+                    INSERT INTO car_print_printers (printer_name, client_name, is_default, last_seen)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (printer_name) DO UPDATE SET
+                        client_name=excluded.client_name,
+                        is_default=excluded.is_default,
+                        last_seen=excluded.last_seen
+                """, (name, client_name, 1 if name == default_printer else 0, stamp))
+            conn.commit()
+            return self._available_print_printers(cursor)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def available_print_printers(self) -> list[dict]:
+        conn = self._connection_factory()
+        try:
+            return self._available_print_printers(conn.cursor())
+        finally:
+            conn.close()
+
+    def pending_print_jobs(self, limit=20, printer_names=None) -> list[dict]:
         limit = max(1, min(int(limit or 20), 100))
+        printer_names = [str(name).strip() for name in (printer_names or []) if str(name).strip()]
+        if not printer_names:
+            return []
         conn = self._connection_factory()
         try:
             cursor = conn.cursor()
@@ -439,15 +501,22 @@ class CarRepository:
                 SELECT j.*, {columns} FROM car_print_jobs j
                 JOIN cars c ON c.id=j.car_id
                 WHERE j.status='pending'
+                  AND (COALESCE(j.printer_name, '')='' OR j.printer_name IN ({printer_placeholders}))
                 ORDER BY j.requested_at, j.id
                 LIMIT ?
-            """.format(columns=", ".join(f"c.{column} AS {column}" for column in CAR_COLUMNS)), (limit,))
+            """.format(
+                columns=", ".join(f"c.{column} AS {column}" for column in CAR_COLUMNS),
+                printer_placeholders=", ".join("?" for _ in printer_names),
+            ), (*printer_names, limit))
             return [self._agent_print_job(row) for row in self._rows(cursor)]
         finally:
             conn.close()
 
-    def claim_print_job(self, public_id) -> dict:
+    def claim_print_job(self, public_id, printer_names=None) -> dict:
         public_id = str(public_id or "").strip()
+        printer_names = [str(name).strip() for name in (printer_names or []) if str(name).strip()]
+        if not printer_names:
+            raise ValueError("No printers are available on this Print Agent.")
         conn = self._connection_factory()
         try:
             cursor = conn.cursor()
@@ -455,7 +524,8 @@ class CarRepository:
             cursor.execute("""
                 UPDATE car_print_jobs SET status='printing', error_message='', updated_at=?
                 WHERE public_id=? AND status='pending'
-            """, (stamp, public_id))
+                  AND (COALESCE(printer_name, '')='' OR printer_name IN ({printer_placeholders}))
+            """.format(printer_placeholders=", ".join("?" for _ in printer_names)), (stamp, public_id, *printer_names))
             if cursor.rowcount <= 0:
                 conn.rollback()
                 raise ValueError("Print job is no longer pending.")
@@ -608,7 +678,8 @@ class CarRequestHandler:
             if request_type == "GET_PRINT_JOBS":
                 self.repository.recover_stale_print_jobs(10)
                 limit = data.get("limit", 20) if isinstance(data, dict) else 20
-                return {"status": "SUCCESS", "data": self.repository.pending_print_jobs(limit)}
+                printers = data.get("printers", []) if isinstance(data, dict) else []
+                return {"status": "SUCCESS", "data": self.repository.pending_print_jobs(limit, printers)}
             if request_type == "UPDATE_PRINT_JOB":
                 if not isinstance(data, dict):
                     raise ValueError("Print-job data must be an object.")
@@ -618,7 +689,12 @@ class CarRequestHandler:
                 return {"status": "SUCCESS", "data": job}
             if request_type == "CLAIM_PRINT_JOB":
                 job_id = data.get("job_id") if isinstance(data, dict) else None
-                return {"status": "SUCCESS", "data": self.repository.claim_print_job(job_id)}
+                printers = data.get("printers", []) if isinstance(data, dict) else []
+                return {"status": "SUCCESS", "data": self.repository.claim_print_job(job_id, printers)}
+            if request_type == "REGISTER_PRINT_AGENT":
+                if not isinstance(data, dict):raise ValueError("Printer registration must be an object.")
+                printers = self.repository.register_print_printers(data.get("client_name"), data.get("printers"), data.get("default_printer"))
+                return {"status": "SUCCESS", "data": printers}
             if request_type == "GET_PRINT_AUDIT":
                 limit = data.get("limit", 100) if isinstance(data, dict) else 100
                 return {"status": "SUCCESS", "data": self.repository.print_audit(limit)}

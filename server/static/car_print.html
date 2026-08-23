@@ -34,6 +34,9 @@
     button:hover { filter:brightness(1.08); } button:focus-visible { outline:3px solid #aeb7ff; outline-offset:3px; }
     button:disabled { cursor:not-allowed; opacity:.65; }
     .secondary { margin-top:10px; background:#2b3652; }
+    .options { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0 0 20px; text-align:left; }
+    .option label { display:block; margin-bottom:7px; color:var(--muted); font-size:.9rem; }
+    select { width:100%; min-height:48px; padding:8px 10px; border:1px solid #465475; border-radius:11px; background:#0f1526; color:white; font:1rem "Myanmar Text","Segoe UI",sans-serif; }
     .phase-note { margin-top:13px; text-align:center; font-size:.82rem; color:var(--muted); }
     footer { padding:18px 10px 0; text-align:center; color:#7f8ba6; font-size:.8rem; }
     [hidden] { display:none !important; }
@@ -65,6 +68,10 @@
             <div class="row"><dt>ယာဉ်အမျိုးအစား</dt><dd id="vehicle">—</dd></div>
             <div class="row"><dt>ယာဉ်မောင်း</dt><dd id="driver">—</dd></div>
           </dl>
+          <div class="options">
+            <div class="option"><label for="copies">ဘယ်နှစုံ ထုတ်မလဲ</label><select id="copies"><option value="1">1 စုံ</option><option value="2">2 စုံ</option><option value="3">3 စုံ</option><option value="4">4 စုံ</option><option value="5">5 စုံ</option></select></div>
+            <div class="option"><label for="printer">Printer ရွေးပါ</label><select id="printer"><option value="">Printer စစ်ဆေးနေသည်…</option></select></div>
+          </div>
           <div class="privacy">လုံခြုံရေးအတွက် NRC၊ ဖုန်းနံပါတ်နှင့် လိပ်စာတို့ကို ဤစာမျက်နှာတွင် မပြသပါ။</div>
           <button id="confirmButton" type="button">Print Request တင်မည်</button>
           <p id="phaseNote" class="phase-note">စာမျက်နှာစဉ် · 1, 2, 3, 4, 2, 3, 2, 3, 4</p>
@@ -74,7 +81,7 @@
           <h2 id="jobTitle">Print Request တင်နေပါသည်…</h2>
           <p id="jobMessage">Please wait while the server creates your print job.</p>
           <p id="jobReference" class="phase-note"></p>
-          <button id="reprintButton" class="secondary" type="button" hidden>ဝန်ထမ်းခွင့်ပြုချက်ဖြင့် ထပ်ထုတ်မည်</button>
+          <button id="reprintButton" class="secondary" type="button" hidden>နောက်တစ်ကြိမ် ထပ်ထုတ်မည်</button>
           <button id="nextButton" class="secondary" type="button" hidden>နောက်တစ်ယောက် · Next Customer</button>
         </div>
       </div>
@@ -97,31 +104,31 @@
         showError("QR Code link မပြည့်စုံပါ။ ဝန်ထမ်းထံမှ QR အသစ်တောင်းယူပါ။");
         return;
       }
-      fetch(`/api/car/qr/${encodeURIComponent(token)}`, {headers:{"Accept":"application/json"}, cache:"no-store"})
-        .then(async response => {
-          if (!response.ok) throw new Error(response.status === 404 ? "QR Code သက်တမ်းမရှိတော့ပါ သို့မဟုတ် ပိတ်ထားပါသည်။" : "Server နှင့် ဆက်သွယ်၍မရပါ။ ခဏနေပြန်စမ်းပါ။");
-          return response.json();
+      Promise.all([
+        fetch(`/api/car/qr/${encodeURIComponent(token)}`, {headers:{"Accept":"application/json"}, cache:"no-store"}),
+        fetch("/api/car/printers", {headers:{"Accept":"application/json"}, cache:"no-store"})
+      ]).then(async ([recordResponse, printerResponse]) => {
+          if (!recordResponse.ok) throw new Error(recordResponse.status === 404 ? "QR Code သက်တမ်းမရှိတော့ပါ သို့မဟုတ် ပိတ်ထားပါသည်။" : "Server နှင့် ဆက်သွယ်၍မရပါ။ ခဏနေပြန်စမ်းပါ။");
+          const recordResult = await recordResponse.json();
+          const printerResult = printerResponse.ok ? await printerResponse.json() : {data:[]};
+          return {record:recordResult.data||{}, printers:printerResult.data||[]};
         })
-        .then(result => {
-          const record = result.data || {};
+        .then(({record,printers}) => {
           byId("carNumber").textContent = safeText(record.car_number);
           byId("vehicle").textContent = safeText(record.vehicle);
           byId("driver").textContent = safeText(record.driver_name);
+          const select=byId("printer");select.innerHTML="";
+          printers.forEach(item=>{const option=document.createElement("option");option.value=item.printer_name;option.textContent=`${item.printer_name} · ${item.client_name}`;if(item.is_default)option.selected=true;select.appendChild(option)});
+          if (!printers.length) { const option=document.createElement("option");option.value="";option.textContent="Online printer မရှိပါ";select.appendChild(option);byId("confirmButton").disabled=true;byId("phaseNote").textContent="Car Client Print Agent နှင့် saved printer ကို စစ်ဆေးပါ။"; }
           byId("loading").hidden = true;
           byId("details").style.display = "block";
         })
         .catch(error => showError(error.message || "QR Code စစ်ဆေးမှု မအောင်မြင်ပါ။"));
 
       let statusTimer = null;
-      const requestKey = () => {
-        const storageKey = `kay-car-print-request:${token}`;
-        let key = sessionStorage.getItem(storageKey);
-        if (!key) {
-          key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
-          sessionStorage.setItem(storageKey, key);
-        }
-        return key;
-      };
+      const newRequestKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+      let currentRequestKey = newRequestKey();
+      const requestKey = () => currentRequestKey;
       const statusCopy = {
         pending:["Print Queue ထဲတွင် စောင့်နေပါသည်", "Printer computer လက်ခံရန် စောင့်နေပါသည်။"],
         printing:["စာရွက်ထုတ်နေပါသည်", "Printing is in progress. Please wait."],
@@ -144,7 +151,7 @@
         .then(result => renderJob(result.data || {}))
         .catch(error => { byId("jobMessage").textContent = error.message; });
 
-      const submitPrintRequest = async (staffPin="") => {
+      const submitPrintRequest = async () => {
         const button = byId("confirmButton");
         button.disabled = true;
         button.textContent = "Request တင်နေပါသည်…";
@@ -153,13 +160,9 @@
         try {
           const response = await fetch("/api/car/print-jobs", {
             method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-            body:JSON.stringify({token, request_key:requestKey(), copies:1, staff_pin:staffPin})
+            body:JSON.stringify({token, request_key:requestKey(), copies:Number(byId("copies").value), printer_name:byId("printer").value})
           });
           const result = await response.json();
-          if (response.status === 403 && result.detail === "STAFF_PIN_REQUIRED") {
-            const pin = window.prompt("Reprint အတွက် ဝန်ထမ်း PIN ထည့်ပါ။");
-            if (pin) return submitPrintRequest(pin);
-          }
           if (!response.ok) throw new Error(result.detail || "Print request တင်၍မရပါ။");
           const job = result.data || {};
           renderJob(job);
@@ -172,12 +175,11 @@
       };
       byId("confirmButton").addEventListener("click", () => submitPrintRequest());
       byId("reprintButton").addEventListener("click", () => {
-        sessionStorage.removeItem(`kay-car-print-request:${token}`);
+        currentRequestKey = newRequestKey();
         byId("reprintButton").hidden = true;
         submitPrintRequest();
       });
       byId("nextButton").addEventListener("click", () => {
-        sessionStorage.removeItem(`kay-car-print-request:${token}`);
         location.href = "/car/kiosk";
       });
     })();

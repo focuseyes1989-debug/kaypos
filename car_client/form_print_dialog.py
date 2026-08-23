@@ -45,6 +45,10 @@ def saved_printer_name(settings: QSettings | None = None) -> str:
     return str(settings.value(f"{SETTINGS_PREFIX}/printer", "") or "").strip()
 
 
+def available_printer_names() -> list[str]:
+    return [printer.printerName() for printer in QPrinterInfo.availablePrinters()]
+
+
 def automatic_print_ready(settings: QSettings | None = None) -> tuple[bool, str]:
     """Check readiness without claiming a queued job."""
     name = saved_printer_name(settings)
@@ -56,13 +60,13 @@ def automatic_print_ready(settings: QSettings | None = None) -> tuple[bool, str]
     return True, name
 
 
-def print_record_pages(record: dict, pages, copies=1, settings: QSettings | None = None) -> str:
+def print_record_pages(record: dict, pages, copies=1, settings: QSettings | None = None, printer_name_override="") -> str:
     """Send a queue job to the saved Windows printer without opening a dialog."""
     settings = settings or QSettings("KAY POS", "Car Management Client")
     pages = parse_page_sequence(",".join(str(page) for page in pages))
-    ready, printer_name = automatic_print_ready(settings)
-    if not ready:
-        raise RuntimeError(printer_name)
+    printer_name = str(printer_name_override or saved_printer_name(settings)).strip()
+    if printer_name not in set(available_printer_names()):
+        raise RuntimeError(f"Selected printer is unavailable: {printer_name or 'None'}")
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
     printer.setPrinterName(printer_name)
     printer.setCopyCount(max(1, min(int(copies or 1), 5)))

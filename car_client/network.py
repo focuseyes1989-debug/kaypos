@@ -225,12 +225,19 @@ class CarServerClient:
     def revoke_qr(self, record_id: int) -> None:
         self._online_request("REVOKE_QR", {"id": int(record_id)})
 
-    def pending_print_jobs(self, limit: int = 5) -> list[dict]:
-        result = self._online_request("GET_PRINT_JOBS", {"limit": int(limit)})
+    def register_print_agent(self, client_name: str, printers, default_printer="") -> list[dict]:
+        result = self._online_request("REGISTER_PRINT_AGENT", {
+            "client_name": str(client_name), "printers": list(printers or []),
+            "default_printer": str(default_printer or ""),
+        })
         return list(result.get("data") or [])
 
-    def claim_print_job(self, job_id: str) -> dict:
-        result = self._online_request("CLAIM_PRINT_JOB", {"job_id": str(job_id)})
+    def pending_print_jobs(self, limit: int = 5, printers=None) -> list[dict]:
+        result = self._online_request("GET_PRINT_JOBS", {"limit": int(limit), "printers": list(printers or [])})
+        return list(result.get("data") or [])
+
+    def claim_print_job(self, job_id: str, printers=None) -> dict:
+        result = self._online_request("CLAIM_PRINT_JOB", {"job_id": str(job_id), "printers": list(printers or [])})
         return dict(result.get("data") or {})
 
     def update_print_job(self, job_id: str, status: str, error_message: str = "") -> dict:

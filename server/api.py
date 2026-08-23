@@ -131,7 +131,7 @@ class CarPrintRequest(BaseModel):
     token: str = Field(..., min_length=32, max_length=128)
     request_key: str = Field(..., min_length=16, max_length=128)
     copies: int = Field(default=1, ge=1, le=5)
-    staff_pin: str = Field(default="", max_length=64)
+    printer_name: str = Field(default="", max_length=255)
 
 
 def _check_car_print_rate(request: Request, maximum=8, window_seconds=60) -> None:
@@ -180,20 +180,20 @@ def create_public_car_print_job(payload: CarPrintRequest, request: Request):
 
     _check_car_print_rate(request)
     try:
-        job = CarRepository().create_print_job(payload.token, payload.request_key, payload.copies)
+        job = CarRepository().create_print_job(
+            payload.token, payload.request_key, payload.copies, payload.printer_name
+        )
         return {"status": "SUCCESS", "data": job}
     except ValueError as exc:
-        if str(exc) == "STAFF_PIN_REQUIRED":
-            configured_pin = os.getenv("ZAY_CAR_REPRINT_PIN", "").strip()
-            if not configured_pin:
-                raise HTTPException(status_code=503, detail="Reprint approval is not configured.") from exc
-            if not payload.staff_pin or not secrets.compare_digest(payload.staff_pin, configured_pin):
-                raise HTTPException(status_code=403, detail="STAFF_PIN_REQUIRED") from exc
-            job = CarRepository().create_print_job(
-                payload.token, payload.request_key, payload.copies, allow_reprint=True
-            )
-            return {"status": "SUCCESS", "data": job}
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/car/printers")
+def public_car_print_printers():
+    from server.car_management_service import CarRepository
+
+    printers = CarRepository().available_print_printers()
+    return {"status": "SUCCESS", "data": printers}
 
 
 @app.get("/api/car/print-jobs/{job_id}")
