@@ -38,6 +38,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QTableWidget,
@@ -73,6 +75,7 @@ AUTO_START_FILE_NAME = "KayPOSServerManager.cmd"
 AUTO_START_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 AUTO_START_APPROVED_PATH = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 AUTO_START_REGISTRY_NAME = "Kay POS Server Manager"
+DEFAULT_BROWSER_SERVER_PORT = 8000
 
 
 def auto_start_file_path() -> Path:
@@ -138,7 +141,8 @@ class ServerManagerWindow(QMainWindow):
     def __init__(self, auto_start=None) -> None:
         super().__init__()
         self.setWindowTitle("Kay POS Server Manager")
-        self.resize(1080, 720)
+        self.setMinimumSize(1000, 680)
+        self.resize(1280, 820)
 
         self.server_process: QProcess | None = None
         self.postgres_process: QProcess | None = None
@@ -167,9 +171,63 @@ class ServerManagerWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget()
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        root.setObjectName("Root")
+        shell = QHBoxLayout(root)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
+
+        sidebar = QFrame()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(238)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(24, 30, 24, 24)
+        side.setSpacing(8)
+
+        brand_row = QHBoxLayout()
+        mark = QLabel("S")
+        mark.setObjectName("BrandMark")
+        mark.setFixedSize(44, 44)
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand = QLabel("KAY")
+        brand.setObjectName("Brand")
+        brand_row.addWidget(mark)
+        brand_row.addWidget(brand)
+        brand_row.addStretch()
+        side.addLayout(brand_row)
+        suite = QLabel("SERVER CONTROL")
+        suite.setObjectName("Eyebrow")
+        side.addWidget(suite)
+        side.addSpacing(28)
+
+        self.tabs = QTabWidget()
+        self.tabs.tabBar().hide()
+        pages = (
+            ("Setup", "Initial configuration", self._wizard_tab()),
+            ("Database", "Connection and schema", self._database_tab()),
+            ("Services", "POS, car and PostgreSQL", self._server_tab()),
+            ("Activity", "Client request history", self._activity_tab()),
+            ("Logs", "Runtime diagnostics", self._logs_tab()),
+        )
+        self.nav_buttons = []
+        for index, (name, description, page) in enumerate(pages):
+            self.tabs.addTab(page, name)
+            button = QPushButton(f"{index + 1:02d}   {name}")
+            button.setObjectName("NavButton")
+            button.setCheckable(True)
+            button.setToolTip(description)
+            button.clicked.connect(lambda checked=False, page_index=index: self._select_page(page_index))
+            self.nav_buttons.append(button)
+            side.addWidget(button)
+        side.addStretch()
+        machine = QLabel(f"SERVER PC\n{local_ip()}")
+        machine.setObjectName("SidebarInfo")
+        side.addWidget(machine)
+        shell.addWidget(sidebar)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(34, 28, 34, 28)
+        layout.setSpacing(18)
 
         header = QFrame()
         header.setObjectName("Header")
@@ -177,6 +235,10 @@ class ServerManagerWindow(QMainWindow):
         header_layout.setContentsMargins(18, 14, 18, 14)
         header_layout.setHorizontalSpacing(18)
 
+        eyebrow = QLabel("SERVER WORKSPACE")
+        eyebrow.setObjectName("Eyebrow")
+        self.page_title = QLabel("Setup")
+        self.page_title.setObjectName("HeaderTitle")
         title = QLabel("Kay POS Server Manager")
         title.setObjectName("HeaderTitle")
         subtitle = QLabel("Setup PostgreSQL, manage services, and monitor client activity from the Server PC.")
@@ -187,114 +249,197 @@ class ServerManagerWindow(QMainWindow):
         self.header_db_label = QLabel("Database: not checked")
         self.header_db_label.setObjectName("InfoChip")
 
-        header_layout.addWidget(title, 0, 0)
-        header_layout.addWidget(subtitle, 1, 0)
+        header_layout.addWidget(eyebrow, 0, 0)
+        header_layout.addWidget(title, 1, 0)
+        header_layout.addWidget(subtitle, 2, 0)
         header_layout.addWidget(self.header_ip_label, 0, 1, alignment=Qt.AlignmentFlag.AlignRight)
-        header_layout.addWidget(self.header_db_label, 1, 1, alignment=Qt.AlignmentFlag.AlignRight)
+        header_layout.addWidget(self.header_db_label, 1, 1, 2, 1, alignment=Qt.AlignmentFlag.AlignRight)
         header_layout.setColumnStretch(0, 1)
-
-        self.tabs = QTabWidget()
-        self.tabs.addTab(self._wizard_tab(), "Setup")
-        self.tabs.addTab(self._database_tab(), "Database")
-        self.tabs.addTab(self._server_tab(), "Services")
-        self.tabs.addTab(self._activity_tab(), "Activity")
-        self.tabs.addTab(self._logs_tab(), "Logs")
 
         layout.addWidget(header)
         layout.addWidget(self.tabs, 1)
+        shell.addWidget(content, 1)
         self.setCentralWidget(root)
         self._apply_stylesheet()
+        self._select_page(2)
+
+    def _select_page(self, index: int) -> None:
+        self.tabs.setCurrentIndex(index)
+        for button_index, button in enumerate(self.nav_buttons):
+            button.setChecked(button_index == index)
 
     def _apply_stylesheet(self) -> None:
         self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background: #f4f6f8;
-                color: #1f2933;
+            QMainWindow, QWidget#Root {
+                background: #0d111b;
+                color: #edf2ff;
+                font-family: "Segoe UI", "Myanmar Text";
                 font-size: 10pt;
             }
-            QFrame#Header, QGroupBox {
-                background: #ffffff;
-                border: 1px solid #d9e2ec;
-                border-radius: 8px;
+            QWidget {
+                color: #edf2ff;
+                font-family: "Segoe UI", "Myanmar Text";
+                font-size: 10pt;
+            }
+            QFrame#Sidebar {
+                background: #111724;
+                border-right: 1px solid #252d3d;
+            }
+            QLabel#BrandMark {
+                background: #f3a64a;
+                color: white;
+                border-radius: 13px;
+                font-size: 18pt;
+                font-weight: 800;
+            }
+            QLabel#Brand {
+                color: white;
+                font-size: 19pt;
+                font-weight: 800;
+            }
+            QLabel#Eyebrow {
+                color: #8995ad;
+                font-size: 9pt;
+                font-weight: 700;
+            }
+            QLabel#SidebarInfo {
+                color: #8995ad;
+                line-height: 1.4;
+            }
+            QPushButton#NavButton {
+                text-align: left;
+                min-height: 44px;
+                border: 0;
+                border-radius: 10px;
+                background: transparent;
+                color: #aeb8ca;
+                padding: 0 13px;
+                font-weight: 650;
+            }
+            QPushButton#NavButton:hover {
+                background: #1c2535;
+                color: white;
+            }
+            QPushButton#NavButton:checked {
+                background: #2a2430;
+                color: #ffc46d;
+                border-left: 3px solid #f3a64a;
+            }
+            QFrame#Header {
+                background: transparent;
+                border: 0;
+            }
+            QGroupBox {
+                background: #151c2a;
+                border: 1px solid #293348;
+                border-radius: 14px;
             }
             QLabel#HeaderTitle {
-                font-size: 20pt;
-                font-weight: 700;
-                color: #102a43;
+                font-size: 24pt;
+                font-weight: 800;
+                color: white;
             }
             QLabel#HeaderSubtitle {
-                color: #52606d;
+                color: #99a4ba;
             }
             QLabel#InfoChip, QLabel#StatusChip {
-                background: #eef3f8;
-                border: 1px solid #d9e2ec;
-                border-radius: 6px;
+                background: #182231;
+                border: 1px solid #2b3a50;
+                border-radius: 9px;
                 padding: 6px 10px;
-                color: #334e68;
+                color: #b9c5d9;
             }
             QLabel#Note {
-                color: #52606d;
-                background: #f8fafc;
-                border: 1px solid #e4ebf3;
-                border-radius: 6px;
+                color: #aeb9cd;
+                background: #121925;
+                border: 1px solid #253044;
+                border-radius: 9px;
                 padding: 8px 10px;
             }
             QGroupBox {
                 margin-top: 12px;
-                padding: 14px 12px 12px 12px;
+                padding: 16px 14px 14px 14px;
                 font-weight: 600;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 12px;
-                padding: 0 5px;
-                color: #243b53;
+                left: 14px;
+                padding: 0 7px;
+                color: #f3b45f;
+                background: #151c2a;
             }
             QLineEdit, QSpinBox {
-                background: #ffffff;
-                border: 1px solid #bcccdc;
-                border-radius: 6px;
+                background: #0f1520;
+                color: #edf2ff;
+                border: 1px solid #303b50;
+                border-radius: 8px;
                 padding: 6px 8px;
                 min-height: 24px;
+                selection-background-color: #d8892f;
+            }
+            QLineEdit:focus, QSpinBox:focus {
+                border-color: #f3a64a;
+            }
+            QCheckBox {
+                color: #c1cada;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 17px;
+                height: 17px;
             }
             QPushButton {
-                background: #2563eb;
+                background: #e89a3b;
                 color: #ffffff;
                 border: 0;
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 8px 12px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background: #1d4ed8;
+                background: #f3ad55;
             }
             QPushButton:disabled {
-                background: #9fb3c8;
+                background: #303847;
+                color: #707b91;
             }
             QPlainTextEdit, QTableWidget {
-                background: #0f172a;
+                background: #090e17;
                 color: #dbeafe;
-                border: 1px solid #1e293b;
-                border-radius: 8px;
+                border: 1px solid #283448;
+                border-radius: 10px;
                 padding: 8px;
                 font-family: Consolas, "Courier New", monospace;
+                selection-background-color: #774d25;
             }
             QTabWidget::pane {
-                border: 1px solid #d9e2ec;
-                border-radius: 8px;
-                background: #ffffff;
+                border: 0;
+                background: transparent;
             }
-            QTabBar::tab {
-                background: #e9eff6;
-                border: 1px solid #d9e2ec;
-                padding: 9px 16px;
-                margin-right: 4px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
+            QScrollArea#PageScroll, QScrollArea#PageScroll > QWidget > QWidget {
+                background: transparent;
+                border: 0;
             }
-            QTabBar::tab:selected {
-                background: #ffffff;
-                color: #1d4ed8;
+            QWidget#ScrollContent {
+                background: #0d111b;
+            }
+            QHeaderView::section {
+                background: #182231;
+                color: #aeb9cd;
+                border: 0;
+                border-bottom: 1px solid #303b50;
+                padding: 8px;
+                font-weight: 700;
+            }
+            QScrollBar:vertical {
+                background: #101722;
+                width: 11px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #3a465a;
+                border-radius: 5px;
+                min-height: 28px;
             }
         """)
 
@@ -312,10 +457,10 @@ class ServerManagerWindow(QMainWindow):
 
     def _set_chip(self, label: QLabel, text: str, tone: str = "neutral") -> None:
         colors = {
-            "neutral": ("#eef3f8", "#334e68", "#d9e2ec"),
-            "ok": ("#ecfdf5", "#047857", "#a7f3d0"),
-            "warn": ("#fff7ed", "#c2410c", "#fed7aa"),
-            "bad": ("#fef2f2", "#b91c1c", "#fecaca"),
+            "neutral": ("#182231", "#b9c5d9", "#2b3a50"),
+            "ok": ("#14392f", "#79e2bb", "#245744"),
+            "warn": ("#402f1d", "#ffc46d", "#6b4a25"),
+            "bad": ("#42242d", "#ff9ca7", "#713542"),
         }
         bg, fg, border = colors.get(tone, colors["neutral"])
         label.setText(text)
@@ -331,7 +476,17 @@ class ServerManagerWindow(QMainWindow):
         self.restart_server_button.setEnabled(running)
 
     def _wizard_tab(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setObjectName("PageScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         page = QWidget()
+        page.setObjectName("ScrollContent")
+        page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        page.setMinimumWidth(0)
+        page.setMinimumHeight(920)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
@@ -341,6 +496,7 @@ class ServerManagerWindow(QMainWindow):
         ))
 
         install_box = QGroupBox("1. PostgreSQL Install / Detect")
+        install_box.setMinimumHeight(150)
         install_layout = QVBoxLayout(install_box)
         install_buttons = QHBoxLayout()
         detect_button = QPushButton("Detect PostgreSQL")
@@ -357,6 +513,7 @@ class ServerManagerWindow(QMainWindow):
         install_layout.addStretch()
 
         setup_box = QGroupBox("2. Create Kay POS Database")
+        setup_box.setMinimumHeight(430)
         setup_layout = QVBoxLayout(setup_box)
         setup_form = QFormLayout()
         setup_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -387,6 +544,7 @@ class ServerManagerWindow(QMainWindow):
         setup_layout.addStretch()
 
         network_box = QGroupBox("3. Network Access")
+        network_box.setMinimumHeight(260)
         network_layout = QVBoxLayout(network_box)
         network_form = QFormLayout()
         network_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -412,6 +570,7 @@ class ServerManagerWindow(QMainWindow):
         network_layout.addStretch()
 
         finish_box = QGroupBox("4. Initialize Kay POS")
+        finish_box.setMinimumHeight(120)
         finish_layout = QHBoxLayout(finish_box)
         save_test_button = QPushButton("Save App Config and Test")
         init_schema_button = QPushButton("Initialize Schema")
@@ -449,7 +608,8 @@ class ServerManagerWindow(QMainWindow):
 
         layout.addLayout(columns)
         layout.addWidget(self.wizard_output, 1)
-        return page
+        scroll.setWidget(page)
+        return scroll
 
     def _database_tab(self) -> QWidget:
         page = QWidget()
@@ -509,7 +669,17 @@ class ServerManagerWindow(QMainWindow):
         return page
 
     def _server_tab(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setObjectName("PageScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         page = QWidget()
+        page.setObjectName("ScrollContent")
+        page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        page.setMinimumWidth(0)
+        page.setMinimumHeight(760)
         layout = QGridLayout(page)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setHorizontalSpacing(12)
@@ -518,16 +688,17 @@ class ServerManagerWindow(QMainWindow):
         layout.setColumnStretch(1, 1)
 
         layout.addWidget(self._note(
-            f"Mobile barcode scanning needs HTTPS. Use https://{local_ip()}:8443/mobile/products after starting with HTTPS enabled."
+            f"Mobile barcode scanning needs HTTPS. Use https://{local_ip()}:{DEFAULT_BROWSER_SERVER_PORT}/mobile/products after starting with HTTPS enabled."
         ), 0, 0, 1, 2)
 
         pos_box = QGroupBox("Kay POS Browser/Cashier Server")
+        pos_box.setMinimumHeight(230)
         pos_layout = QVBoxLayout(pos_box)
         form = QFormLayout()
         self.bind_host_input = QLineEdit("0.0.0.0")
         self.server_port_input = QSpinBox()
         self.server_port_input.setRange(1, 65535)
-        self.server_port_input.setValue(8443)
+        self.server_port_input.setValue(DEFAULT_BROWSER_SERVER_PORT)
         self.https_server_checkbox = QCheckBox("Enable HTTPS for mobile camera/barcode scanning")
         self.https_server_checkbox.setChecked(True)
         form.addRow("Bind Host", self.bind_host_input)
@@ -551,9 +722,10 @@ class ServerManagerWindow(QMainWindow):
         pos_layout.addWidget(self.server_status)
 
         car_box = QGroupBox("Car Management LAN Service")
+        car_box.setMinimumHeight(270)
         car_layout = QVBoxLayout(car_box)
         car_form = QFormLayout()
-        self.car_server_enabled_checkbox = QCheckBox("Start automatically with the POS server")
+        self.car_server_enabled_checkbox = QCheckBox("Start with the POS server")
         self.car_server_enabled_checkbox.setChecked(True)
         self.car_server_port_input = QSpinBox()
         self.car_server_port_input.setRange(1, 65535)
@@ -577,9 +749,10 @@ class ServerManagerWindow(QMainWindow):
         car_layout.addWidget(self.car_import_status)
 
         startup_box = QGroupBox("Windows Auto Start")
+        startup_box.setMinimumHeight(230)
         startup_layout = QVBoxLayout(startup_box)
         self.start_services_on_open_checkbox = QCheckBox(
-            "Start POS and Car services automatically whenever Server Manager opens"
+            "Start services when Server Manager opens"
         )
         self.start_services_on_open_checkbox.setChecked(
             self.settings.value("start_services_on_open", True, type=bool)
@@ -603,15 +776,16 @@ class ServerManagerWindow(QMainWindow):
         startup_layout.addWidget(self.auto_start_status)
 
         pg_box = QGroupBox("PostgreSQL Windows Service")
+        pg_box.setMinimumHeight(230)
         pg_layout = QVBoxLayout(pg_box)
         pg_form = QFormLayout()
         self.pg_service_input = QLineEdit("postgresql-x64-18")
         pg_form.addRow("Service Name", self.pg_service_input)
         pg_layout.addLayout(pg_form)
         pg_buttons = QHBoxLayout()
-        self.pg_start_button = QPushButton("Start DB Service")
-        self.pg_stop_button = QPushButton("Stop DB Service")
-        self.pg_restart_button = QPushButton("Restart DB Service")
+        self.pg_start_button = QPushButton("Start DB")
+        self.pg_stop_button = QPushButton("Stop DB")
+        self.pg_restart_button = QPushButton("Restart DB")
         self.pg_start_button.clicked.connect(lambda: self.run_postgres_service_command("Start-Service"))
         self.pg_stop_button.clicked.connect(lambda: self.run_postgres_service_command("Stop-Service"))
         self.pg_restart_button.clicked.connect(self.restart_postgres_service)
@@ -623,6 +797,7 @@ class ServerManagerWindow(QMainWindow):
 
         self.server_output = QPlainTextEdit()
         self.server_output.setReadOnly(True)
+        self.server_output.setMinimumHeight(160)
         self.server_output.setPlaceholderText("Service output and PostgreSQL service command results will appear here.")
 
         layout.addWidget(pos_box, 1, 0)
@@ -631,7 +806,8 @@ class ServerManagerWindow(QMainWindow):
         layout.addWidget(pg_box, 2, 1)
         layout.addWidget(self.server_output, 3, 0, 1, 2)
         layout.setRowStretch(3, 1)
-        return page
+        scroll.setWidget(page)
+        return scroll
 
     def _activity_tab(self) -> QWidget:
         page = QWidget()
@@ -1122,6 +1298,37 @@ class ServerManagerWindow(QMainWindow):
         self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         self.tray_icon.setToolTip("KAY POS Server Manager")
         tray_menu = QMenu(self)
+        tray_menu.setObjectName("TrayMenu")
+        tray_menu.setStyleSheet("""
+            QMenu#TrayMenu {
+                background: #151c2a;
+                color: #edf2ff;
+                border: 1px solid #354158;
+                border-radius: 8px;
+                padding: 6px;
+                font-family: "Segoe UI", "Myanmar Text";
+                font-size: 10pt;
+            }
+            QMenu#TrayMenu::item {
+                background: transparent;
+                color: #edf2ff;
+                border-radius: 6px;
+                padding: 8px 28px 8px 12px;
+                margin: 1px 0;
+            }
+            QMenu#TrayMenu::item:selected {
+                background: #2a2430;
+                color: #ffc46d;
+            }
+            QMenu#TrayMenu::item:disabled {
+                color: #667085;
+            }
+            QMenu#TrayMenu::separator {
+                height: 1px;
+                background: #303b50;
+                margin: 5px 8px;
+            }
+        """)
         show_action = QAction("Show Server Manager", self)
         show_action.triggered.connect(self._show_from_tray)
         stop_action = QAction("Stop POS and Car Services", self)
@@ -1132,6 +1339,7 @@ class ServerManagerWindow(QMainWindow):
         tray_menu.addAction(stop_action)
         tray_menu.addSeparator()
         tray_menu.addAction(exit_action)
+        self.tray_menu = tray_menu
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()

@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from launcher import resolve_launch_target, should_auto_download_update
+from launcher import LauncherMode, resolve_launch_target, should_auto_download_update
 
 
 class LauncherResolutionTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class LauncherResolutionTests(unittest.TestCase):
             command, source = resolve_launch_target(tmp_dir)
 
             self.assertEqual(source, "script")
-            self.assertTrue(command[0].endswith("python.exe") or command[0].endswith("python"))
+            self.assertTrue(command[0].endswith(("pythonw.exe", "python.exe", "python")))
             self.assertEqual(command[1], str(script_path))
 
     def test_resolve_launch_target_falls_back_to_python_script(self):
@@ -30,7 +30,7 @@ class LauncherResolutionTests(unittest.TestCase):
             command, source = resolve_launch_target(tmp_dir)
 
             self.assertEqual(source, "script")
-            self.assertTrue(command[0].endswith("python.exe") or command[0].endswith("python"))
+            self.assertTrue(command[0].endswith(("pythonw.exe", "python.exe", "python")))
             self.assertEqual(command[1], str(script_path))
 
     def test_resolve_launch_target_supports_cashier_mode(self):
@@ -40,6 +40,22 @@ class LauncherResolutionTests(unittest.TestCase):
 
             command, source = resolve_launch_target(tmp_dir, mode="cashier")
 
+            self.assertEqual(source, "script")
+            self.assertEqual(command[1], str(script_path))
+
+    def test_resolve_launch_target_supports_car_management(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = Path(tmp_dir) / "car_client_main.py"
+            script_path.write_text("print('car')", encoding="utf-8")
+            command, source = resolve_launch_target(tmp_dir, mode=LauncherMode.CAR)
+            self.assertEqual(source, "script")
+            self.assertEqual(command[1], str(script_path))
+
+    def test_resolve_launch_target_supports_server_manager(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = Path(tmp_dir) / "server_manager.py"
+            script_path.write_text("print('server')", encoding="utf-8")
+            command, source = resolve_launch_target(tmp_dir, mode=LauncherMode.SERVER)
             self.assertEqual(source, "script")
             self.assertEqual(command[1], str(script_path))
 
