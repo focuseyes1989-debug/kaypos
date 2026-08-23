@@ -60,6 +60,85 @@ class CarManagementServiceTests(unittest.TestCase):
         self.assertEqual(result["status"], "ERROR")
         self.assertIn("Driver Name", result["message"])
 
+    def test_secure_qr_issue_resolve_rotate_and_revoke(self):
+        self.handler.process({"type": "SAVE_DATA", "data": self.record()})
+        record_id = self.repository.all()[0]["id"]
+        first = self.handler.process({"type": "ISSUE_QR", "data": {"id": record_id}})
+        self.assertEqual(first["status"], "SUCCESS")
+        token = first["data"]["token"]
+        self.assertGreaterEqual(len(token), 32)
+        self.assertNotIn("nrc_number", first["data"]["record"])
+        again = self.handler.process({"type": "ISSUE_QR", "data": {"id": record_id}})
+        self.assertEqual(again["data"]["token"], token)
+
+        resolved = self.handler.process({"type": "RESOLVE_QR", "data": {"token": token}})
+        self.assertEqual(resolved["data"]["car_number"], "1A-1234")
+        self.assertNotIn("phone_number", resolved["data"])
+
+        rotated = self.handler.process({"type": "ISSUE_QR", "data": {"id": record_id, "rotate": True}})
+        self.assertNotEqual(rotated["data"]["token"], token)
+        self.assertEqual(self.handler.process({"type": "RESOLVE_QR", "data": {"token": token}})["status"], "ERROR")
+
+        self.assertEqual(self.handler.process({"type": "REVOKE_QR", "data": {"id": record_id}})["status"], "SUCCESS")
+        current = rotated["data"]["token"]
+        self.assertEqual(self.handler.process({"type": "RESOLVE_QR", "data": {"token": current}})["status"], "ERROR")
+
+    def test_print_job_queue_is_persistent_idempotent_and_tracks_status(self):
+        self.handler.process({"type": "SAVE_DATA", "data": self.record()})
+        record_id = self.repository.all()[0]["id"]
+        token = self.repository.issue_qr_token(record_id)["token"]
+        first = self.repository.create_print_job(token, "request-key-123456789", 1)
+        duplicate = self.repository.create_print_job(token, "request-key-123456789", 1)
+        self.assertEqual(first["job_id"], duplicate["job_id"])
+        self.assertEqual(first["status"], "pending")
+        self.assertEqual(first["page_sequence"], [1, 2, 3, 4, 2, 3, 2, 3, 4])
+        self.assertEqual(len(self.repository.pending_print_jobs()), 1)
+
+        printing = self.repository.claim_print_job(first["job_id"])
+        self.assertEqual(printing["status"], "printing")
+        self.assertEqual(printing["record"]["nrc_number"], "123456")
+        with self.assertRaises(ValueError):
+            self.repository.claim_print_job(first["job_id"])
+        completed = self.repository.update_print_job_status(first["job_id"], "completed")
+        self.assertEqual(completed["status"], "completed")
+        self.assertEqual(self.repository.pending_print_jobs(), [])
+        with self.assertRaises(ValueError):
+            self.repository.update_print_job_status(first["job_id"], "pending")
+        with self.assertRaisesRegex(ValueError, "STAFF_PIN_REQUIRED"):
+            self.repository.create_print_job(token, "second-request-key-12345", 1)
+        reprint = self.repository.create_print_job(token, "second-request-key-12345", 1, allow_reprint=True)
+        self.assertNotEqual(reprint["job_id"], first["job_id"])
+        events = [row["event"] for row in self.repository.print_audit()]
+        self.assertIn("job_created", events)
+        self.assertIn("job_claimed", events)
+        self.assertIn("status_completed", events)
+        self.assertIn("reprint_requested", events)
+
+    def test_print_job_rejects_disabled_qr(self):
+        self.handler.process({"type": "SAVE_DATA", "data": self.record()})
+        record_id = self.repository.all()[0]["id"]
+        token = self.repository.issue_qr_token(record_id)["token"]
+        self.repository.revoke_qr_token(record_id)
+        with self.assertRaises(ValueError):
+            self.repository.create_print_job(token, "request-key-123456789", 1)
+
+    def test_stale_printing_job_is_recovered_and_audited(self):
+        self.handler.process({"type": "SAVE_DATA", "data": self.record()})
+        record_id = self.repository.all()[0]["id"]
+        token = self.repository.issue_qr_token(record_id)["token"]
+        job = self.repository.create_print_job(token, "stale-request-key-123", 1)
+        self.repository.claim_print_job(job["job_id"])
+        conn = sqlite3.connect(self.db_path)
+        try:
+            conn.execute("UPDATE car_print_jobs SET updated_at='2020-01-01 00:00:00' WHERE public_id=?", (job["job_id"],))
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertEqual(self.repository.recover_stale_print_jobs(10), 1)
+        recovered = self.repository.get_print_job(job["job_id"])
+        self.assertEqual(recovered["status"], "failed")
+        self.assertIn("stopped", recovered["error_message"])
+
     def test_tcp_service_uses_existing_client_protocol(self):
         service = CarManagementTCPService("127.0.0.1", 0, self.handler)
         service.start()

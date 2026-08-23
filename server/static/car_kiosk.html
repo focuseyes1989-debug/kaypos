@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="my">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b1020">
+  <title>KAY Car Self-Service Kiosk</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#202c50,#0b1020 60%);color:#f8fafc;font-family:"Myanmar Text","Segoe UI",sans-serif}.shell{width:min(100%,620px);text-align:center}.logo{width:70px;height:70px;display:grid;place-items:center;margin:0 auto 20px;border-radius:22px;background:#6d7cff;font-size:2rem;font-weight:900;box-shadow:0 18px 50px #5364ed66}.card{padding:38px;border:1px solid #2b3652;border-radius:24px;background:#151c2f;box-shadow:0 24px 70px #0007}h1{margin:0 0 10px;font-size:clamp(1.6rem,6vw,2.35rem)}p{color:#aab4ca;line-height:1.7}.scan{margin:28px auto 22px;width:170px;height:170px;display:grid;place-items:center;border:3px dashed #6d7cff;border-radius:24px;font-size:4rem}input{width:100%;min-height:58px;padding:12px 16px;border:1px solid #465475;border-radius:13px;background:#0f1526;color:white;font:1rem "Segoe UI",sans-serif}button{width:100%;min-height:56px;margin-top:12px;border:0;border-radius:13px;background:#6d7cff;color:white;font:700 1rem "Myanmar Text","Segoe UI",sans-serif;cursor:pointer}.error{min-height:24px;margin-top:12px;color:#ff8290}@media(max-width:480px){body{padding:14px}.card{padding:28px 20px}.scan{width:140px;height:140px}}
+  </style>
+</head>
+<body><main class="shell"><div class="logo">K</div><section class="card"><h1>QR Code Scan ဖတ်ပါ</h1><p>ယာဉ်ပိုင်ရှင်၏ QR ကို USB scanner ဖြင့်ဖတ်ပါ၊ သို့မဟုတ် QR link ကိုအောက်တွင်ထည့်ပါ။</p><div class="scan" aria-hidden="true">⌗</div><form id="scanForm"><input id="scanInput" autofocus autocomplete="off" placeholder="QR scanner ready…"><button type="submit">ဆက်သွားမည် · Continue</button></form><div id="error" class="error"></div></section></main>
+  <script>
+    const input=document.getElementById("scanInput"),error=document.getElementById("error");
+    const tokenFrom=value=>{const text=String(value||"").trim();try{const url=new URL(text,location.origin);return url.searchParams.get("t")||text}catch{return text}};
+    document.getElementById("scanForm").addEventListener("submit",event=>{event.preventDefault();const token=tokenFrom(input.value);if(!/^[A-Za-z0-9_-]{32,128}$/.test(token)){error.textContent="QR Code မမှန်ပါ။ ပြန်လည် scan ဖတ်ပါ။";input.select();return}location.href=`/car/print?t=${encodeURIComponent(token)}&kiosk=1`});
+    window.addEventListener("focus",()=>input.focus());
+  </script>
+</body></html>

@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import os
 import socket
+import secrets
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable
 
 from loguru import logger
@@ -22,6 +23,9 @@ CAR_COLUMNS = (
 )
 EDITABLE_COLUMNS = CAR_COLUMNS[1:-1]
 MAX_REQUEST_BYTES = 1024 * 1024
+QR_TOKEN_BYTES = 32
+DEFAULT_PRINT_SEQUENCE = (1, 2, 3, 4, 2, 3, 2, 3, 4)
+PRINT_JOB_STATUSES = {"pending", "printing", "completed", "failed"}
 
 
 class CarRepository:
@@ -55,6 +59,44 @@ class CarRepository:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_driver_name ON cars(driver_name)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_nrc_number ON cars(nrc_number)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_timestamp ON cars(timestamp)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS car_qr_tokens (
+                    car_id INTEGER PRIMARY KEY,
+                    token TEXT NOT NULL UNIQUE,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_qr_token ON car_qr_tokens(token)")
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS car_print_jobs (
+                    id {integer_primary_key_sql()},
+                    public_id TEXT NOT NULL UNIQUE,
+                    request_key TEXT NOT NULL UNIQUE,
+                    car_id INTEGER NOT NULL,
+                    page_sequence TEXT NOT NULL,
+                    copies INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    error_message TEXT,
+                    requested_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_print_job_status ON car_print_jobs(status, requested_at)")
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS car_print_audit (
+                    id {integer_primary_key_sql()},
+                    job_public_id TEXT,
+                    event TEXT NOT NULL,
+                    detail TEXT,
+                    actor TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_car_print_audit_job ON car_print_audit(job_public_id, created_at)")
             conn.commit()
         finally:
             conn.close()
@@ -172,6 +214,8 @@ class CarRepository:
         conn = self._connection_factory()
         try:
             cursor = conn.cursor()
+            cursor.execute("DELETE FROM car_print_jobs WHERE car_id=?", (record_id,))
+            cursor.execute("DELETE FROM car_qr_tokens WHERE car_id=?", (record_id,))
             cursor.execute("DELETE FROM cars WHERE id=?", (record_id,))
             changed = cursor.rowcount > 0
             conn.commit()
@@ -179,6 +223,325 @@ class CarRepository:
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _public_qr_record(row: dict) -> dict:
+        """Return only the fields an owner-facing QR lookup may disclose."""
+        vehicle = " ".join(
+            part for part in (
+                str(row.get("kind_of_car") or "").strip(),
+                str(row.get("type_of_car") or "").strip(),
+            ) if part
+        )
+        return {
+            "id": row.get("id"),
+            "car_number": str(row.get("car_number") or "").strip(),
+            "driver_name": str(row.get("driver_name") or "").strip(),
+            "vehicle": vehicle,
+        }
+
+    def issue_qr_token(self, record_id, rotate=False) -> dict:
+        record_id = int(record_id or 0)
+        if record_id <= 0:
+            raise ValueError("A valid record ID is required.")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM cars WHERE id=?", (record_id,))
+            rows = self._rows(cursor)
+            if not rows:
+                raise ValueError("Record not found.")
+            record = rows[0]
+            cursor.execute(
+                "SELECT token FROM car_qr_tokens WHERE car_id=? AND is_active=1",
+                (record_id,),
+            )
+            existing = cursor.fetchone()
+            if existing and not rotate:
+                token = str(existing[0])
+            else:
+                token = secrets.token_urlsafe(QR_TOKEN_BYTES)
+                stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute("""
+                    INSERT INTO car_qr_tokens (car_id, token, is_active, created_at, updated_at)
+                    VALUES (?, ?, 1, ?, ?)
+                    ON CONFLICT (car_id) DO UPDATE SET
+                        token=excluded.token,
+                        is_active=1,
+                        updated_at=excluded.updated_at
+                """, (record_id, token, stamp, stamp))
+                conn.commit()
+            return {"token": token, "record": self._public_qr_record(record)}
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def resolve_qr_token(self, token) -> dict | None:
+        token = str(token or "").strip()
+        if len(token) < 32 or len(token) > 128:
+            return None
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT c.* FROM cars c
+                JOIN car_qr_tokens q ON q.car_id=c.id
+                WHERE q.token=? AND q.is_active=1
+            """, (token,))
+            rows = self._rows(cursor)
+            return self._public_qr_record(rows[0]) if rows else None
+        finally:
+            conn.close()
+
+    def revoke_qr_token(self, record_id) -> bool:
+        record_id = int(record_id or 0)
+        if record_id <= 0:
+            raise ValueError("A valid record ID is required.")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE car_qr_tokens SET is_active=0, updated_at=? WHERE car_id=? AND is_active=1",
+                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), record_id),
+            )
+            changed = cursor.rowcount > 0
+            conn.commit()
+            return changed
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _public_print_job(row: dict) -> dict:
+        try:
+            sequence = [int(page) for page in json.loads(str(row.get("page_sequence") or "[]"))]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            sequence = list(DEFAULT_PRINT_SEQUENCE)
+        return {
+            "job_id": str(row.get("public_id") or ""),
+            "car_number": str(row.get("car_number") or "").strip(),
+            "page_sequence": sequence,
+            "copies": int(row.get("copies") or 1),
+            "status": str(row.get("status") or "pending"),
+            "error_message": str(row.get("error_message") or ""),
+            "requested_at": str(row.get("requested_at") or ""),
+            "updated_at": str(row.get("updated_at") or ""),
+        }
+
+    def _find_print_job(self, cursor, field: str, value) -> dict | None:
+        if field not in {"public_id", "request_key"}:
+            raise ValueError("Unsupported print-job lookup.")
+        cursor.execute(f"""
+            SELECT j.*, c.car_number FROM car_print_jobs j
+            JOIN cars c ON c.id=j.car_id
+            WHERE j.{field}=?
+        """, (value,))
+        rows = self._rows(cursor)
+        return rows[0] if rows else None
+
+    def _agent_print_job(self, row: dict) -> dict:
+        job = self._public_print_job(row)
+        job["record"] = {column: row.get(column) for column in CAR_COLUMNS}
+        return job
+
+    @staticmethod
+    def _audit(cursor, job_id, event, detail="", actor="system") -> None:
+        cursor.execute("""
+            INSERT INTO car_print_audit (job_public_id, event, detail, actor, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            str(job_id or ""), str(event or "")[:80], str(detail or "")[:1000],
+            str(actor or "system")[:80], datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ))
+
+    def create_print_job(self, qr_token, request_key, copies=1, allow_reprint=False) -> dict:
+        qr_token = str(qr_token or "").strip()
+        request_key = str(request_key or "").strip()
+        copies = int(copies or 1)
+        if len(qr_token) < 32 or len(qr_token) > 128:
+            raise ValueError("QR code is invalid or disabled.")
+        if len(request_key) < 16 or len(request_key) > 128:
+            raise ValueError("A valid request key is required.")
+        if not 1 <= copies <= 5:
+            raise ValueError("Copies must be between 1 and 5.")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            existing = self._find_print_job(cursor, "request_key", request_key)
+            if existing:
+                return self._public_print_job(existing)
+            cursor.execute("""
+                SELECT c.id, c.car_number FROM cars c
+                JOIN car_qr_tokens q ON q.car_id=c.id
+                WHERE q.token=? AND q.is_active=1
+            """, (qr_token,))
+            qr_rows = self._rows(cursor)
+            if not qr_rows:
+                raise ValueError("QR code is invalid or disabled.")
+            car = qr_rows[0]
+            cursor.execute("""
+                SELECT j.*, c.car_number FROM car_print_jobs j
+                JOIN cars c ON c.id=j.car_id
+                WHERE j.car_id=? ORDER BY j.requested_at DESC, j.id DESC LIMIT 1
+            """, (int(car["id"]),))
+            latest_rows = self._rows(cursor)
+            latest = latest_rows[0] if latest_rows else None
+            if latest and str(latest.get("status")) in {"pending", "printing"}:
+                return self._public_print_job(latest)
+            if latest and str(latest.get("status")) == "completed" and not allow_reprint:
+                raise ValueError("STAFF_PIN_REQUIRED")
+            stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            public_id = secrets.token_urlsafe(24)
+            cursor.execute("""
+                INSERT INTO car_print_jobs
+                    (public_id, request_key, car_id, page_sequence, copies, status, error_message, requested_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', '', ?, ?)
+                ON CONFLICT (request_key) DO NOTHING
+            """, (
+                public_id, request_key, int(car["id"]),
+                json.dumps(DEFAULT_PRINT_SEQUENCE, separators=(",", ":")), copies, stamp, stamp,
+            ))
+            if cursor.rowcount > 0:
+                self._audit(cursor, public_id, "reprint_requested" if allow_reprint else "job_created", f"car_id={car['id']}", "owner_web")
+            conn.commit()
+            job = self._find_print_job(cursor, "request_key", request_key)
+            return self._public_print_job(job or {})
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def get_print_job(self, public_id) -> dict | None:
+        public_id = str(public_id or "").strip()
+        if len(public_id) < 16 or len(public_id) > 128:
+            return None
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            job = self._find_print_job(cursor, "public_id", public_id)
+            return self._public_print_job(job) if job else None
+        finally:
+            conn.close()
+
+    def pending_print_jobs(self, limit=20) -> list[dict]:
+        limit = max(1, min(int(limit or 20), 100))
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT j.*, {columns} FROM car_print_jobs j
+                JOIN cars c ON c.id=j.car_id
+                WHERE j.status='pending'
+                ORDER BY j.requested_at, j.id
+                LIMIT ?
+            """.format(columns=", ".join(f"c.{column} AS {column}" for column in CAR_COLUMNS)), (limit,))
+            return [self._agent_print_job(row) for row in self._rows(cursor)]
+        finally:
+            conn.close()
+
+    def claim_print_job(self, public_id) -> dict:
+        public_id = str(public_id or "").strip()
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                UPDATE car_print_jobs SET status='printing', error_message='', updated_at=?
+                WHERE public_id=? AND status='pending'
+            """, (stamp, public_id))
+            if cursor.rowcount <= 0:
+                conn.rollback()
+                raise ValueError("Print job is no longer pending.")
+            self._audit(cursor, public_id, "job_claimed", "Print Agent claimed the job.", "car_client")
+            conn.commit()
+            cursor.execute("""
+                SELECT j.*, {columns} FROM car_print_jobs j
+                JOIN cars c ON c.id=j.car_id WHERE j.public_id=?
+            """.format(columns=", ".join(f"c.{column} AS {column}" for column in CAR_COLUMNS)), (public_id,))
+            rows = self._rows(cursor)
+            if not rows:
+                raise ValueError("Print job not found.")
+            return self._agent_print_job(rows[0])
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def update_print_job_status(self, public_id, status, error_message="") -> dict:
+        public_id = str(public_id or "").strip()
+        status = str(status or "").strip().lower()
+        if status not in PRINT_JOB_STATUSES:
+            raise ValueError("Invalid print-job status.")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            current = self._find_print_job(cursor, "public_id", public_id)
+            if not current:
+                raise ValueError("Print job not found.")
+            allowed = {
+                "pending": {"printing", "failed"},
+                "printing": {"completed", "failed"},
+                "failed": {"pending"},
+                "completed": set(),
+            }
+            old_status = str(current.get("status") or "pending")
+            if status != old_status and status not in allowed.get(old_status, set()):
+                raise ValueError(f"Cannot change print job from {old_status} to {status}.")
+            cursor.execute("""
+                UPDATE car_print_jobs SET status=?, error_message=?, updated_at=? WHERE public_id=?
+            """, (
+                status, str(error_message or "")[:1000],
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), public_id,
+            ))
+            if status != old_status:
+                self._audit(cursor, public_id, f"status_{status}", str(error_message or ""), "car_client")
+            conn.commit()
+            return self._public_print_job(self._find_print_job(cursor, "public_id", public_id) or {})
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def recover_stale_print_jobs(self, minutes=10) -> int:
+        minutes = max(1, min(int(minutes or 10), 1440))
+        cutoff = (datetime.now() - timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S")
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT public_id FROM car_print_jobs WHERE status='printing' AND updated_at<?", (cutoff,))
+            job_ids = [str(row[0]) for row in cursor.fetchall()]
+            for job_id in job_ids:
+                cursor.execute("""
+                    UPDATE car_print_jobs SET status='failed', error_message=?, updated_at=? WHERE public_id=?
+                """, ("Print Agent stopped before completion.", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), job_id))
+                self._audit(cursor, job_id, "status_failed", "Recovered stale printing job.", "server")
+            conn.commit()
+            return len(job_ids)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def print_audit(self, limit=100) -> list[dict]:
+        limit = max(1, min(int(limit or 100), 500))
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT job_public_id, event, detail, actor, created_at
+                FROM car_print_audit ORDER BY created_at DESC, id DESC LIMIT ?
+            """, (limit,))
+            return self._rows(cursor)
         finally:
             conn.close()
 
@@ -227,6 +590,38 @@ class CarRequestHandler:
                 if not self.repository.delete(record_id):
                     return {"status": "ERROR", "message": "Record not found."}
                 return {"status": "SUCCESS"}
+            if request_type == "ISSUE_QR":
+                record_id = data.get("id") if isinstance(data, dict) else None
+                rotate = bool(data.get("rotate")) if isinstance(data, dict) else False
+                return {"status": "SUCCESS", "data": self.repository.issue_qr_token(record_id, rotate)}
+            if request_type == "RESOLVE_QR":
+                token = data.get("token") if isinstance(data, dict) else data
+                record = self.repository.resolve_qr_token(token)
+                if not record:
+                    return {"status": "ERROR", "message": "QR code is invalid or disabled."}
+                return {"status": "SUCCESS", "data": record}
+            if request_type == "REVOKE_QR":
+                record_id = data.get("id") if isinstance(data, dict) else None
+                if not self.repository.revoke_qr_token(record_id):
+                    return {"status": "ERROR", "message": "Active QR code not found."}
+                return {"status": "SUCCESS"}
+            if request_type == "GET_PRINT_JOBS":
+                self.repository.recover_stale_print_jobs(10)
+                limit = data.get("limit", 20) if isinstance(data, dict) else 20
+                return {"status": "SUCCESS", "data": self.repository.pending_print_jobs(limit)}
+            if request_type == "UPDATE_PRINT_JOB":
+                if not isinstance(data, dict):
+                    raise ValueError("Print-job data must be an object.")
+                job = self.repository.update_print_job_status(
+                    data.get("job_id"), data.get("status"), data.get("error_message", "")
+                )
+                return {"status": "SUCCESS", "data": job}
+            if request_type == "CLAIM_PRINT_JOB":
+                job_id = data.get("job_id") if isinstance(data, dict) else None
+                return {"status": "SUCCESS", "data": self.repository.claim_print_job(job_id)}
+            if request_type == "GET_PRINT_AUDIT":
+                limit = data.get("limit", 100) if isinstance(data, dict) else 100
+                return {"status": "SUCCESS", "data": self.repository.print_audit(limit)}
             return {"status": "ERROR", "message": "Unknown request type."}
         except (TypeError, ValueError) as exc:
             return {"status": "ERROR", "message": str(exc)}

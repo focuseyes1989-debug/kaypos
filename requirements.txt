@@ -20,6 +20,7 @@ matplotlib>=3.7.0
 Pillow>=9.0.0
 openpyxl>=3.1.0
 python-barcode>=0.15.1
+qrcode[pil]>=7.4.2
 pyinstaller>=6.0.0
 psycopg[binary]>=3.1.0
 pyzk==0.9

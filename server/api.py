@@ -6,10 +6,11 @@ import asyncio
 import contextlib
 import os
 import secrets
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +46,7 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 app.mount("/product-images", StaticFiles(directory=str(PRODUCT_IMAGES_DIR)), name="product_images")
 
 _TOKENS: Dict[str, Dict[str, Any]] = {}
+_CAR_PRINT_RATE: Dict[str, List[float]] = {}
 
 
 async def _start_car_management_service_with_retry(
@@ -125,6 +127,23 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class CarPrintRequest(BaseModel):
+    token: str = Field(..., min_length=32, max_length=128)
+    request_key: str = Field(..., min_length=16, max_length=128)
+    copies: int = Field(default=1, ge=1, le=5)
+    staff_pin: str = Field(default="", max_length=64)
+
+
+def _check_car_print_rate(request: Request, maximum=8, window_seconds=60) -> None:
+    address = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    recent = [stamp for stamp in _CAR_PRINT_RATE.get(address, []) if now - stamp < window_seconds]
+    if len(recent) >= maximum:
+        raise HTTPException(status_code=429, detail="Too many print requests. Please wait and try again.")
+    recent.append(now)
+    _CAR_PRINT_RATE[address] = recent
+
+
 @app.post("/api/car/request")
 def car_management_https_request(
     payload: Dict[str, Any],
@@ -142,6 +161,60 @@ def car_management_https_request(
     if result.get("status") != "SUCCESS":
         raise HTTPException(status_code=400, detail=result.get("message") or "Car request failed.")
     return result
+
+
+@app.get("/api/car/qr/{token}")
+def public_car_qr_lookup(token: str):
+    """Resolve an opaque owner QR without exposing private driver fields."""
+    from server.car_management_service import CarRepository
+
+    record = CarRepository().resolve_qr_token(token)
+    if not record:
+        raise HTTPException(status_code=404, detail="QR code is invalid or disabled.")
+    return {"status": "SUCCESS", "data": record}
+
+
+@app.post("/api/car/print-jobs")
+def create_public_car_print_job(payload: CarPrintRequest, request: Request):
+    from server.car_management_service import CarRepository
+
+    _check_car_print_rate(request)
+    try:
+        job = CarRepository().create_print_job(payload.token, payload.request_key, payload.copies)
+        return {"status": "SUCCESS", "data": job}
+    except ValueError as exc:
+        if str(exc) == "STAFF_PIN_REQUIRED":
+            configured_pin = os.getenv("ZAY_CAR_REPRINT_PIN", "").strip()
+            if not configured_pin:
+                raise HTTPException(status_code=503, detail="Reprint approval is not configured.") from exc
+            if not payload.staff_pin or not secrets.compare_digest(payload.staff_pin, configured_pin):
+                raise HTTPException(status_code=403, detail="STAFF_PIN_REQUIRED") from exc
+            job = CarRepository().create_print_job(
+                payload.token, payload.request_key, payload.copies, allow_reprint=True
+            )
+            return {"status": "SUCCESS", "data": job}
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/car/print-jobs/{job_id}")
+def public_car_print_job_status(job_id: str):
+    from server.car_management_service import CarRepository
+
+    job = CarRepository().get_print_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Print job not found.")
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.get("/car/print", response_class=HTMLResponse)
+def car_owner_print_page():
+    """Mobile/kiosk page opened by an owner's secure car QR code."""
+    return FileResponse(STATIC_DIR / "car_print.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/car/kiosk", response_class=HTMLResponse)
+def car_print_kiosk_page():
+    return FileResponse(STATIC_DIR / "car_kiosk.html", headers={"Cache-Control": "no-store"})
 
 
 class CartItem(BaseModel):

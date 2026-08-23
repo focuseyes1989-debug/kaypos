@@ -40,6 +40,75 @@ def parse_page_sequence(value: str) -> list[int]:
     return [int(token) for token in tokens]
 
 
+def saved_printer_name(settings: QSettings | None = None) -> str:
+    settings = settings or QSettings("KAY POS", "Car Management Client")
+    return str(settings.value(f"{SETTINGS_PREFIX}/printer", "") or "").strip()
+
+
+def automatic_print_ready(settings: QSettings | None = None) -> tuple[bool, str]:
+    """Check readiness without claiming a queued job."""
+    name = saved_printer_name(settings)
+    if not name:
+        return False, "Select and save a printer before enabling automatic printing."
+    available = {printer.printerName() for printer in QPrinterInfo.availablePrinters()}
+    if name not in available:
+        return False, f"Saved printer is unavailable: {name}"
+    return True, name
+
+
+def print_record_pages(record: dict, pages, copies=1, settings: QSettings | None = None) -> str:
+    """Send a queue job to the saved Windows printer without opening a dialog."""
+    settings = settings or QSettings("KAY POS", "Car Management Client")
+    pages = parse_page_sequence(",".join(str(page) for page in pages))
+    ready, printer_name = automatic_print_ready(settings)
+    if not ready:
+        raise RuntimeError(printer_name)
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setPrinterName(printer_name)
+    printer.setCopyCount(max(1, min(int(copies or 1), 5)))
+    saved_size = int(settings.value(f"{SETTINGS_PREFIX}/page_size", int(QPageSize.PageSizeId.A4.value)))
+    saved_orientation = int(settings.value(f"{SETTINGS_PREFIX}/orientation", int(QPageLayout.Orientation.Portrait.value)))
+    saved_resolution = int(settings.value(f"{SETTINGS_PREFIX}/resolution", 0))
+    try:
+        printer.setPageSize(QPageSize(QPageSize.PageSizeId(saved_size)))
+    except ValueError:
+        printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    try:
+        printer.setPageOrientation(QPageLayout.Orientation(saved_orientation))
+    except ValueError:
+        printer.setPageOrientation(QPageLayout.Orientation.Portrait)
+    if saved_resolution > 0:
+        printer.setResolution(saved_resolution)
+    printer.setColorMode(
+        QPrinter.ColorMode.GrayScale
+        if str(settings.value(f"{SETTINGS_PREFIX}/color", "color")) == "grayscale"
+        else QPrinter.ColorMode.Color
+    )
+    printer.setDuplex({
+        "long": QPrinter.DuplexMode.DuplexLongSide,
+        "short": QPrinter.DuplexMode.DuplexShortSide,
+    }.get(str(settings.value(f"{SETTINGS_PREFIX}/duplex", "none")), QPrinter.DuplexMode.DuplexNone))
+    painter = QPainter(printer)
+    if not painter.isActive():
+        raise RuntimeError("Windows could not start the saved printer job.")
+    try:
+        for index, page_number in enumerate(pages):
+            if index and not printer.newPage():
+                raise RuntimeError("The printer could not create the next page.")
+            image = render_form_page(record, page_number)
+            page_rect = printer.pageRect(QPrinter.Unit.DevicePixel)
+            scaled = image.size().scaled(page_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio)
+            target = QRectF(
+                page_rect.x() + (page_rect.width() - scaled.width()) / 2,
+                page_rect.y() + (page_rect.height() - scaled.height()) / 2,
+                scaled.width(), scaled.height(),
+            )
+            painter.drawImage(target, image)
+    finally:
+        painter.end()
+    return printer_name
+
+
 class FormPrintSettingsDialog(QDialog):
     def __init__(self, record: dict | None, parent=None, settings: QSettings | None = None, embedded=False):
         super().__init__(parent)

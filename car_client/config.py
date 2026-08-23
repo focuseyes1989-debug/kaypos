@@ -18,6 +18,7 @@ class ServerSettings:
     cloud_url: str = ""
     cloud_api_key: str = ""
     offline_enabled: bool = True
+    owner_web_url: str = ""
 
     def validated(self) -> "ServerSettings":
         host = self.host.strip()
@@ -30,9 +31,12 @@ class ServerSettings:
         cloud_url = str(self.cloud_url or "").strip().rstrip("/")
         if cloud_url and not cloud_url.lower().startswith("https://"):
             raise ValueError("Cloud URL must start with https://")
+        owner_web_url = str(self.owner_web_url or "").strip().rstrip("/")
+        if owner_web_url and not owner_web_url.lower().startswith(("http://", "https://")):
+            raise ValueError("Owner Web URL must start with http:// or https://")
         return ServerSettings(
             host, int(self.port), int(self.timeout), cloud_url,
-            str(self.cloud_api_key or "").strip(), bool(self.offline_enabled),
+            str(self.cloud_api_key or "").strip(), bool(self.offline_enabled), owner_web_url,
         )
 
 
@@ -48,6 +52,7 @@ class SettingsStore:
             str(self.settings.value("cloud/url", "")),
             str(self.settings.value("cloud/api_key", "")),
             self.settings.value("offline/enabled", True, type=bool),
+            str(self.settings.value("owner_web/url", "")),
         ).validated()
 
     def save(self, value: ServerSettings) -> ServerSettings:
@@ -58,5 +63,6 @@ class SettingsStore:
         self.settings.setValue("cloud/url", value.cloud_url)
         self.settings.setValue("cloud/api_key", value.cloud_api_key)
         self.settings.setValue("offline/enabled", value.offline_enabled)
+        self.settings.setValue("owner_web/url", value.owner_web_url)
         self.settings.sync()
         return value

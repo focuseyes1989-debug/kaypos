@@ -16,8 +16,9 @@ from PyQt6.QtWidgets import (
 from car_client.config import ServerSettings, SettingsStore
 from car_client.dashboard_charts import CompletenessChart, HorizontalBarChart
 from car_client.form_preview_dialog import FormPreviewDialog
-from car_client.form_print_dialog import FormPrintSettingsDialog
+from car_client.form_print_dialog import FormPrintSettingsDialog, automatic_print_ready, print_record_pages
 from car_client.network import CarServerClient
+from car_client.qr_code import CarQrDialog, qr_access_url
 from car_client.records import DRIVER_FIELDS, FIELD_DEFINITIONS, VEHICLE_FIELDS, find_duplicate_records, validated_record
 
 
@@ -250,6 +251,42 @@ class RecordActionThread(QThread):
         except Exception as exc:self.failed.emit(str(exc))
 
 
+class IssueQrThread(QThread):
+    succeeded = pyqtSignal(object, str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, settings: ServerSettings, record_id: int, parent=None):
+        super().__init__(parent);self.settings=settings;self.record_id=record_id
+
+    def run(self):
+        try:
+            client=CarServerClient(self.settings);result=client.issue_qr(self.record_id)
+            self.succeeded.emit(result,client.last_mode)
+        except Exception as exc:self.failed.emit(str(exc))
+
+
+class PrintAgentNetworkThread(QThread):
+    succeeded = pyqtSignal(object, str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, settings: ServerSettings, action: str, payload=None, parent=None):
+        super().__init__(parent);self.settings=settings;self.action=action;self.payload=payload or {}
+
+    def run(self):
+        try:
+            client=CarServerClient(self.settings)
+            if self.action=="poll":
+                jobs=client.pending_print_jobs(1)
+                result=client.claim_print_job(jobs[0]["job_id"]) if jobs else None
+            elif self.action=="status":
+                result=client.update_print_job(
+                    self.payload["job_id"],self.payload["status"],self.payload.get("error_message","")
+                )
+            else:raise ValueError("Unknown Print Agent action.")
+            self.succeeded.emit(result,client.last_mode)
+        except Exception as exc:self.failed.emit(str(exc))
+
+
 class DuplicateCheckThread(QThread):
     succeeded = pyqtSignal(object)
     failed = pyqtSignal(str)
@@ -332,6 +369,9 @@ class CarClientWindow(QMainWindow):
         self.records_thread = None
         self.car_picker_thread = None
         self.record_action_thread = None
+        self.qr_thread = None
+        self.print_agent_thread = None
+        self.pending_print_status = None
         self.duplicate_thread = None
         self.pending_duplicate_action = None
         self.records = [];self.current_page=1;self.records_loaded=False
@@ -343,6 +383,8 @@ class CarClientWindow(QMainWindow):
         self.setStyleSheet(APP_STYLE)
         self._build_ui()
         self._load_settings()
+        self.print_agent_timer=QTimer(self);self.print_agent_timer.setInterval(5000);self.print_agent_timer.timeout.connect(self.poll_print_agent);self.print_agent_timer.start()
+        QTimer.singleShot(1200,self.poll_print_agent)
 
     def _build_ui(self):
         root = QWidget(); self.setCentralWidget(root)
@@ -379,6 +421,8 @@ class CarClientWindow(QMainWindow):
         self.cloud_url_input=QLineEdit();self.cloud_url_input.setPlaceholderText("https://your-cloud-domain.example");form.addWidget(self.cloud_url_input)
         form.addWidget(QLabel("Cloud API key"))
         self.cloud_api_key_input=QLineEdit();self.cloud_api_key_input.setEchoMode(QLineEdit.EchoMode.Password);form.addWidget(self.cloud_api_key_input)
+        form.addWidget(QLabel("Owner QR Web URL (optional · blank uses HTTPS LAN port 8000)"))
+        self.owner_web_url_input=QLineEdit();self.owner_web_url_input.setPlaceholderText("https://192.168.110.196:8000");form.addWidget(self.owner_web_url_input)
         self.offline_enabled_check=QCheckBox("Allow local offline use and sync when a connection returns");self.offline_enabled_check.setChecked(True);form.addWidget(self.offline_enabled_check)
         connection_feedback=QHBoxLayout();self.status_label = QLabel("Settings loaded. Test the connection before continuing."); self.status_label.setObjectName("status");self.retry_connection_button=QPushButton("Retry");self.retry_connection_button.hide();self.retry_connection_button.clicked.connect(self.test_connection);connection_feedback.addWidget(self.status_label,1);connection_feedback.addWidget(self.retry_connection_button);form.addLayout(connection_feedback);self.connection_busy=_busy_bar();form.addWidget(self.connection_busy)
         actions = QHBoxLayout(); actions.addStretch()
@@ -518,9 +562,69 @@ class CarClientWindow(QMainWindow):
         page=QWidget();body=QVBoxLayout(page);body.setContentsMargins(38,32,38,32);body.setSpacing(14)
         title=QLabel("Print");title.setObjectName("pageTitle");description=QLabel("Set the default form page order and Windows printer preferences. These settings are reused for every selected car record.");description.setObjectName("muted");description.setWordWrap(True)
         body.addWidget(title);body.addWidget(description)
-        self.print_settings_panel=FormPrintSettingsDialog(None,page,embedded=True);self.print_settings_panel.setObjectName("card");body.addWidget(self.print_settings_panel);body.addStretch()
-        note=QLabel("To print database data, open Car Records, select a record, choose Auto Fill Forms, then Print Settings.");note.setObjectName("muted");note.setWordWrap(True);body.addWidget(note)
+        self.print_settings_panel=FormPrintSettingsDialog(None,page,embedded=True);self.print_settings_panel.setObjectName("card");body.addWidget(self.print_settings_panel)
+        agent_card=QFrame();agent_card.setObjectName("card");agent_layout=QVBoxLayout(agent_card);agent_layout.setContentsMargins(22,18,22,18)
+        self.print_agent_enabled=QCheckBox("Enable automatic Owner Web print jobs");self.print_agent_enabled.setChecked(self.store.settings.value("print_agent/enabled",True,type=bool));agent_layout.addWidget(self.print_agent_enabled)
+        agent_row=QHBoxLayout();self.print_agent_status=QLabel("Print Agent is starting...");self.print_agent_status.setObjectName("status");self.print_agent_status.setWordWrap(True);self.print_agent_poll_button=QPushButton("Check Queue Now");agent_row.addWidget(self.print_agent_status,1);agent_row.addWidget(self.print_agent_poll_button);agent_layout.addLayout(agent_row);body.addWidget(agent_card);body.addStretch()
+        self.print_agent_enabled.toggled.connect(self._print_agent_toggled);self.print_agent_poll_button.clicked.connect(self.poll_print_agent)
+        note=QLabel("Automatic jobs use the saved Windows printer and the page sequence attached to each server job.");note.setObjectName("muted");note.setWordWrap(True);body.addWidget(note)
         return page
+
+    def _print_agent_toggled(self,enabled):
+        self.store.settings.setValue("print_agent/enabled",bool(enabled));self.store.settings.sync()
+        if enabled:QTimer.singleShot(0,self.poll_print_agent)
+        else:self._set_print_agent_status("Automatic Print Agent is disabled.")
+
+    def _set_print_agent_status(self,text,status=""):
+        self.print_agent_status.setText(text);self.print_agent_status.setProperty("status",status)
+        self.print_agent_status.style().unpolish(self.print_agent_status);self.print_agent_status.style().polish(self.print_agent_status)
+
+    def poll_print_agent(self):
+        if not self.print_agent_enabled.isChecked():return
+        if self.print_agent_thread and self.print_agent_thread.isRunning():return
+        ready,printer=automatic_print_ready(self.store.settings)
+        if not ready:
+            self._set_print_agent_status(printer,"error");return
+        try:settings=self.store.load()
+        except ValueError as exc:self._set_print_agent_status(str(exc),"error");return
+        if self.pending_print_status:
+            action="status";payload=dict(self.pending_print_status);message=f"Updating job {payload['job_id'][:8]} status..."
+        else:
+            action="poll";payload={};message=f"Checking print queue · {printer}"
+        self.print_agent_poll_button.setEnabled(False);self._set_print_agent_status(message,"working")
+        self.print_agent_thread=PrintAgentNetworkThread(settings,action,payload,self)
+        self.print_agent_thread.succeeded.connect(lambda result,mode:self._print_agent_network_succeeded(action,result,mode))
+        self.print_agent_thread.failed.connect(self._print_agent_network_failed)
+        self.print_agent_thread.finished.connect(self._print_agent_thread_finished);self.print_agent_thread.start()
+
+    def _print_agent_network_succeeded(self,action,result,mode):
+        if action=="status":
+            completed_status=str((result or {}).get("status") or "")
+            self.pending_print_status=None
+            self._set_print_agent_status(f"Job {(result or {}).get('job_id','')[:8]} · {completed_status.upper()} via {mode.upper()}.","success" if completed_status=="completed" else "error")
+            QTimer.singleShot(1200,self.poll_print_agent);return
+        if not result:
+            self._set_print_agent_status(f"Queue is ready · no pending jobs · {mode.upper()}.","success");return
+        job=dict(result);job_id=str(job.get("job_id") or "")
+        self._set_print_agent_status(f"Printing job {job_id[:8]} · {job.get('car_number') or ''}...","working")
+        QApplication.processEvents()
+        try:
+            printer=print_record_pages(job.get("record") or {},job.get("page_sequence") or [],job.get("copies",1),self.store.settings)
+            self.pending_print_status={"job_id":job_id,"status":"completed","error_message":""}
+            self._set_print_agent_status(f"Sent job {job_id[:8]} to {printer}; confirming completion...","working")
+        except Exception as exc:
+            self.pending_print_status={"job_id":job_id,"status":"failed","error_message":str(exc)}
+            self._set_print_agent_status(f"Print failed · {exc}","error")
+
+    def _print_agent_network_failed(self,message):
+        self._set_print_agent_status(f"Print Agent: {message}","error")
+        if self.pending_print_status:self.print_agent_retry_delay=5000
+
+    def _print_agent_thread_finished(self):
+        self.print_agent_poll_button.setEnabled(True);thread=self.print_agent_thread;self.print_agent_thread=None
+        if thread:thread.deleteLater()
+        if self.pending_print_status:
+            delay=getattr(self,"print_agent_retry_delay",100);self.print_agent_retry_delay=100;QTimer.singleShot(delay,self.poll_print_agent)
 
     def _build_input_page(self):
         page=QWidget();body=QVBoxLayout(page);body.setContentsMargins(38,32,38,32);body.setSpacing(16)
@@ -594,9 +698,9 @@ class CarClientWindow(QMainWindow):
         self.records_table=QTableWidget(0,len(headers));self.records_table.setHorizontalHeaderLabels(headers);self.records_table.setAlternatingRowColors(True);self.records_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);self.records_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.records_table.verticalHeader().setVisible(False)
         header=self.records_table.horizontalHeader();header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents);header.setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch);header.setMinimumSectionSize(70)
         body.addWidget(self.records_table,1)
-        record_actions=QHBoxLayout();record_actions.addStretch();self.form_record_button=QPushButton("Auto Fill Forms");self.form_record_button.setObjectName("primary");self.view_record_button=QPushButton("View");self.edit_record_button=QPushButton("Edit");self.delete_record_button=QPushButton("Delete")
-        self.form_record_button.clicked.connect(self.open_selected_forms);self.view_record_button.clicked.connect(self.view_selected_record);self.edit_record_button.clicked.connect(self.edit_selected_record);self.delete_record_button.clicked.connect(self.delete_selected_record);self.records_table.doubleClicked.connect(self.view_selected_record)
-        record_actions.addWidget(self.form_record_button);record_actions.addWidget(self.view_record_button);record_actions.addWidget(self.edit_record_button);record_actions.addWidget(self.delete_record_button);body.addLayout(record_actions)
+        record_actions=QHBoxLayout();record_actions.addStretch();self.form_record_button=QPushButton("Auto Fill Forms");self.form_record_button.setObjectName("primary");self.qr_record_button=QPushButton("QR Code");self.view_record_button=QPushButton("View");self.edit_record_button=QPushButton("Edit");self.delete_record_button=QPushButton("Delete")
+        self.form_record_button.clicked.connect(self.open_selected_forms);self.qr_record_button.clicked.connect(self.open_selected_qr);self.view_record_button.clicked.connect(self.view_selected_record);self.edit_record_button.clicked.connect(self.edit_selected_record);self.delete_record_button.clicked.connect(self.delete_selected_record);self.records_table.doubleClicked.connect(self.view_selected_record)
+        record_actions.addWidget(self.form_record_button);record_actions.addWidget(self.qr_record_button);record_actions.addWidget(self.view_record_button);record_actions.addWidget(self.edit_record_button);record_actions.addWidget(self.delete_record_button);body.addLayout(record_actions)
         footer=QHBoxLayout();self.record_count=QLabel("0 records");self.record_count.setObjectName("muted");footer.addWidget(self.record_count);footer.addStretch();footer.addWidget(QLabel("Rows:"))
         self.rows_per_page=QComboBox();self.rows_per_page.addItems(["10","25","50","100"]);self.rows_per_page.setCurrentText("25");self.rows_per_page.currentTextChanged.connect(self._page_size_changed);footer.addWidget(self.rows_per_page)
         self.previous_button=QPushButton("Previous");self.next_button=QPushButton("Next");self.page_label=QLabel("Page 1 / 1");self.previous_button.clicked.connect(lambda:self._change_page(-1));self.next_button.clicked.connect(lambda:self._change_page(1))
@@ -658,6 +762,28 @@ class CarClientWindow(QMainWindow):
         record=self._selected_record()
         if record:FormPreviewDialog(record,self).exec()
 
+    def open_selected_qr(self):
+        record=self._selected_record()
+        if not record:return
+        if self.qr_thread and self.qr_thread.isRunning():return
+        try:settings=self.store.load()
+        except ValueError as exc:self._set_records_status(str(exc),"error");return
+        self.qr_record_button.setEnabled(False);self._set_records_status("Issuing secure owner QR code...","working")
+        self.qr_thread=IssueQrThread(settings,int(record.get("id") or 0),self)
+        self.qr_thread.succeeded.connect(lambda result,mode:self._qr_issued(record,settings,result,mode))
+        self.qr_thread.failed.connect(lambda message:self._set_records_status(message,"error"))
+        self.qr_thread.finished.connect(self._qr_thread_finished);self.qr_thread.start()
+
+    def _qr_issued(self,record,settings,result,mode):
+        token=str(result.get("token") or "")
+        url=qr_access_url(token,settings.host,settings.owner_web_url)
+        self._set_records_status(f"Secure owner QR ready via {mode.upper()}.","success")
+        CarQrDialog(record,url,self).exec()
+
+    def _qr_thread_finished(self):
+        self.qr_record_button.setEnabled(True);thread=self.qr_thread;self.qr_thread=None
+        if thread:thread.deleteLater()
+
     def edit_selected_record(self):
         record=self._selected_record()
         if not record:return
@@ -671,7 +797,7 @@ class CarClientWindow(QMainWindow):
         if answer==QMessageBox.StandardButton.Yes:self._start_record_action("delete",int(record["id"]))
 
     def _set_record_actions_enabled(self,enabled):
-        for button in (self.form_record_button,self.view_record_button,self.edit_record_button,self.delete_record_button):button.setEnabled(enabled)
+        for button in (self.form_record_button,self.qr_record_button,self.view_record_button,self.edit_record_button,self.delete_record_button):button.setEnabled(enabled)
 
     def _start_record_action(self,action,payload):
         if self.record_action_thread and self.record_action_thread.isRunning():return
@@ -769,12 +895,13 @@ class CarClientWindow(QMainWindow):
             value = ServerSettings()
         self.host_input.setText(value.host); self.port_input.setValue(value.port); self.timeout_input.setValue(value.timeout)
         self.cloud_url_input.setText(value.cloud_url);self.cloud_api_key_input.setText(value.cloud_api_key);self.offline_enabled_check.setChecked(value.offline_enabled)
+        self.owner_web_url_input.setText(value.owner_web_url)
 
     def current_settings(self) -> ServerSettings:
         return ServerSettings(
             self.host_input.text(), self.port_input.value(), self.timeout_input.value(),
             self.cloud_url_input.text(), self.cloud_api_key_input.text(),
-            self.offline_enabled_check.isChecked(),
+            self.offline_enabled_check.isChecked(), self.owner_web_url_input.text(),
         ).validated()
 
     def _set_status(self, text: str, status: str = "", retry=False):
@@ -821,6 +948,8 @@ class CarClientWindow(QMainWindow):
                 (self.records_thread and self.records_thread.isRunning()) or
                 (self.car_picker_thread and self.car_picker_thread.isRunning()) or
                 (self.record_action_thread and self.record_action_thread.isRunning()) or
+                (self.qr_thread and self.qr_thread.isRunning()) or
+                (self.print_agent_thread and self.print_agent_thread.isRunning()) or
                 (self.duplicate_thread and self.duplicate_thread.isRunning())):
             if self.pages.currentIndex()==0:self._set_dashboard_status("A server request is still running. Please wait before closing.","working")
             elif self.pages.currentIndex()==1:self._set_input_status("A server request is still running. Please wait before closing.","working")

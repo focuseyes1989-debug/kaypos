@@ -40,7 +40,7 @@ class CarClientPhase1Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             settings = QSettings(str(Path(folder) / "client.ini"), QSettings.Format.IniFormat)
             store = SettingsStore(settings)
-            expected = ServerSettings("10.0.0.25", 12345, 8)
+            expected = ServerSettings("10.0.0.25", 12345, 8, "", "", True, "https://10.0.0.25:8000")
             store.save(expected)
             self.assertEqual(store.load(), expected)
 

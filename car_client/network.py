@@ -210,3 +210,35 @@ class CarServerClient:
             if int(record_id) < 0:
                 raise CarProtocolError("A newly-created offline record must sync before it can be deleted.")
             self.offline.queue_delete(record_id)
+
+    def issue_qr(self, record_id: int, rotate: bool = False) -> dict:
+        """Issue or retrieve the stable active QR token for an online record."""
+        if int(record_id) <= 0:
+            raise CarProtocolError("The record must sync to the server before a QR code can be issued.")
+        result = self._online_request("ISSUE_QR", {"id": int(record_id), "rotate": bool(rotate)})
+        return dict(result.get("data") or {})
+
+    def resolve_qr(self, token: str) -> dict:
+        result = self._online_request("RESOLVE_QR", {"token": str(token or "").strip()})
+        return dict(result.get("data") or {})
+
+    def revoke_qr(self, record_id: int) -> None:
+        self._online_request("REVOKE_QR", {"id": int(record_id)})
+
+    def pending_print_jobs(self, limit: int = 5) -> list[dict]:
+        result = self._online_request("GET_PRINT_JOBS", {"limit": int(limit)})
+        return list(result.get("data") or [])
+
+    def claim_print_job(self, job_id: str) -> dict:
+        result = self._online_request("CLAIM_PRINT_JOB", {"job_id": str(job_id)})
+        return dict(result.get("data") or {})
+
+    def update_print_job(self, job_id: str, status: str, error_message: str = "") -> dict:
+        result = self._online_request("UPDATE_PRINT_JOB", {
+            "job_id": str(job_id), "status": str(status), "error_message": str(error_message or ""),
+        })
+        return dict(result.get("data") or {})
+
+    def print_audit(self, limit: int = 100) -> list[dict]:
+        result = self._online_request("GET_PRINT_AUDIT", {"limit": int(limit)})
+        return list(result.get("data") or [])

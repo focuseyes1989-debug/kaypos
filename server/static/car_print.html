@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="my">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>KAY Car Print Service</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --card:#151c2f; --line:#2b3652; --text:#f8fafc; --muted:#aab4ca; --primary:#6d7cff; --ok:#39d98a; --danger:#ff6b7a; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at top,#1b2440 0,#0b1020 55%); color:var(--text); font-family:"Myanmar Text","Noto Sans Myanmar","Segoe UI",sans-serif; }
+    main { width:min(100%,540px); }
+    .brand { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:20px; font-weight:800; letter-spacing:.08em; }
+    .mark { width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:linear-gradient(145deg,#8290ff,#5263ed); box-shadow:0 10px 30px #5364ed55; }
+    .card { border:1px solid var(--line); border-radius:22px; background:rgba(21,28,47,.96); box-shadow:0 24px 70px #0007; overflow:hidden; }
+    .top { padding:28px 28px 22px; text-align:center; border-bottom:1px solid var(--line); }
+    h1 { margin:0 0 8px; font-size:clamp(1.35rem,5vw,1.8rem); }
+    p { margin:0; color:var(--muted); line-height:1.65; }
+    .content { padding:26px 28px 30px; }
+    .state { text-align:center; padding:30px 8px; }
+    .spinner { width:46px; height:46px; margin:0 auto 18px; border:4px solid #35405d; border-top-color:var(--primary); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .icon { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 16px; border-radius:50%; font-size:28px; background:#27314b; }
+    .icon.error { color:var(--danger); background:#44232e; }
+    .icon.ok { color:var(--ok); background:#173c32; }
+    .details { display:none; }
+    .plate { margin:0 0 22px; padding:18px; text-align:center; border:1px solid #465475; border-radius:14px; background:#0f1526; font:800 clamp(1.55rem,8vw,2.2rem)/1.2 "Segoe UI",sans-serif; letter-spacing:.04em; }
+    dl { margin:0 0 24px; }
+    .row { display:grid; grid-template-columns:120px 1fr; gap:14px; padding:14px 2px; border-bottom:1px solid var(--line); }
+    dt { color:var(--muted); } dd { margin:0; text-align:right; font-weight:700; overflow-wrap:anywhere; }
+    .privacy { margin:18px 0 22px; padding:13px 14px; border-radius:12px; background:#10182b; color:var(--muted); font-size:.88rem; line-height:1.55; }
+    button { width:100%; min-height:54px; border:0; border-radius:13px; background:var(--primary); color:white; font:700 1rem "Myanmar Text","Segoe UI",sans-serif; cursor:pointer; }
+    button:hover { filter:brightness(1.08); } button:focus-visible { outline:3px solid #aeb7ff; outline-offset:3px; }
+    button:disabled { cursor:not-allowed; opacity:.65; }
+    .secondary { margin-top:10px; background:#2b3652; }
+    .phase-note { margin-top:13px; text-align:center; font-size:.82rem; color:var(--muted); }
+    footer { padding:18px 10px 0; text-align:center; color:#7f8ba6; font-size:.8rem; }
+    [hidden] { display:none !important; }
+    @media(max-width:480px) { body{padding:14px}.top{padding:24px 20px 19px}.content{padding:22px 20px 25px}.row{grid-template-columns:105px 1fr} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="mark" aria-hidden="true">K</span><span>KAY CAR SERVICE</span></div>
+    <section class="card" aria-live="polite">
+      <header class="top">
+        <h1>ကားအချက်အလက် အတည်ပြုရန်</h1>
+        <p>Confirm your vehicle details before requesting the form printout.</p>
+      </header>
+      <div class="content">
+        <div id="loading" class="state">
+          <div class="spinner" aria-hidden="true"></div>
+          <strong>QR Code စစ်ဆေးနေပါသည်…</strong>
+          <p>Verifying secure access</p>
+        </div>
+        <div id="error" class="state" hidden>
+          <div class="icon error" aria-hidden="true">!</div>
+          <h2>QR Code အသုံးပြု၍မရပါ</h2>
+          <p id="errorMessage">QR Code မှားယွင်းနေခြင်း သို့မဟုတ် ပိတ်ထားခြင်းဖြစ်နိုင်ပါသည်။</p>
+        </div>
+        <div id="details" class="details">
+          <div id="carNumber" class="plate">—</div>
+          <dl>
+            <div class="row"><dt>ယာဉ်အမျိုးအစား</dt><dd id="vehicle">—</dd></div>
+            <div class="row"><dt>ယာဉ်မောင်း</dt><dd id="driver">—</dd></div>
+          </dl>
+          <div class="privacy">လုံခြုံရေးအတွက် NRC၊ ဖုန်းနံပါတ်နှင့် လိပ်စာတို့ကို ဤစာမျက်နှာတွင် မပြသပါ။</div>
+          <button id="confirmButton" type="button">Print Request တင်မည်</button>
+          <p id="phaseNote" class="phase-note">စာမျက်နှာစဉ် · 1, 2, 3, 4, 2, 3, 2, 3, 4</p>
+        </div>
+        <div id="confirmed" class="state" hidden>
+          <div class="icon ok" aria-hidden="true">✓</div>
+          <h2 id="jobTitle">Print Request တင်နေပါသည်…</h2>
+          <p id="jobMessage">Please wait while the server creates your print job.</p>
+          <p id="jobReference" class="phase-note"></p>
+          <button id="reprintButton" class="secondary" type="button" hidden>ဝန်ထမ်းခွင့်ပြုချက်ဖြင့် ထပ်ထုတ်မည်</button>
+          <button id="nextButton" class="secondary" type="button" hidden>နောက်တစ်ယောက် · Next Customer</button>
+        </div>
+      </div>
+    </section>
+    <footer>Secure owner access · Do not share this QR publicly</footer>
+  </main>
+  <script>
+    (() => {
+      const byId = id => document.getElementById(id);
+      const token = new URLSearchParams(location.search).get("t") || "";
+      const showError = message => {
+        byId("loading").hidden = true;
+        byId("details").style.display = "none";
+        byId("errorMessage").textContent = message;
+        byId("error").hidden = false;
+      };
+      const safeText = value => String(value || "—").trim() || "—";
+
+      if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
+        showError("QR Code link မပြည့်စုံပါ။ ဝန်ထမ်းထံမှ QR အသစ်တောင်းယူပါ။");
+        return;
+      }
+      fetch(`/api/car/qr/${encodeURIComponent(token)}`, {headers:{"Accept":"application/json"}, cache:"no-store"})
+        .then(async response => {
+          if (!response.ok) throw new Error(response.status === 404 ? "QR Code သက်တမ်းမရှိတော့ပါ သို့မဟုတ် ပိတ်ထားပါသည်။" : "Server နှင့် ဆက်သွယ်၍မရပါ။ ခဏနေပြန်စမ်းပါ။");
+          return response.json();
+        })
+        .then(result => {
+          const record = result.data || {};
+          byId("carNumber").textContent = safeText(record.car_number);
+          byId("vehicle").textContent = safeText(record.vehicle);
+          byId("driver").textContent = safeText(record.driver_name);
+          byId("loading").hidden = true;
+          byId("details").style.display = "block";
+        })
+        .catch(error => showError(error.message || "QR Code စစ်ဆေးမှု မအောင်မြင်ပါ။"));
+
+      let statusTimer = null;
+      const requestKey = () => {
+        const storageKey = `kay-car-print-request:${token}`;
+        let key = sessionStorage.getItem(storageKey);
+        if (!key) {
+          key = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+          sessionStorage.setItem(storageKey, key);
+        }
+        return key;
+      };
+      const statusCopy = {
+        pending:["Print Queue ထဲတွင် စောင့်နေပါသည်", "Printer computer လက်ခံရန် စောင့်နေပါသည်။"],
+        printing:["စာရွက်ထုတ်နေပါသည်", "Printing is in progress. Please wait."],
+        completed:["စာရွက်ထုတ်ပြီးပါပြီ", "Your printout is ready. Please collect it."],
+        failed:["စာရွက်ထုတ်မှု မအောင်မြင်ပါ", "ဝန်ထမ်းထံ ဆက်သွယ်ပေးပါ။"]
+      };
+      const renderJob = job => {
+        const copy = statusCopy[job.status] || statusCopy.pending;
+        byId("jobTitle").textContent = copy[0];
+        byId("jobMessage").textContent = job.error_message || copy[1];
+        byId("jobReference").textContent = `Job: ${job.job_id.slice(0, 8)} · ${job.status.toUpperCase()}`;
+        if (["completed", "failed"].includes(job.status) && statusTimer) clearInterval(statusTimer);
+        if (job.status === "completed") {
+          byId("reprintButton").hidden = false;
+        }
+        if (["completed", "failed"].includes(job.status) && new URLSearchParams(location.search).get("kiosk") === "1") byId("nextButton").hidden = false;
+      };
+      const pollJob = jobId => fetch(`/api/car/print-jobs/${encodeURIComponent(jobId)}`, {cache:"no-store"})
+        .then(response => response.ok ? response.json() : Promise.reject(new Error("Print status ကို ရယူ၍မရပါ။")))
+        .then(result => renderJob(result.data || {}))
+        .catch(error => { byId("jobMessage").textContent = error.message; });
+
+      const submitPrintRequest = async (staffPin="") => {
+        const button = byId("confirmButton");
+        button.disabled = true;
+        button.textContent = "Request တင်နေပါသည်…";
+        byId("details").style.display = "none";
+        byId("confirmed").hidden = false;
+        try {
+          const response = await fetch("/api/car/print-jobs", {
+            method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
+            body:JSON.stringify({token, request_key:requestKey(), copies:1, staff_pin:staffPin})
+          });
+          const result = await response.json();
+          if (response.status === 403 && result.detail === "STAFF_PIN_REQUIRED") {
+            const pin = window.prompt("Reprint အတွက် ဝန်ထမ်း PIN ထည့်ပါ။");
+            if (pin) return submitPrintRequest(pin);
+          }
+          if (!response.ok) throw new Error(result.detail || "Print request တင်၍မရပါ။");
+          const job = result.data || {};
+          renderJob(job);
+          statusTimer = setInterval(() => pollJob(job.job_id), 2000);
+        } catch (error) {
+          byId("jobTitle").textContent = "Print Request မအောင်မြင်ပါ";
+          byId("jobMessage").textContent = error.message || "ခဏနေပြန်စမ်းပါ။";
+          byId("jobReference").textContent = "";
+        }
+      };
+      byId("confirmButton").addEventListener("click", () => submitPrintRequest());
+      byId("reprintButton").addEventListener("click", () => {
+        sessionStorage.removeItem(`kay-car-print-request:${token}`);
+        byId("reprintButton").hidden = true;
+        submitPrintRequest();
+      });
+      byId("nextButton").addEventListener("click", () => {
+        sessionStorage.removeItem(`kay-car-print-request:${token}`);
+        location.href = "/car/kiosk";
+      });
+    })();
+  </script>
+</body>
+</html>
