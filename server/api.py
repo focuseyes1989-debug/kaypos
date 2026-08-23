@@ -130,7 +130,7 @@ class LoginRequest(BaseModel):
 class CarPrintRequest(BaseModel):
     token: str = Field(..., min_length=32, max_length=128)
     request_key: str = Field(..., min_length=16, max_length=128)
-    copies: int = Field(default=1, ge=1, le=5)
+    copies: int = Field(default=1, ge=1, le=99)
     printer_name: str = Field(default="", max_length=255)
 
 

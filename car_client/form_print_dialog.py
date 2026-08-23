@@ -69,7 +69,7 @@ def print_record_pages(record: dict, pages, copies=1, settings: QSettings | None
         raise RuntimeError(f"Selected printer is unavailable: {printer_name or 'None'}")
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
     printer.setPrinterName(printer_name)
-    printer.setCopyCount(max(1, min(int(copies or 1), 5)))
+    printer.setCopyCount(max(1, min(int(copies or 1), 99)))
     saved_size = int(settings.value(f"{SETTINGS_PREFIX}/page_size", int(QPageSize.PageSizeId.A4.value)))
     saved_orientation = int(settings.value(f"{SETTINGS_PREFIX}/orientation", int(QPageLayout.Orientation.Portrait.value)))
     saved_resolution = int(settings.value(f"{SETTINGS_PREFIX}/resolution", 0))

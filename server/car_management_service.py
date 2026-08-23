@@ -378,8 +378,8 @@ class CarRepository:
             raise ValueError("QR code is invalid or disabled.")
         if len(request_key) < 16 or len(request_key) > 128:
             raise ValueError("A valid request key is required.")
-        if not 1 <= copies <= 5:
-            raise ValueError("Copies must be between 1 and 5.")
+        if not 1 <= copies <= 99:
+            raise ValueError("Copies must be between 1 and 99.")
         printer_name = str(printer_name or "").strip()
         conn = self._connection_factory()
         try:

@@ -20,6 +20,7 @@ class CarPrintWebTests(unittest.TestCase):
         self.assertIn("/api/car/print-jobs", text)
         self.assertIn("1, 2, 3, 4, 2, 3, 2, 3, 4", text)
         self.assertIn('id="copies"', text)
+        self.assertIn('max="99"', text)
         self.assertIn('id="printer"', text)
         self.assertIn("/api/car/printers", text)
         self.assertNotIn("nrc_number", text)

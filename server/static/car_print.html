@@ -36,7 +36,7 @@
     .secondary { margin-top:10px; background:#2b3652; }
     .options { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:0 0 20px; text-align:left; }
     .option label { display:block; margin-bottom:7px; color:var(--muted); font-size:.9rem; }
-    select { width:100%; min-height:48px; padding:8px 10px; border:1px solid #465475; border-radius:11px; background:#0f1526; color:white; font:1rem "Myanmar Text","Segoe UI",sans-serif; }
+    select, input[type="number"] { width:100%; min-height:48px; padding:8px 10px; border:1px solid #465475; border-radius:11px; background:#0f1526; color:white; font:1rem "Myanmar Text","Segoe UI",sans-serif; }
     .phase-note { margin-top:13px; text-align:center; font-size:.82rem; color:var(--muted); }
     footer { padding:18px 10px 0; text-align:center; color:#7f8ba6; font-size:.8rem; }
     [hidden] { display:none !important; }
@@ -69,7 +69,7 @@
             <div class="row"><dt>ယာဉ်မောင်း</dt><dd id="driver">—</dd></div>
           </dl>
           <div class="options">
-            <div class="option"><label for="copies">ဘယ်နှစုံ ထုတ်မလဲ</label><select id="copies"><option value="1">1 စုံ</option><option value="2">2 စုံ</option><option value="3">3 စုံ</option><option value="4">4 စုံ</option><option value="5">5 စုံ</option></select></div>
+            <div class="option"><label for="copies">ဘယ်နှစုံ ထုတ်မလဲ</label><input id="copies" type="number" inputmode="numeric" min="1" max="99" step="1" value="1" aria-label="Print copies"></div>
             <div class="option"><label for="printer">Printer ရွေးပါ</label><select id="printer"><option value="">Printer စစ်ဆေးနေသည်…</option></select></div>
           </div>
           <div class="privacy">လုံခြုံရေးအတွက် NRC၊ ဖုန်းနံပါတ်နှင့် လိပ်စာတို့ကို ဤစာမျက်နှာတွင် မပြသပါ။</div>
@@ -160,7 +160,7 @@
         try {
           const response = await fetch("/api/car/print-jobs", {
             method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"},
-            body:JSON.stringify({token, request_key:requestKey(), copies:Number(byId("copies").value), printer_name:byId("printer").value})
+            body:JSON.stringify({token, request_key:requestKey(), copies:Math.max(1,Math.min(99,Number(byId("copies").value)||1)), printer_name:byId("printer").value})
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.detail || "Print request တင်၍မရပါ။");
