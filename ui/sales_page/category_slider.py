@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtGui import QWheelEvent
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.widgets.modern_button import ModernButton
+from utils.performance import get_performance_settings
 from loguru import logger
 
 
@@ -175,10 +176,17 @@ class CategorySlider(QScrollArea):
         
         # Popular categories are always visible even when they were not marked
         # as favorites. Favorites fill the remainder of the slider.
-        visible_categories = [
-            category for category in categories
-            if category[3] == 1 or category[0] in self._top_category_names
-        ]
+        if get_performance_settings().low_end_mode:
+            # Low-end clients intentionally skip the expensive sales-history
+            # ranking query. Show the already-loaded category list instead of
+            # leaving the slider with only the All button when no favorites
+            # have been configured.
+            visible_categories = list(categories)
+        else:
+            visible_categories = [
+                category for category in categories
+                if category[3] == 1 or category[0] in self._top_category_names
+            ]
         # Most-used categories keep their database ranking. Remaining favorite
         # categories follow alphabetically; category-group buttons are omitted.
         def sort_key(cat):

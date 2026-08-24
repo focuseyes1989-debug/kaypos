@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ui.sales_page.product_grid import ProductGrid
 from ui.lazy_loading_widget import HamsterProgressWidget
+from ui.sales_page.category_slider import CategorySlider
 
 
 class LowEndOptimizationTests(unittest.TestCase):
@@ -83,6 +84,23 @@ class LowEndOptimizationTests(unittest.TestCase):
             [("Food", None, None, 1)], groups=None, top_categories=[]
         )
         grid.deleteLater()
+
+    def test_low_end_slider_shows_all_categories_without_favorites(self):
+        categories = [
+            ("Food", None, None, 0),
+            ("Drinks", None, None, 0),
+            ("Accessories", None, None, 0),
+        ]
+        with patch(
+            "ui.sales_page.category_slider.get_performance_settings",
+            return_value=SimpleNamespace(low_end_mode=True),
+        ):
+            slider = CategorySlider()
+            slider.load_categories(categories, top_categories=[])
+
+        self.assertEqual(slider._category_names, [item[0] for item in categories])
+        self.assertEqual(len(slider._buttons), 4)  # All + three categories
+        slider.deleteLater()
 
 
 if __name__ == "__main__":

@@ -26,9 +26,9 @@ class LowEndPerformanceSettingsTests(unittest.TestCase):
             settings = performance.get_performance_settings(refresh=True)
 
         self.assertTrue(settings.low_end_mode)
-        self.assertEqual(settings.product_page_size, 12)
+        self.assertEqual(settings.product_page_size, 25)
         self.assertEqual(settings.search_debounce_ms, 600)
-        self.assertEqual(settings.thumbnail_quality, "off")
+        self.assertEqual(settings.thumbnail_quality, "low")
 
     def test_disabled_thumbnails_do_not_open_image_files(self):
         settings = SimpleNamespace(thumbnail_quality="off")
