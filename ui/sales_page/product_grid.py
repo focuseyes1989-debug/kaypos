@@ -52,6 +52,10 @@ class ProductGrid(QWidget):
         self._selected_group = ""
         self._selected_category = ""
         self._discount_filter = "all"
+        self._category_ids_by_name = {}
+        self._category_names_by_id = {}
+        self._category_tree_cache = {}
+        self._discount_schema_checked = False
         self._grid_lazy_page = 1
         self._grid_lazy_page_size = 25
         self._grid_lazy_total = 0
@@ -405,6 +409,8 @@ class ProductGrid(QWidget):
                 'parent_id': parent_id,
                 'children': []
             }
+        self._category_ids_by_name = {data['name']: cat_id for cat_id, data in category_dict.items()}
+        self._category_names_by_id = {cat_id: data['name'] for cat_id, data in category_dict.items()}
         
         # Build parent-child relationships
         root_categories = []
@@ -439,6 +445,16 @@ class ProductGrid(QWidget):
         
         for root_id in root_categories:
             add_category_with_indent(root_id)
+
+        def collect_tree_ids(cat_id):
+            ids = [cat_id]
+            for child_id in category_dict[cat_id]['children']:
+                ids.extend(collect_tree_ids(child_id))
+            return ids
+
+        self._category_tree_cache = {
+            cat_id: collect_tree_ids(cat_id) for cat_id in category_dict
+        }
         
         # Restore selection
         idx = self.category_combo.findText(current)
@@ -472,32 +488,34 @@ class ProductGrid(QWidget):
         """)
         rows = cursor.fetchall()
         
-        cursor.execute("""
-            SELECT category_name
-            FROM (
-                SELECT
-                    COALESCE(
-                        NULLIF(TRIM(p.category), ''),
-                        NULLIF(TRIM((
-                            SELECT p2.category
-                            FROM products p2
-                            WHERE p2.name = si.product_name
-                              AND p2.category IS NOT NULL
-                            LIMIT 1
-                        )), '')
-                    ) AS category_name,
-                    SUM(COALESCE(si.qty, 0)) AS usage_qty
-                FROM sale_items si
-                JOIN sales s ON s.id = si.sale_id
-                LEFT JOIN products p ON p.id = si.product_id
-                WHERE s.status = 'completed'
-                GROUP BY category_name
-            ) ranked_categories
-            WHERE category_name IS NOT NULL
-            ORDER BY usage_qty DESC, category_name
-            LIMIT 8
-        """)
-        top_categories = [row[0] for row in cursor.fetchall() if row and row[0]]
+        top_categories = []
+        if not self._performance_settings.low_end_mode:
+            cursor.execute("""
+                SELECT category_name
+                FROM (
+                    SELECT
+                        COALESCE(
+                            NULLIF(TRIM(p.category), ''),
+                            NULLIF(TRIM((
+                                SELECT p2.category
+                                FROM products p2
+                                WHERE p2.name = si.product_name
+                                  AND p2.category IS NOT NULL
+                                LIMIT 1
+                            )), '')
+                        ) AS category_name,
+                        SUM(COALESCE(si.qty, 0)) AS usage_qty
+                    FROM sale_items si
+                    JOIN sales s ON s.id = si.sale_id
+                    LEFT JOIN products p ON p.id = si.product_id
+                    WHERE s.status = 'completed'
+                    GROUP BY category_name
+                ) ranked_categories
+                WHERE category_name IS NOT NULL
+                ORDER BY usage_qty DESC, category_name
+                LIMIT 8
+            """)
+            top_categories = [row[0] for row in cursor.fetchall() if row and row[0]]
         conn.close()
         
         category_data = []
@@ -515,6 +533,9 @@ class ProductGrid(QWidget):
         """
         ✅ Get all category IDs in the tree (parent + all children)
         """
+        cached = self._category_tree_cache.get(category_id)
+        if cached:
+            return list(cached)
         category_ids = [category_id]
         
         try:
@@ -600,29 +621,18 @@ class ProductGrid(QWidget):
             # ✅ Clean the display text to get actual category name
             clean_name = self._clean_category_display_text(selected_category_text)
             
-            # ✅ Get category ID from database
-            conn = connect_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM categories WHERE name = ?", (clean_name,))
-            row = cursor.fetchone()
-            conn.close()
-            
-            if row:
-                parent_id = row[0]
+            parent_id = self.category_combo.currentData() or self._category_ids_by_name.get(clean_name)
+
+            if parent_id:
                 use_category = True
                 
                 # ✅ Get all child category IDs (including the parent itself)
                 selected_category_ids = self._get_category_tree_ids(parent_id)
-                if selected_category_ids:
-                    name_placeholders = ",".join(["?"] * len(selected_category_ids))
-                    conn = connect_db()
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        f"SELECT name FROM categories WHERE id IN ({name_placeholders})",
-                        selected_category_ids,
-                    )
-                    selected_category_names = [name for (name,) in cursor.fetchall()]
-                    conn.close()
+                selected_category_names = [
+                    self._category_names_by_id[cat_id]
+                    for cat_id in selected_category_ids
+                    if cat_id in self._category_names_by_id
+                ]
                 logger.debug(f"Found category tree IDs for '{clean_name}': {selected_category_ids}")
             else:
                 logger.warning(f"Category '{clean_name}' not found in database")
@@ -633,8 +643,10 @@ class ProductGrid(QWidget):
 
         conn = connect_db()
         cursor = conn.cursor()
-        self._ensure_discount_columns(cursor)
-        conn.commit()
+        if not self._discount_schema_checked:
+            self._ensure_discount_columns(cursor)
+            conn.commit()
+            self._discount_schema_checked = True
 
         # ── Count query ──────────────────────────────────────────────────
         count_params = []
@@ -684,9 +696,11 @@ class ProductGrid(QWidget):
         count_sql = "SELECT COUNT(*) FROM products p"
         if count_where:
             count_sql += " WHERE " + " AND ".join(count_where)
-        cursor.execute(count_sql, count_params)
-        total_items = cursor.fetchone()[0]
-        self.pagination.set_total_items(total_items, emit_signal=False)
+        total_items = 0
+        if not self._performance_settings.low_end_mode:
+            cursor.execute(count_sql, count_params)
+            total_items = cursor.fetchone()[0]
+            self.pagination.set_total_items(total_items, emit_signal=False)
         if should_show_progress:
             self._update_product_loading(f"Found {total_items} products. Loading cards...", 35 if not append_grid else None)
 
@@ -737,6 +751,7 @@ class ProductGrid(QWidget):
             where_clauses.append(self._active_discount_exists_sql())
 
         stock_expr = effective_stock_sql("p")
+        total_column = ", COUNT(*) OVER() as total_count" if self._performance_settings.low_end_mode else ""
         select_sql = f"""
             SELECT 
                 p.id, p.name, p.price, {stock_expr} as stock, p.low_stock, p.sold_by, p.image,
@@ -782,6 +797,7 @@ class ProductGrid(QWidget):
                     ORDER BY pd.manual_price ASC, pd.end_date ASC
                     LIMIT 1
                 ), 0) as active_manual_price
+                {total_column}
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
         """
@@ -792,6 +808,9 @@ class ProductGrid(QWidget):
         cursor.execute(select_sql, select_params + [page_size, offset])
         rows = cursor.fetchall()
         conn.close()
+        if self._performance_settings.low_end_mode:
+            total_items = int(rows[0][12] or 0) if rows else 0
+            self.pagination.set_total_items(total_items, emit_signal=False)
         if should_show_progress:
             loaded_so_far = (len(self._last_rows) if append_grid else 0) + len(rows)
             progress = 35 if total_items <= 0 else min(85, 35 + int((loaded_so_far / max(1, total_items)) * 50))

@@ -865,21 +865,17 @@ class SalesPage(QWidget):
         try:
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key='tax_enabled'")
-            res = cursor.fetchone()
-            self.tax_enabled = res[0] == '1' if res else False
-            cursor.execute("SELECT value FROM settings WHERE key='tax_rate'")
-            res = cursor.fetchone()
-            self.tax_rate = float(res[0]) if res else 0.0
-            cursor.execute("SELECT value FROM settings WHERE key='discount_enabled'")
-            res = cursor.fetchone()
-            self.discount_enabled = res[0] == '1' if res else False
-            cursor.execute("SELECT value FROM settings WHERE key='discount_type'")
-            res = cursor.fetchone()
-            self.discount_type = res[0] if res else "percentage"
-            cursor.execute("SELECT value FROM settings WHERE key='discount_value'")
-            res = cursor.fetchone()
-            self.discount_default_value = float(res[0]) if res else 0.0
+            keys = ("tax_enabled", "tax_rate", "discount_enabled", "discount_type", "discount_value")
+            cursor.execute(
+                f"SELECT key, value FROM settings WHERE key IN ({','.join(['?'] * len(keys))})",
+                keys,
+            )
+            values = dict(cursor.fetchall())
+            self.tax_enabled = values.get("tax_enabled", "0") == "1"
+            self.tax_rate = float(values.get("tax_rate") or 0.0)
+            self.discount_enabled = values.get("discount_enabled", "0") == "1"
+            self.discount_type = values.get("discount_type") or "percentage"
+            self.discount_default_value = float(values.get("discount_value") or 0.0)
             conn.close()
         except Exception as e:
             logger.error(f"Failed to load settings: {e}")
@@ -938,18 +934,16 @@ class SalesPage(QWidget):
         try:
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key='shop_name'")
-            row = cursor.fetchone()
-            self.shop_name = row[0] if row else "ZAY POS"
-            cursor.execute("SELECT value FROM settings WHERE key='receipt_header'")
-            row = cursor.fetchone()
-            self.receipt_header_text = row[0] if row else ""
-            cursor.execute("SELECT value FROM settings WHERE key='receipt_footer'")
-            row = cursor.fetchone()
-            self.receipt_footer_text = row[0] if row else ""
-            cursor.execute("SELECT value FROM settings WHERE key='show_customer_name'")
-            row = cursor.fetchone()
-            self.show_customer_name = (row[0] == '1') if row else True
+            keys = ("shop_name", "receipt_header", "receipt_footer", "show_customer_name")
+            cursor.execute(
+                f"SELECT key, value FROM settings WHERE key IN ({','.join(['?'] * len(keys))})",
+                keys,
+            )
+            values = dict(cursor.fetchall())
+            self.shop_name = values.get("shop_name") or "ZAY POS"
+            self.receipt_header_text = values.get("receipt_header") or ""
+            self.receipt_footer_text = values.get("receipt_footer") or ""
+            self.show_customer_name = values.get("show_customer_name", "1") == "1"
             conn.close()
         except Exception as e:
             logger.error(f"Failed to load receipt settings: {e}")

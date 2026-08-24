@@ -116,6 +116,8 @@ def load_thumbnail(image_path: str, size: int = 50, product_id=None):
         return None
 
     performance = get_performance_settings()
+    if performance.thumbnail_quality == "off":
+        return None
     if performance.thumbnail_quality == "low":
         size = max(24, min(size, int(size * 0.75)))
 

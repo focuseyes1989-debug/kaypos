@@ -20,6 +20,7 @@ from ui.main_window.main_window_handlers import MainWindowHandlers
 from ui.themes.theme_manager import get_theme_colors, theme_manager, apply_theme
 from loguru import logger
 from datetime import datetime
+from utils.performance import get_performance_settings
 
 
 class MainWindow(MainWindowUI):
@@ -148,8 +149,9 @@ class MainWindow(MainWindowUI):
         self.dashboard_digest_timer = QTimer(self)
         self.dashboard_digest_timer.setInterval(15 * 60 * 1000)
         self.dashboard_digest_timer.timeout.connect(self._check_dashboard_digests)
-        self.dashboard_digest_timer.start()
-        QTimer.singleShot(5000, self._check_dashboard_digests)
+        if not get_performance_settings().low_end_mode:
+            self.dashboard_digest_timer.start()
+            QTimer.singleShot(5000, self._check_dashboard_digests)
 
         # ------------------------------------------------------------
         # ၁၀. Language ပြောင်းလဲမှုကို နားဆင်ခြင်း
@@ -215,16 +217,21 @@ class MainWindow(MainWindowUI):
         self._background_services_started = True
         try:
             from utils.auto_backup import AutoBackupManager
-            from utils.customer_display_server import start_customer_display_server
-            from utils.expense_notification_checker import ExpenseNotificationChecker
-            from utils.telegram_service import start_telegram_command_listener
-            from services.cloud_sync_service import start_cloud_sync_manager
 
             self.auto_backup_manager = AutoBackupManager(self)
             self.auto_backup_manager.backup_started.connect(self.on_background_activity_started)
             self.auto_backup_manager.backup_created.connect(self.on_background_activity_finished)
             self.auto_backup_manager.backup_failed.connect(self.on_background_activity_finished)
             self.auto_backup_manager.start()
+
+            if get_performance_settings().low_end_mode:
+                logger.info("Low-end mode: optional background integrations are disabled")
+                return
+
+            from utils.customer_display_server import start_customer_display_server
+            from utils.expense_notification_checker import ExpenseNotificationChecker
+            from utils.telegram_service import start_telegram_command_listener
+            from services.cloud_sync_service import start_cloud_sync_manager
 
             self.telegram_command_listener = start_telegram_command_listener()
             self.customer_display_server = start_customer_display_server()

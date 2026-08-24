@@ -57,6 +57,33 @@ class LowEndOptimizationTests(unittest.TestCase):
         self.assertEqual(progress.height(), 36)
         progress.deleteLater()
 
+    def test_cached_category_tree_avoids_database_round_trip(self):
+        grid = ProductGrid(autoload=False)
+        grid._category_tree_cache = {10: [10, 11, 12]}
+        with patch("ui.sales_page.product_grid.connect_db") as connect:
+            result = grid._get_category_tree_ids(10)
+        self.assertEqual(result, [10, 11, 12])
+        connect.assert_not_called()
+        grid.deleteLater()
+
+    def test_low_end_category_slider_skips_sales_ranking_query(self):
+        grid = ProductGrid(autoload=False)
+        grid._performance_settings = SimpleNamespace(low_end_mode=True)
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [("Food", None, None, 1)]
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        grid.category_slider.load_categories = MagicMock()
+
+        with patch("ui.sales_page.product_grid.connect_db", return_value=connection):
+            grid._load_category_slider_data()
+
+        self.assertEqual(cursor.execute.call_count, 1)
+        grid.category_slider.load_categories.assert_called_once_with(
+            [("Food", None, None, 1)], groups=None, top_categories=[]
+        )
+        grid.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

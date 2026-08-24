@@ -49,6 +49,7 @@ class PerformanceSettingWidget(QWidget):
         form.addRow("Search delay:", self.debounce_spin)
 
         self.thumbnail_quality_combo = QComboBox()
+        self.thumbnail_quality_combo.addItem("Disabled (fastest)", "off")
         self.thumbnail_quality_combo.addItem("Low (fastest)", "low")
         self.thumbnail_quality_combo.addItem("Normal", "normal")
         form.addRow("Image quality:", self.thumbnail_quality_combo)
@@ -72,9 +73,9 @@ class PerformanceSettingWidget(QWidget):
 
     def _apply_low_end_defaults(self, checked):
         if checked:
-            self.page_size_spin.setValue(25)
-            self.debounce_spin.setValue(450)
-            self.thumbnail_quality_combo.setCurrentIndex(self.thumbnail_quality_combo.findData("low"))
+            self.page_size_spin.setValue(12)
+            self.debounce_spin.setValue(600)
+            self.thumbnail_quality_combo.setCurrentIndex(self.thumbnail_quality_combo.findData("off"))
             self.youtube_enabled_check.setChecked(False)
 
     def load_settings(self):
@@ -98,9 +99,10 @@ class PerformanceSettingWidget(QWidget):
         self.low_end_check.blockSignals(True)
         self.low_end_check.setChecked(low_end)
         self.low_end_check.blockSignals(False)
-        self.page_size_spin.setValue(int(values.get("performance_product_page_size") or 25))
-        self.debounce_spin.setValue(int(values.get("performance_search_debounce_ms") or (450 if low_end else 300)))
-        quality = values.get("performance_thumbnail_quality") or ("low" if low_end else "normal")
+        saved_page_size = int(values.get("performance_product_page_size") or (12 if low_end else 25))
+        self.page_size_spin.setValue(min(saved_page_size, 12) if low_end else saved_page_size)
+        self.debounce_spin.setValue(int(values.get("performance_search_debounce_ms") or (600 if low_end else 300)))
+        quality = values.get("performance_thumbnail_quality") or ("off" if low_end else "normal")
         quality_index = self.thumbnail_quality_combo.findData(quality)
         self.thumbnail_quality_combo.setCurrentIndex(max(0, quality_index))
         self.youtube_enabled_check.setChecked(values.get("performance_customer_display_youtube_enabled", "0") == "1")
