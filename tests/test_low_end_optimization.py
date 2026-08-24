@@ -1,12 +1,14 @@
 import os
 import unittest
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
 
 from ui.sales_page.product_grid import ProductGrid
+from ui.lazy_loading_widget import HamsterProgressWidget
 
 
 class LowEndOptimizationTests(unittest.TestCase):
@@ -37,6 +39,23 @@ class LowEndOptimizationTests(unittest.TestCase):
         modern_view = grid._ensure_view_widget(grid.VIEW_MODERN_GRID)
         self.assertIs(modern_view, grid.modern_grid_view)
         grid.deleteLater()
+
+    def test_low_end_mode_does_not_decode_or_animate_hamster(self):
+        with (
+            patch(
+                "ui.lazy_loading_widget.get_performance_settings",
+                return_value=SimpleNamespace(low_end_mode=True),
+            ),
+            patch.object(HamsterProgressWidget, "_load_frames") as load_frames,
+        ):
+            progress = HamsterProgressWidget()
+
+        load_frames.assert_not_called()
+        self.assertEqual(progress._frames, [])
+        self.assertIsNone(progress.animation_timer)
+        self.assertTrue(progress.hamster.isHidden())
+        self.assertEqual(progress.height(), 36)
+        progress.deleteLater()
 
 
 if __name__ == "__main__":

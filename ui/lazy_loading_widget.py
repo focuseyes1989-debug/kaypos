@@ -53,14 +53,23 @@ class HamsterProgressWidget(QWidget):
         self.percent.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.percent.setGeometry(155, 98, 60, 14)
 
-        self._load_frames()
+        self.animation_timer = None
+        if self._animate_enabled:
+            self._load_frames()
+            self.animation_timer = QTimer(self)
+            self.animation_timer.setInterval(55)
+            self.animation_timer.timeout.connect(self._animate)
+            self._place_hamster()
+        else:
+            # Low-end mode must not even decode the sprite sheet. Creating and
+            # scaling 24 frames for every lazy page was the expensive part,
+            # even when the animation timer itself was disabled.
+            self.hamster.hide()
+            self.setFixedSize(370, 36)
+            self.track.setGeometry(10, 6, 350, 8)
+            self.percent.setGeometry(155, 18, 60, 14)
         self._apply_theme()
         theme_manager.theme_changed.connect(self._apply_theme)
-
-        self.animation_timer = QTimer(self)
-        self.animation_timer.setInterval(55)
-        self.animation_timer.timeout.connect(self._animate)
-        self._place_hamster()
 
     def _load_frames(self):
         sprite_path = (
@@ -120,11 +129,12 @@ class HamsterProgressWidget(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._animate_enabled and not self.animation_timer.isActive():
+        if self.animation_timer is not None and not self.animation_timer.isActive():
             self.animation_timer.start()
 
     def hideEvent(self, event):
-        self.animation_timer.stop()
+        if self.animation_timer is not None:
+            self.animation_timer.stop()
         super().hideEvent(event)
 
     def _apply_theme(self, *_):
