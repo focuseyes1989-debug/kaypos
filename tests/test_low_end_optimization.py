@@ -67,11 +67,14 @@ class LowEndOptimizationTests(unittest.TestCase):
         connect.assert_not_called()
         grid.deleteLater()
 
-    def test_low_end_category_slider_skips_sales_ranking_query(self):
+    def test_low_end_category_slider_uses_single_aggregate_ranking_query(self):
         grid = ProductGrid(autoload=False)
         grid._performance_settings = SimpleNamespace(low_end_mode=True)
         cursor = MagicMock()
-        cursor.fetchall.return_value = [("Food", None, None, 1)]
+        cursor.fetchall.side_effect = [
+            [("Food", None, None, 1), ("Drinks", None, None, 0)],
+            [("Drinks",), ("Food",)],
+        ]
         connection = MagicMock()
         connection.cursor.return_value = cursor
         grid.category_slider.load_categories = MagicMock()
@@ -79,9 +82,14 @@ class LowEndOptimizationTests(unittest.TestCase):
         with patch("ui.sales_page.product_grid.connect_db", return_value=connection):
             grid._load_category_slider_data()
 
-        self.assertEqual(cursor.execute.call_count, 1)
+        self.assertEqual(cursor.execute.call_count, 2)
+        ranking_sql = cursor.execute.call_args_list[1].args[0]
+        self.assertIn("SUM(COALESCE(si.qty, 0))", ranking_sql)
+        self.assertNotIn("SELECT p2.category", ranking_sql)
         grid.category_slider.load_categories.assert_called_once_with(
-            [("Food", None, None, 1)], groups=None, top_categories=[]
+            [("Food", None, None, 1), ("Drinks", None, None, 0)],
+            groups=None,
+            top_categories=["Drinks", "Food"],
         )
         grid.deleteLater()
 
@@ -100,6 +108,25 @@ class LowEndOptimizationTests(unittest.TestCase):
 
         self.assertEqual(slider._category_names, [item[0] for item in categories])
         self.assertEqual(len(slider._buttons), 4)  # All + three categories
+        slider.deleteLater()
+
+    def test_most_used_categories_are_sorted_before_the_rest(self):
+        categories = [
+            ("Food", None, None, 0),
+            ("Drinks", None, None, 0),
+            ("Accessories", None, None, 0),
+        ]
+        with patch(
+            "ui.sales_page.category_slider.get_performance_settings",
+            return_value=SimpleNamespace(low_end_mode=True),
+        ):
+            slider = CategorySlider()
+            slider.load_categories(categories, top_categories=["Drinks", "Food"])
+
+        self.assertEqual(
+            [button.text() for button in slider._buttons],
+            ["All", "Drinks", "Food", "Accessories"],
+        )
         slider.deleteLater()
 
 

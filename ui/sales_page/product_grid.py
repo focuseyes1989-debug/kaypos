@@ -488,34 +488,27 @@ class ProductGrid(QWidget):
         """)
         rows = cursor.fetchall()
         
-        top_categories = []
-        if not self._performance_settings.low_end_mode:
-            cursor.execute("""
-                SELECT category_name
-                FROM (
-                    SELECT
-                        COALESCE(
-                            NULLIF(TRIM(p.category), ''),
-                            NULLIF(TRIM((
-                                SELECT p2.category
-                                FROM products p2
-                                WHERE p2.name = si.product_name
-                                  AND p2.category IS NOT NULL
-                                LIMIT 1
-                            )), '')
-                        ) AS category_name,
-                        SUM(COALESCE(si.qty, 0)) AS usage_qty
-                    FROM sale_items si
-                    JOIN sales s ON s.id = si.sale_id
-                    LEFT JOIN products p ON p.id = si.product_id
-                    WHERE s.status = 'completed'
-                    GROUP BY category_name
-                ) ranked_categories
-                WHERE category_name IS NOT NULL
-                ORDER BY usage_qty DESC, category_name
-                LIMIT 8
-            """)
-            top_categories = [row[0] for row in cursor.fetchall() if row and row[0]]
+        # Rank categories with one aggregate query. Avoid the old per-row
+        # product-name fallback subquery, which was particularly slow over a
+        # LAN connection on cashier PCs.
+        cursor.execute("""
+            SELECT category_name
+            FROM (
+                SELECT
+                    COALESCE(c.name, NULLIF(TRIM(p.category), '')) AS category_name,
+                    SUM(COALESCE(si.qty, 0)) AS usage_qty
+                FROM sale_items si
+                JOIN sales s ON s.id = si.sale_id
+                JOIN products p ON p.id = si.product_id
+                LEFT JOIN categories c ON c.id = p.category_id
+                WHERE s.status = 'completed'
+                GROUP BY COALESCE(c.name, NULLIF(TRIM(p.category), ''))
+            ) ranked_categories
+            WHERE category_name IS NOT NULL
+            ORDER BY usage_qty DESC, category_name
+            LIMIT 8
+        """)
+        top_categories = [row[0] for row in cursor.fetchall() if row and row[0]]
         conn.close()
         
         category_data = []
