@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import secrets
 import socket
 import sys
 import uuid
@@ -67,7 +68,7 @@ from utils.db_connection_config import (
     save_database_config,
     test_database_connection,
 )
-from utils.env_loader import load_project_env
+from utils.env_loader import load_project_env, save_project_env_values
 from utils.product_image_store import save_product_image_blob
 
 
@@ -897,6 +898,37 @@ class ServerManagerWindow(QMainWindow):
             f"or http://{local_ip()}:{DEFAULT_BROWSER_SERVER_PORT} when HTTPS is disabled. "
             "Agents report installed Windows printers every 10 seconds."
         ))
+
+        security_box = QGroupBox("Printer Agent Enrollment")
+        security_layout = QVBoxLayout(security_box)
+        security_layout.setSpacing(8)
+        security_layout.addWidget(self._note(
+            "Use this one-time key when connecting a new Printer Agent. Keep it private and generate a new key if it is exposed."
+        ))
+        key_row = QHBoxLayout()
+        self.printer_enrollment_key_input = QLineEdit()
+        self.printer_enrollment_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.printer_enrollment_key_input.setPlaceholderText("No enrollment key configured")
+        self.printer_enrollment_key_input.setMinimumWidth(280)
+        self.show_enrollment_key_button = QPushButton("Show")
+        self.show_enrollment_key_button.setCheckable(True)
+        self.show_enrollment_key_button.toggled.connect(self.toggle_printer_enrollment_key_visibility)
+        generate_key_button = QPushButton("Generate New")
+        generate_key_button.clicked.connect(self.generate_printer_enrollment_key)
+        copy_key_button = QPushButton("Copy")
+        copy_key_button.clicked.connect(self.copy_printer_enrollment_key)
+        save_key_button = QPushButton("Save Key")
+        save_key_button.clicked.connect(self.save_printer_enrollment_key)
+        key_row.addWidget(self.printer_enrollment_key_input, 1)
+        key_row.addWidget(self.show_enrollment_key_button)
+        key_row.addWidget(generate_key_button)
+        key_row.addWidget(copy_key_button)
+        key_row.addWidget(save_key_button)
+        security_layout.addLayout(key_row)
+        self.printer_enrollment_key_status = self._status_chip("Enrollment key: not configured")
+        security_layout.addWidget(self.printer_enrollment_key_status)
+        layout.addWidget(security_box)
+
         top = QHBoxLayout()
         self.printer_server_status = self._status_chip("Printer Server: registry not checked")
         self.send_test_print_button = QPushButton("Print Test Page")
@@ -940,6 +972,77 @@ class ServerManagerWindow(QMainWindow):
         layout.addWidget(self.printer_jobs_table, 1)
         return page
 
+    def refresh_printer_enrollment_key(self) -> None:
+        key = os.getenv("KAY_PRINTER_ENROLLMENT_KEY", "").strip()
+        self.printer_enrollment_key_input.setText(key)
+        if key:
+            self._set_chip(
+                self.printer_enrollment_key_status,
+                "Enrollment key: configured · use Copy to enroll a new PC",
+                "ok",
+            )
+        else:
+            self._set_chip(
+                self.printer_enrollment_key_status,
+                "Enrollment key: not configured · generate and save a key before deployment",
+                "warn",
+            )
+
+    def toggle_printer_enrollment_key_visibility(self, visible: bool) -> None:
+        mode = QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
+        self.printer_enrollment_key_input.setEchoMode(mode)
+        self.show_enrollment_key_button.setText("Hide" if visible else "Show")
+
+    def generate_printer_enrollment_key(self) -> None:
+        if self.printer_enrollment_key_input.text().strip():
+            answer = QMessageBox.question(
+                self,
+                "Replace Enrollment Key",
+                "Generate a new enrollment key? New Printer Agents must use the new key after it is saved.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.printer_enrollment_key_input.setText(secrets.token_urlsafe(32))
+        self._set_chip(
+            self.printer_enrollment_key_status,
+            "Enrollment key: generated but not saved",
+            "warn",
+        )
+
+    def copy_printer_enrollment_key(self) -> None:
+        key = self.printer_enrollment_key_input.text().strip()
+        if not key:
+            QMessageBox.warning(self, "Enrollment Key", "Generate or enter an enrollment key first.")
+            return
+        QApplication.clipboard().setText(key)
+        self._set_chip(self.printer_enrollment_key_status, "Enrollment key: copied to clipboard", "ok")
+
+    def save_printer_enrollment_key(self) -> None:
+        key = self.printer_enrollment_key_input.text().strip()
+        if len(key) < 32:
+            QMessageBox.warning(
+                self,
+                "Weak Enrollment Key",
+                "The enrollment key must contain at least 32 characters. Use Generate New for a secure key.",
+            )
+            return
+        try:
+            env_path = save_project_env_values({"KAY_PRINTER_ENROLLMENT_KEY": key})
+            self._set_chip(
+                self.printer_enrollment_key_status,
+                f"Enrollment key: saved to {env_path.name}",
+                "ok",
+            )
+            running = bool(self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning)
+            message = "Enrollment key saved successfully."
+            if running:
+                message += " Restart the POS Server to apply the new key to network requests."
+            QMessageBox.information(self, "Enrollment Key", message)
+        except OSError as exc:
+            QMessageBox.critical(self, "Enrollment Key", f"Could not save the enrollment key:\n{exc}")
+
     def _logs_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -972,6 +1075,7 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
         self.wizard_password_input.setText(cfg.get("password") or "lonepair")
         self.allowed_subnet_input.setText(local_subnet())
+        self.refresh_printer_enrollment_key()
         self._set_chip(
             self.header_db_label,
             f"Database: {self.database_input.text()} @ {self.host_input.text()}:{self.port_input.value()}",

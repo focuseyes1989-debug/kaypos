@@ -21,6 +21,7 @@ from ui.sales_page.list_view import ListViewWidget
 from ui.sales_page.category_slider import CategorySlider
 from utils.performance import get_performance_settings
 from loguru import logger
+from time import perf_counter
 
 
 class ProductGrid(QWidget):
@@ -40,7 +41,7 @@ class ProductGrid(QWidget):
         VIEW_MODERN_GRID: "Modern Grid"
     }
 
-    def __init__(self, parent=None, use_modern_combos: bool = False):
+    def __init__(self, parent=None, use_modern_combos: bool = False, autoload: bool = True):
         super().__init__(parent)
         self.use_modern_combos = use_modern_combos
         self._performance_settings = get_performance_settings()
@@ -144,11 +145,11 @@ class ProductGrid(QWidget):
         self.table.setHorizontalHeaderLabels(["ID", "Image", "Name", "Price", "Stock", "Status"])
         self.stack.addWidget(self.table)
 
-        # List view
-        self.list_view = ListViewWidget()
-        self.list_view.product_selected.connect(self.product_selected)
-        self.list_view.service_selected.connect(self.service_selected)
-        self.stack.addWidget(self.list_view)
+        # Secondary views are created only when selected. On low-end PCs,
+        # constructing all four product renderers up front noticeably delays
+        # the first paint and can make Windows report the app as unresponsive.
+        self.list_view = None
+        self.stack.addWidget(QWidget())
 
         # Grid view
         self.grid_view = GridViewWidget()
@@ -158,11 +159,8 @@ class ProductGrid(QWidget):
         self.stack.addWidget(self.grid_view)
 
         # Modern grid view
-        self.modern_grid_view = GridViewWidget(card_style="modern")
-        self.modern_grid_view.product_selected.connect(self.product_selected)
-        self.modern_grid_view.service_selected.connect(self.service_selected)
-        self.modern_grid_view.favourite_toggled.connect(self.on_favourite_toggled)
-        self.stack.addWidget(self.modern_grid_view)
+        self.modern_grid_view = None
+        self.stack.addWidget(QWidget())
         self.stack.setCurrentIndex(self._current_view)
 
         # ── Pagination ──────────────────────────────────────────────────
@@ -177,8 +175,39 @@ class ProductGrid(QWidget):
         pagination_layout.addWidget(self.pagination, stretch=1)
         layout.addLayout(pagination_layout)
 
-        self.load_categories()
+        if autoload:
+            self.load_categories()
+            self.load_products(page_size=self.rows_per_page)
+
+    def initialize_data(self) -> None:
+        """Load the initial filters and products after the page has painted."""
+        blocked = self.category_combo.blockSignals(True)
+        try:
+            self.load_categories()
+        finally:
+            self.category_combo.blockSignals(blocked)
         self.load_products(page_size=self.rows_per_page)
+
+    def _ensure_view_widget(self, view: int):
+        if view == self.VIEW_LIST and self.list_view is None:
+            widget = ListViewWidget()
+            widget.product_selected.connect(self.product_selected)
+            widget.service_selected.connect(self.service_selected)
+            self.list_view = widget
+        elif view == self.VIEW_MODERN_GRID and self.modern_grid_view is None:
+            widget = GridViewWidget(card_style="modern")
+            widget.product_selected.connect(self.product_selected)
+            widget.service_selected.connect(self.service_selected)
+            widget.favourite_toggled.connect(self.on_favourite_toggled)
+            self.modern_grid_view = widget
+        else:
+            return self.stack.widget(view)
+
+        placeholder = self.stack.widget(view)
+        self.stack.removeWidget(placeholder)
+        placeholder.deleteLater()
+        self.stack.insertWidget(view, widget)
+        return widget
 
     def apply_performance_settings(self, settings=None):
         self._performance_settings = settings or get_performance_settings(refresh=True)
@@ -263,6 +292,7 @@ class ProductGrid(QWidget):
         self._switch_view(view)
 
     def _switch_view(self, view: int):
+        self._ensure_view_widget(view)
         if self._current_view == view:
             self.stack.setCurrentIndex(view)
             self.pagination.setVisible(True)
@@ -541,6 +571,7 @@ class ProductGrid(QWidget):
         ✅ FIXED: Supports parent categories - shows products from all child categories
         ✅ Uses indentation for category display
         """
+        started_at = perf_counter()
         if page_size is None:
             page_size = self._performance_settings.product_page_size
         self.current_page = page
@@ -778,7 +809,7 @@ class ProductGrid(QWidget):
             self._grid_lazy_loading = False
 
             self._last_rows = rows
-            active_grid = self.modern_grid_view if self._current_view == self.VIEW_MODERN_GRID else self.grid_view
+            active_grid = self._ensure_view_widget(self._current_view)
             active_grid.populate_and_store(rows)
 
             active_grid.set_lazy_state(
@@ -791,10 +822,16 @@ class ProductGrid(QWidget):
                 QTimer.singleShot(150, self._hide_product_loading)
         elif self._current_view == self.VIEW_LIST:
             self._last_rows = rows
-            self.list_view.populate_and_store(rows)
+            self._ensure_view_widget(self.VIEW_LIST).populate_and_store(rows)
         else:
             self._last_rows = rows
             self.populate_table(rows)
+        elapsed = perf_counter() - started_at
+        log = logger.warning if elapsed >= 0.5 else logger.debug
+        log(
+            f"PERF product_grid.load_products elapsed={elapsed:.3f}s "
+            f"rows={len(rows)} total={total_items} view={self._current_view}"
+        )
 
     def load_next_grid_page(self):
         """Load the next grid batch when the user scrolls near the bottom."""
@@ -1037,8 +1074,10 @@ class ProductGrid(QWidget):
         if hasattr(self, "search_widget"):
             self.search_widget.apply_modern_style()
         self.grid_view.update_theme()
-        self.modern_grid_view.update_theme()
-        self.list_view.update_theme()
+        if self.modern_grid_view is not None:
+            self.modern_grid_view.update_theme()
+        if self.list_view is not None:
+            self.list_view.update_theme()
         self.category_slider.update_theme()
         colors = get_theme_colors()
 

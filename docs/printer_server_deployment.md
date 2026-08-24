@@ -3,8 +3,10 @@
 ## Server PC
 
 1. Give the Server PC a static LAN address or DHCP reservation.
-2. Generate three different long random keys and set `KAY_PRINTER_ADMIN_KEY`,
-   `KAY_PRINTER_CLIENT_KEY`, and `KAY_PRINTER_ENROLLMENT_KEY` in `.env`.
+2. Open **Server Manager > Printer Server > Printer Agent Enrollment**, click
+   **Generate New**, then **Save Key**. Use **Copy** when configuring each new
+   Printer Agent. Generate separate long random values for
+   `KAY_PRINTER_ADMIN_KEY` and `KAY_PRINTER_CLIENT_KEY` in `.env`.
 3. Restart KAY POS Server Manager and start the POS HTTPS service.
 4. Allow the configured POS server port (default TCP 8000) through Windows
    Firewall only for the Private network profile/local subnet.
@@ -38,4 +40,3 @@ and `KAY_PRINTER_CLIENT_KEY`, refresh, choose that PC's printer, and save.
 - Token replacement: run the Agent with `--configure` and enter the enrollment
   key again, or use `--reset-enrollment --enrollment-key KEY` from a terminal.
 - Windows startup removal: run `KAY_Printer_Agent.exe --remove-startup`.
-

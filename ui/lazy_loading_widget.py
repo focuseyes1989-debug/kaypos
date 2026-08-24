@@ -15,8 +15,10 @@ from PyQt6.QtGui import QPixmap, QRegion
 from loguru import logger
 import re
 from pathlib import Path
+from time import perf_counter
 
 from ui.themes.theme_manager import get_theme_colors, theme_manager
+from utils.performance import get_performance_settings
 
 
 class HamsterProgressWidget(QWidget):
@@ -35,6 +37,7 @@ class HamsterProgressWidget(QWidget):
         self._value = 0
         self._frame_index = 0
         self._frames = []
+        self._animate_enabled = not get_performance_settings().low_end_mode
 
         self.hamster = QLabel(self)
         self.hamster.setFixedSize(96, 82)
@@ -57,7 +60,6 @@ class HamsterProgressWidget(QWidget):
         self.animation_timer = QTimer(self)
         self.animation_timer.setInterval(55)
         self.animation_timer.timeout.connect(self._animate)
-        self.animation_timer.start()
         self._place_hamster()
 
     def _load_frames(self):
@@ -118,7 +120,7 @@ class HamsterProgressWidget(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if not self.animation_timer.isActive():
+        if self._animate_enabled and not self.animation_timer.isActive():
             self.animation_timer.start()
 
     def hideEvent(self, event):
@@ -295,6 +297,7 @@ class LazyLoadingWidget(QWidget):
     
     def _do_load(self):
         """Execute the actual loading with proper error handling"""
+        started_at = perf_counter()
         try:
             if not self._load_func:
                 self._on_loading_error("No load function provided")
@@ -354,6 +357,10 @@ class LazyLoadingWidget(QWidget):
                 self.status_label.setText("Finalizing...")
                 
                 QTimer.singleShot(50, self._show_loaded_widget)
+                elapsed = perf_counter() - started_at
+                log = logger.warning if elapsed >= 0.5 else logger.debug
+                name = getattr(self._load_func, "__qualname__", repr(self._load_func))
+                log(f"PERF lazy_page.build elapsed={elapsed:.3f}s builder={name}")
             else:
                 self._on_loading_error("Failed to create page widget (returned None)")
                 

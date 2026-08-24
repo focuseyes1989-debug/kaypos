@@ -46,9 +46,10 @@ class SalesPage(QWidget):
         self.btn_customer_display = None
         self.btn_cash_drawer = None
         self.btn_add_expense = None
+        self._has_completed_initial_load = False
 
         # Create subâ€‘widgets
-        self.product_grid = ProductGrid(self)
+        self.product_grid = ProductGrid(self, autoload=False)
         self.product_grid.setObjectName("productBrowserPanel")
         self.cart_widget = CartWidget(self)
         self.totals_widget = TotalsWidget(self)
@@ -208,12 +209,17 @@ class SalesPage(QWidget):
             else:
                 delete_cart_backup()
 
-        # Load data
-        self.load_settings()
-        self.load_customers()
-        self.load_receipt_settings()
-        self.load_payment_types()
-        self.product_grid.load_products()
+        # Load data in short stages after the page's first paint. ProductGrid
+        # used to load products in its constructor and again here, duplicating
+        # the most expensive startup work on the GUI thread.
+        self._initial_load_steps = [
+            self.load_settings,
+            self.load_customers,
+            self.load_receipt_settings,
+            self.load_payment_types,
+            self.product_grid.initialize_data,
+        ]
+        QTimer.singleShot(0, self._run_next_initial_load_step)
 
         self.setup_shortcuts()
 
@@ -223,6 +229,18 @@ class SalesPage(QWidget):
         lang.language_changed.connect(self.retranslateUi)
         self.retranslateUi()
         self.publish_customer_display_state()
+
+    def _run_next_initial_load_step(self):
+        """Yield to Qt between startup data loads so the window stays responsive."""
+        if not self._initial_load_steps:
+            self._has_completed_initial_load = True
+            return
+        step = self._initial_load_steps.pop(0)
+        try:
+            step()
+        except Exception as exc:
+            logger.warning(f"Deferred Sales page initialization failed: {exc}")
+        QTimer.singleShot(0, self._run_next_initial_load_step)
 
     def _make_group_compact(self, group, hide_title=False):
         """Make a group box compact with reduced padding and spacing"""
@@ -1169,9 +1187,10 @@ class SalesPage(QWidget):
         main_window = self.window()
         if hasattr(main_window, "page_title") and main_window.page_title:
             main_window.page_title.setText("Sales")
-        self.product_grid.load_products()
-        self.load_customers()
-        self.load_payment_types()
+        if self._has_completed_initial_load:
+            self.product_grid.load_products()
+            self.load_customers()
+            self.load_payment_types()
         self.product_grid.focus_search()
         # Update combo style on show
         self.update_customer_combo_style()
