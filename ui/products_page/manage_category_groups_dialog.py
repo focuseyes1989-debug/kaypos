@@ -15,9 +15,8 @@ class ManageCategoryGroupsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Manage Category Groups")
         self.setModal(True)
-        self.resize(700, 620)
-        self.setMinimumWidth(650)
-        self.setMinimumHeight(500)
+        self.resize(920, 680)
+        self.setMinimumSize(780, 580)
         
         # Set window icon
         try:

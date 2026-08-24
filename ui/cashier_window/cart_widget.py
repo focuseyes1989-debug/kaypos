@@ -771,9 +771,9 @@ class CartWidget(QWidget):
         
         # Header
         self.header = QFrame()
-        self.header.setFixedHeight(44)
+        self.header.setFixedHeight(50)
         header_layout = QHBoxLayout(self.header)
-        header_layout.setContentsMargins(8, 4, 8, 4)
+        header_layout.setContentsMargins(10, 5, 10, 5)
         self.title_icon = QLabel()
         self.title_icon.setFixedSize(22, 22)
         self.title_icon.setScaledContents(True)
@@ -794,7 +794,7 @@ class CartWidget(QWidget):
         self.count_badge.setFixedHeight(22)
         self.count_badge.setMinimumWidth(22)
         self.count_badge.setStyleSheet("""
-            background-color: #5865f2;
+            background-color: #6675f5;
             color: white;
             border-radius: 11px;
             padding: 1px 7px;
@@ -848,8 +848,8 @@ class CartWidget(QWidget):
         self.items_container = QWidget()
         self.items_container.setStyleSheet("background: transparent;")
         self.items_layout = QVBoxLayout(self.items_container)
-        self.items_layout.setContentsMargins(4, 4, 4, 4)
-        self.items_layout.setSpacing(4)
+        self.items_layout.setContentsMargins(4, 6, 4, 6)
+        self.items_layout.setSpacing(5)
         self.items_layout.addStretch()
         
         self.scroll_area.setWidget(self.items_container)
@@ -897,7 +897,7 @@ class CartWidget(QWidget):
         
         # Footer: Subtotal and change
         self.footer = QFrame()
-        self.footer.setFixedHeight(60)
+        self.footer.setFixedHeight(72)
         self.footer.setStyleSheet("""
             QFrame {
                 background-color: transparent;
@@ -906,7 +906,7 @@ class CartWidget(QWidget):
         """)
         
         footer_layout = QHBoxLayout(self.footer)
-        footer_layout.setContentsMargins(12, 4, 12, 4)
+        footer_layout.setContentsMargins(12, 7, 12, 7)
         footer_layout.setSpacing(10)
 
         total_group = QWidget()
@@ -935,7 +935,7 @@ class CartWidget(QWidget):
         self.subtotal_value.setStyleSheet("""
             font-size: 13pt;
             font-weight: bold;
-            color: #5865f2;
+            color: #6675f5;
             background: transparent;
             border: none;
         """)
@@ -972,49 +972,53 @@ class CartWidget(QWidget):
     def _apply_theme(self):
         """Apply theme colors"""
         is_dark = is_dark_theme()
+        colors = get_theme_colors()
+        accent = colors.get("progress_bg", "#6675f5")
+        secondary = colors.get("text_secondary", "#aab4c8")
+        border = colors.get("border", "#293348")
         
         if is_dark:
             self.title_icon.setPixmap(self._load_icon_pixmap("shopping_cart", 22))
             self.empty_icon.setPixmap(self._load_icon_pixmap("shopping_cart", 24))
-            self.sep.setStyleSheet("background-color: #40444b; border: none;")
-            self.title_label.setStyleSheet("""
+            self.sep.setStyleSheet(f"background-color: {border}; border: none;")
+            self.title_label.setStyleSheet(f"""
                 font-size: 12pt;
                 font-weight: bold;
-                color: #5865f2;
+                color: {accent};
                 background: transparent;
                 border: none;
             """)
-            self.empty_label.setStyleSheet("""
+            self.empty_label.setStyleSheet(f"""
                 font-size: 12pt;
                 font-weight: 600;
-                color: #666;
+                color: {secondary};
                 background: transparent;
                 border: none;
             """)
-            self.empty_sub_label.setStyleSheet("""
+            self.empty_sub_label.setStyleSheet(f"""
                 font-size: 9pt;
-                color: #555;
+                color: {secondary};
                 background: transparent;
                 border: none;
             """)
-            self.empty_action_btn.setStyleSheet("""
+            self.empty_action_btn.setStyleSheet(f"""
                 font-size: 9pt;
                 font-weight: 600;
-                color: #5865f2;
+                color: {accent};
                 background: transparent;
                 border: none;
             """)
-            self.subtotal_label.setStyleSheet("""
+            self.subtotal_label.setStyleSheet(f"""
                 font-size: 10pt;
                 font-weight: 600;
-                color: #888;
+                color: {secondary};
                 background: transparent;
                 border: none;
             """)
-            self.change_label.setStyleSheet("""
+            self.change_label.setStyleSheet(f"""
                 font-size: 10pt;
                 font-weight: 600;
-                color: #888;
+                color: {secondary};
                 background: transparent;
                 border: none;
             """)

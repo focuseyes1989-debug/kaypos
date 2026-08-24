@@ -7,7 +7,7 @@ from ui.reports.sales_report import SalesReportTab
 from ui.reports.expense_report import ExpenseReportTab
 from ui.reports.profit_loss_report import ProfitLossReportTab
 from ui.reports.financial_summary import FinancialSummaryTab
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 from utils.language import lang
 from loguru import logger
 import os
@@ -49,70 +49,35 @@ class ReportsDialog(BaseReportDialog):
     
     def _apply_tab_bar_style(self):
         """Apply tab bar style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-                QTabBar::tab QIcon {
-                    margin-right: 6px;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QTabBar::tab QIcon {
-                    margin-right: 6px;
-                }
-            """)
+        colors = get_theme_colors()
+        self.tabs.setDocumentMode(True)
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 18px;
+                margin: 0 4px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
     
     def _load_colored_tab_icon(self, index):
         """Load SVG icon with color based on theme for tabs"""

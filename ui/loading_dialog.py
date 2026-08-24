@@ -87,7 +87,7 @@ def load_svg_icon(icon_name, size=(20, 20), color_hex=None):
 
 def get_icon_color(is_dark):
     """Get icon color based on theme"""
-    return "#b9bbbe" if is_dark else "#6c757d"
+    return get_theme_colors().get("icon_color", "#667085")
 
 
 # ============================================================
@@ -215,26 +215,26 @@ class LoadingDialog(QDialog):
         self.setModal(True)
         
         if show_log:
-            self.setFixedSize(640, 430)
+            self.setFixedSize(680, 460)
         else:
-            self.setFixedSize(520, 280)
+            self.setFixedSize(560, 300)
 
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(22, 22, 22, 22)
+        root_layout.setContentsMargins(28, 28, 28, 28)
 
         self.card = QFrame()
         self.card.setObjectName("loadingCard")
         root_layout.addWidget(self.card)
 
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(34)
-        shadow.setColor(QColor(0, 0, 0, 150))
-        shadow.setOffset(0, 10)
+        shadow.setBlurRadius(42)
+        shadow.setColor(QColor(0, 0, 0, 125))
+        shadow.setOffset(0, 12)
         self.card.setGraphicsEffect(shadow)
 
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(26, 22, 26, 22)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(28, 26, 28, 24)
+        card_layout.setSpacing(12)
 
         # Header
         card_layout.addLayout(self._build_header())
@@ -378,37 +378,15 @@ class LoadingDialog(QDialog):
         # Logo Badge
         logo_badge = QFrame()
         logo_badge.setObjectName("logoBadge")
-        logo_badge.setFixedSize(68, 68)
+        logo_badge.setFixedSize(58, 58)
         logo_layout = QVBoxLayout(logo_badge)
         logo_layout.setContentsMargins(6, 6, 6, 6)
 
         logo_label = QLabel()
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Try SVG logo first
-        is_dark = is_dark_theme()
-        color = get_icon_color(is_dark)
-        pixmap = load_svg_icon("settings", size=(46, 46), color_hex=color)
-        
-        if pixmap:
-            logo_label.setPixmap(pixmap)
-        else:
-            # Fallback to PNG
-            logo_path = "assets/icons/zaypos.png"
-            if os.path.exists(logo_path):
-                pixmap = QPixmap(logo_path)
-                if not pixmap.isNull():
-                    logo_label.setPixmap(
-                        pixmap.scaled(
-                            46, 46,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation,
-                        )
-                    )
-        if logo_label.pixmap() is None:
-            logo_label.setText("Z")
-            logo_label.setObjectName("logoFallback")
-            logo_label.setStyleSheet("font-size: 28pt; font-weight: 800;")
+        logo_label.setText("K")
+        logo_label.setObjectName("logoFallback")
         logo_layout.addWidget(logo_label)
         header_layout.addWidget(logo_badge)
 
@@ -418,10 +396,10 @@ class LoadingDialog(QDialog):
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
 
-        title_label = QLabel("Preparing KAY Point of Sales")
+        title_label = QLabel("Preparing KAY POS")
         title_label.setObjectName("titleLabel")
         title_font = QFont()
-        title_font.setPointSize(15)
+        title_font.setPointSize(16)
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_row.addWidget(title_label)
@@ -429,12 +407,12 @@ class LoadingDialog(QDialog):
         pill = QLabel("LOADING")
         pill.setObjectName("startPill")
         pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setFixedSize(80, 24)
+        pill.setFixedSize(76, 22)
         title_row.addWidget(pill)
         title_row.addStretch()
         title_layout.addLayout(title_row)
 
-        subtitle_label = QLabel("Loading data in the background")
+        subtitle_label = QLabel("Setting up your workspace")
         subtitle_label.setObjectName("subtitleLabel")
         title_layout.addWidget(subtitle_label)
         header_layout.addLayout(title_layout, 1)
@@ -447,7 +425,6 @@ class LoadingDialog(QDialog):
         is_dark = is_dark_theme()
         
         # Color variables
-        bg_color = colors['bg']
         card_bg = colors['card_bg']
         text_color = colors['text']
         text_secondary = colors['text_secondary']
@@ -455,27 +432,14 @@ class LoadingDialog(QDialog):
         border_hover = colors['border_hover']
         progress_bg = colors['progress_bg']
         
-        # Logo badge
-        logo_bg = "#2b2d33" if is_dark else "#eef1f5"
-        logo_border = "transparent"
-        
-        # Log container colors
-        if is_dark:
-            log_bg = "#1e1f22"
-            log_text_bg = "#1a1b1e"
-            log_text_color = "#b9bbbe"
-            log_border = "#40444b"
-            clear_btn_bg = "#40444b"
-            clear_btn_hover = "#5865f2"
-            clear_btn_color = "#b9bbbe"
-        else:
-            log_bg = "#f1f3f5"
-            log_text_bg = "#f8f9fa"
-            log_text_color = "#495057"
-            log_border = "#dee2e6"
-            clear_btn_bg = "#e9ecef"
-            clear_btn_hover = "#5865f2"
-            clear_btn_color = "#495057"
+        logo_bg = border_hover
+        log_bg = colors.get('table_alt', card_bg)
+        log_text_bg = colors.get('input_bg', card_bg)
+        log_text_color = text_secondary
+        log_border = border_color
+        clear_btn_bg = colors.get('bg_hover', border_color)
+        clear_btn_hover = border_hover
+        clear_btn_color = text_color
         
         self.setStyleSheet(f"""
             QDialog {{
@@ -484,16 +448,16 @@ class LoadingDialog(QDialog):
             QFrame#loadingCard {{
                 background-color: {card_bg};
                 border: 1px solid {border_color};
-                border-radius: 10px;
+                border-radius: 16px;
             }}
             QFrame#logoBadge {{
                 background-color: {logo_bg};
-                border: 2px solid {logo_border};
-                border-radius: 8px;
+                border: none;
+                border-radius: 14px;
             }}
             QLabel#logoFallback {{
-                color: {text_color};
-                font-size: 28pt;
+                color: white;
+                font-size: 24pt;
                 font-weight: 800;
             }}
             QLabel#titleLabel {{
@@ -507,7 +471,7 @@ class LoadingDialog(QDialog):
             QLabel#startPill {{
                 background-color: {border_hover};
                 color: #ffffff;
-                border-radius: 10px;
+                border-radius: 11px;
                 font-size: 8pt;
                 font-weight: 700;
                 letter-spacing: 0;
@@ -552,7 +516,7 @@ class LoadingDialog(QDialog):
             QFrame#logContainer {{
                 background-color: {log_bg};
                 border: 1px solid {log_border};
-                border-radius: 8px;
+                border-radius: 10px;
                 margin-top: 4px;
             }}
             QLabel#logIcon {{
@@ -570,7 +534,7 @@ class LoadingDialog(QDialog):
                 background-color: {clear_btn_bg};
                 color: {clear_btn_color};
                 border: none;
-                border-radius: 4px;
+                border-radius: 7px;
                 font-size: 8pt;
                 font-weight: 500;
                 padding: 2px 10px;
@@ -841,7 +805,7 @@ class LoadingDialogWithWorker(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setModal(True)
-        self.setFixedSize(450, 250)
+        self.setFixedSize(500, 290)
         
         # Build UI
         self._setup_ui(title)
@@ -851,7 +815,7 @@ class LoadingDialogWithWorker(QDialog):
     
     def _setup_ui(self, title):
         card_layout = QVBoxLayout(self)
-        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setContentsMargins(26, 26, 26, 26)
         
         # Card
         self.card = QFrame()
@@ -864,19 +828,19 @@ class LoadingDialogWithWorker(QDialog):
         card_layout.addWidget(self.card)
         
         inner_layout = QVBoxLayout(self.card)
-        inner_layout.setContentsMargins(24, 20, 24, 20)
-        inner_layout.setSpacing(12)
+        inner_layout.setContentsMargins(26, 24, 26, 22)
+        inner_layout.setSpacing(13)
         
         # Title
         title_label = QLabel(title)
         title_label.setObjectName("titleLabel")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         inner_layout.addWidget(title_label)
         
         # Message
         self.message_label = QLabel("Starting...")
         self.message_label.setObjectName("messageLabel")
-        self.message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.message_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.message_label.setWordWrap(True)
         inner_layout.addWidget(self.message_label)
         
@@ -892,30 +856,31 @@ class LoadingDialogWithWorker(QDialog):
         # Percentage
         self.percent_label = QLabel("0%")
         self.percent_label.setObjectName("percentLabel")
-        self.percent_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.percent_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         inner_layout.addWidget(self.percent_label)
         
         # Status
         self.status_label = QLabel("Initializing...")
         self.status_label.setObjectName("statusLabel")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         inner_layout.addWidget(self.status_label)
         
         # Cancel button
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setObjectName("cancelBtn")
-        self.cancel_btn.setFixedHeight(30)
+        self.cancel_btn.setFixedHeight(38)
         self.cancel_btn.clicked.connect(self._on_cancel)
         inner_layout.addWidget(self.cancel_btn)
         
         # Apply theme
         self._apply_theme()
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme_name):
+        self._apply_theme()
     
     def _apply_theme(self):
         colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
-        bg_color = colors['bg']
         card_bg = colors['card_bg']
         text_color = colors['text']
         text_secondary = colors['text_secondary']
@@ -958,15 +923,17 @@ class LoadingDialogWithWorker(QDialog):
                 border-radius: 5px;
             }}
             QPushButton#cancelBtn {{
-                background-color: #5865f2;
-                color: white;
-                border: none;
-                border-radius: 6px;
+                background-color: {colors['bg_hover']};
+                color: {text_color};
+                border: 1px solid {border_color};
+                border-radius: 8px;
                 font-size: 9pt;
                 font-weight: 600;
             }}
             QPushButton#cancelBtn:hover {{
-                background-color: #4752c4;
+                background-color: {colors['border_hover']};
+                color: white;
+                border-color: {colors['border_hover']};
             }}
         """)
     
@@ -1028,6 +995,10 @@ class LoadingDialogWithWorker(QDialog):
         if hasattr(self, 'thread') and self.thread and self.thread.isRunning():
             self.thread.quit()
             self.thread.wait(2000)
+        try:
+            theme_manager.theme_changed.disconnect(self._on_theme_changed)
+        except (TypeError, RuntimeError):
+            pass
         super().closeEvent(event)
 
 

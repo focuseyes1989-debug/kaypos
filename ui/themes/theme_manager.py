@@ -21,44 +21,44 @@ THEMES = {
 # Theme color definitions for programmatic access
 THEME_COLORS = {
     "Dark": {
-        'bg': '#36393f',
-        'bg_hover': '#40444b',
-        'text': '#dcddde',
-        'text_secondary': '#b9bbbe',
-        'border': '#202225',
-        'border_hover': '#5865f2',
-        'card_bg': '#2f3136',
-        'card_hover': '#383a40',
-        'table_alt': '#36393f',
-        'progress_bg': '#5865f2',
-        'danger': '#ed4245',
-        'success': '#3ba55d',
-        'warning': '#faa81a',
-        'input_bg': 'transparent',
-        'input_border': '#40444b',
-        'icon_color': '#dcddde',
-        'icon_active': '#5865f2',
+        'bg': '#0d111b',
+        'bg_hover': '#1c2535',
+        'text': '#edf2ff',
+        'text_secondary': '#aab4c8',
+        'border': '#293348',
+        'border_hover': '#6675f5',
+        'card_bg': '#151c2a',
+        'card_hover': '#192232',
+        'table_alt': '#111824',
+        'progress_bg': '#6675f5',
+        'danger': '#ff6b7a',
+        'success': '#27c992',
+        'warning': '#f3a64a',
+        'input_bg': '#0f1520',
+        'input_border': '#303b50',
+        'icon_color': '#aeb8ca',
+        'icon_active': '#7885ff',
         'icon_hover': '#ffffff',
     },
     "Light": {
-        'bg': '#f8f9fa',
-        'bg_hover': '#e9ecef',
-        'text': '#212529',
-        'text_secondary': '#6c757d',
-        'border': '#dee2e6',
-        'border_hover': '#5865f2',
+        'bg': '#f4f6fb',
+        'bg_hover': '#e9edfa',
+        'text': '#172033',
+        'text_secondary': '#667085',
+        'border': '#dbe1ee',
+        'border_hover': '#6675f5',
         'card_bg': '#ffffff',
-        'card_hover': '#f8f9fa',
-        'table_alt': '#f8f9fa',
-        'progress_bg': '#5865f2',
-        'danger': '#dc3545',
-        'success': '#28a745',
-        'warning': '#ffc107',
-        'input_bg': 'transparent',
-        'input_border': '#ced4da',
-        'icon_color': '#495057',
-        'icon_active': '#5865f2',
-        'icon_hover': '#212529',
+        'card_hover': '#f8f9ff',
+        'table_alt': '#f7f8fc',
+        'progress_bg': '#6675f5',
+        'danger': '#dc4c64',
+        'success': '#15966d',
+        'warning': '#d8892f',
+        'input_bg': '#ffffff',
+        'input_border': '#ccd4e3',
+        'icon_color': '#536078',
+        'icon_active': '#6675f5',
+        'icon_hover': '#172033',
     }
 }
 
@@ -333,13 +333,13 @@ def get_scaled_font_size(base_size=9):
 
 
 def get_preferred_font_family():
-    """Prefer Windows' built-in Myanmar font for clearer Burmese rendering."""
+    """Use the native UI font first and let Qt fall back for Myanmar glyphs."""
     preferred_fonts = [
+        "Segoe UI",
         "Myanmar Text",
         "Noto Sans Myanmar",
         "Pyidaungsu",
         "Myanmar3",
-        "Segoe UI",
     ]
     try:
         installed_fonts = set(QFontDatabase.families())
@@ -364,6 +364,9 @@ def apply_font():
 
 def apply_theme(app, theme_name):
     """Apply the selected theme to the QApplication."""
+    from ui.design_system.message_box import install_modern_message_boxes
+
+    install_modern_message_boxes(app)
     set_current_theme(theme_name)
     theme_manager.set_theme(theme_name, app)
 

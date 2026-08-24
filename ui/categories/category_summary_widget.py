@@ -41,25 +41,25 @@ class CategorySummaryWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Define card configurations
-        # (key, title, icon_name, color, gradient_colors)
+        # Neutral cards with a small semantic accent, matching the POS shell.
         card_configs = [
-            ('total', 'Total', 'folder.svg', '#3498db', ['#3498db', '#2980b9']),
-            ('active', 'Active', 'check_circle.svg', '#2ecc71', ['#2ecc71', '#27ae60']),
-            ('inactive', 'Inactive', 'cancel.svg', '#e74c3c', ['#e74c3c', '#c0392b']),
-            ('hidden', 'Hidden', 'visibility_off.svg', '#95a5a6', ['#95a5a6', '#7f8c8d']),
-            ('products', 'Products', 'inventory.svg', '#f39c12', ['#f39c12', '#e67e22'])
+            ('total', 'Total', 'folder.svg', '#6675f5'),
+            ('active', 'Active', 'check_circle.svg', '#27c992'),
+            ('inactive', 'Inactive', 'cancel.svg', '#ff6b7a'),
+            ('hidden', 'Hidden', 'visibility_off.svg', '#8d99ae'),
+            ('products', 'Products', 'inventory.svg', '#f3a64a')
         ]
         
-        for key, title, icon_name, color, gradients in card_configs:
+        for key, title, icon_name, color in card_configs:
             # ✅ Create card with icon
             card = SummaryCardWidget(
                 title=title,
                 value="0",
                 icon=icon_name,
                 color=color,
-                gradient_colors=gradients,
                 icon_is_svg=True,  # Tell card it's an SVG
-                parent=self
+                parent=self,
+                flat=True
             )
             
             # Store reference to card

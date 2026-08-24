@@ -13,6 +13,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.no_wheel_spinbox import NoWheelDoubleSpinBox  # ✅ Import custom spinbox
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 
 
 class ExpenseBudgetDialog(QDialog):
@@ -405,6 +406,8 @@ class ExpenseBudgetDialog(QDialog):
             """
     
     def _update_table_style(self):
+        self.table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        return
         """Update table style based on theme"""
         colors = get_theme_colors()
         is_dark = is_dark_theme()

@@ -19,6 +19,7 @@ from ui.widgets.search_widget import ModernSearchWidget
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.date_range_widget import DateRangeWidget
 from ui.design_system.icon import load_svg_icon
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 
 
 def _button(text, slot, primary=False):
@@ -458,7 +459,7 @@ class PayrollTab(QWidget):
 
 class EmployeeManagementPage(QWidget):
     def __init__(self,current_user,parent=None):
-        super().__init__(parent); service.ensure_employee_schema(); self.current_user=current_user; perms=PermissionManager.get_user_permissions(current_user["id"]); layout=QVBoxLayout(self); title=QLabel("Employee Management"); title.setStyleSheet("font-size:20px;font-weight:700"); layout.addWidget(title)
+        super().__init__(parent); service.ensure_employee_schema(); self.current_user=current_user; perms=PermissionManager.get_user_permissions(current_user["id"]); self.setObjectName("employeePage"); layout=QVBoxLayout(self); layout.setContentsMargins(4,4,4,4); layout.setSpacing(14); title=QLabel("Employee Management"); title.setObjectName("employeeTitle"); layout.addWidget(title)
         summary=service.employee_summary(); cards=QHBoxLayout(); cards.setSpacing(12); self.summary_cards={}
         card_definitions=[("active","Active Employees",summary["active"],"groups","#5865f2",False)]
         if "leave" in perms:card_definitions.append(("pending_leave","Pending Leave",summary["pending_leave"],"calendar_month","#f39c12",False))
@@ -466,7 +467,7 @@ class EmployeeManagementPage(QWidget):
         if "employee_finance" in perms:card_definitions.append(("outstanding_advances","Outstanding Advances",summary["outstanding_advances"],"payments","#16a085",True))
         for key,label,value,icon,color,is_currency in card_definitions:
             card=SummaryCardWidget(label,value,icon,color,icon_is_svg=True); card.set_value(value,currency_symbol="Ks" if is_currency else None,is_currency=is_currency); self.summary_cards[key]=card; cards.addWidget(card)
-        layout.addLayout(cards); self.tabs=QTabWidget(); self.tab_pages={}; employee_tab=EmployeesTab("manage_employees" in perms); employee_tab.data_changed.connect(self.refresh_summary); self.tabs.addTab(employee_tab,"Employees");self.tab_pages["employees"]=employee_tab
+        layout.addLayout(cards); self.tabs=QTabWidget(); self.tabs.setObjectName("employeeTabs"); self.tabs.setDocumentMode(True); self.tabs.setUsesScrollButtons(True); self.tab_pages={}; employee_tab=EmployeesTab("manage_employees" in perms); employee_tab.data_changed.connect(self.refresh_summary); self.tabs.addTab(employee_tab,"Employees");self.tab_pages["employees"]=employee_tab
         if "attendance" in perms: page=AttendanceTab(current_user["id"],"manage_attendance" in perms);self.tabs.addTab(page,"Attendance");self.tab_pages["attendance"]=page
         if "shifts" in perms: page=ShiftsTab("manage_shifts" in perms);self.tabs.addTab(page,"Shifts");self.tab_pages["shifts"]=page
         if "payroll" in perms: page=PayrollTab(current_user,"manage_payroll" in perms);self.tabs.addTab(page,"Payroll");self.tab_pages["payroll"]=page
@@ -476,7 +477,43 @@ class EmployeeManagementPage(QWidget):
         if "employee_finance" in perms: page=FinanceTab(current_user["id"],"manage_employee_finance" in perms);self.tabs.addTab(page,"Advances & Commission");self.tab_pages["finance"]=page
         if "employee_performance" in perms: page=PerformanceTab();self.tabs.addTab(page,"Performance");self.tab_pages["performance"]=page
         if "cash_sessions" in perms: page=CashSessionsTab(current_user["id"],"manage_cash_sessions" in perms);self.tabs.addTab(page,"Cash Sessions");self.tab_pages["cash_sessions"]=page
-        self.tabs.currentChanged.connect(lambda _index:self.refresh_summary()); layout.addWidget(self.tabs)
+        self.tabs.currentChanged.connect(lambda _index:self.refresh_summary()); layout.addWidget(self.tabs); theme_manager.theme_changed.connect(self._apply_theme); self._apply_theme()
+
+    def _apply_theme(self, *_):
+        colors=get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#employeePage {{ background: transparent; }}
+            QLabel#employeeTitle {{
+                color: {colors['text']};
+                font-size: 20px;
+                font-weight: 700;
+                padding: 4px 2px;
+            }}
+            QTabWidget#employeeTabs::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabWidget#employeeTabs QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 14px;
+                margin: 0 3px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabWidget#employeeTabs QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabWidget#employeeTabs QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
 
     def apply_ai_filters(self,tab_name,filters=None):
         """Select an authorized tab and apply read-only filters from AI Chat."""

@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
-    QFileDialog
+    QFileDialog, QFrame
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QColor
@@ -34,17 +34,21 @@ class CustomersPage(QWidget):
         self.selected_customer_id = None
         self.current_language = lang.get_current()
         self._is_dark = is_dark_theme()
+        self.setObjectName("customersPage")
         
         # Connect theme change
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(14)
 
         # ====== Top Row: Search, Add Button, Action Toolbar (All on left) ======
-        top_layout = QHBoxLayout()
+        self.toolbar_card = QFrame()
+        self.toolbar_card.setObjectName("customersToolbarCard")
+        top_layout = QHBoxLayout(self.toolbar_card)
         top_layout.setSpacing(8)
-        top_layout.setContentsMargins(0, 8, 0, 8)
+        top_layout.setContentsMargins(14, 10, 14, 10)
         
         # ====== Search Widget (Leftmost) ======
         self.search_widget = SearchWidget(
@@ -83,16 +87,18 @@ class CustomersPage(QWidget):
         # Add stretch to push everything to the left (optional, but keeps things left-aligned)
         top_layout.addStretch()
         
-        layout.addLayout(top_layout)
+        layout.addWidget(self.toolbar_card)
         
         # ====== Table - NO custom style, use PyQt6 default ======
         self.table = QTableWidget()
+        self.table.setObjectName("customersTable")
         self.table.setColumnCount(10)
         self.table.setColumnHidden(0, True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.cellClicked.connect(self.select_customer)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
         
         # Row height
         self.table.verticalHeader().setDefaultSectionSize(55)
@@ -117,6 +123,7 @@ class CustomersPage(QWidget):
         layout.addWidget(self.pagination)
 
         self.setLayout(layout)
+        self._apply_theme()
 
         lang.language_changed.connect(self.retranslateUi)
         self.retranslateUi()
@@ -178,6 +185,19 @@ class CustomersPage(QWidget):
     
     def _apply_theme(self):
         """Apply theme-aware styles"""
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#customersPage {{ background: transparent; }}
+            QFrame#customersToolbarCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QTableWidget#customersTable {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+        """)
         if hasattr(self, 'action_edit'):
             self.action_edit.setText("Edit")
         if hasattr(self, 'action_delete'):

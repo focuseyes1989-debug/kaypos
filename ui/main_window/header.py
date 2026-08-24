@@ -33,13 +33,13 @@ class Header(QFrame):
         is_dark = is_dark_theme()
         
         self.setObjectName("header")
-        self.setFixedHeight(56)
+        self.setFixedHeight(64)
         
         if is_dark:
             self.setStyleSheet("""
                 QFrame#header {
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #4752c4, stop:1 #3c45a3);
+                        stop:0 #5664df, stop:1 #4654c7);
                     border-bottom: none;
                 }
             """)
@@ -47,13 +47,13 @@ class Header(QFrame):
             self.setStyleSheet("""
                 QFrame#header {
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #5865f2, stop:1 #4752c4);
+                        stop:0 #6675f5, stop:1 #5362dc);
                     border-bottom: none;
                 }
             """)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 6, 20, 6)
+        layout.setContentsMargins(24, 7, 24, 7)
         
         # Left: Logo and Title
         logo_container = QWidget()
@@ -313,7 +313,7 @@ class Header(QFrame):
             self.setStyleSheet("""
                 QFrame#header {
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #4752c4, stop:1 #3c45a3);
+                        stop:0 #5664df, stop:1 #4654c7);
                     border-bottom: none;
                 }
             """)
@@ -321,7 +321,7 @@ class Header(QFrame):
             self.setStyleSheet("""
                 QFrame#header {
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #5865f2, stop:1 #4752c4);
+                        stop:0 #6675f5, stop:1 #5362dc);
                     border-bottom: none;
                 }
             """)

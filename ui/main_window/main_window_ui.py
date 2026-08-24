@@ -41,6 +41,7 @@ class MainWindowUI(QMainWindow):
     status_bar: Optional[StatusBar] = None
     pages: Optional[QStackedWidget] = None
     content_area: Optional[QWidget] = None
+    page_surface: Optional[QFrame] = None
     page_header: Optional[QFrame] = None
     page_title: Optional[QLabel] = None
     loading_overlay: Optional[LoadingOverlay] = None
@@ -119,6 +120,7 @@ class MainWindowUI(QMainWindow):
         # ============================================================
         # Use QSplitter for dynamic sidebar resize
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setObjectName("workspaceSplitter")
         self.splitter.setChildrenCollapsible(False)
         self.splitter.setHandleWidth(0)
         
@@ -135,8 +137,8 @@ class MainWindowUI(QMainWindow):
             }}
         """)
         content_layout = QVBoxLayout(self.content_area)
-        content_layout.setContentsMargins(24, 10, 24, 18)
-        content_layout.setSpacing(8)
+        content_layout.setContentsMargins(20, 16, 20, 16)
+        content_layout.setSpacing(10)
         
         # Page header is kept as a hidden compatibility object; page titles are
         # not shown so content gets more vertical room.
@@ -163,10 +165,11 @@ class MainWindowUI(QMainWindow):
         # PAGES STACKED WIDGET
         # ============================================================
         self.pages = QStackedWidget()
+        self.pages.setObjectName("workspacePages")
         self.pages.setStyleSheet(f"""
-            QStackedWidget {{
-                background-color: {colors['bg']};
-                border-radius: 10px;
+            QStackedWidget#workspacePages {{
+                background-color: transparent;
+                border: none;
             }}
         """)
         
@@ -200,7 +203,13 @@ class MainWindowUI(QMainWindow):
                 self._page_builders[index] = builder
                 self._page_names[index] = name
         
-        content_layout.addWidget(self.pages)
+        self.page_surface = QFrame()
+        self.page_surface.setObjectName("workspaceSurface")
+        surface_layout = QVBoxLayout(self.page_surface)
+        surface_layout.setContentsMargins(1, 1, 1, 1)
+        surface_layout.setSpacing(0)
+        surface_layout.addWidget(self.pages)
+        content_layout.addWidget(self.page_surface, 1)
         
         self.splitter.addWidget(self.content_area)
         
@@ -218,6 +227,7 @@ class MainWindowUI(QMainWindow):
         self.setStatusBar(self.status_bar)
 
         self.loading_overlay = LoadingOverlay(central_widget)
+        self._apply_shell_theme(colors)
         
         # ============================================================
         # Apply role permissions
@@ -246,6 +256,36 @@ class MainWindowUI(QMainWindow):
         
         logger.info("MainWindow UI setup complete - with Lazy Loading, SVG Icons, and QSplitter")
         logger.info("Sidebar default state: EXPANDED")
+
+    def _apply_shell_theme(self, colors=None) -> None:
+        """Apply the launcher-inspired workspace shell consistently."""
+        colors = colors or get_theme_colors()
+        central_widget = self.centralWidget()
+        if central_widget:
+            central_widget.setStyleSheet(f"""
+                QWidget#mainContainer {{ background-color: {colors['bg']}; }}
+            """)
+        if self.content_area:
+            self.content_area.setStyleSheet(f"""
+                QWidget#mainContent {{ background-color: {colors['bg']}; }}
+            """)
+        if self.splitter:
+            self.splitter.setStyleSheet("""
+                QSplitter#workspaceSplitter { background: transparent; border: none; }
+                QSplitter#workspaceSplitter::handle { background: transparent; }
+            """)
+        if self.page_surface:
+            self.page_surface.setStyleSheet(f"""
+                QFrame#workspaceSurface {{
+                    background-color: {colors['card_bg']};
+                    border: 1px solid {colors['border']};
+                    border-radius: 14px;
+                }}
+            """)
+        if self.pages:
+            self.pages.setStyleSheet("""
+                QStackedWidget#workspacePages { background: transparent; border: none; }
+            """)
 
     def _get_initial_page_index(self) -> Optional[int]:
         """Choose the first page to show without forcing it to load during startup."""
@@ -658,23 +698,7 @@ class MainWindowUI(QMainWindow):
     
     def _on_theme_changed(self, theme_name: str) -> None:
         colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
-        # Update main container
-        central_widget = self.centralWidget()
-        if central_widget:
-            central_widget.setStyleSheet(f"""
-                QWidget#mainContainer {{
-                    background-color: {colors['bg']};
-                }}
-            """)
-
-        if self.content_area:
-            self.content_area.setStyleSheet(f"""
-                QWidget#mainContent {{
-                    background-color: {colors['bg']};
-                }}
-            """)
+        self._apply_shell_theme(colors)
 
         if self.page_header:
             self.page_header.setStyleSheet("""
@@ -699,15 +723,6 @@ class MainWindowUI(QMainWindow):
                 font-weight: bold;
                 color: {colors['text']};
                 background: transparent;
-            """)
-        
-        # Update pages stacked widget
-        if self.pages:
-            self.pages.setStyleSheet(f"""
-                QStackedWidget {{
-                    background-color: {colors['bg']};
-                    border-radius: 10px;
-                }}
             """)
         
         # Update status bar

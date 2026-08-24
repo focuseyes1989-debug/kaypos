@@ -15,6 +15,7 @@ from utils.language import lang
 
 # ✅ Import ModernButton
 from ui.widgets.modern_button import ModernButton
+from ui.themes.theme_manager import get_theme_colors
 
 
 class EditCategoryDialog(QDialog):
@@ -234,6 +235,13 @@ class EditCategoryDialog(QDialog):
         self.input_name.setFocus()
     
     def _apply_theme(self):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"QDialog{{background:{colors['bg']};color:{colors['text']};}} QLabel{{color:{colors['text_secondary']};background:transparent;}} QLineEdit{{background:{colors['input_bg']};color:{colors['text']};border:1px solid {colors['input_border']};border-radius:9px;padding:9px 12px;}} QLineEdit:focus{{border-color:{colors['border_hover']};}}")
+        self.title_label.setStyleSheet(f"color:{colors['text']};font-size:18pt;font-weight:700;")
+        self.label.setStyleSheet(f"color:{colors['text_secondary']};font-weight:600;")
+        self.helper_text.setStyleSheet(f"color:{colors['text_secondary']};font-size:9pt;")
+        self.sep.setStyleSheet(f"background:{colors['border']};max-height:1px;")
+        return
         """Apply theme to dialog"""
         try:
             from ui.themes.theme_manager import is_dark_theme

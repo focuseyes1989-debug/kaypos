@@ -88,17 +88,26 @@ class DiscountPage(QWidget):
         conn.close()
 
     def _setup_ui(self):
+        self.setObjectName("discountPage")
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(14)
 
-        top = QHBoxLayout()
+        self.toolbar_card = QFrame()
+        self.toolbar_card.setObjectName("discountToolbarCard")
+        top = QHBoxLayout(self.toolbar_card)
+        top.setContentsMargins(14, 10, 14, 10)
         top.setSpacing(8)
         self.search_input = QLineEdit()
+        self.search_input.setMinimumWidth(260)
+        self.search_input.setFixedHeight(38)
         self.search_input.setPlaceholderText("Search product or note...")
         self.search_input.textChanged.connect(self.load_discounts)
         top.addWidget(self.search_input, 1)
 
         self.status_filter = QComboBox()
+        self.status_filter.setMinimumWidth(170)
+        self.status_filter.setFixedHeight(38)
         self.status_filter.addItems(["All", "Active Now", "Scheduled", "Expired", "Disabled"])
         self.status_filter.currentTextChanged.connect(self.load_discounts)
         top.addWidget(self.status_filter)
@@ -111,7 +120,7 @@ class DiscountPage(QWidget):
         self.action_toggle = self.action_toolbar.add_more_action("Enable / Disable", self.toggle_discount, "active", enabled=False)
         self.action_toolbar.finalize()
         top.addWidget(self.action_toolbar, 0)
-        layout.addLayout(top)
+        layout.addWidget(self.toolbar_card)
 
         self.table = QTableWidget()
         self.table.setColumnCount(9)
@@ -121,6 +130,9 @@ class DiscountPage(QWidget):
         self.table.setColumnHidden(0, True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         header = self.table.horizontalHeader()
         header.setStretchLastSection(True)
@@ -130,23 +142,28 @@ class DiscountPage(QWidget):
     def update_theme(self, *_):
         colors = get_theme_colors()
         self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {colors.get('bg', '#ffffff')};
+            QWidget#discountPage {{
+                background-color: transparent;
                 color: {colors.get('text', '#212529')};
+            }}
+            QFrame#discountToolbarCard {{
+                background-color: {colors.get('card_bg', '#ffffff')};
+                border: 1px solid {colors.get('border', '#dee2e6')};
+                border-radius: 12px;
             }}
             QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {{
                 background-color: {colors.get('card_bg', '#ffffff')};
                 color: {colors.get('text', '#212529')};
                 border: 1px solid {colors.get('border', '#dee2e6')};
-                border-radius: 5px;
+                border-radius: 8px;
                 padding: 6px 8px;
             }}
             QTableWidget {{
                 background-color: {colors.get('card_bg', '#ffffff')};
                 color: {colors.get('text', '#212529')};
-                gridline-color: {colors.get('border', '#dee2e6')};
+                gridline-color: transparent;
                 border: 1px solid {colors.get('border', '#dee2e6')};
-                border-radius: 6px;
+                border-radius: 12px;
             }}
         """)
         if hasattr(self, "action_toolbar"):

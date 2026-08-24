@@ -1,6 +1,7 @@
 # ui/products_page/products_page.py
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QSizePolicy
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QSizePolicy,
+    QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor
@@ -23,7 +24,7 @@ from ui.categories.category_list_dialog import CategoryListDialog
 
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.action_toolbar import ActionToolbar
-from ui.themes.theme_manager import theme_manager
+from ui.themes.theme_manager import theme_manager, get_theme_colors
 import os
 
 
@@ -55,6 +56,7 @@ class ProductsPage(QWidget):
         self.apply_permissions()
 
     def _on_theme_changed(self, theme_name):
+        self._apply_page_style()
         if hasattr(self, "action_toolbar"):
             self.action_toolbar.update_theme()
         if hasattr(self, "ai_chat_panel"):
@@ -76,16 +78,21 @@ class ProductsPage(QWidget):
             inventory_page.refresh_all()
 
     def setup_ui(self):
+        self.setObjectName("productsPage")
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(14)
 
         # Cards
         self.cards = ProductCards(self)
         main_layout.addWidget(self.cards)
 
         # Top bar: filters and buttons
-        top_layout = QHBoxLayout()
-        top_layout.setSpacing(6)  # âœ… Spacing á€€á€­á€¯ á€œá€»á€¾á€±á€¬á€·á€á€»á€œá€­á€¯á€€á€ºá€•á€«
+        self.toolbar_card = QFrame()
+        self.toolbar_card.setObjectName("productsToolbarCard")
+        top_layout = QHBoxLayout(self.toolbar_card)
+        top_layout.setContentsMargins(14, 10, 14, 10)
+        top_layout.setSpacing(10)
         
         # âœ… ProductFilters - stretch á€™á€•á€±á€¸á€á€±á€¬á€·á€•á€«
         self.filters = ProductFilters(self)
@@ -109,10 +116,11 @@ class ProductsPage(QWidget):
         self.action_toolbar.add_separator()
         self.action_toolbar.finalize()
         top_layout.addWidget(self.action_toolbar)
-        main_layout.addLayout(top_layout)
+        main_layout.addWidget(self.toolbar_card)
 
         # Product table; AI assistant lives in a non-modal floating dialog.
         self.table = ProductTable(self)
+        self.table.setObjectName("productsTableCard")
         self.table.product_selected.connect(self.on_product_selected)
         self.table.service_selected.connect(self.on_service_selected)
         main_layout.addWidget(self.table, 1)
@@ -145,6 +153,27 @@ class ProductsPage(QWidget):
         main_layout.addLayout(bottom_layout)
 
         self.setLayout(main_layout)
+        self._apply_page_style()
+
+    def _apply_page_style(self):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#productsPage {{ background: transparent; }}
+            QFrame#productsToolbarCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QWidget#productsTableCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QWidget#productsTableCard QTableWidget {{
+                border: none;
+                border-radius: 11px;
+            }}
+        """)
 
     def toggle_ai_chat(self):
         """Show or hide the floating Products AI assistant."""

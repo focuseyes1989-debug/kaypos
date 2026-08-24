@@ -18,6 +18,7 @@ from loguru import logger
 
 # ✅ Import components
 from ui.widgets.modern_button import ModernButton
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from ui.expense.add_category_dialog import AddCategoryDialog
 from ui.expense.edit_category_dialog import EditCategoryDialog
 
@@ -217,13 +218,13 @@ class ExpenseCategoriesDialog(QDialog):
         
         # ✅ Close Button - Secondary (Gray in Light, White in Dark)
         self.btn_close = ModernButton(
-            " Close" if lang.get_current() != "my" else " ပိတ်မည်", 
+            "Close" if lang.get_current() != "my" else "ပိတ်မည်",
             ModernButton.SECONDARY
         )
-        self.btn_close.set_icon("close", size=(16, 16))
-        self.btn_close.set_compact(True)
+        self.btn_close.set_icon("close", size=(15, 15))
+        self.btn_close.set_compact(False)
         self.btn_close.clicked.connect(self.accept)
-        self.btn_close.setFixedSize(100, 32)
+        self.btn_close.setFixedSize(112, 38)
         bottom_layout.addWidget(self.btn_close)
         
         parent_layout.addWidget(self.bottom_bar)
@@ -270,6 +271,9 @@ class ExpenseCategoriesDialog(QDialog):
         self._apply_theme()
     
     def _update_table_style(self):
+        from ui.themes.theme_manager import get_theme_colors
+        self.table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        return
         try:
             from ui.themes.theme_manager import is_dark_theme
             is_dark = is_dark_theme()
@@ -445,8 +449,8 @@ class ExpenseCategoriesDialog(QDialog):
         
         if hasattr(self, 'btn_close'):
             self.btn_close.update_theme()
-            self.btn_close.set_compact(True)
-            self.btn_close.setFixedSize(100, 32)
+            self.btn_close.set_compact(False)
+            self.btn_close.setFixedSize(112, 38)
         
         # Update buttons in table cells
         for row in range(self.table.rowCount()):
@@ -491,8 +495,8 @@ class ExpenseCategoriesDialog(QDialog):
         self.btn_add.set_compact(True)
         self.btn_add.setFixedSize(160, 32)
         self.btn_close.update_theme()
-        self.btn_close.set_compact(True)
-        self.btn_close.setFixedSize(100, 32)
+        self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         
         # Update buttons in table cells
         for row in range(self.table.rowCount()):

@@ -63,13 +63,13 @@ class ProductGrid(QWidget):
         self._search_filter_timer.timeout.connect(self._apply_search_filter)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 14, 14, 12)
+        layout.setSpacing(10)
         self.setLayout(layout)
 
         # ── Top bar ──────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_layout.setSpacing(8)
+        search_layout.setSpacing(10)
 
         self.search_widget = SearchWidget("Search by name / barcode / SKU...")
         self.search_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -78,6 +78,7 @@ class ProductGrid(QWidget):
         self.search_widget.search_changed.connect(self.schedule_search_filter)
         self.search_widget.search_cleared.connect(self.schedule_search_filter)
         self.search_input = self.search_widget.search_input
+        self.search_input.setMinimumHeight(40)
         self.search_input.returnPressed.connect(self.scan_barcode)
 
         combo_class = ComboBoxWidget if self.use_modern_combos else QComboBox
@@ -85,13 +86,15 @@ class ProductGrid(QWidget):
         self.category_combo = combo_class("All Categories") if self.use_modern_combos else combo_class()
         self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self.on_category_combo_changed)
-        self.category_combo.setFixedWidth(180)  # ✅ Width ချဲ့ထားပါ
+        self.category_combo.setFixedWidth(180)
+        self.category_combo.setMinimumHeight(40)
 
         self.discount_filter_combo = combo_class("All Products") if self.use_modern_combos else combo_class()
         self.discount_filter_combo.addItem("All Products", "all")
         self.discount_filter_combo.addItem("Discount Products", "discount")
         self.discount_filter_combo.currentIndexChanged.connect(self.on_discount_filter_changed)
         self.discount_filter_combo.setFixedWidth(150)
+        self.discount_filter_combo.setMinimumHeight(40)
 
         self.view_label = QLabel("View:")
         self.view_combo = combo_class("View") if self.use_modern_combos else combo_class()
@@ -102,6 +105,7 @@ class ProductGrid(QWidget):
         self.view_combo.setCurrentIndex(0)
         self.view_combo.currentIndexChanged.connect(self.on_view_changed)
         self.view_combo.setFixedWidth(140)
+        self.view_combo.setMinimumHeight(38)
 
         search_layout.addWidget(self.search_widget, stretch=1)
         search_layout.addWidget(self.category_combo)
@@ -439,12 +443,31 @@ class ProductGrid(QWidget):
         rows = cursor.fetchall()
         
         cursor.execute("""
-            SELECT id, name, description, is_favorite
-            FROM category_groups
-            WHERE is_active = 1
-            ORDER BY sort_order, name
+            SELECT category_name
+            FROM (
+                SELECT
+                    COALESCE(
+                        NULLIF(TRIM(p.category), ''),
+                        NULLIF(TRIM((
+                            SELECT p2.category
+                            FROM products p2
+                            WHERE p2.name = si.product_name
+                              AND p2.category IS NOT NULL
+                            LIMIT 1
+                        )), '')
+                    ) AS category_name,
+                    SUM(COALESCE(si.qty, 0)) AS usage_qty
+                FROM sale_items si
+                JOIN sales s ON s.id = si.sale_id
+                LEFT JOIN products p ON p.id = si.product_id
+                WHERE s.status = 'completed'
+                GROUP BY category_name
+            ) ranked_categories
+            WHERE category_name IS NOT NULL
+            ORDER BY usage_qty DESC, category_name
+            LIMIT 8
         """)
-        groups = cursor.fetchall()
+        top_categories = [row[0] for row in cursor.fetchall() if row and row[0]]
         conn.close()
         
         category_data = []
@@ -452,7 +475,11 @@ class ProductGrid(QWidget):
             cat_name, group_id, group_name, is_favorite = row
             category_data.append((cat_name, group_id, group_name, is_favorite))
         
-        self.category_slider.load_categories(category_data, groups)
+        self.category_slider.load_categories(
+            category_data,
+            groups=None,
+            top_categories=top_categories,
+        )
 
     def _get_category_tree_ids(self, category_id):
         """
@@ -1026,8 +1053,8 @@ class ProductGrid(QWidget):
                 background-color: {colors['card_bg']};
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
-                border-radius: 4px;
-                padding: 4px 8px;
+                border-radius: 9px;
+                padding: 7px 10px;
             }}
             QComboBox:hover {{
                 border: 1px solid {colors['border_hover']};
@@ -1047,8 +1074,8 @@ class ProductGrid(QWidget):
                 background-color: {colors['card_bg']};
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
-                border-radius: 4px;
-                padding: 4px 8px;
+                border-radius: 9px;
+                padding: 7px 10px;
             }}
             QComboBox:hover {{
                 border: 1px solid {colors['border_hover']};

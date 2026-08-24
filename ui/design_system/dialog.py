@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QIcon
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
 from ui.design_system.buttons import PrimaryButton, SecondaryButton, DangerButton
@@ -23,6 +23,9 @@ class PrimaryDialog(QDialog):
         self._is_dark = is_dark_theme()
         self._setup_ui()
         self._apply_style()
+        # Import lazily to avoid a cycle while the global theme is composed.
+        from ui.themes.theme_manager import theme_manager
+        theme_manager.theme_changed.connect(self.update_theme)
         
         # Remove ? button
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -154,7 +157,7 @@ class PrimaryDialog(QDialog):
         icon = get_icon("close", 16, icon_color)
         if icon:
             self._close_btn.setIcon(icon)
-            self._close_btn.setIconSize(Qt.QSize(16, 16))
+            self._close_btn.setIconSize(QSize(16, 16))
     
     def set_title(self, title: str, icon_name: str = None):
         """Set dialog title and optional icon"""
@@ -215,9 +218,9 @@ class PrimaryDialog(QDialog):
     
     def sizeHint(self):
         """Return a reasonable size hint"""
-        return Qt.QSize(500, 350)
+        return QSize(500, 350)
     
-    def update_theme(self):
+    def update_theme(self, *_):
         """Update theme when theme changes"""
         self._is_dark = is_dark_theme()
         self._apply_style()

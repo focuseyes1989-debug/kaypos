@@ -183,7 +183,7 @@ class CategoryFormDialog(QDialog):
                 border-bottom: none;
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
-                background: {'#36393f' if is_dark else '#f8f9fa'};
+                background: {colors['card_bg']};
                 margin-right: 2px;
                 font-weight: 500;
                 color: {colors['text']};
@@ -193,7 +193,7 @@ class CategoryFormDialog(QDialog):
                 border-bottom: 2px solid #5865f2;
             }}
             QTabBar::tab:hover {{
-                background: {'#40444b' if is_dark else '#e9ecef'};
+                background: {colors['bg_hover']};
             }}
             QScrollArea {{
                 background: transparent;
@@ -394,7 +394,7 @@ class CategoryFormDialog(QDialog):
         self.color_preview = QLabel()
         self.color_preview.setStyleSheet(f"""
             background-color: {self.selected_color};
-            border: 2px solid {'#40444b' if is_dark else '#2c3e50'};
+            border: 2px solid {colors['border']};
             border-radius: 8px;
             min-width: 50px;
             min-height: 50px;
@@ -550,7 +550,7 @@ class CategoryFormDialog(QDialog):
                 is_dark = is_dark_theme()
                 self.color_preview.setStyleSheet(f"""
                     background-color: {self.selected_color};
-                    border: 2px solid {'#40444b' if is_dark else '#2c3e50'};
+                    border: 2px solid {colors['border']};
                     border-radius: 8px;
                     min-width: 50px;
                     min-height: 50px;
@@ -802,7 +802,7 @@ class CategoryFormDialog(QDialog):
             is_dark = is_dark_theme()
             self.color_preview.setStyleSheet(f"""
                 background-color: {self.selected_color};
-                border: 2px solid {'#40444b' if is_dark else '#2c3e50'};
+                border: 2px solid {colors['border']};
                 border-radius: 8px;
                 min-width: 50px;
                 min-height: 50px;
@@ -818,7 +818,7 @@ class CategoryFormDialog(QDialog):
                 is_dark = is_dark_theme()
                 self.color_preview.setStyleSheet(f"""
                     background-color: {self.selected_color};
-                    border: 2px solid {'#40444b' if is_dark else '#2c3e50'};
+                    border: 2px solid {colors['border']};
                     border-radius: 8px;
                     min-width: 50px;
                     min-height: 50px;

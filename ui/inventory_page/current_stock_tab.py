@@ -27,6 +27,7 @@ class CurrentStockTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
 
         # Top button layout
@@ -96,6 +97,8 @@ class CurrentStockTab(QWidget):
         # Category filter
         filter_layout.addWidget(QLabel("Category:"))
         self.category_filter = QComboBox()
+        self.category_filter.setMinimumWidth(170)
+        self.category_filter.setFixedHeight(38)
         self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.category_filter, 1)
@@ -103,6 +106,8 @@ class CurrentStockTab(QWidget):
         # Status filter
         filter_layout.addWidget(QLabel("Status:"))
         self.status_filter = QComboBox()
+        self.status_filter.setMinimumWidth(170)
+        self.status_filter.setFixedHeight(38)
         self.status_filter.addItems(["All Status", "In Stock", "Low Stock", "Out of Stock"])
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.status_filter, 1)
@@ -115,8 +120,9 @@ class CurrentStockTab(QWidget):
         self.stock_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.stock_table.verticalHeader().setDefaultSectionSize(58)
         self.stock_table.verticalHeader().setMinimumSectionSize(54)
-        self.stock_table.verticalHeader().setVisible(True)
+        self.stock_table.verticalHeader().setVisible(False)
         self.stock_table.setAlternatingRowColors(True)
+        self.stock_table.setShowGrid(False)
         
         self.stock_table.cellClicked.connect(self.on_cell_clicked)
         self.stock_table.cellDoubleClicked.connect(self.on_cell_double_clicked)

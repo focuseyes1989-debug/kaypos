@@ -49,6 +49,7 @@ class SalesPage(QWidget):
 
         # Create subâ€‘widgets
         self.product_grid = ProductGrid(self)
+        self.product_grid.setObjectName("productBrowserPanel")
         self.cart_widget = CartWidget(self)
         self.totals_widget = TotalsWidget(self)
         self.payment_widget = PaymentWidget(self)
@@ -78,20 +79,19 @@ class SalesPage(QWidget):
 
         # Main layout
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(5)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(4, 4, 4, 4)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(10)
+        content_layout.setSpacing(14)
 
         content_layout.addWidget(self.product_grid, stretch=3)
 
         self.right_container = QWidget()
         self.right_container.setObjectName("salesRightContainer")
-        self.right_container.setStyleSheet("QWidget#salesRightContainer { background-color: transparent; }")
         right_layout = QVBoxLayout(self.right_container)
-        right_layout.setSpacing(6)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(9)
+        right_layout.setContentsMargins(14, 14, 14, 14)
 
         self.setup_customer_section()
         right_layout.addLayout(self.customer_layout)
@@ -107,12 +107,12 @@ class SalesPage(QWidget):
         self._make_group_compact(self.checkout_handler.action_group, hide_title=False)
 
         self.btn_toggle_details = QPushButton("Sale Details")
-        self.btn_toggle_details.setFixedHeight(30)
+        self.btn_toggle_details.setFixedHeight(38)
         self.btn_toggle_details.setIconSize(QSize(16, 16))
         self.btn_toggle_details.clicked.connect(self.open_sale_details_dialog)
 
         self.btn_add_expense = QPushButton("Add Expense")
-        self.btn_add_expense.setFixedHeight(30)
+        self.btn_add_expense.setFixedHeight(38)
         self.btn_add_expense.setIconSize(QSize(16, 16))
         self.btn_add_expense.setToolTip("Add Expense (Ctrl+E)")
         self.btn_add_expense.clicked.connect(self.open_expense_dialog)
@@ -120,7 +120,7 @@ class SalesPage(QWidget):
         self._apply_details_toggle_style()
         detail_buttons_layout = QHBoxLayout()
         detail_buttons_layout.setContentsMargins(0, 0, 0, 0)
-        detail_buttons_layout.setSpacing(6)
+        detail_buttons_layout.setSpacing(8)
         detail_buttons_layout.addWidget(self.btn_toggle_details, 1)
         detail_buttons_layout.addWidget(self.btn_add_expense, 1)
         right_layout.addLayout(detail_buttons_layout)
@@ -138,7 +138,7 @@ class SalesPage(QWidget):
         self.details_panel.setVisible(False)
 
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(6)
+        action_layout.setSpacing(10)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.addWidget(self.payment_widget, 1)
         action_layout.addWidget(self.checkout_handler.action_group, 2)
@@ -650,12 +650,19 @@ class SalesPage(QWidget):
                 background-color: {colors['bg']};
                 color: {colors['text']};
             }}
+            QWidget#productBrowserPanel, QWidget#salesRightContainer {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 16px;
+            }}
         """)
         if self.right_container:
-            self.right_container.setStyleSheet("""
-                QWidget#salesRightContainer {
-                    background-color: transparent;
-                }
+            self.right_container.setStyleSheet(f"""
+                QWidget#salesRightContainer {{
+                    background-color: {colors['card_bg']};
+                    border: 1px solid {colors['border']};
+                    border-radius: 16px;
+                }}
             """)
         if self.details_panel:
             self.details_panel.setStyleSheet("background-color: transparent;")
@@ -666,6 +673,45 @@ class SalesPage(QWidget):
 
     def update_customer_combo_style(self):
         """Update customer combo box style based on current theme"""
+        colors = get_theme_colors()
+        bg = colors.get("input_bg", colors.get("card_bg", "#ffffff"))
+        text = colors.get("text", "#172033")
+        secondary = colors.get("text_secondary", "#667085")
+        border = colors.get("input_border", colors.get("border", "#dbe1ee"))
+        focus = colors.get("border_hover", "#6675f5")
+        card = colors.get("card_bg", "#ffffff")
+        hover = colors.get("bg_hover", "#eef1fb")
+        self.customer_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: 9px;
+                padding: 7px 32px 7px 10px;
+                color: {text};
+                min-height: 24px;
+            }}
+            QComboBox:focus {{ border-color: {focus}; }}
+            QComboBox::drop-down {{ border: none; width: 28px; }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {secondary};
+                margin-right: 8px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {card};
+                border: 1px solid {border};
+                color: {text};
+                selection-background-color: {focus};
+                selection-color: white;
+                outline: none;
+                padding: 5px;
+            }}
+            QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 5px 10px; }}
+            QComboBox QAbstractItemView::item:hover {{ background-color: {hover}; }}
+        """)
+        return
         if is_dark_theme():
             self.customer_combo.setStyleSheet("""
                 QComboBox {
@@ -780,12 +826,14 @@ class SalesPage(QWidget):
         self.customer_layout.addStretch()
         
         self.customer_label = QLabel("Customer:")
+        self.customer_label.setStyleSheet("font-weight: 600; background: transparent;")
         self.customer_layout.addWidget(self.customer_label)
         
         self.customer_combo = QComboBox()
         self.customer_combo.addItem("Walk-in Customer (no loyalty)", None)
         self.customer_combo.currentIndexChanged.connect(self.on_customer_changed)
         self.customer_combo.setMinimumWidth(180)
+        self.customer_combo.setMinimumHeight(38)
         
         # Apply initial style
         self.update_customer_combo_style()

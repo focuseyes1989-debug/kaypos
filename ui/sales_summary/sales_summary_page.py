@@ -27,7 +27,7 @@ from ui.widgets import (
     SummaryCardWidget,
     ModernButton  # ✅ Added ModernButton import
 )
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 from utils.currency import get_currency_symbol, format_money
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 import os
@@ -37,6 +37,7 @@ class SalesSummaryPage(BaseSalesSummary):
     def __init__(self):
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(15)
 
         # ========== Toast Notification ==========
@@ -121,6 +122,9 @@ class SalesSummaryPage(BaseSalesSummary):
 
         # ========== Tabs ==========
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("salesSummaryTabs")
+        self.tabs.setDocumentMode(True)
+        self.tabs.setUsesScrollButtons(True)
         self.tab_names = {
             0: "Top 20 Items",
             1: "Items",
@@ -183,64 +187,33 @@ class SalesSummaryPage(BaseSalesSummary):
 
     def _apply_tab_bar_style(self):
         """Apply tab bar style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-            """)
+        colors = get_theme_colors()
+        self.tabs.setStyleSheet(f"""
+            QTabWidget#salesSummaryTabs::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabWidget#salesSummaryTabs QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 14px;
+                margin: 0 3px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabWidget#salesSummaryTabs QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabWidget#salesSummaryTabs QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
         
         self._update_tab_icons_color()
 

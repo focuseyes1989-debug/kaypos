@@ -34,7 +34,7 @@ from ui.widgets import (
 )
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.action_toolbar import ActionToolbar
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 
 
 class ExpensePage(QWidget):
@@ -55,6 +55,7 @@ class ExpensePage(QWidget):
     def on_theme_changed(self, theme_name):
         """Handle theme change"""
         self.apply_card_style()
+        self._apply_page_style()
         # âœ… Update tab bar style and icons
         self._apply_tab_bar_style()
         self._update_tab_icons_color()
@@ -68,65 +69,34 @@ class ExpensePage(QWidget):
             return QIcon()
     
     def _apply_tab_bar_style(self):
-        """âœ… Apply tab bar style based on theme - matching sales summary page"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-            """)
-        else:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-            """)
+        """Apply the shared launcher-style tab treatment."""
+        colors = get_theme_colors()
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget#expenseTabs::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabWidget#expenseTabs QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 18px;
+                margin: 0 4px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabWidget#expenseTabs QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabWidget#expenseTabs QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
         
         # âœ… Update tab icons color
         self._update_tab_icons_color()
@@ -189,7 +159,9 @@ class ExpensePage(QWidget):
         return QIcon()
     
     def setup_ui(self):
+        self.setObjectName("expensePage")
         layout = QVBoxLayout()
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(15)
         
         # ========== Cards (Using SummaryCardWidget with SVG icons) ==========
@@ -229,7 +201,10 @@ class ExpensePage(QWidget):
         layout.addLayout(card_layout)
         
         # ========== Main Toolbar (Date + Buttons) ==========
-        toolbar_layout = QHBoxLayout()
+        self.toolbar_card = QFrame()
+        self.toolbar_card.setObjectName("expenseToolbarCard")
+        toolbar_layout = QHBoxLayout(self.toolbar_card)
+        toolbar_layout.setContentsMargins(14, 10, 14, 10)
         toolbar_layout.setSpacing(8)
         
         # âœ… DateRangeWidget
@@ -255,11 +230,14 @@ class ExpensePage(QWidget):
         self.action_export_monthly = self.action_toolbar.add_more_action("Export Monthly", self.export_monthly, "calendar_month")
         self.action_toolbar.finalize()
         toolbar_layout.addWidget(self.action_toolbar, 0, Qt.AlignmentFlag.AlignRight)
-        layout.addLayout(toolbar_layout)
+        layout.addWidget(self.toolbar_card)
         
         # ========== TAB WIDGET with Colored SVG Icons ==========
         logger.info("Creating tab widget for ExpensePage")
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("expenseTabs")
+        self.tab_widget.setDocumentMode(True)
+        self.tab_widget.setUsesScrollButtons(True)
         self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
         self.tab_widget.setMinimumHeight(450)
         
@@ -353,7 +331,19 @@ class ExpensePage(QWidget):
         layout.addWidget(self.spinner)
         
         self.setLayout(layout)
+        self._apply_page_style()
         logger.info("ExpensePage UI setup complete")
+
+    def _apply_page_style(self):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#expensePage {{ background: transparent; }}
+            QFrame#expenseToolbarCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+        """)
     
     def load_initial_data(self):
         self.load_categories()

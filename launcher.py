@@ -25,6 +25,13 @@ APP_NAME = "KAY POS"
 GITHUB_REPO = "focuseyes1989-debug/kaypos"
 UPDATE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json"
 
+INSTANCE_MUTEXES = {
+    "pos": r"Global\KAY_POS_Main_SingleInstance_v1",
+    "car": r"Global\KAY_Car_Management_SingleInstance_v1",
+    "server": r"Global\KAY_POS_Server_Manager_SingleInstance_v1",
+    "printer": r"Global\KAY_Printer_Agent_SingleInstance_v1",
+}
+
 
 class LauncherMode:
     MAIN = "main"
@@ -44,12 +51,14 @@ class AppDefinition:
     accent: str
     glyph: str
     artwork: str
+    launch_args: tuple[str, ...] = ()
 
 
 APPLICATIONS = (
     AppDefinition("pos", "KAY POS", "Point of Sale", "Sales, inventory, reports and daily business operations.", ("main.py",), ("ZAY_POS.exe", "KAY_POS.exe"), "#6675f5", "P", "pos-system.png"),
     AppDefinition("car", "Car Management", "Vehicle Service", "Register vehicles and drivers, prepare forms and manage QR print requests.", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
     AppDefinition("server", "Server Manager", "Services & Database", "Start browser services, monitor PostgreSQL and manage server connectivity.", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
+    AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "Share this PC's printers and process secure network print jobs in the system tray.", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray",)),
 )
 
 STYLE = """
@@ -118,7 +127,8 @@ def resolve_application_target(definition: AppDefinition, app_dir: Optional[str]
             for name in names:
                 candidate = root / name
                 if candidate.is_file():
-                    return ([get_python_executable(str(root), windowed=True), str(candidate)], source) if source == "script" else ([str(candidate)], source)
+                    command = ([get_python_executable(str(root), windowed=True), str(candidate)] if source == "script" else [str(candidate)])
+                    return command + list(definition.launch_args), source
     return [], "missing"
 
 
@@ -128,6 +138,16 @@ def resolve_launch_target(app_dir: Optional[str] = None, mode: str = LauncherMod
 
 def should_auto_download_update(available: bool, auto_update_enabled: bool) -> bool:
     return bool(available and auto_update_enabled)
+
+
+def is_application_running(key: str) -> bool:
+    """Detect apps launched by this or an earlier Launcher process."""
+    mutex_name = INSTANCE_MUTEXES.get(key)
+    if not mutex_name:
+        return False
+    from utils.single_instance import is_single_instance_running
+
+    return is_single_instance_running(mutex_name)
 
 
 def current_version() -> str:
@@ -186,7 +206,7 @@ class AppCard(QFrame):
         super().__init__(parent)
         self.definition = definition
         self.setObjectName("appCard")
-        self.setMinimumHeight(285)
+        self.setMinimumHeight(245)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         body = QVBoxLayout(self)
         body.setContentsMargins(22, 22, 22, 20)
@@ -217,9 +237,23 @@ class AppCard(QFrame):
         body.addWidget(artwork, 1)
         self.launch_button = QPushButton("Open Application")
         self.launch_button.setObjectName("launchButton")
-        self.launch_button.setStyleSheet(f"QPushButton#launchButton {{ background:{definition.accent}; }}")
+        self._apply_launch_button_style("ready")
         self.launch_button.clicked.connect(lambda: self.launch_requested.emit(definition.key))
         body.addWidget(self.launch_button)
+
+    def _apply_launch_button_style(self, state: str) -> None:
+        if state == "missing":
+            background, foreground, border = "#313847", "#aab4c8", "#3d475a"
+        else:
+            background, foreground, border = self.definition.accent, "#ffffff", self.definition.accent
+        self.launch_button.setStyleSheet(f"""
+            QPushButton#launchButton,
+            QPushButton#launchButton:disabled {{
+                background: {background};
+                color: {foreground};
+                border: 1px solid {border};
+            }}
+        """)
 
     def set_state(self, state: str, detail="") -> None:
         states = {"running": ("RUNNING", "badgeRunning", "Already Running", False), "missing": ("NOT FOUND", "badgeMissing", "Application Missing", False), "ready": ("READY", "badgeReady", "Open Application", True)}
@@ -228,6 +262,7 @@ class AppCard(QFrame):
         self.badge.setObjectName(object_name)
         self.launch_button.setText(button_text)
         self.launch_button.setEnabled(enabled)
+        self._apply_launch_button_style(state)
         self.setToolTip(detail)
         self.badge.style().unpolish(self.badge)
         self.badge.style().polish(self.badge)
@@ -240,8 +275,8 @@ class ArtworkLabel(QLabel):
         super().__init__(parent)
         self.source = QPixmap(str(image_path))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumHeight(150)
-        self.setMaximumHeight(245)
+        self.setMinimumHeight(85)
+        self.setMaximumHeight(145)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -257,8 +292,8 @@ class LauncherWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("KAY Application Launcher")
         self.setWindowIcon(launcher_icon())
-        self.setMinimumSize(980, 650)
-        self.resize(1180, 760)
+        self.setMinimumSize(1100, 650)
+        self.resize(1400, 760)
         self.setStyleSheet(STYLE)
         self.processes: dict[str, subprocess.Popen] = {}
         self.cards: dict[str, AppCard] = {}
@@ -351,8 +386,10 @@ class LauncherWindow(QMainWindow):
             card = AppCard(definition)
             card.launch_requested.connect(self.launch_application)
             self.cards[definition.key] = card
-            grid.addWidget(card, 0, index)
-            grid.setColumnStretch(index, 1)
+            row, column = divmod(index, 4)
+            grid.addWidget(card, row, column)
+            grid.setColumnStretch(column, 1)
+            grid.setRowStretch(row, 1)
         layout.addLayout(grid, 1)
         status = QFrame()
         status.setObjectName("statusBar")
@@ -378,7 +415,7 @@ class LauncherWindow(QMainWindow):
         ready = 0
         for definition in APPLICATIONS:
             command, source = resolve_application_target(definition)
-            if definition.key in self.processes and self.processes[definition.key].poll() is None:
+            if is_application_running(definition.key):
                 self.cards[definition.key].set_state("running")
             elif command:
                 ready += 1
@@ -393,16 +430,17 @@ class LauncherWindow(QMainWindow):
             self.processes.pop(key, None)
             title = next(item.title for item in APPLICATIONS if item.key == key)
             self.status_label.setText(f"{title} closed" if code == 0 else f"{title} exited with code {code}")
-        if finished:
-            self.refresh_targets()
+        # Also discovers apps that survived a previous Launcher process or were
+        # opened directly from their executable.
+        self.refresh_targets()
 
     def launch_application(self, key: str) -> None:
         definition = next((item for item in APPLICATIONS if item.key == key), None)
         if not definition:
             return
-        running = self.processes.get(key)
-        if running and running.poll() is None:
+        if is_application_running(key):
             self.status_label.setText(f"{definition.title} is already running")
+            self.cards[key].set_state("running")
             return
         command, source = resolve_application_target(definition)
         if not command:

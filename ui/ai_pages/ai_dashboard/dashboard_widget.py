@@ -149,8 +149,8 @@ class AIDashboard(QWidget):
         frame_style = f"""
             QFrame {{
                 background-color: {colors.get('card_bg', '#ffffff')};
+                border: 1px solid {colors.get('border', '#dbe1ee')};
                 border-radius: 12px;
-                padding: 8px 12px;
             }}
         """
         for frame_name in ("activity_frame", "insights_frame"):
@@ -182,50 +182,56 @@ class AIDashboard(QWidget):
             self._apply_activity_table_theme(colors)
 
     def _apply_activity_table_theme(self, colors):
-        dark = is_dark_theme()
-        table_bg = "#2f333a" if dark else colors.get('card_bg', '#ffffff')
-        row_bg = "#363b43" if dark else colors.get('input_bg', '#f5f6fa')
-        row_alt = "#30353c" if dark else colors.get('bg_secondary', '#f8f9fa')
-        text = "#ffffff" if dark else colors.get('text', '#2d3436')
-        muted = "#d7dde7" if dark else colors.get('text_secondary', '#636e72')
-        border = "#4b5563" if dark else colors.get('border', '#dde2e8')
-        primary = colors.get('primary', '#5865f2')
+        table_bg = colors.get('card_bg', '#ffffff')
+        row_bg = colors.get('card_bg', '#ffffff')
+        row_alt = colors.get('table_alt', colors.get('bg', '#f7f8fc'))
+        text = colors.get('text', '#172033')
+        muted = colors.get('text_secondary', '#667085')
+        border = colors.get('border', '#dbe1ee')
+        hover = colors.get('bg_hover', '#e9edfa')
 
         self.activity_table.setStyleSheet(f"""
             QTableWidget {{
                 background-color: {table_bg};
                 border: 1px solid {border};
-                border-radius: 7px;
+                border-radius: 10px;
                 gridline-color: transparent;
                 color: {text};
-                font-size: 10pt;
+                font-size: 9.5pt;
                 alternate-background-color: {row_alt};
-                selection-background-color: transparent;
+                selection-background-color: {hover};
                 selection-color: {text};
+                outline: none;
             }}
             QHeaderView::section {{
                 background-color: {table_bg};
                 color: {muted};
                 border: none;
                 border-bottom: 1px solid {border};
-                padding: 6px 8px;
+                padding: 9px 10px;
                 font-size: 8.5pt;
-                font-weight: 400;
+                font-weight: 600;
             }}
             QTableWidget::item {{
                 background-color: {row_bg};
-                border-bottom: 5px solid {table_bg};
-                padding: 6px 8px;
+                border: none;
+                border-bottom: 1px solid {border};
+                padding: 7px 10px;
+            }}
+            QTableWidget::item:hover {{
+                background-color: {hover};
             }}
             QScrollBar:vertical {{
-                background: transparent;
-                width: 6px;
+                background: {table_bg};
+                width: 8px;
+                margin: 2px;
             }}
             QScrollBar::handle:vertical {{
                 background: {border};
-                border-radius: 3px;
+                border-radius: 4px;
                 min-height: 24px;
             }}
+            QScrollBar::handle:vertical:hover {{ background: {muted}; }}
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {{
                 height: 0px;
@@ -478,10 +484,9 @@ class AIDashboard(QWidget):
         table.setRowCount(0)
 
         colors = get_theme_colors()
-        dark = is_dark_theme()
-        text_color = "#ffffff" if dark else colors.get('text', '#2d3436')
-        muted_color = "#d7dde7" if dark else colors.get('text_secondary', '#636e72')
-        amount_color = colors.get('primary', '#5865f2')
+        text_color = colors.get('text', '#172033')
+        muted_color = colors.get('text_secondary', '#667085')
+        amount_color = colors.get('progress_bg', '#6675f5')
         success_color = colors.get('success', '#2ecc71')
 
         if not recent_sales:

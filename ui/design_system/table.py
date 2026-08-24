@@ -31,28 +31,16 @@ class ModernTable(QTableWidget):
         is_dark = is_dark_theme()
         theme = get_theme()
         
-        if is_dark:
-            bg = "#2f3136"
-            alt_bg = "#36393f"
-            header_bg = "#202225"
-            header_text = "#b9bbbe"
-            border = "#40444b"
-            selection_bg = "#40444b"
-            selection_color = "#dcddde"
-            grid_color = "#40444b"
-            text_color = "#dcddde"
-            hover_bg = "#40444b"
-        else:
-            bg = "#ffffff"
-            alt_bg = "#f8f9fa"
-            header_bg = "#f8f9fa"
-            header_text = "#2c3e50"
-            border = "#dee2e6"
-            selection_bg = "#e9ecef"
-            selection_color = "#212529"
-            grid_color = "#dee2e6"
-            text_color = "#212529"
-            hover_bg = "#f1f3f5"
+        bg = colors.card_bg
+        alt_bg = colors.table_alternate
+        header_bg = colors.table_header
+        header_text = colors.text_secondary
+        border = colors.border
+        selection_bg = colors.table_selection
+        selection_color = colors.text
+        grid_color = colors.border
+        text_color = colors.text
+        hover_bg = colors.bg_hover
         
         self.setStyleSheet(f"""
             QTableWidget {{

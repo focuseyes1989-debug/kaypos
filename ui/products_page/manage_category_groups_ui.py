@@ -30,8 +30,8 @@ class CategoryGroupsUI:
     def setup_ui(self, dialog):
         """Setup the complete UI"""
         main_layout = QVBoxLayout(dialog)
-        main_layout.setSpacing(12)
-        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(28, 24, 28, 20)
         
         # Header
         self._create_header(dialog, main_layout)
@@ -54,27 +54,23 @@ class CategoryGroupsUI:
     def _create_header(self, dialog, parent_layout):
         """Create header section"""
         header_layout = QHBoxLayout()
-        
-        title_label = QLabel("📁 Category Groups")
-        title_label.setObjectName("headerTitle")
-        title_label.setStyleSheet("font-size: 16pt; font-weight: 600;")
-        header_layout.addWidget(title_label)
+        title_stack = QVBoxLayout()
+        title_stack.setSpacing(4)
+        dialog.header_title = QLabel("Category Groups")
+        dialog.header_title.setObjectName("headerTitle")
+        dialog.header_subtitle = QLabel("Build reusable groups to keep the product catalog organized.")
+        dialog.header_subtitle.setObjectName("headerSubtitle")
+        title_stack.addWidget(dialog.header_title)
+        title_stack.addWidget(dialog.header_subtitle)
+        header_layout.addLayout(title_stack)
         
         header_layout.addStretch()
         
         # Count badge
         dialog.count_badge = QLabel("0")
         dialog.count_badge.setObjectName("countBadge")
-        dialog.count_badge.setStyleSheet("""
-            background: #5865f2;
-            color: white;
-            padding: 4px 16px;
-            border-radius: 12px;
-            font-size: 10pt;
-            font-weight: 600;
-            min-width: 30px;
-            text-align: center;
-        """)
+        dialog.count_badge.setMinimumWidth(48)
+        dialog.count_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(dialog.count_badge)
         self.count_badge = dialog.count_badge
         
@@ -88,11 +84,6 @@ class CategoryGroupsUI:
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(10)
         
-        # Search icon
-        search_icon = QLabel("🔍")
-        search_icon.setStyleSheet("font-size: 14px;")
-        search_layout.addWidget(search_icon)
-        
         # Search input
         dialog.search_input = QLineEdit()
         dialog.search_input.setPlaceholderText("Search groups...")
@@ -102,20 +93,9 @@ class CategoryGroupsUI:
         self.search_input = dialog.search_input
         
         # Favorites filter
-        dialog.show_favorites_only = QCheckBox("⭐")
+        dialog.show_favorites_only = QCheckBox("Favorites only")
         dialog.show_favorites_only.setObjectName("favoritesFilter")
         dialog.show_favorites_only.setToolTip("Show favorites only")
-        dialog.show_favorites_only.setStyleSheet("""
-            QCheckBox {
-                font-size: 14px;
-                spacing: 2px;
-            }
-            QCheckBox::indicator {
-                width: 20px;
-                height: 20px;
-                border-radius: 4px;
-            }
-        """)
         search_layout.addWidget(dialog.show_favorites_only)
         self.show_favorites_only = dialog.show_favorites_only
         
@@ -125,13 +105,6 @@ class CategoryGroupsUI:
         """Create statistics bar"""
         stats_widget = QWidget()
         stats_widget.setObjectName("statsWidget")
-        stats_widget.setStyleSheet("""
-            QWidget#statsWidget {
-                background: rgba(88, 101, 242, 0.08);
-                border-radius: 8px;
-                padding: 4px;
-            }
-        """)
         stats_layout = QHBoxLayout(stats_widget)
         stats_layout.setContentsMargins(12, 6, 12, 6)
         stats_layout.setSpacing(20)
@@ -151,9 +124,9 @@ class CategoryGroupsUI:
         stats_layout.addStretch()
         
         # Quick add button
-        dialog.btn_quick_add = ModernButton("➕ Add Group", ModernButton.PRIMARY)
+        dialog.btn_quick_add = ModernButton("Add Group", ModernButton.PRIMARY)
+        dialog.btn_quick_add.set_icon("add")
         dialog.btn_quick_add.set_compact(True)
-        dialog.btn_quick_add.setFixedHeight(28)
         stats_layout.addWidget(dialog.btn_quick_add)
         self.btn_quick_add = dialog.btn_quick_add
         
@@ -169,6 +142,9 @@ class CategoryGroupsUI:
         dialog.table_widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         dialog.table_widget.setAlternatingRowColors(True)
         dialog.table_widget.setShowGrid(False)
+        dialog.table_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        dialog.table_widget.verticalHeader().setVisible(False)
+        dialog.table_widget.verticalHeader().setDefaultSectionSize(42)
         
         # Column widths
         dialog.table_widget.setColumnWidth(0, 60)
@@ -185,21 +161,24 @@ class CategoryGroupsUI:
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
         
-        dialog.btn_add = ModernButton("➕ Add Group", ModernButton.PRIMARY)
+        dialog.btn_add = ModernButton("Add Group", ModernButton.PRIMARY)
+        dialog.btn_add.set_icon("add")
         dialog.btn_add.set_compact(False)
         dialog.btn_add.setMinimumHeight(34)
         dialog.btn_add.setMinimumWidth(120)
         button_layout.addWidget(dialog.btn_add)
         self.btn_add = dialog.btn_add
         
-        dialog.btn_edit = ModernButton("✏️ Edit", ModernButton.SECONDARY)
+        dialog.btn_edit = ModernButton("Edit", ModernButton.SECONDARY)
+        dialog.btn_edit.set_icon("edit")
         dialog.btn_edit.set_compact(False)
         dialog.btn_edit.setMinimumHeight(34)
         dialog.btn_edit.setMinimumWidth(100)
         button_layout.addWidget(dialog.btn_edit)
         self.btn_edit = dialog.btn_edit
         
-        dialog.btn_delete = ModernButton("🗑️ Delete", ModernButton.TERTIARY)
+        dialog.btn_delete = ModernButton("Delete", ModernButton.DANGER)
+        dialog.btn_delete.set_icon("delete")
         dialog.btn_delete.set_compact(False)
         dialog.btn_delete.setMinimumHeight(34)
         dialog.btn_delete.setMinimumWidth(100)
@@ -208,27 +187,11 @@ class CategoryGroupsUI:
         
         button_layout.addStretch()
         
-        dialog.btn_manage_categories = ModernButton("📂 Categories", ModernButton.PRIMARY)
+        dialog.btn_manage_categories = ModernButton("Categories", ModernButton.SECONDARY)
+        dialog.btn_manage_categories.set_icon("category")
         dialog.btn_manage_categories.set_compact(False)
         dialog.btn_manage_categories.setMinimumHeight(34)
         dialog.btn_manage_categories.setMinimumWidth(120)
-        dialog.btn_manage_categories.setStyleSheet("""
-            QPushButton {
-                background-color: #2ecc71;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 6px 16px;
-                font-weight: 500;
-                font-size: 10pt;
-            }
-            QPushButton:hover {
-                background-color: #27ae60;
-            }
-            QPushButton:pressed {
-                background-color: #1e8449;
-            }
-        """)
         button_layout.addWidget(dialog.btn_manage_categories)
         self.btn_manage_categories = dialog.btn_manage_categories
         
@@ -259,6 +222,14 @@ class CategoryGroupsUI:
         """Retranslate UI elements"""
         from utils.language import lang
         is_my = lang.get_current() == "my"
+
+        dialog = self.table_widget.window() if self.table_widget else None
+        if dialog and hasattr(dialog, "header_title"):
+            dialog.header_title.setText("အမျိုးအစားအုပ်စုများ" if is_my else "Category Groups")
+            dialog.header_subtitle.setText(
+                "ကုန်ပစ္စည်းစာရင်းကို စနစ်တကျထားရန် ပြန်လည်အသုံးပြုနိုင်သော အုပ်စုများ ဖန်တီးပါ။"
+                if is_my else "Build reusable groups to keep the product catalog organized."
+            )
         
         if self.table_widget:
             if is_my:
@@ -271,18 +242,19 @@ class CategoryGroupsUI:
                 ])
         
         if self.btn_add:
-            self.btn_add.setText("➕ Add Group" if not is_my else "➕ အုပ်စုအသစ်")
+            self.btn_add.setText("Add Group" if not is_my else "အုပ်စုအသစ်")
         if self.btn_edit:
-            self.btn_edit.setText("✏️ Edit" if not is_my else "✏️ ပြင်မည်")
+            self.btn_edit.setText("Edit" if not is_my else "ပြင်မည်")
         if self.btn_delete:
-            self.btn_delete.setText("🗑️ Delete" if not is_my else "🗑️ ဖျက်မည်")
+            self.btn_delete.setText("Delete" if not is_my else "ဖျက်မည်")
         if self.btn_manage_categories:
-            self.btn_manage_categories.setText("📂 Categories" if not is_my else "📂 အမျိုးအစားများ")
+            self.btn_manage_categories.setText("Categories" if not is_my else "အမျိုးအစားများ")
         if self.btn_quick_add:
-            self.btn_quick_add.setText("➕ Add Group" if not is_my else "➕ အုပ်စုအသစ်")
+            self.btn_quick_add.setText("Add Group" if not is_my else "အုပ်စုအသစ်")
         if self.search_input:
             self.search_input.setPlaceholderText("Search groups..." if not is_my else "အုပ်စုရှာရန်...")
         if self.show_favorites_only:
+            self.show_favorites_only.setText("Favorites only" if not is_my else "အနှစ်သက်ဆုံးများသာ")
             self.show_favorites_only.setToolTip("Show favorites only" if not is_my else "အနှစ်သက်ဆုံးများသာ ပြရန်")
     
     def apply_theme(self, dialog):
@@ -332,26 +304,37 @@ class CategoryGroupsUI:
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
+                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
             }}
             QLabel {{
                 color: {colors['text']};
             }}
             QLabel#headerTitle {{
                 color: {colors['text']};
+                font-size: 20pt;
+                font-weight: 700;
+            }}
+            QLabel#headerSubtitle {{
+                color: {colors['text_secondary']};
+                font-size: 9.5pt;
             }}
             QLabel#countBadge {{
-                background: #5865f2;
+                background: {colors['progress_bg']};
                 color: white;
+                border-radius: 12px;
+                padding: 5px 12px;
+                font-weight: 700;
             }}
             QLineEdit#searchInput {{
-                background-color: {'#40444b' if is_dark else '#ffffff'};
+                background-color: {colors['input_bg']};
                 color: {colors['text']};
                 border: 1px solid {colors['input_border']};
-                border-radius: 6px;
-                padding: 8px 14px;
+                border-radius: 8px;
+                padding: 9px 14px;
+                min-height: 20px;
             }}
             QLineEdit#searchInput:focus {{
-                border-color: #5865f2;
+                border-color: {colors['border_hover']};
             }}
             QLineEdit#searchInput::placeholder {{
                 color: {'#72767d' if is_dark else '#adb5bd'};
@@ -360,7 +343,7 @@ class CategoryGroupsUI:
                 color: #f1c40f;
             }}
             QCheckBox#favoritesFilter::indicator {{
-                background-color: {'#40444b' if is_dark else '#ffffff'};
+                background-color: {colors['input_bg']};
                 border: 1px solid {colors['input_border']};
                 border-radius: 4px;
                 width: 20px;
@@ -371,38 +354,40 @@ class CategoryGroupsUI:
                 border-color: #f1c40f;
             }}
             QTableWidget#groupsTable {{
-                background-color: {'#2f3136' if is_dark else '#ffffff'};
+                background-color: {colors['card_bg']};
+                alternate-background-color: {colors['table_alt']};
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
-                border-radius: 8px;
-                padding: 2px;
+                border-radius: 12px;
+                padding: 1px;
                 outline: none;
                 gridline-color: transparent;
             }}
             QTableWidget#groupsTable::item {{
-                padding: 10px 12px;
-                border: none;
+                padding: 9px 12px;
+                border-bottom: 1px solid {colors['border']};
                 color: {colors['text']};
             }}
             QTableWidget#groupsTable::item:selected {{
-                background-color: #5865f2;
-                color: white;
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
             }}
             QTableWidget#groupsTable::item:hover:!selected {{
-                background-color: rgba(88, 101, 242, 0.05);
+                background-color: {colors['card_hover']};
             }}
             QHeaderView::section {{
-                background: {'#202225' if is_dark else '#f8f9fa'};
-                color: {colors['text']};
+                background: {colors['card_bg']};
+                color: {colors['text_secondary']};
                 border: none;
-                border-bottom: 2px solid {colors['border']};
+                border-bottom: 1px solid {colors['border']};
                 padding: 10px 12px;
                 font-weight: 600;
                 font-size: 10pt;
             }}
             QWidget#statsWidget {{
-                background-color: rgba(88, 101, 242, 0.08);
-                border-radius: 8px;
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 10px;
             }}
             QLabel#statLabel {{
                 color: {colors['text_secondary']};

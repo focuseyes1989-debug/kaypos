@@ -24,6 +24,8 @@ database/certs/
 utils/database/
 _internal/
 dist_launcher/
+dist_printer_agent/
+release/
 android-viewer/.idea/
 *.old
 *.log

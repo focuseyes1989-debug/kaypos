@@ -173,13 +173,12 @@ class NumericKeypadDialog(QDialog):
 
     def _apply_theme(self) -> None:
         colors = get_theme_colors()
-        dark = is_dark_theme()
         bg = colors.get("card_bg", "#ffffff")
         text = colors.get("text", "#212529")
         border = colors.get("border", "#d0d3d9")
         hover = colors.get("bg_hover", "#eef0ff")
         accent = colors.get("border_hover", "#5865f2")
-        button_bg = "#40444b" if dark else "#f1f3f5"
+        button_bg = colors.get("card_hover", colors.get("bg_hover", "#f1f3f5"))
 
         self.setStyleSheet(f"""
             QDialog {{
@@ -195,7 +194,7 @@ class NumericKeypadDialog(QDialog):
                 background-color: {bg};
                 color: {text};
                 border: 1px solid {border};
-                border-radius: 6px;
+                border-radius: 10px;
                 padding: 4px 10px;
                 font-size: 26px;
                 font-weight: 700;
@@ -204,7 +203,7 @@ class NumericKeypadDialog(QDialog):
                 background-color: {button_bg};
                 color: {text};
                 border: 1px solid {border};
-                border-radius: 8px;
+                border-radius: 12px;
                 font-size: 21px;
                 font-weight: 700;
             }}
@@ -341,13 +340,12 @@ class NumericInputDialog(QDialog):
 
     def _apply_theme(self) -> None:
         colors = get_theme_colors()
-        dark = is_dark_theme()
         bg = colors.get("card_bg", "#ffffff")
         text = colors.get("text", "#212529")
         secondary = colors.get("text_secondary", "#6c757d")
         border = colors.get("input_border", colors.get("border", "#d0d3d9"))
         focus = colors.get("border_hover", "#5865f2")
-        button_bg = "#40444b" if dark else "#f1f3f5"
+        button_bg = colors.get("card_hover", colors.get("bg_hover", "#f1f3f5"))
 
         self.keypad_action.setIcon(get_icon_with_color("keyboard", secondary, (18, 18)))
         self.setStyleSheet(f"""
@@ -364,7 +362,7 @@ class NumericInputDialog(QDialog):
                 background-color: {bg};
                 color: {text};
                 border: 1px solid {border};
-                border-radius: 4px;
+                border-radius: 9px;
                 padding: 6px 28px 6px 10px;
                 font-size: 17pt;
                 font-weight: 700;
@@ -376,7 +374,7 @@ class NumericInputDialog(QDialog):
                 background-color: {button_bg};
                 color: {text};
                 border: 1px solid {border};
-                border-radius: 4px;
+                border-radius: 9px;
                 font-size: 13px;
                 font-weight: 700;
             }}

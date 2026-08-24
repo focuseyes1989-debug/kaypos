@@ -230,6 +230,25 @@ def print_receipt(parent, sale_id):
         # Build receipt text
         lines = build_receipt_text(invoice_no, created_at, total, payment, change, 
                                    payment_type, discount_amt, customer_name, items)
+
+        # Route the normal post-sale auto print through the network queue when
+        # selected in Print Settings. The sale-based request key prevents a
+        # checkout retry from producing duplicate network receipts.
+        from services.network_printer_client import queue_receipt
+
+        network_result = queue_receipt(
+            sale_id,
+            lines,
+            request_key=f"pos-sale-{sale_id}",
+        )
+        if network_result.handled:
+            if network_result.success:
+                logger.info(f"Receipt queued on network printer: {network_result.job_id}")
+                return True
+            QMessageBox.warning(parent, "Network Print Error", network_result.message)
+            return False
+        if network_result.message:
+            logger.warning(f"{network_result.message}; falling back to local printer")
         
         # Get printer from receipt settings
         printer_name = get_setting("receipt_printer_name", "")

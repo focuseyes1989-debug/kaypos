@@ -93,76 +93,27 @@ class SalesReportTab(QWidget):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
-        self.table.setStyleSheet(table_style)
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {colors['card_bg']};
+                alternate-background-color: {colors['table_alt']};
+                selection-background-color: {colors['bg_hover']};
+                selection-color: {colors['text']};
+                gridline-color: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                color: {colors['text']};
+            }}
+            QTableWidget::item {{ padding: 8px 12px; }}
+            QHeaderView::section {{
+                background-color: {colors['bg_hover']};
+                padding: 9px 12px;
+                border: none;
+                border-bottom: 1px solid {colors['border']};
+                font-weight: 600;
+                color: {colors['text_secondary']};
+            }}
+        """)
     
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -210,6 +161,8 @@ class SalesReportTab(QWidget):
         self.table.setHorizontalHeaderLabels(["Date", "Invoice No", "Customer", "Total", "Payment", "Change"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         
         # Apply initial theme
         self._apply_theme()

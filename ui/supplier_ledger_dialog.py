@@ -14,6 +14,7 @@ from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 import os
 
 
@@ -158,9 +159,10 @@ class SupplierLedgerDialog(QDialog):
         btn_layout.addStretch()
         
         # ✅ Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         
@@ -282,6 +284,8 @@ class SupplierLedgerDialog(QDialog):
         """
     
     def _update_table_style(self, colors):
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
+        return
         """Update table style based on theme"""
         is_dark = is_dark_theme()
         

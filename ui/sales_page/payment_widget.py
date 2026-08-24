@@ -200,13 +200,14 @@ class PaymentWidget(QGroupBox):
         payment = self.payment_input.value()
         change = payment - grand_total
         symbol = get_currency_symbol()
+        colors = get_theme_colors()
         
         if change >= 0:
             self.change_label.setText(format_money(change, symbol))
-            self.change_label.setStyleSheet("color: #27ae60; font-weight: bold; background: transparent;")
+            self.change_label.setStyleSheet(f"color: {colors.get('success', '#27c992')}; font-weight: bold; background: transparent;")
         else:
             self.change_label.setText(f"-{format_money(abs(change), symbol)}")
-            self.change_label.setStyleSheet("color: #e74c3c; font-weight: bold; background: transparent;")
+            self.change_label.setStyleSheet(f"color: {colors.get('danger', '#ff6b7a')}; font-weight: bold; background: transparent;")
         if parent and hasattr(parent, "cart_widget") and hasattr(parent.cart_widget, "update_change"):
             parent.cart_widget.update_change()
 

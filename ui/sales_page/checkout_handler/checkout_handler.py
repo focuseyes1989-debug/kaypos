@@ -59,7 +59,7 @@ class GradientButton(QPushButton):
         self.setStyleSheet("""
             QPushButton {
                 border: none;
-                border-radius: 4px;
+                border-radius: 10px;
                 color: white;
                 font-weight: bold;
             }
@@ -164,16 +164,16 @@ class CheckoutHandler(QObject):
 
         self.btn_hold_sale = GradientButton(
             "Hold",
-            gradient_colors=["#f39c12", "#d68910"],
-            hover_gradient_colors=["#e67e22", "#b9770e"]
+            gradient_colors=["#f3a64a", "#d8892f"],
+            hover_gradient_colors=["#ffb65d", "#e59738"]
         )
         self.btn_hold_sale.setFixedHeight(40)
         self.btn_hold_sale.clicked.connect(self.hold_sale)
 
         self.btn_resume_sale = GradientButton(
             "Resume",
-            gradient_colors=["#3498db", "#2471a3"],
-            hover_gradient_colors=["#2e86c1", "#1f618d"]
+            gradient_colors=["#6675f5", "#5362dc"],
+            hover_gradient_colors=["#7885ff", "#5d6bea"]
         )
         self.btn_resume_sale.setFixedHeight(40)
         self.btn_resume_sale.clicked.connect(self.resume_sale)
@@ -188,10 +188,10 @@ class CheckoutHandler(QObject):
         # Checkout Button (Green Gradient)
         self.btn_checkout = GradientButton(
             "Checkout",
-            gradient_colors=["#2ecc71", "#1a9c54"],
-            hover_gradient_colors=["#27ae60", "#1a7a42"]
+            gradient_colors=["#27c992", "#15966d"],
+            hover_gradient_colors=["#35dca4", "#1eaa7e"]
         )
-        self.btn_checkout.setFixedHeight(100)
+        self.btn_checkout.setFixedHeight(88)
         self.btn_checkout.clicked.connect(self.checkout)
         
         # Clear Cart Button (Red Gradient)

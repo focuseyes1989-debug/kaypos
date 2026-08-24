@@ -20,14 +20,15 @@ class ProductFilters(QWidget):
         
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(10)
         self.setLayout(layout)
 
         # ✅ Search Widget
         self.search_widget = ModernSearchWidget("Search by name / barcode / SKU...")
         self.search_widget.search_changed.connect(self._on_filter_changed)
         self.search_widget.search_cleared.connect(self._on_filter_changed)
-        self.search_widget.setFixedWidth(280)
+        self.search_widget.setMinimumWidth(280)
+        self.search_widget.setMaximumWidth(420)
         layout.addWidget(self.search_widget)
 
         # ✅ Category Container
@@ -36,7 +37,7 @@ class ProductFilters(QWidget):
         category_container.setStyleSheet("background: transparent;")
         category_layout = QHBoxLayout(category_container)
         category_layout.setContentsMargins(0, 0, 0, 0)
-        category_layout.setSpacing(2)
+        category_layout.setSpacing(8)
 
         # ✅ Category Label - Theme aware
         self.category_label = QLabel("Category:")
@@ -49,8 +50,8 @@ class ProductFilters(QWidget):
         self.category_combo.setObjectName("categoryCombo")
         self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self._on_filter_changed)
-        self.category_combo.setFixedWidth(180)  # ✅ 130 ကနေ 160 ကိုပြောင်းပါ
-        self.category_combo.setFixedHeight(32)
+        self.category_combo.setMinimumWidth(180)
+        self.category_combo.setFixedHeight(38)
         self._update_combo_style()
         category_layout.addWidget(self.category_combo)
 
@@ -92,38 +93,37 @@ class ProductFilters(QWidget):
         is_dark = is_dark_theme()
         
         if is_dark:
-            bg_color = "#40444b"
-            border_color = "#40444b"
-            border_focus = "#5865f2"
-            text_color = "#dcddde"
-            hover_bg = "#36393f"
-            popup_bg = "#2f3136"
-            popup_border = "#40444b"
-            popup_hover = "#40444b"
-            popup_selected = "#5865f2"
-            arrow_color = "#b9bbbe"
+            bg_color = colors['input_bg']
+            border_color = colors['input_border']
+            border_focus = colors['border_hover']
+            text_color = colors['text']
+            hover_bg = colors['bg_hover']
+            popup_bg = colors['card_bg']
+            popup_border = colors['border']
+            popup_hover = colors['bg_hover']
+            popup_selected = colors['progress_bg']
+            arrow_color = colors['text_secondary']
         else:
             bg_color = "#ffffff"
             border_color = "#ced4da"
-            border_focus = "#5865f2"
+            border_focus = colors['border_hover']
             text_color = "#212529"
             hover_bg = "#e9ecef"
             popup_bg = "#ffffff"
             popup_border = "#ced4da"
             popup_hover = "#e9ecef"
-            popup_selected = "#5865f2"
+            popup_selected = colors['progress_bg']
             arrow_color = "#495057"
         
         self.category_combo.setStyleSheet(f"""
             QComboBox#categoryCombo {{
                 background-color: {bg_color};
                 border: 1px solid {border_color};
-                border-radius: 6px;
-                padding: 2px 4px 2px 10px;
+                border-radius: 8px;
+                padding: 4px 8px 4px 12px;
                 color: {text_color};
                 font-size: 10pt;
                 min-height: 28px;
-                max-height: 32px;
             }}
             QComboBox#categoryCombo:focus {{
                 border: 1px solid {border_focus};

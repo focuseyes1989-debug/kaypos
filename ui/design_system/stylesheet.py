@@ -268,6 +268,133 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             border-bottom-color: {colors.primary};
         }}
 
+        QDialog, QMessageBox {{
+            background-color: {colors.bg};
+            color: {colors.text};
+        }}
+
+        QDialog > QFrame {{
+            border-color: {colors.border};
+        }}
+
+        QDialogButtonBox {{
+            background-color: {colors.card_bg};
+            border-top: 1px solid {colors.border};
+            padding: 10px 14px;
+        }}
+
+        QDialogButtonBox QPushButton,
+        QMessageBox QPushButton {{
+            min-width: 86px;
+            min-height: 38px;
+            padding: 4px 16px;
+            border-radius: {_px(radius.button)};
+            font-weight: {typo.weight_semibold};
+        }}
+
+        QMessageBox QPushButton#modernMessagePrimary {{
+            background-color: {colors.primary};
+            color: {colors.text_light};
+            border: 1px solid {colors.primary};
+        }}
+
+        QMessageBox QPushButton#modernMessagePrimary:hover {{
+            background-color: {colors.primary_hover};
+            border-color: {colors.primary_hover};
+        }}
+
+        QMessageBox QPushButton#modernMessageSecondary {{
+            background-color: {colors.card_bg};
+            color: {colors.text};
+            border: 1px solid {colors.border};
+        }}
+
+        QMessageBox QPushButton#modernMessageSecondary:hover {{
+            background-color: {colors.bg_hover};
+            border-color: {colors.border_hover};
+        }}
+
+        QMessageBox QPushButton#modernMessageDanger {{
+            background-color: {colors.danger};
+            color: {colors.text_light};
+            border: 1px solid {colors.danger};
+        }}
+
+        QMessageBox QPushButton#modernMessageDanger:hover {{
+            background-color: {colors.danger_hover};
+            border-color: {colors.danger_hover};
+        }}
+
+        QMessageBox QLabel {{
+            color: {colors.text};
+            background: transparent;
+            min-width: 40px;
+        }}
+
+        QMessageBox QLabel#qt_msgbox_label {{
+            padding: 8px 12px;
+            min-width: 260px;
+        }}
+
+        QMenu {{
+            background-color: {colors.card_bg};
+            color: {colors.text};
+            border: 1px solid {colors.border};
+            border-radius: {_px(radius.lg)};
+            padding: 6px;
+        }}
+
+        QMenu::item {{
+            padding: 8px 26px;
+            border-radius: {_px(radius.md)};
+        }}
+
+        QMenu::item:selected {{
+            background-color: {colors.bg_hover};
+            color: {colors.text};
+        }}
+
+        QMenu::separator {{
+            height: 1px;
+            background-color: {colors.border};
+            margin: 5px 8px;
+        }}
+
+        QListWidget, QListView, QTreeWidget, QTreeView {{
+            background-color: {colors.card_bg};
+            alternate-background-color: {table_alt};
+            color: {colors.text};
+            border: 1px solid {colors.border};
+            border-radius: {_px(radius.input)};
+            outline: none;
+        }}
+
+        QListWidget::item, QListView::item,
+        QTreeWidget::item, QTreeView::item {{
+            min-height: 28px;
+            padding: 5px 9px;
+            border-radius: {_px(radius.sm)};
+        }}
+
+        QListWidget::item:selected, QListView::item:selected,
+        QTreeWidget::item:selected, QTreeView::item:selected {{
+            background-color: {colors.table_selection};
+            color: {colors.text};
+        }}
+
+        QProgressBar {{
+            background-color: {colors.bg_active};
+            color: {colors.text};
+            border: none;
+            border-radius: 4px;
+            text-align: center;
+        }}
+
+        QProgressBar::chunk {{
+            background-color: {colors.progress_bg};
+            border-radius: 4px;
+        }}
+
         QToolTip {{
             background-color: {colors.primary_dark};
             color: {colors.text_light};

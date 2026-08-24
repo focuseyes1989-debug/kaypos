@@ -47,12 +47,12 @@ class GridViewWidget(QScrollArea):
                 border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background: #40444b;
+                background: #3a465a;
                 border-radius: 6px;
                 min-height: 20px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #5865f2;
+                background: #6675f5;
             }
             QScrollBar:horizontal {
                 background: transparent;
@@ -60,12 +60,12 @@ class GridViewWidget(QScrollArea):
                 border-radius: 6px;
             }
             QScrollBar::handle:horizontal {
-                background: #40444b;
+                background: #3a465a;
                 border-radius: 6px;
                 min-width: 20px;
             }
             QScrollBar::handle:horizontal:hover {
-                background: #5865f2;
+                background: #6675f5;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -677,11 +677,11 @@ class LoyverseProductCard(QWidget):
         if self._is_dark:
             card_bg = colors.get('card_bg', '#2f3136')
             border_color = colors.get('border', '#40444b')
-            hover_border = '#5865f2'
+            hover_border = colors.get('border_hover', '#6675f5')
         else:
             card_bg = colors.get('card_bg', '#ffffff')
             border_color = colors.get('border', '#e0e0e0')
-            hover_border = '#5865f2'
+            hover_border = colors.get('border_hover', '#6675f5')
         
         self.setObjectName("LoyverseProductCard")
         
@@ -980,11 +980,11 @@ class ModernProductCard(QWidget):
 
     def _apply_theme(self) -> None:
         colors = get_theme_colors()
-        card_bg = "#fbfaf7" if not self._is_dark else "#252a2d"
+        card_bg = colors.get("card_bg", "#ffffff")
         text = colors.get("text", "#212529")
-        image_bg = "#f4f2ed" if not self._is_dark else "#30363a"
-        card_border = "#ebe6dc" if not self._is_dark else "#3d464b"
-        hover_border = "#22c55e" if not self._is_dark else "#37d67a"
+        image_bg = colors.get("bg_hover", "#f4f6fb")
+        card_border = colors.get("border", "#dbe1ee")
+        hover_border = colors.get("border_hover", "#6675f5")
         badge_bg = "#ffe15a"
         badge_text = "#1f1f1f"
         stock_text = colors.get("text_secondary", "#6c757d")

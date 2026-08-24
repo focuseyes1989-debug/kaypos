@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QFrame, QWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QDate, QTimer
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtGui import QIcon, QColor, QPixmap
 from models.database import connect_db
 from models.database.queries import reverse_stock_movement, get_stock_movement
 from utils.currency import get_currency_symbol, format_money
@@ -14,7 +14,6 @@ from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.status_badge_widget import StatusBadgeWidget
-from ui.inventory_page.stock_in_widgets import HeaderFrame
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from datetime import datetime
 import os
@@ -34,6 +33,7 @@ class StockMovementDialog(QDialog):
         
         self.setWindowTitle("Stock Movements")
         self.setMinimumSize(1000, 650)
+        self.resize(1120, 720)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -42,8 +42,8 @@ class StockMovementDialog(QDialog):
         
         # Main layout
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(28, 24, 28, 22)
         
         # Setup header
         self._setup_header(main_layout)
@@ -130,6 +130,18 @@ class StockMovementDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {colors['bg']};
+                color: {colors['text']};
+                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+            }}
+            QFrame#movement_header {{
+                background: transparent;
+                border: none;
+            }}
+            QLabel#movement_title {{
+                color: {colors['text']}; font-size: 20pt; font-weight: 700;
+            }}
+            QLabel#movement_subtitle {{
+                color: {colors['text_secondary']}; font-size: 9.5pt;
             }}
         """)
         
@@ -152,92 +164,39 @@ class StockMovementDialog(QDialog):
     def _get_filter_frame_style(self, colors):
         return f"""
             QFrame#filter_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
-                padding: 5px;
+                background: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 11px;
             }}
         """
     
     def _get_button_frame_style(self, colors):
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
-                padding: 5px;
+                background: transparent;
+                border: none;
             }}
         """
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
+        table_style = f"""
+            QTableWidget {{
+                background-color: {colors['card_bg']};
+                alternate-background-color: {colors['table_alt']};
+                selection-background-color: {colors['bg_hover']};
+                selection-color: {colors['text']};
+                border: 1px solid {colors['border']}; border-radius: 12px;
+                gridline-color: transparent; color: {colors['text']}; outline: none;
+            }}
+            QTableWidget::item {{ padding: 8px 12px; border-bottom: 1px solid {colors['border']}; }}
+            QTableWidget::item:selected, QTableWidget::item:hover {{ background-color: {colors['bg_hover']}; }}
+            QHeaderView::section {{
+                background-color: {colors['card_bg']}; color: {colors['text_secondary']};
+                padding: 11px 12px; border: none; border-bottom: 1px solid {colors['border']};
+                font-weight: 600; font-size: 9pt;
+            }}
+        """
         self.table.setStyleSheet(table_style)
     
     def _update_filter_styles(self, colors):
@@ -256,14 +215,14 @@ class StockMovementDialog(QDialog):
             QComboBox {{
                 padding: 6px 12px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 8px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
                 font-size: 10pt;
                 min-width: 120px;
             }}
             QComboBox:focus {{
-                border-color: #5865f2;
+                border-color: {colors['border_hover']};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -273,7 +232,7 @@ class StockMovementDialog(QDialog):
                 border: 1px solid {colors['border']};
                 border-radius: 4px;
                 color: {colors['text']};
-                selection-background-color: #5865f2;
+                selection-background-color: {colors['bg_hover']};
                 selection-color: white;
                 padding: 4px;
             }}
@@ -285,16 +244,18 @@ class StockMovementDialog(QDialog):
                 background-color: {colors['bg_hover']};
             }}
             QComboBox QAbstractItemView::item:selected {{
-                background-color: #5865f2;
-                color: white;
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
             }}
         """
     
     def _setup_header(self, parent_layout):
         """Setup the header section"""
-        header_frame = HeaderFrame()
-        header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 10, 20, 10)
+        header_frame = QFrame()
+        header_frame.setObjectName("movement_header")
+        header_layout = QVBoxLayout(header_frame)
+        header_layout.setContentsMargins(0, 0, 0, 2)
+        header_layout.setSpacing(5)
         
         # Get product info
         conn = connect_db()
@@ -303,36 +264,20 @@ class StockMovementDialog(QDialog):
         product = cursor.fetchone()
         conn.close()
         
-        # ✅ Header with SVG icon
-        icon = self._load_svg_icon("history", size=(24, 24))
-        if icon and not icon.isNull():
-            icon_label = QLabel()
-            icon_label.setPixmap(icon.pixmap(24, 24))
-            icon_label.setStyleSheet("background: transparent; border: none;")
-            header_layout.addWidget(icon_label)
-        
         if product:
-            title_text = f" Stock Movements - {product[0]}"
+            title_text = f"Stock Movements · {product[0]}"
             info_text = f"SKU: {product[1] or 'N/A'}  |  Current Stock: {product[2] or 0}"
         else:
-            title_text = " Stock Movements"
+            title_text = "Stock Movements"
             info_text = ""
         
-        title_label = QLabel(title_text)
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16pt;
-                font-weight: 600;
-            }
-        """)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
+        self.header_title_label = QLabel(title_text)
+        self.header_title_label.setObjectName("movement_title")
+        header_layout.addWidget(self.header_title_label)
         
-        if info_text:
-            info_label = QLabel(info_text)
-            info_label.setStyleSheet("color: rgba(255,255,255,0.8); font-size: 10pt;")
-            header_layout.addWidget(info_label)
+        self.header_info_label = QLabel(info_text or "Review stock history, references and balance changes.")
+        self.header_info_label.setObjectName("movement_subtitle")
+        header_layout.addWidget(self.header_info_label)
         
         parent_layout.addWidget(header_frame)
     
@@ -345,10 +290,10 @@ class StockMovementDialog(QDialog):
         
         filter_layout = QHBoxLayout(filter_frame)
         filter_layout.setSpacing(12)
-        filter_layout.setContentsMargins(15, 8, 15, 8)
+        filter_layout.setContentsMargins(16, 12, 16, 12)
         
         # Type filter
-        type_label = QLabel("📌 Type:")
+        type_label = QLabel("Type")
         type_label.setStyleSheet(f"color: {colors['text']}; font-size: 10pt;")
         filter_layout.addWidget(type_label)
         
@@ -359,7 +304,7 @@ class StockMovementDialog(QDialog):
         filter_layout.addWidget(self.type_filter)
         
         # Date range widget
-        date_label = QLabel("📅 Date:")
+        date_label = QLabel("Date range")
         date_label.setStyleSheet(f"color: {colors['text']}; font-size: 10pt;")
         filter_layout.addWidget(date_label)
         
@@ -370,7 +315,7 @@ class StockMovementDialog(QDialog):
         filter_layout.addStretch()
         
         # ✅ Refresh button with SVG icon
-        self.btn_refresh = ModernButton(" Refresh", ModernButton.SECONDARY)
+        self.btn_refresh = ModernButton("Refresh", ModernButton.SECONDARY)
         self.btn_refresh.set_icon("refresh", size=(16, 16))
         self.btn_refresh.set_compact(True)
         self.btn_refresh.clicked.connect(self.load_movements)
@@ -390,6 +335,8 @@ class StockMovementDialog(QDialog):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         # Apply initial table style
         colors = get_theme_colors()
@@ -422,45 +369,22 @@ class StockMovementDialog(QDialog):
         button_layout.setContentsMargins(15, 8, 15, 8)
         
         # ✅ Reverse button with SVG icon (red)
-        self.btn_reverse = ModernButton(" Reverse Selected", ModernButton.PRIMARY)
+        self.btn_reverse = ModernButton("Reverse Selected", ModernButton.DANGER)
         self.btn_reverse.set_icon("undo", size=(16, 16))
         self.btn_reverse.set_compact(False)
         self.btn_reverse.setMinimumHeight(32)
         self.btn_reverse.setMinimumWidth(160)
         self.btn_reverse.clicked.connect(self.reverse_selected)
-        self.btn_reverse.setStyleSheet(self.btn_reverse.styleSheet() + """
-            QPushButton {
-                background-color: #e74c3c;
-                font-size: 10pt;
-                font-weight: 600;
-                padding: 8px 24px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
-            }
-        """)
         button_layout.addWidget(self.btn_reverse)
         
         button_layout.addStretch()
         
         # ✅ Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
-        self.btn_close.setMinimumHeight(32)
-        self.btn_close.setMinimumWidth(120)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
-        self.btn_close.setStyleSheet(self.btn_close.styleSheet() + """
-            QPushButton {
-                font-size: 10pt;
-                padding: 8px 20px;
-                border-radius: 6px;
-            }
-        """)
         button_layout.addWidget(self.btn_close)
         
         parent_layout.addWidget(button_frame)
@@ -488,9 +412,9 @@ class StockMovementDialog(QDialog):
                 "ID", "အမျိုးအစား", "ပမာဏ", "မပြောင်းမီ", "ပြောင်းပြီး", 
                 "နေရာ", "ကိုးကား", "ဖန်တီးသူ", "ရက်စွဲ"
             ])
-            self.btn_reverse.setText(" ရွေးထားသော လှုပ်ရှားမှုကို ပြန်ဖျက်မည်")
-            self.btn_refresh.setText(" ပြန်လည်")
-            self.btn_close.setText(" ပိတ်မည်")
+            self.btn_reverse.setText("ရွေးထားသော လှုပ်ရှားမှုကို ပြန်ဖျက်မည်")
+            self.btn_refresh.setText("ပြန်လည်ဖတ်မည်")
+            self.btn_close.setText("ပိတ်မည်")
             self.type_filter.setItemText(0, "အားလုံး")
             self.type_filter.setItemText(1, "စတော့ဝင်")
             self.type_filter.setItemText(2, "စတော့ထွက်")
@@ -503,9 +427,9 @@ class StockMovementDialog(QDialog):
                 "ID", "Type", "Qty", "From Stock", "To Stock", "Location", 
                 "Reference", "Created By", "Date"
             ])
-            self.btn_reverse.setText(" Reverse Selected")
-            self.btn_refresh.setText(" Refresh")
-            self.btn_close.setText(" Close")
+            self.btn_reverse.setText("Reverse Selected")
+            self.btn_refresh.setText("Refresh")
+            self.btn_close.setText("Close")
             self.type_filter.setItemText(0, "All")
             self.type_filter.setItemText(1, "Stock In")
             self.type_filter.setItemText(2, "Stock Out")

@@ -27,8 +27,7 @@ class ModernSearchWidget(QWidget):
         self.setup_ui()
         self.apply_modern_style()
         
-        # Set fixed height to match combobox (around 32px)
-        self.setFixedHeight(32)
+        self.setFixedHeight(38)
         
         # ✅ Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -170,9 +169,9 @@ class ModernSearchWidget(QWidget):
         is_dark = is_dark_theme()
         
         if self.search_input.hasFocus():
-            icon_color = "#5865f2"  # Brand color when focused
+            icon_color = colors['icon_active']
         else:
-            icon_color = "#72767d" if is_dark else "#6c757d"
+            icon_color = colors['text_secondary']
         
         colored_pixmap = self._create_colored_pixmap(self._icon_pixmap, icon_color)
         if colored_pixmap:
@@ -332,14 +331,14 @@ class ModernSearchWidget(QWidget):
         is_dark = is_dark_theme()
         
         if is_dark:
-            bg_color = "#2f3136"
-            bg_hover = "#36393f"
-            bg_focus = "#36393f"
-            border_color = "#40444b"
-            border_hover = "#72767d"
-            border_focus = "#5865f2"
-            text_color = "#dcddde"
-            placeholder_color = "#72767d"
+            bg_color = colors['input_bg']
+            bg_hover = colors['card_hover']
+            bg_focus = colors['input_bg']
+            border_color = colors['input_border']
+            border_hover = colors['border_hover']
+            border_focus = colors['border_hover']
+            text_color = colors['text']
+            placeholder_color = colors['text_secondary']
             shadow_color = "rgba(88, 101, 242, 0.25)"
         else:
             bg_color = "#f8f9fa"
@@ -347,7 +346,7 @@ class ModernSearchWidget(QWidget):
             bg_focus = "#ffffff"
             border_color = "#ced4da"
             border_hover = "#adb5bd"
-            border_focus = "#5865f2"
+            border_focus = colors['border_hover']
             text_color = "#212529"
             placeholder_color = "#6c757d"
             shadow_color = "rgba(88, 101, 242, 0.15)"
@@ -357,9 +356,9 @@ class ModernSearchWidget(QWidget):
             #searchContainer {{
                 background-color: {bg_color};
                 border: 1px solid {border_color};
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 0px;
-                height: 30px;
+                height: 36px;
             }}
             
             #searchContainer:hover {{
@@ -380,7 +379,7 @@ class ModernSearchWidget(QWidget):
                 color: {text_color};
                 font-weight: 400;
                 outline: none;
-                height: 24px;
+                height: 28px;
             }}
             
             #searchInput::placeholder {{

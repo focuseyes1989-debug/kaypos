@@ -48,30 +48,18 @@ class DashboardUtils:
     @staticmethod
     def get_theme_colors():
         """Get theme colors for charts"""
-        from ui.themes.theme_manager import is_dark_theme
-        
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            return {
-                'bg': '#1e1e1e',
-                'figure_bg': '#2f3136',
-                'axes_bg': '#2f3136',
-                'text': '#d4d4d4',
-                'text_secondary': '#9e9e9e',
-                'grid': '#3d3d40',
-                'border': '#404040'
-            }
-        else:
-            return {
-                'bg': '#ffffff',
-                'figure_bg': '#ffffff',
-                'axes_bg': '#f8f9fa',
-                'text': '#2d3436',
-                'text_secondary': '#636e72',
-                'grid': '#e0e0e0',
-                'border': '#e8e8e8'
-            }
+        from ui.themes.theme_manager import get_theme_colors
+
+        colors = get_theme_colors()
+        return {
+            'bg': colors['bg'],
+            'figure_bg': colors['card_bg'],
+            'axes_bg': colors['card_bg'],
+            'text': colors['text'],
+            'text_secondary': colors['text_secondary'],
+            'grid': colors['border'],
+            'border': colors['border'],
+        }
     
     @staticmethod
     def get_vibrant_colors(count: int) -> list:

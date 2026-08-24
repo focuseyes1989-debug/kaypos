@@ -410,9 +410,13 @@ class MainWindow(MainWindowUI):
 
             if hasattr(self, "update_loading"):
                 self.update_loading("Closing session...", 94)
-            self.hide()
             if hasattr(self, "update_loading"):
                 self.update_loading("Logged out.", 100)
+            # LoadingOverlay owns an application-wide WaitCursor. Release it
+            # before this window is hidden and the login loop starts again.
+            if hasattr(self, "hide_loading"):
+                self.hide_loading()
+            self.hide()
 
             app = QApplication.instance()
             if app:
@@ -423,6 +427,8 @@ class MainWindow(MainWindowUI):
             logger.warning(f"Logout cleanup failed: {exc}")
             app = QApplication.instance()
             if app:
+                while app.overrideCursor() is not None:
+                    app.restoreOverrideCursor()
                 app.quit()
                 QTimer.singleShot(0, app.quit)
 

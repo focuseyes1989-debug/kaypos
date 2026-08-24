@@ -1,4 +1,4 @@
-﻿# ui/main_window/sidebar.py
+# ui/main_window/sidebar.py
 """
 Main Window Sidebar - Menu Bar Style
 Clean, minimal sidebar with menu bar-like button styling
@@ -67,13 +67,13 @@ class Sidebar(QFrame):
         
         # Menu bar style colors
         if is_dark:
-            bg_color = "#2f3136"
-            border_color = "#40444b"
+            bg_color = "#151c2a"
+            border_color = "#293348"
             text_secondary = "#949ba4"
-            header_color = "#72767d"
-            hover_color = "#40444b"
-            selected_color = "#40444b"
-            text_color = "#dcddde"
+            header_color = "#657089"
+            hover_color = "#293348"
+            selected_color = "#293348"
+            text_color = "#edf2ff"
             text_selected = "#ffffff"
         else:
             bg_color = "#f8f9fa"
@@ -162,7 +162,7 @@ class Sidebar(QFrame):
         self.collapse_container = QWidget()
         self.collapse_container.setStyleSheet("background: transparent;")
         self.collapse_layout = QVBoxLayout(self.collapse_container)
-        self.collapse_layout.setContentsMargins(0, 8, 0, 8)
+        self.collapse_layout.setContentsMargins(0, 0, 0, 0)
         self.collapse_layout.setSpacing(0)
         
         # Collapse divider
@@ -170,6 +170,7 @@ class Sidebar(QFrame):
         self.collapse_divider.setFixedHeight(1)
         self.collapse_divider.setStyleSheet(f"background-color: {border_color}; margin: 4px 4px 4px 4px;")
         self.collapse_layout.addWidget(self.collapse_divider)
+        self.collapse_layout.addSpacing(8)
         
         # Collapse button - uses assets/icons and follows the same [icon] label pattern.
         self.collapse_btn = ModernButton("Collapse", style=ModernButton.SECONDARY)
@@ -196,6 +197,12 @@ class Sidebar(QFrame):
         """)
         self.collapse_btn.clicked.connect(self.toggle_collapse)
         self.collapse_layout.addWidget(self.collapse_btn)
+
+        self.collapse_layout.addSpacing(8)
+        self.bottom_divider = QFrame()
+        self.bottom_divider.setFixedHeight(1)
+        self.bottom_divider.setStyleSheet(f"background-color: {border_color}; margin: 4px 4px 4px 4px;")
+        self.collapse_layout.addWidget(self.bottom_divider)
         
         self.nav_layout.addWidget(self.collapse_container)
         
@@ -205,14 +212,8 @@ class Sidebar(QFrame):
         self.bottom_container = QWidget()
         self.bottom_container.setStyleSheet("background: transparent;")
         self.bottom_layout = QVBoxLayout(self.bottom_container)
-        self.bottom_layout.setContentsMargins(0, 0, 0, 0)
+        self.bottom_layout.setContentsMargins(0, 10, 0, 0)
         self.bottom_layout.setSpacing(10)
-        
-        # Bottom divider
-        self.bottom_divider = QFrame()
-        self.bottom_divider.setFixedHeight(1)
-        self.bottom_divider.setStyleSheet(f"background-color: {border_color}; margin: 4px 4px 4px 4px;")
-        self.bottom_layout.addWidget(self.bottom_divider)
 
         self.theme_toggle_container = QWidget()
         self.theme_toggle_container.setObjectName("themeToggle")
@@ -297,14 +298,14 @@ class Sidebar(QFrame):
     def _palette(self) -> dict:
         if self._is_dark:
             return {
-                "bg": "#24272c", "border": "#3a3f46", "muted": "#8d949e",
-                "text": "#e6e8eb", "hover": "#30343a", "selected": "#353a42",
-                "selected_text": "#ffffff", "toggle": "#2e3238", "avatar": "#343941",
+                "bg": "#111724", "border": "#293348", "muted": "#8995ad",
+                "text": "#edf2ff", "hover": "#1c2535", "selected": "#252d55",
+                "selected_text": "#aeb7ff", "toggle": "#182231", "avatar": "#6675f5",
             }
         return {
-            "bg": "#fbfbfc", "border": "#dfe3e8", "muted": "#6d747d",
-            "text": "#30343a", "hover": "#eef1f4", "selected": "#e9edf2",
-            "selected_text": "#1f242a", "toggle": "#edf0f4", "avatar": "#eef1f5",
+            "bg": "#ffffff", "border": "#dbe1ee", "muted": "#667085",
+            "text": "#172033", "hover": "#eef1fb", "selected": "#e7eaff",
+            "selected_text": "#4f5ed2", "toggle": "#eef1f7", "avatar": "#6675f5",
         }
 
     def _nav_button_style(self, collapsed: bool = False) -> str:
@@ -402,17 +403,23 @@ class Sidebar(QFrame):
         if self.profile_text_container:
             self.profile_text_container.setVisible(not self._is_collapsed)
 
-        for divider_name in ("header_divider", "collapse_divider", "bottom_divider"):
+        if self.header_divider:
+            self.header_divider.setStyleSheet(
+                f"background-color: {p['border']}; margin: 6px 4px;"
+            )
+        for divider_name in ("collapse_divider", "bottom_divider"):
             divider = getattr(self, divider_name, None)
             if divider:
-                divider.setStyleSheet(f"background-color: {p['border']}; margin: 6px 4px;")
+                divider.setStyleSheet(
+                    f"background-color: {p['border']}; margin: 0px 4px;"
+                )
 
         collapsed = self._is_collapsed
         if hasattr(self, "nav_layout") and self.nav_layout:
             self.nav_layout.setContentsMargins(0, 0, 0, 0)
             self.nav_layout.setSpacing(3)
         if hasattr(self, "bottom_layout") and self.bottom_layout:
-            self.bottom_layout.setContentsMargins(0, 0, 0, 0)
+            self.bottom_layout.setContentsMargins(0, 10, 0, 0)
         for btn in self.sidebar_buttons:
             self._apply_button_metrics(btn, collapsed)
             btn.setStyleSheet(self._nav_button_style(collapsed))
@@ -495,8 +502,8 @@ class Sidebar(QFrame):
             btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {'#ffffff' if active and not self._is_dark else '#3a3f46' if active else 'transparent'};
-                    color: {p['text'] if active else p['muted']};
+                    background-color: {'#6675f5' if active else 'transparent'};
+                    color: {'#ffffff' if active else p['muted']};
                     border: none;
                     border-radius: 5px;
                     padding: 0px;
@@ -508,8 +515,8 @@ class Sidebar(QFrame):
                     font-weight: {600 if active else 500};
                 }}
                 QPushButton:hover {{
-                    background-color: {'#ffffff' if active and not self._is_dark else '#3a3f46' if active else p['hover']};
-                    color: {p['text']};
+                    background-color: {'#6675f5' if active else p['hover']};
+                    color: {'#ffffff' if active else p['text']};
                 }}
             """)
 
@@ -553,9 +560,9 @@ class Sidebar(QFrame):
         is_dark = getattr(self, '_is_dark', True)
         
         if is_dark:
-            hover_color = "#40444b"
-            selected_color = "#40444b"
-            text_color = "#dcddde"
+            hover_color = "#293348"
+            selected_color = "#293348"
+            text_color = "#edf2ff"
             text_selected = "#ffffff"
         else:
             hover_color = "#e9ecef"
@@ -690,13 +697,13 @@ class Sidebar(QFrame):
         self._is_dark = is_dark
         
         if is_dark:
-            bg_color = "#2f3136"
-            border_color = "#40444b"
+            bg_color = "#151c2a"
+            border_color = "#293348"
             text_secondary = "#949ba4"
-            header_color = "#72767d"
-            hover_color = "#40444b"
-            selected_color = "#40444b"
-            text_color = "#dcddde"
+            header_color = "#657089"
+            hover_color = "#293348"
+            selected_color = "#293348"
+            text_color = "#edf2ff"
             text_selected = "#ffffff"
         else:
             bg_color = "#f8f9fa"

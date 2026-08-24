@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QMessageBox, QFormLayout, QFrame, QWidget
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QPixmap, QColor, QFont
+from PyQt6.QtGui import QIcon, QPixmap, QColor, QFont, QAction
 import hashlib
 from models.database import connect_db
 from utils.language import lang
@@ -32,14 +32,14 @@ class LoginDialog(QDialog):
             dialog_width, dialog_height = get_responsive_dialog_size(
                 screen_geometry.width(),
                 screen_geometry.height(),
-                preferred_width=860,
-                preferred_height=520,
-                min_width=720,
-                min_height=460,
+                preferred_width=940,
+                preferred_height=580,
+                min_width=820,
+                min_height=520,
             )
             self.resize(dialog_width, dialog_height)
         else:
-            self.resize(860, 520)
+            self.resize(940, 580)
         self.user_info = None
 
         # Connect theme change
@@ -56,8 +56,29 @@ class LoginDialog(QDialog):
         left_widget = QWidget()
         left_widget.setObjectName("left_widget")
         left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(0)
+        left_layout.setContentsMargins(34, 34, 34, 30)
+        left_layout.setSpacing(12)
+
+        brand_row = QHBoxLayout()
+        brand_mark = QLabel("K")
+        brand_mark.setObjectName("brandMark")
+        brand_mark.setFixedSize(44, 44)
+        brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_name = QLabel("KAY")
+        brand_name.setObjectName("brandName")
+        brand_row.addWidget(brand_mark)
+        brand_row.addWidget(brand_name)
+        brand_row.addStretch()
+        left_layout.addLayout(brand_row)
+
+        self.hero_title = QLabel("Your business, one workspace.")
+        self.hero_title.setObjectName("heroTitle")
+        self.hero_title.setWordWrap(True)
+        self.hero_subtitle = QLabel("Sales, inventory and reports—ready for your next working day.")
+        self.hero_subtitle.setObjectName("heroSubtitle")
+        self.hero_subtitle.setWordWrap(True)
+        left_layout.addWidget(self.hero_title)
+        left_layout.addWidget(self.hero_subtitle)
 
         # Market Image - Full height
         self.image_label = QLabel()
@@ -68,13 +89,13 @@ class LoginDialog(QDialog):
         """)
         
         # Load market.png and scale to fill left column
-        market_path = "assets/images/market.png"
+        market_path = "assets/launcher/pos-system.png"
         if os.path.exists(market_path):
             pixmap = QPixmap(market_path)
             if not pixmap.isNull():
                 scaled_pixmap = pixmap.scaled(
-                    400, 500,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    430, 360,
+                    Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
                 self.image_label.setPixmap(scaled_pixmap)
@@ -89,7 +110,6 @@ class LoginDialog(QDialog):
                 background: transparent;
                 border: none;
             """)
-            self.image_label.setFixedSize(400, 500)
         
         left_layout.addWidget(self.image_label)
 
@@ -97,8 +117,8 @@ class LoginDialog(QDialog):
         right_widget = QWidget()
         right_widget.setObjectName("right_widget")
         right_layout = QVBoxLayout(right_widget)
-        right_layout.setSpacing(10)
-        right_layout.setContentsMargins(40, 40, 40, 20)
+        right_layout.setSpacing(14)
+        right_layout.setContentsMargins(52, 42, 52, 28)
 
         # ========== Spacer to push content down ==========
         right_layout.addStretch()
@@ -109,7 +129,7 @@ class LoginDialog(QDialog):
 
         # Logo container - NO BORDER
         logo_container = QFrame()
-        logo_container.setFixedSize(112, 112)
+        logo_container.setFixedSize(76, 76)
         logo_container.setStyleSheet("""
             QFrame {
                 background: transparent;
@@ -126,7 +146,7 @@ class LoginDialog(QDialog):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             if not pixmap.isNull():
-                scaled_pixmap = pixmap.scaled(104, 104, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                scaled_pixmap = pixmap.scaled(68, 68, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 logo_label.setPixmap(scaled_pixmap)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_container_layout.addWidget(logo_label)
@@ -134,25 +154,16 @@ class LoginDialog(QDialog):
         logo_layout.addWidget(logo_container, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Title
-        title_label = QLabel("KAY Point of Sales")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("""
-            font-size: 20pt; 
-            font-weight: bold; 
-            margin-top: 4px;
-            letter-spacing: 1px;
-        """)
-        logo_layout.addWidget(title_label)
+        self.title_label = QLabel("Welcome back")
+        self.title_label.setObjectName("loginTitle")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.title_label)
 
         # Subtitle
-        subtitle_label = QLabel("Welcome back! Please login to your account")
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle_label.setStyleSheet("""
-            font-size: 10pt; 
-            color: #6c757d;
-            margin-bottom: 4px;
-        """)
-        logo_layout.addWidget(subtitle_label)
+        self.subtitle_label = QLabel("Sign in to continue to KAY Point of Sales")
+        self.subtitle_label.setObjectName("loginSubtitle")
+        self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.subtitle_label)
 
         right_layout.addLayout(logo_layout)
 
@@ -162,6 +173,7 @@ class LoginDialog(QDialog):
         form_layout.setHorizontalSpacing(15)
 
         self.username_edit = QLineEdit()
+        self.username_edit.setObjectName("loginInput")
         self.username_edit.setPlaceholderText(tr("enter_username"))
         self.username_edit.setMinimumHeight(38)
         self.username_edit.setStyleSheet("""
@@ -179,6 +191,7 @@ class LoginDialog(QDialog):
         """)
 
         self.password_edit = QLineEdit()
+        self.password_edit.setObjectName("loginInput")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setPlaceholderText(tr("enter_password"))
         self.password_edit.setMinimumHeight(38)
@@ -196,6 +209,12 @@ class LoginDialog(QDialog):
             }
         """)
 
+        self.password_visibility_action = QAction(self)
+        self.password_visibility_action.setCheckable(True)
+        self.password_visibility_action.setToolTip("Show password")
+        self.password_visibility_action.toggled.connect(self._toggle_password_visibility)
+        self.password_edit.addAction(self.password_visibility_action, QLineEdit.ActionPosition.TrailingPosition)
+
         self.username_label = QLabel(tr("username_label"))
         self.username_label.setStyleSheet("font-weight: 600; font-size: 10pt;")
         
@@ -212,14 +231,14 @@ class LoginDialog(QDialog):
         btn_layout.setSpacing(12)
         
         # Cancel button (left)
-        self.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
+        self.btn_cancel = ModernButton("Cancel", ModernButton.TERTIARY)
         self.btn_cancel.set_icon("close", size=(20, 20))
         self.btn_cancel.set_compact(False)
         self.btn_cancel.setMinimumHeight(40)
         self.btn_cancel.clicked.connect(self.reject)
         
         # Login button (right)
-        self.btn_login = ModernButton(" Login", ModernButton.PRIMARY)
+        self.btn_login = ModernButton("Sign In", ModernButton.PRIMARY)
         self.btn_login.set_icon("login", size=(20, 20))
         self.btn_login.set_compact(False)
         self.btn_login.setMinimumHeight(40)
@@ -233,14 +252,10 @@ class LoginDialog(QDialog):
         right_layout.addStretch()
 
         # ========== Footer at bottom ==========
-        footer_label = QLabel("© 2026 KAY Point of Sales. All rights reserved.")
-        footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        footer_label.setStyleSheet("""
-            font-size: 8pt;
-            color: #adb5bd;
-            padding: 4px 0px;
-        """)
-        right_layout.addWidget(footer_label)
+        self.footer_label = QLabel("© 2026 KAY Point of Sales · Secure workspace")
+        self.footer_label.setObjectName("loginFooter")
+        self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right_layout.addWidget(self.footer_label)
 
         # ---------- Add to Main Layout ----------
         main_layout.addWidget(left_widget, 0)  # Fixed size
@@ -263,169 +278,57 @@ class LoginDialog(QDialog):
         """Update button icons when theme changes"""
         self.btn_login.set_icon("login", size=(20, 20))
         self.btn_cancel.set_icon("close", size=(20, 20))
+        icon_name = "visibility_off" if self.password_visibility_action.isChecked() else "visibility"
+        from ui.themes.theme_manager import get_themed_icon
+        self.password_visibility_action.setIcon(get_themed_icon(icon_name, size=(18, 18)))
+
+    def _toggle_password_visibility(self, visible):
+        self.password_edit.setEchoMode(
+            QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
+        )
+        self.password_visibility_action.setToolTip("Hide password" if visible else "Show password")
+        self._update_button_icons()
 
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
-        # Left column (image) - theme-aware background
-        if is_dark:
-            left_style = """
-                QWidget#left_widget {
-                    background-color: #2f3136;
-                    border: none;
-                }
-            """
-        else:
-            left_style = """
-                QWidget#left_widget {
-                    background-color: #f8f9fa;
-                    border: none;
-                }
-            """
-        
-        left_widget = self.findChild(QWidget, "left_widget")
-        if left_widget:
-            left_widget.setStyleSheet(left_style)
-        
-        # Right column
-        if is_dark:
-            right_style = """
-                QWidget#right_widget {
-                    background-color: #2f3136;
-                    border: none;
-                }
-            """
-        else:
-            right_style = """
-                QWidget#right_widget {
-                    background-color: #ffffff;
-                    border: none;
-                }
-            """
-        
-        right_widget = self.findChild(QWidget, "right_widget")
-        if right_widget:
-            right_widget.setStyleSheet(right_style)
-        
-        # Dialog background
-        if is_dark:
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #2f3136;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #ffffff;
-                }
-            """)
-        
-        # Update input fields
-        if is_dark:
-            input_style = """
-                QLineEdit {
-                    padding: 8px 14px;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background: #36393f;
-                    color: #dcddde;
-                    font-size: 10pt;
-                }
-                QLineEdit:focus {
-                    border-color: #5865f2;
-                    border-width: 2px;
-                }
-                QLineEdit::placeholder {
-                    color: #72767d;
-                }
-            """
-        else:
-            input_style = """
-                QLineEdit {
-                    padding: 8px 14px;
-                    border: 1px solid #ced4da;
-                    border-radius: 6px;
-                    background: white;
-                    color: #212529;
-                    font-size: 10pt;
-                }
-                QLineEdit:focus {
-                    border-color: #5865f2;
-                    border-width: 2px;
-                }
-                QLineEdit::placeholder {
-                    color: #6c757d;
-                }
-            """
-        
-        self.username_edit.setStyleSheet(input_style)
-        self.password_edit.setStyleSheet(input_style)
-        
-        # Update labels
-        if is_dark:
-            label_style = "font-weight: 600; font-size: 10pt; color: #dcddde;"
-        else:
-            label_style = "font-weight: 600; font-size: 10pt; color: #212529;"
-        
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {colors['bg']}; color: {colors['text']};
+                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+            }}
+            QWidget#left_widget {{
+                background-color: {colors['card_bg']};
+                border-right: 1px solid {colors['border']};
+            }}
+            QWidget#right_widget {{ background-color: {colors['bg']}; }}
+            QLabel#brandMark {{
+                background-color: {colors['progress_bg']}; color: white;
+                border-radius: 12px; font-size: 17pt; font-weight: 900;
+            }}
+            QLabel#brandName {{ color: {colors['text']}; font-size: 18pt; font-weight: 800; }}
+            QLabel#heroTitle {{ color: {colors['text']}; font-size: 21pt; font-weight: 750; }}
+            QLabel#heroSubtitle {{ color: {colors['text_secondary']}; font-size: 10pt; }}
+            QLabel#loginTitle {{ color: {colors['text']}; font-size: 20pt; font-weight: 750; }}
+            QLabel#loginSubtitle {{ color: {colors['text_secondary']}; font-size: 9.5pt; }}
+            QLabel#loginFooter {{ color: {colors['text_secondary']}; font-size: 8.5pt; }}
+            QLineEdit#loginInput {{
+                background-color: {colors['input_bg']}; color: {colors['text']};
+                border: 1px solid {colors['input_border']}; border-radius: 9px;
+                padding: 9px 13px; min-height: 22px; font-size: 10pt;
+            }}
+            QLineEdit#loginInput:hover {{ border-color: {colors['border']}; }}
+            QLineEdit#loginInput:focus {{ border: 1px solid {colors['border_hover']}; }}
+            QLineEdit#loginInput::placeholder {{ color: {colors['text_secondary']}; }}
+        """)
+        label_style = f"font-weight:600;font-size:9.5pt;color:{colors['text_secondary']};"
         self.username_label.setStyleSheet(label_style)
         self.password_label.setStyleSheet(label_style)
-        
-        # Update title labels
-        for child in self.findChildren(QLabel):
-            style = child.styleSheet()
-            if "font-size: 20pt" in style or "font-weight: bold" in style:
-                if is_dark:
-                    child.setStyleSheet("""
-                        font-size: 20pt; 
-                        font-weight: bold; 
-                        margin-top: 4px;
-                        letter-spacing: 1px;
-                        color: #dcddde;
-                    """)
-                else:
-                    child.setStyleSheet("""
-                        font-size: 20pt; 
-                        font-weight: bold; 
-                        margin-top: 4px;
-                        letter-spacing: 1px;
-                        color: #212529;
-                    """)
-            elif "color: #6c757d" in style or "color: #72767d" in style:
-                if is_dark:
-                    child.setStyleSheet("""
-                        font-size: 10pt; 
-                        color: #72767d;
-                        margin-bottom: 4px;
-                    """)
-                else:
-                    child.setStyleSheet("""
-                        font-size: 10pt; 
-                        color: #6c757d;
-                        margin-bottom: 4px;
-                    """)
-            elif "color: #adb5bd" in style:
-                if is_dark:
-                    child.setStyleSheet("""
-                        font-size: 8pt;
-                        color: #72767d;
-                        padding: 4px 0px;
-                    """)
-                else:
-                    child.setStyleSheet("""
-                        font-size: 8pt;
-                        color: #adb5bd;
-                        padding: 4px 0px;
-                    """)
-        
-        # Update button icons
-        self._update_button_icons()
-        
-        # Update buttons
+        self.username_edit.setStyleSheet("")
+        self.password_edit.setStyleSheet("")
         self.btn_login.update_theme()
         self.btn_cancel.update_theme()
+        self._update_button_icons()
 
     def retranslateUi(self):
         self.setWindowTitle(tr("login_title"))
@@ -434,9 +337,20 @@ class LoginDialog(QDialog):
         self.username_label.setText(tr("username_label"))
         self.password_label.setText(tr("password_label"))
         
-        # Update button text
-        self.btn_login.setText(" Login")
-        self.btn_cancel.setText(" Cancel")
+        if lang.get_current() == "my":
+            self.title_label.setText("ပြန်လည်ကြိုဆိုပါတယ်")
+            self.subtitle_label.setText("KAY Point of Sales သို့ ဆက်လက်ဝင်ရောက်ပါ")
+            self.hero_title.setText("သင့်လုပ်ငန်းအတွက် Workspace တစ်ခုတည်း။")
+            self.hero_subtitle.setText("အရောင်း၊ ကုန်လက်ကျန်နှင့် အစီရင်ခံစာများကို တစ်နေရာတည်းတွင် စီမံပါ။")
+            self.btn_login.setText("ဝင်မည်")
+            self.btn_cancel.setText("မလုပ်တော့ပါ")
+        else:
+            self.title_label.setText("Welcome back")
+            self.subtitle_label.setText("Sign in to continue to KAY Point of Sales")
+            self.hero_title.setText("Your business, one workspace.")
+            self.hero_subtitle.setText("Sales, inventory and reports—ready for your next working day.")
+            self.btn_login.setText("Sign In")
+            self.btn_cancel.setText("Cancel")
         
         # Update button icons
         self._update_button_icons()

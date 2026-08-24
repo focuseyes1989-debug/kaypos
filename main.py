@@ -40,6 +40,15 @@ def signal_handler(_signum, _frame):
 
 def main():
     """Main entry point."""
+    from utils.single_instance import SingleInstanceGuard, show_already_running_message
+
+    # The OS releases this mutex automatically if the app crashes or is killed.
+    # Keep the guard referenced until main() exits so only one POS can run.
+    instance_guard = SingleInstanceGuard(r"Global\KAY_POS_Main_SingleInstance_v1")
+    if not instance_guard.acquire():
+        show_already_running_message()
+        return 0
+
     try:
         from utils.env_loader import load_project_env
         load_project_env()

@@ -15,6 +15,8 @@ from utils.currency import format_money
 from ui.widgets.modern_button import ModernButton
 # ✅ ModernSearchWidget import
 from ui.widgets.search_widget import ModernSearchWidget
+from ui.themes.theme_manager import get_theme_colors, theme_manager
+from ui.design_system.dialog_styles import modern_table_stylesheet
 
 
 class ProductLocationDialog(QDialog):
@@ -31,11 +33,15 @@ class ProductLocationDialog(QDialog):
         self.setModal(True)
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(15)
         
         # Info label
-        info_label = QLabel(f"<b>Product:</b> {product_name}")
-        info_label.setStyleSheet("font-size: 11pt;")
+        self.title_label = QLabel("Product locations")
+        self.title_label.setObjectName("dialogTitle")
+        info_label = QLabel(f"Manage batches and stock locations for {product_name}.")
+        info_label.setObjectName("dialogSubtitle")
+        layout.addWidget(self.title_label)
         layout.addWidget(info_label)
         
         # Location table
@@ -89,50 +95,14 @@ class ProductLocationDialog(QDialog):
         
         # Delete button - Custom danger style (override with stylesheet)
         self.btn_delete = ModernButton("Delete", ModernButton.TERTIARY)
+        self.btn_delete.setObjectName("dangerButton")
         self.btn_delete.set_compact(True)
-        self.btn_delete.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #e74c3c;
-                border: 1.5px solid #e74c3c;
-                border-radius: 6px;
-                padding: 5px 16px;
-                font-weight: 500;
-                font-size: 9pt;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #e74c3c;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #c0392b;
-                color: white;
-            }
-        """)
         self.btn_delete.clicked.connect(self.delete_location)
         
         # Move button - Custom warning style
         self.btn_move = ModernButton("Move Stock", ModernButton.SECONDARY)
+        self.btn_move.setObjectName("warningButton")
         self.btn_move.set_compact(True)
-        self.btn_move.setStyleSheet("""
-            QPushButton {
-                background-color: #f39c12;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 5px 16px;
-                font-weight: 500;
-                font-size: 9pt;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #e67e22;
-            }
-            QPushButton:pressed {
-                background-color: #d35400;
-            }
-        """)
         self.btn_move.clicked.connect(self.move_stock)
         
         btn_layout.addWidget(self.btn_edit)
@@ -141,14 +111,18 @@ class ProductLocationDialog(QDialog):
         btn_layout.addStretch()
         
         # Close button - Tertiary style
-        self.btn_close = ModernButton("Close", ModernButton.TERTIARY)
-        self.btn_close.set_compact(True)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
+        self.btn_close.set_icon("close", size=(15, 15))
+        self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         
         layout.addLayout(btn_layout)
         
         self.setLayout(layout)
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
         self.load_product_locations()
         self.retranslateUi()
     
@@ -162,6 +136,21 @@ class ProductLocationDialog(QDialog):
             return row[0] if row else "en"
         except:
             return "en"
+
+    def _apply_theme(self, _theme_name=None):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel {{ color: {colors['text']}; background: transparent; }}
+            QLabel#dialogTitle {{ font-size: 21px; font-weight: 700; }}
+            QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
+            QGroupBox {{ background-color: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 11px; margin-top: 10px; padding: 14px 12px 10px; }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 6px; color: {colors['text_secondary']}; }}
+            QComboBox, QSpinBox {{ min-height: 36px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QPushButton#dangerButton {{ color: {colors['danger']}; border-color: {colors['danger']}; }}
+            QPushButton#dangerButton:hover {{ background-color: {colors['danger']}; color: white; }}
+            QPushButton#warningButton {{ background-color: {colors['warning']}; color: white; border-color: {colors['warning']}; }}
+        """ + modern_table_stylesheet(colors))
     
     def retranslateUi(self):
         lang_code = self.get_lang()

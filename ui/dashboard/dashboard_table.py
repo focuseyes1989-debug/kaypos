@@ -45,6 +45,7 @@ class DashboardTable(QFrame):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setDefaultSectionSize(55)
+        self.table.verticalHeader().setVisible(False)
         
         self._update_table_style()
         
@@ -60,175 +61,42 @@ class DashboardTable(QFrame):
         """)
     
     def _update_table_style(self):
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
+        colors = get_theme_colors()
+        table_style = f"""
+                QTableWidget {{
+                    background-color: {colors['card_bg']};
+                    alternate-background-color: {colors['table_alt']};
+                    selection-background-color: {colors['bg_hover']};
+                    selection-color: {colors['text']};
                     gridline-color: transparent;
-                    border: 1px solid #40444b;
-                    border-radius: 10px;
-                    color: #dcddde;
-                    spacing: 4px;
-                }
-                QTableWidget::item {
+                    border: 1px solid {colors['border']};
+                    border-radius: 12px;
+                    color: {colors['text']};
+                }}
+                QTableWidget::item {{
                     padding: 6px 10px;
                     border: none;
-                    border-bottom: 1px solid #40444b;
-                    color: #dcddde;
+                    border-bottom: 1px solid {colors['border']};
+                    color: {colors['text']};
                     background-color: transparent;
-                }
-                QTableWidget::item:selected {
-                    background-color: #36393f;
-                    color: #dcddde;
-                    border-radius: 4px;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                    border-radius: 4px;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 6px 10px;
+                }}
+                QTableWidget::item:selected {{
+                    background-color: {colors['bg_hover']};
+                    color: {colors['text']};
+                }}
+                QTableWidget::item:hover {{
+                    background-color: {colors['card_hover']};
+                }}
+                QHeaderView::section {{
+                    background-color: {colors['bg_hover']};
+                    padding: 8px 10px;
                     border: none;
-                    border-bottom: 2px solid #40444b;
+                    border-bottom: 1px solid {colors['border']};
                     font-weight: 600;
                     font-size: 9pt;
-                    color: #b9bbbe;
-                }
-                QScrollBar:vertical {
-                    background: #2f3136;
-                    width: 6px;
-                    border-radius: 3px;
-                    margin: 0px;
-                }
-                QScrollBar::handle:vertical {
-                    background: #40444b;
-                    border-radius: 3px;
-                    min-height: 16px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background: #5865f2;
-                }
-                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                    height: 0px;
-                    border: none;
-                    background: transparent;
-                }
-                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                    background: transparent;
-                }
-                QScrollBar:horizontal {
-                    background: #2f3136;
-                    height: 6px;
-                    border-radius: 3px;
-                    margin: 0px;
-                }
-                QScrollBar::handle:horizontal {
-                    background: #40444b;
-                    border-radius: 3px;
-                    min-width: 16px;
-                }
-                QScrollBar::handle:horizontal:hover {
-                    background: #5865f2;
-                }
-                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                    width: 0px;
-                    border: none;
-                    background: transparent;
-                }
-                QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                    background: transparent;
-                }
+                    color: {colors['text_secondary']};
+                }}
             """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: #ffffff;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: transparent;
-                    border: 1px solid #dee2e6;
-                    border-radius: 10px;
-                    color: #212529;
-                    spacing: 4px;
-                }
-                QTableWidget::item {
-                    padding: 6px 10px;
-                    border: none;
-                    border-bottom: 1px solid #f1f3f5;
-                    color: #212529;
-                    background-color: transparent;
-                }
-                QTableWidget::item:selected {
-                    background-color: #f8f9fa;
-                    color: #212529;
-                    border-radius: 4px;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                    border-radius: 4px;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 6px 10px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 9pt;
-                    color: #2c3e50;
-                }
-                QScrollBar:vertical {
-                    background: #f8f9fa;
-                    width: 6px;
-                    border-radius: 3px;
-                    margin: 0px;
-                }
-                QScrollBar::handle:vertical {
-                    background: #ced4da;
-                    border-radius: 3px;
-                    min-height: 16px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background: #5865f2;
-                }
-                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                    height: 0px;
-                    border: none;
-                    background: transparent;
-                }
-                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                    background: transparent;
-                }
-                QScrollBar:horizontal {
-                    background: #f8f9fa;
-                    height: 6px;
-                    border-radius: 3px;
-                    margin: 0px;
-                }
-                QScrollBar::handle:horizontal {
-                    background: #ced4da;
-                    border-radius: 3px;
-                    min-width: 16px;
-                }
-                QScrollBar::handle:horizontal:hover {
-                    background: #5865f2;
-                }
-                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                    width: 0px;
-                    border: none;
-                    background: transparent;
-                }
-                QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                    background: transparent;
-                }
-            """
-        
         self.table.setStyleSheet(table_style)
     
     def populate(self, from_date, to_date):

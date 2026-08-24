@@ -19,6 +19,7 @@ from ui.widgets import (
 )
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
+from ui.design_system.dialog_styles import modern_table_stylesheet
 import os
 
 
@@ -216,9 +217,10 @@ class ExpenseComparisonDialog(QDialog):
         btn_layout = QHBoxLayout()
         
         # ✅ Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addStretch()
         btn_layout.addWidget(self.btn_close)
@@ -369,6 +371,8 @@ class ExpenseComparisonDialog(QDialog):
 
     def _apply_table_theme_to_table(self, table):
         """Apply theme-aware table styling to a specific table"""
+        table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        return
         is_dark = is_dark_theme()
         
         if is_dark:

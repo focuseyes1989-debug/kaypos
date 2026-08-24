@@ -230,9 +230,10 @@ class CustomerLedgerDialog(QDialog):
         btn_layout.addStretch()
         
         # ✅ Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         

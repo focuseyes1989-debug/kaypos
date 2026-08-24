@@ -89,6 +89,12 @@ async def configure_asyncio_error_handling() -> None:
     app.state.asyncio_loop = loop
     app.state.previous_asyncio_exception_handler = install_windows_disconnect_handler(loop)
     try:
+        from server.printer_service import PrinterRegistry
+
+        PrinterRegistry().ensure_schema()
+    except Exception as exc:
+        logger.warning(f"Could not initialize Printer Server registry: {exc}")
+    try:
         from models.database.stock_audit import clamp_all_location_stock_to_master
         fixed = clamp_all_location_stock_to_master("Cashier Server Startup")
         if fixed:
@@ -132,6 +138,329 @@ class CarPrintRequest(BaseModel):
     request_key: str = Field(..., min_length=16, max_length=128)
     copies: int = Field(default=1, ge=1, le=99)
     printer_name: str = Field(default="", max_length=255)
+
+
+class PrinterInfoPayload(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    is_default: bool = False
+
+
+class PrinterAgentHeartbeat(BaseModel):
+    agent_id: str = Field(..., min_length=8, max_length=128)
+    computer_name: str = Field(..., min_length=1, max_length=120)
+    ip_address: str = Field(default="", max_length=64)
+    platform: str = Field(default="Windows", max_length=80)
+    agent_version: str = Field(default="1.0", max_length=40)
+    printers: List[PrinterInfoPayload] = Field(default_factory=list, max_length=100)
+
+
+class PrinterAgentEnrollment(BaseModel):
+    agent_id: str = Field(..., min_length=8, max_length=128)
+    computer_name: str = Field(..., min_length=1, max_length=120)
+
+
+class PrinterAgentPermissions(BaseModel):
+    enabled: bool = True
+    allowed_job_types: List[str] = Field(default_factory=list, max_length=10)
+
+
+class NetworkPrintJobRequest(BaseModel):
+    request_key: str = Field(..., min_length=8, max_length=128)
+    target_agent_id: str = Field(..., min_length=8, max_length=128)
+    printer_name: str = Field(..., min_length=1, max_length=255)
+    job_type: str = Field(default="test_page", max_length=40)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    copies: int = Field(default=1, ge=1, le=99)
+    source_agent_id: str = Field(default="api-client", max_length=128)
+
+
+class NetworkPrintClaimRequest(BaseModel):
+    agent_id: str = Field(..., min_length=8, max_length=128)
+    printers: List[str] = Field(default_factory=list, max_length=100)
+
+
+class NetworkPrintStatusRequest(BaseModel):
+    agent_id: str = Field(..., min_length=8, max_length=128)
+    status: str = Field(..., pattern="^(completed|failed)$")
+    error_message: str = Field(default="", max_length=1000)
+
+
+def _require_printer_lan(request: Request) -> None:
+    from server.printer_security import require_lan_address
+
+    try:
+        require_lan_address(request.client.host if request.client else "")
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+def _require_printer_admin(request: Request, key: str | None) -> None:
+    from server.printer_security import require_admin_key
+
+    _require_printer_lan(request)
+    try:
+        require_admin_key(key)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+def _require_printer_client(request: Request, key: str | None) -> None:
+    from server.printer_security import require_client_key
+
+    _require_printer_lan(request)
+    try:
+        require_client_key(key)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@app.post("/api/printer/agents/enroll")
+def enroll_printer_agent(
+    payload: PrinterAgentEnrollment,
+    request: Request,
+    x_printer_enrollment_key: Optional[str] = Header(default=None),
+):
+    from server.printer_security import require_enrollment_key
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    try:
+        require_enrollment_key(x_printer_enrollment_key)
+        agent, token = PrinterRegistry().enroll_agent(payload.agent_id, payload.computer_name)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": {"agent": agent, "agent_key": token}}
+
+
+@app.post("/api/printer/agents/heartbeat")
+def printer_agent_heartbeat(
+    payload: PrinterAgentHeartbeat,
+    request: Request,
+    x_printer_agent_key: Optional[str] = Header(default=None),
+):
+    """Register one PC and its currently installed Windows printers."""
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    registry = PrinterRegistry()
+    try:
+        registry.authorize_agent(payload.agent_id, x_printer_agent_key or "")
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    source_ip = request.client.host if request.client else payload.ip_address
+    agent = registry.heartbeat(
+        agent_id=payload.agent_id,
+        computer_name=payload.computer_name,
+        ip_address=source_ip or payload.ip_address,
+        platform=payload.platform,
+        agent_version=payload.agent_version,
+        printers=[item.model_dump() for item in payload.printers],
+    )
+    return {"status": "SUCCESS", "data": agent}
+
+
+@app.get("/api/printer/agents")
+def printer_agents(request: Request, x_printer_api_key: Optional[str] = Header(default=None)):
+    """List registered PCs, printers, and computed online/offline status."""
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_client(request, x_printer_api_key)
+    return {"status": "SUCCESS", "data": PrinterRegistry().list_agents()}
+
+
+@app.put("/api/printer/agents/{agent_id}/permissions")
+def update_printer_agent_permissions(
+    agent_id: str,
+    payload: PrinterAgentPermissions,
+    request: Request,
+    x_printer_api_key: Optional[str] = Header(default=None),
+):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    try:
+        agent = PrinterRegistry().set_agent_permissions(agent_id, payload.enabled, payload.allowed_job_types)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": agent}
+
+
+@app.get("/api/printer/security-audit")
+def printer_security_audit(
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=500),
+    x_printer_api_key: Optional[str] = Header(default=None),
+):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    return {"status": "SUCCESS", "data": PrinterRegistry().security_audit(limit)}
+
+
+@app.post("/api/printer/jobs")
+def create_network_print_job(payload: NetworkPrintJobRequest, request: Request, x_printer_api_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_client(request, x_printer_api_key)
+    try:
+        job = PrinterRegistry().create_job(**payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.post("/api/printer/jobs/upload")
+async def upload_network_print_job(
+    request: Request,
+    file: UploadFile = File(...),
+    target_agent_id: str = Form(...),
+    printer_name: str = Form(...),
+    request_key: str = Form(...),
+    copies: int = Form(default=1),
+    paper_size: str = Form(default="A4"),
+    orientation: str = Form(default="portrait"),
+    source_agent_id: str = Form(default="api-client"),
+    x_printer_api_key: Optional[str] = Header(default=None),
+):
+    """Store a Phase 3 document and enqueue it for the selected remote printer."""
+    from server.printer_assets import MAX_PRINT_ASSET_BYTES, store_asset
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_client(request, x_printer_api_key)
+    paper_size = str(paper_size or "A4").upper()
+    orientation = str(orientation or "portrait").lower()
+    if paper_size not in {"A4", "A5", "58MM", "80MM"}:
+        raise HTTPException(status_code=400, detail="paper_size must be A4, A5, 58mm, or 80mm")
+    if orientation not in {"portrait", "landscape"}:
+        raise HTTPException(status_code=400, detail="orientation must be portrait or landscape")
+    data = await file.read(MAX_PRINT_ASSET_BYTES + 1)
+    asset_path = None
+    try:
+        registry = PrinterRegistry()
+        existing = registry.get_job_by_request_key(request_key)
+        if existing:
+            return {"status": "SUCCESS", "data": existing}
+        asset_id, asset_path, job_type = store_asset(file.filename or "", data)
+        job = registry.create_job(
+            request_key=request_key,
+            target_agent_id=target_agent_id,
+            printer_name=printer_name,
+            job_type=job_type,
+            payload={
+                "asset_id": asset_id,
+                "asset_path": asset_path,
+                "filename": file.filename or "document",
+                "paper_size": paper_size,
+                "orientation": orientation,
+            },
+            copies=copies,
+            source_agent_id=source_agent_id,
+        )
+    except ValueError as exc:
+        if asset_path:
+            Path(asset_path).unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        if asset_path:
+            Path(asset_path).unlink(missing_ok=True)
+        raise
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.get("/api/printer/jobs")
+def network_print_jobs(request: Request, limit: int = Query(default=100, ge=1, le=500), x_printer_api_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    return {"status": "SUCCESS", "data": PrinterRegistry().list_jobs(limit)}
+
+
+@app.get("/api/printer/agents/{agent_id}/jobs")
+def pending_network_print_jobs(agent_id: str, request: Request, limit: int = Query(default=5, ge=1, le=50), x_printer_agent_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    registry = PrinterRegistry()
+    try:
+        registry.authorize_agent(agent_id, x_printer_agent_key or "")
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": registry.pending_jobs(agent_id, limit)}
+
+
+@app.post("/api/printer/jobs/{job_id}/claim")
+def claim_network_print_job(job_id: str, payload: NetworkPrintClaimRequest, request: Request, x_printer_agent_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    registry = PrinterRegistry()
+    try:
+        current = registry.get_job(job_id)
+        registry.authorize_agent(payload.agent_id, x_printer_agent_key or "", (current or {}).get("job_type", ""))
+        job = registry.claim_job(job_id, payload.agent_id, payload.printers)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.post("/api/printer/jobs/{job_id}/status")
+def update_network_print_job(job_id: str, payload: NetworkPrintStatusRequest, request: Request, x_printer_agent_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    registry = PrinterRegistry()
+    try:
+        registry.authorize_agent(payload.agent_id, x_printer_agent_key or "")
+        job = registry.finish_job(job_id, payload.agent_id, payload.status, payload.error_message)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.post("/api/printer/jobs/{job_id}/retry")
+def retry_network_print_job(job_id: str, request: Request, x_printer_api_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    try:
+        job = PrinterRegistry().retry_job(job_id, "api-client")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": job}
+
+
+@app.get("/api/printer/jobs/{job_id}/audit")
+def network_print_job_audit(job_id: str, request: Request, x_printer_api_key: Optional[str] = Header(default=None)):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    return {"status": "SUCCESS", "data": PrinterRegistry().job_audit(job_id)}
+
+
+@app.get("/api/printer/jobs/{job_id}/content")
+def network_print_job_content(job_id: str, request: Request, x_printer_agent_id: Optional[str] = Header(default=None), x_printer_agent_key: Optional[str] = Header(default=None)):
+    from server.printer_assets import resolve_asset
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_lan(request)
+    registry = PrinterRegistry()
+    job = registry.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Print job not found")
+    path_value = (job.get("payload") or {}).get("asset_path")
+    if not path_value:
+        raise HTTPException(status_code=404, detail="This print job has no document content")
+    try:
+        path = resolve_asset(path_value)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(path, filename=(job.get("payload") or {}).get("filename") or path.name)
 
 
 def _check_car_print_rate(request: Request, maximum=8, window_seconds=60) -> None:
@@ -498,3 +827,9 @@ def receipts(
 @app.get("/api/settings/receipt")
 def receipt_settings(_: Dict[str, Any] = Depends(current_user)):
     return {"settings": cashier_service.get_receipt_settings()}
+    if x_printer_agent_id != job.get("target_agent_id"):
+        raise HTTPException(status_code=403, detail="Print document is assigned to another agent")
+    try:
+        registry.authorize_agent(x_printer_agent_id or "", x_printer_agent_key or "", job.get("job_type", ""))
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc

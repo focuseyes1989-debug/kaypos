@@ -1,6 +1,7 @@
 # ui/receipts_page/receipts_page.py
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QMessageBox, QLabel, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QMessageBox, QLabel, QPushButton,
+    QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPixmap, QIcon, QPainter
@@ -31,6 +32,7 @@ class ReceiptsPage(QWidget):
         self.user_id = user_id
         self.user_role = user_role
         self._is_dark = is_dark_theme()
+        self.setObjectName("receiptsPage")
         
         self._tab_icons = {}
         self._current_from_date = None
@@ -40,12 +42,15 @@ class ReceiptsPage(QWidget):
         
         main_layout = QVBoxLayout()
         main_layout.setSpacing(15)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(4, 4, 4, 4)
 
         self.toast = ToastNotificationWidget(self)
 
         # ========== Filter Row ==========
-        filter_layout = QHBoxLayout()
+        self.filter_card = QFrame()
+        self.filter_card.setObjectName("receiptsFilterCard")
+        filter_layout = QHBoxLayout(self.filter_card)
+        filter_layout.setContentsMargins(14, 10, 14, 10)
         filter_layout.setSpacing(10)
 
         self.date_range = DateRangeWidget()
@@ -60,7 +65,7 @@ class ReceiptsPage(QWidget):
         self.btn_export_excel.clicked.connect(self.export_all_tabs)
         filter_layout.addWidget(self.btn_export_excel)
 
-        main_layout.addLayout(filter_layout)
+        main_layout.addWidget(self.filter_card)
 
         # ========== Summary Cards ==========
         card_layout = QHBoxLayout()
@@ -116,6 +121,9 @@ class ReceiptsPage(QWidget):
 
         # ========== Tabs ==========
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("receiptsTabs")
+        self.tab_widget.setDocumentMode(True)
+        self.tab_widget.setUsesScrollButtons(True)
         
         self.tab_names = {
             0: "Receipts",
@@ -221,70 +229,33 @@ class ReceiptsPage(QWidget):
                 self.tab_widget.setTabIcon(idx, icon)
     
     def _update_tab_widget_style(self):
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-                QTabBar::tab QIcon {
-                    margin-right: 6px;
-                }
-            """)
-        else:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QTabBar::tab QIcon {
-                    margin-right: 6px;
-                }
-            """)
+        colors = get_theme_colors()
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget#receiptsTabs::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabWidget#receiptsTabs QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 18px;
+                margin: 0 4px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabWidget#receiptsTabs QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabWidget#receiptsTabs QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
     
     def _on_theme_changed(self, theme_name):
         self._is_dark = is_dark_theme()
@@ -294,10 +265,14 @@ class ReceiptsPage(QWidget):
     def _apply_theme(self):
         colors = get_theme_colors()
         self.setStyleSheet(f"""
-            QWidget {{
-                background-color: {colors['bg']};
+            QWidget#receiptsPage {{ background-color: transparent; }}
+            QFrame#receiptsFilterCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
             }}
         """)
+        self._update_tab_widget_style()
         self._update_tab_widget_style()
     
     def on_theme_changed(self, theme_name):

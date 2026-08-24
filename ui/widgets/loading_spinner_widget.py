@@ -1,6 +1,7 @@
 # ui/widgets/loading_spinner_widget.py
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 
 
 class LoadingSpinnerWidget(QWidget):
@@ -12,6 +13,8 @@ class LoadingSpinnerWidget(QWidget):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.current_index = 0
         self.setup_ui()
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
         
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -56,6 +59,11 @@ class LoadingSpinnerWidget(QWidget):
         """Spinner animation ကို update လုပ်ရန်"""
         self.current_index = (self.current_index + 1) % len(self.spinner_chars)
         self.spinner_label.setText(self.spinner_chars[self.current_index])
+
+    def _apply_theme(self, *_):
+        colors = get_theme_colors()
+        self.spinner_label.setStyleSheet(f"font-size: 32px; color: {colors['progress_bg']};")
+        self.text_label.setStyleSheet(f"font-size: 14px; color: {colors['text_secondary']};")
         
     def set_text(self, text):
         """ပြသမယ့် စာသားကို ပြောင်းရန်"""

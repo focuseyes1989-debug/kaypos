@@ -24,9 +24,9 @@ def get_widget_style(is_dark):
     
     if is_dark:
         return f"""
-            QFrame {{
-                background-color: {colors.get('bg', '#2f3136')};
-                border: 1px solid {colors.get('border', '#40444b')};
+            QFrame#dashboardAIAssistant {{
+                background-color: {colors.get('card_bg', '#151c2a')};
+                border: none;
                 border-radius: 12px;
             }}
             QScrollBar:vertical {{
@@ -51,9 +51,9 @@ def get_widget_style(is_dark):
         """
     else:
         return f"""
-            QFrame {{
-                background-color: {colors.get('bg', '#f8f9fa')};
-                border: 1px solid {colors.get('border', '#dee2e6')};
+            QFrame#dashboardAIAssistant {{
+                background-color: {colors.get('card_bg', '#ffffff')};
+                border: none;
                 border-radius: 12px;
             }}
             QScrollBar:vertical {{
@@ -99,12 +99,12 @@ def get_combo_style(is_dark):
         QComboBox {{
             background-color: {input_bg};
             border: 1px solid {input_border};
-            border-radius: 4px;
-            padding: 4px 8px;
+            border-radius: 8px;
+            padding: 5px 10px;
             color: {text_color};
             font-size: 9pt;
             min-width: 60px;
-            min-height: 26px;
+            min-height: 28px;
         }}
         QComboBox:hover {{
             border: 1px solid {colors.get('border_hover', '#5865f2')};
@@ -256,25 +256,29 @@ def get_tab_style():
         text_secondary = colors.get('text_secondary', '#6c757d')
     
     return f"""
-        QTabWidget::pane {{
-            border: none;
-            background: transparent;
+        QTabWidget#dashboardAITabs::pane {{
+            border: 1px solid {colors.get('border', '#293348')};
+            border-radius: 10px;
+            background: {colors.get('input_bg', '#0f1520')};
+            top: -1px;
         }}
-        QTabBar::tab {{
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 10pt;
-            font-weight: 500;
-            min-height: 32px;
+        QTabWidget#dashboardAITabs QTabBar::tab {{
+            padding: 9px 14px;
+            margin: 0 3px 7px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 9pt;
+            font-weight: 600;
             color: {text_secondary};
             background: transparent;
         }}
-        QTabBar::tab:selected {{
-            background: {colors.get('progress_bg', '#5865f2')};
-            color: white;
+        QTabWidget#dashboardAITabs QTabBar::tab:selected {{
+            background: {colors.get('bg_hover', '#1c2535')};
+            color: {text};
+            border-bottom: 2px solid {colors.get('progress_bg', '#6675f5')};
         }}
-        QTabBar::tab:hover:!selected {{
-            background: {colors.get('bg_hover', '#40444b' if is_dark else '#e9ecef')};
+        QTabWidget#dashboardAITabs QTabBar::tab:hover:!selected {{
+            background: {colors.get('card_hover', '#192232')};
             color: {text};
         }}
     """

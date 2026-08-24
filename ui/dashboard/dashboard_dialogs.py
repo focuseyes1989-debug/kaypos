@@ -5,6 +5,17 @@ from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.currency import format_money
 from ui.receipt_detail_dialog import ReceiptDetailDialog
+from ui.themes.theme_manager import get_theme_colors, theme_manager
+from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
+
+
+def _apply_sales_dialog_theme(dialog):
+    colors = get_theme_colors()
+    dialog.setStyleSheet(f"""
+        QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+        QLabel {{ color: {colors['text_secondary']}; background: transparent; font-size: 11px; }}
+        QPushButton {{ min-width: 100px; min-height: 36px; padding: 0 18px; border-radius: 8px; }}
+    """ + modern_table_stylesheet(colors))
 
 
 class DiscountedSalesDialog(QDialog):
@@ -15,6 +26,8 @@ class DiscountedSalesDialog(QDialog):
         self.setMinimumSize(700, 500)
         self.setModal(True)
         layout = QVBoxLayout()
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(14)
         info = QLabel(f"Sales with discount from {from_date} to {to_date}")
         layout.addWidget(info)
         self.table = QTableWidget()
@@ -26,10 +39,10 @@ class DiscountedSalesDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
-        btn_close = QPushButton("Close")
-        btn_close.clicked.connect(self.accept)
-        layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.btn_close = add_standard_close_footer(layout, self)
         self.setLayout(layout)
+        theme_manager.theme_changed.connect(lambda _name: _apply_sales_dialog_theme(self))
+        _apply_sales_dialog_theme(self)
         self.symbol = self.get_currency_symbol()
         self.load_data(from_date, to_date)
 
@@ -83,6 +96,8 @@ class RefundedSalesDialog(QDialog):
         self.setMinimumSize(700, 500)
         self.setModal(True)
         layout = QVBoxLayout()
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(14)
         info = QLabel(f"Refunded sales from {from_date} to {to_date}")
         layout.addWidget(info)
         self.table = QTableWidget()
@@ -94,10 +109,10 @@ class RefundedSalesDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
-        btn_close = QPushButton("Close")
-        btn_close.clicked.connect(self.accept)
-        layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.btn_close = add_standard_close_footer(layout, self)
         self.setLayout(layout)
+        theme_manager.theme_changed.connect(lambda _name: _apply_sales_dialog_theme(self))
+        _apply_sales_dialog_theme(self)
         self.symbol = self.get_currency_symbol()
         self.load_data(from_date, to_date)
 

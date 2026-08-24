@@ -11,6 +11,7 @@ import os
 import re
 import socket
 import sys
+import uuid
 import webbrowser
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -205,6 +207,7 @@ class ServerManagerWindow(QMainWindow):
             ("Setup", "Initial configuration", self._wizard_tab()),
             ("Database", "Connection and schema", self._database_tab()),
             ("Services", "POS, car and PostgreSQL", self._server_tab()),
+            ("Printers", "LAN/Wi-Fi printer agents", self._printers_tab()),
             ("Activity", "Client request history", self._activity_tab()),
             ("Logs", "Runtime diagnostics", self._logs_tab()),
         )
@@ -402,6 +405,37 @@ class ServerManagerWindow(QMainWindow):
             QPushButton:disabled {
                 background: #303847;
                 color: #707b91;
+            }
+            QMessageBox {
+                background: #151c2a;
+                color: #edf2ff;
+            }
+            QMessageBox QLabel {
+                background: transparent;
+                color: #edf2ff;
+            }
+            QMessageBox QLabel#qt_msgbox_label,
+            QMessageBox QLabel#qt_msgbox_informativelabel {
+                min-width: 320px;
+                padding: 8px 10px;
+            }
+            QMessageBox QPushButton {
+                min-width: 84px;
+                min-height: 36px;
+                padding: 4px 14px;
+                background: #e89a3b;
+                color: #ffffff;
+                border: 1px solid #e89a3b;
+                border-radius: 8px;
+                font-weight: 650;
+            }
+            QMessageBox QPushButton:hover {
+                background: #f3ad55;
+                border-color: #f3ad55;
+            }
+            QMessageBox QPushButton:pressed {
+                background: #cf8128;
+                border-color: #cf8128;
             }
             QPlainTextEdit, QTableWidget {
                 background: #090e17;
@@ -823,12 +857,87 @@ class ServerManagerWindow(QMainWindow):
         top.addWidget(refresh_button)
         layout.addLayout(top)
 
+        format_row = QHBoxLayout()
+        self.print_paper_size = QComboBox()
+        self.print_paper_size.addItems(["A4", "A5", "80mm", "58mm"])
+        self.print_orientation = QComboBox()
+        self.print_orientation.addItems(["Portrait", "Landscape"])
+        self.print_copies = QSpinBox()
+        self.print_copies.setRange(1, 99)
+        self.print_copies.setValue(1)
+        self.send_document_button = QPushButton("Print Document…")
+        self.send_document_button.clicked.connect(self.send_printer_document)
+        format_row.addWidget(QLabel("Paper"))
+        format_row.addWidget(self.print_paper_size)
+        format_row.addWidget(QLabel("Orientation"))
+        format_row.addWidget(self.print_orientation)
+        format_row.addWidget(QLabel("Copies"))
+        format_row.addWidget(self.print_copies)
+        format_row.addStretch()
+        format_row.addWidget(self.send_document_button)
+        layout.addLayout(format_row)
+
         self.activity_table = QTableWidget(0, 5)
         self.activity_table.setHorizontalHeaderLabels(["Time", "User", "Action", "Details", "IP"])
         self.activity_table.horizontalHeader().setStretchLastSection(True)
         self.activity_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.activity_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.activity_table, 1)
+        return page
+
+    def _printers_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        layout.addWidget(self._note(
+            f"Run printer_agent.py on every PC and point it to "
+            f"https://{local_ip()}:{DEFAULT_BROWSER_SERVER_PORT} (use --insecure for the local certificate), "
+            f"or http://{local_ip()}:{DEFAULT_BROWSER_SERVER_PORT} when HTTPS is disabled. "
+            "Agents report installed Windows printers every 10 seconds."
+        ))
+        top = QHBoxLayout()
+        self.printer_server_status = self._status_chip("Printer Server: registry not checked")
+        self.send_test_print_button = QPushButton("Print Test Page")
+        self.send_test_print_button.clicked.connect(self.send_printer_test_page)
+        self.toggle_printer_agent_button = QPushButton("Enable / Disable PC")
+        self.toggle_printer_agent_button.clicked.connect(self.toggle_selected_printer_agent)
+        refresh_button = QPushButton("Refresh Printers")
+        refresh_button.clicked.connect(self.refresh_printer_agents)
+        top.addWidget(self.printer_server_status)
+        top.addStretch()
+        top.addWidget(self.toggle_printer_agent_button)
+        top.addWidget(self.send_test_print_button)
+        top.addWidget(refresh_button)
+        layout.addLayout(top)
+
+        self.printer_agents_table = QTableWidget(0, 7)
+        self.printer_agents_table.setHorizontalHeaderLabels(
+            ["PC", "IP Address", "Agent", "Printer", "Default", "Status", "Last Seen"]
+        )
+        self.printer_agents_table.horizontalHeader().setStretchLastSection(True)
+        self.printer_agents_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.printer_agents_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.printer_agents_table, 1)
+
+        jobs_top = QHBoxLayout()
+        jobs_label = QLabel("Recent Print Jobs")
+        jobs_label.setObjectName("HeaderSubtitle")
+        self.retry_print_job_button = QPushButton("Retry Failed Job")
+        self.retry_print_job_button.clicked.connect(self.retry_selected_print_job)
+        jobs_top.addWidget(jobs_label)
+        jobs_top.addStretch()
+        jobs_top.addWidget(self.retry_print_job_button)
+        layout.addLayout(jobs_top)
+        self.printer_jobs_table = QTableWidget(0, 8)
+        self.printer_jobs_table.setHorizontalHeaderLabels(
+            ["Created", "PC", "Printer", "Type", "Status", "Attempts", "Error", "Job ID"]
+        )
+        self.printer_jobs_table.horizontalHeader().setStretchLastSection(True)
+        self.printer_jobs_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.printer_jobs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.printer_jobs_table, 1)
         return page
 
     def _logs_tab(self) -> QWidget:
@@ -1664,9 +1773,192 @@ class ServerManagerWindow(QMainWindow):
             self.log_output.appendPlainText(text[self.log_position :])
         self.log_position = len(text)
 
+    def refresh_printer_agents(self) -> None:
+        try:
+            from server.printer_service import PrinterRegistry
+
+            agents = PrinterRegistry().list_agents()
+            self.printer_agents_table.setRowCount(0)
+            online_agents = sum(1 for agent in agents if agent.get("is_online"))
+            online_printers = 0
+            for agent in agents:
+                printers = agent.get("printers") or [None]
+                for printer in printers:
+                    printer = printer or {}
+                    agent_online = bool(agent.get("is_online"))
+                    printer_online = agent_online and bool(agent.get("is_enabled", True)) and printer.get("status") == "online"
+                    online_printers += int(printer_online)
+                    values = (
+                        agent.get("computer_name"),
+                        agent.get("ip_address"),
+                        agent.get("agent_version"),
+                        printer.get("printer_name") or "No printer detected",
+                        "Yes" if printer.get("is_default") else "",
+                        "Online" if printer_online else "Offline",
+                        printer.get("last_seen") or agent.get("last_seen"),
+                    )
+                    row_index = self.printer_agents_table.rowCount()
+                    self.printer_agents_table.insertRow(row_index)
+                    for column, value in enumerate(values):
+                        item = QTableWidgetItem(str(value or ""))
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                        item.setData(Qt.ItemDataRole.UserRole, {
+                            "agent_id": agent.get("agent_id"),
+                            "printer_name": printer.get("printer_name"),
+                            "is_online": printer_online,
+                            "is_enabled": bool(agent.get("is_enabled", True)),
+                        })
+                        self.printer_agents_table.setItem(row_index, column, item)
+            tone = "ok" if online_agents else "warn"
+            self._set_chip(
+                self.printer_server_status,
+                f"Printer Server: {online_agents}/{len(agents)} PC(s) online · "
+                f"{online_printers} printer(s) available",
+                tone,
+            )
+            self._refresh_printer_jobs()
+        except Exception as exc:
+            self._set_chip(self.printer_server_status, f"Printer Server: unavailable ({exc})", "warn")
+
+    def _refresh_printer_jobs(self) -> None:
+        from server.printer_service import PrinterRegistry
+
+        jobs = PrinterRegistry().list_jobs(100)
+        agents = {item["agent_id"]: item.get("computer_name") for item in PrinterRegistry().list_agents()}
+        self.printer_jobs_table.setRowCount(0)
+        for job in jobs:
+            values = (
+                job.get("created_at"),
+                agents.get(job.get("target_agent_id"), job.get("target_agent_id")),
+                job.get("printer_name"),
+                job.get("job_type"),
+                job.get("status"),
+                f"{job.get('attempts', 0)}/{job.get('max_attempts', 0)}",
+                job.get("error_message"),
+                job.get("job_id"),
+            )
+            row_index = self.printer_jobs_table.rowCount()
+            self.printer_jobs_table.insertRow(row_index)
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(str(value or ""))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setData(Qt.ItemDataRole.UserRole, job.get("job_id"))
+                self.printer_jobs_table.setItem(row_index, column, item)
+
+    def send_printer_test_page(self) -> None:
+        row = self.printer_agents_table.currentRow()
+        item = self.printer_agents_table.item(row, 0) if row >= 0 else None
+        target = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not target or not target.get("printer_name"):
+            QMessageBox.warning(self, "Select Printer", "Select an available printer row first.")
+            return
+        if not target.get("is_online"):
+            QMessageBox.warning(self, "Printer Offline", "The selected PC or printer is currently offline.")
+            return
+        try:
+            from server.printer_service import PrinterRegistry
+
+            job = PrinterRegistry().create_job(
+                request_key=f"server-test-{uuid.uuid4()}",
+                target_agent_id=target["agent_id"],
+                printer_name=target["printer_name"],
+                job_type="test_page",
+                payload={"requested_by": "KAY Server Manager"},
+                source_agent_id="server-manager",
+            )
+            self._set_chip(self.printer_server_status, f"Test page queued: {job['job_id']}", "ok")
+            self._refresh_printer_jobs()
+        except Exception as exc:
+            QMessageBox.critical(self, "Print Job Failed", str(exc))
+
+    def toggle_selected_printer_agent(self) -> None:
+        target = self._selected_network_printer()
+        if not target or not target.get("agent_id"):
+            QMessageBox.warning(self, "Select PC", "Select a printer PC row first.")
+            return
+        enabled = not bool(target.get("is_enabled", True))
+        try:
+            from server.printer_service import PrinterRegistry
+
+            PrinterRegistry().set_agent_permissions(target["agent_id"], enabled, [])
+            self.refresh_printer_agents()
+            state = "enabled" if enabled else "disabled"
+            self._set_chip(self.printer_server_status, f"Printer Agent {state}.", "ok" if enabled else "warn")
+        except Exception as exc:
+            QMessageBox.warning(self, "Agent Permission", str(exc))
+
+    def _selected_network_printer(self) -> dict | None:
+        row = self.printer_agents_table.currentRow()
+        item = self.printer_agents_table.item(row, 0) if row >= 0 else None
+        target = item.data(Qt.ItemDataRole.UserRole) if item else None
+        return target if isinstance(target, dict) else None
+
+    def send_printer_document(self) -> None:
+        target = self._selected_network_printer()
+        if not target or not target.get("printer_name"):
+            QMessageBox.warning(self, "Select Printer", "Select an available printer row first.")
+            return
+        if not target.get("is_online"):
+            QMessageBox.warning(self, "Printer Offline", "The selected PC or printer is currently offline.")
+            return
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Document to Print",
+            "",
+            "Supported Documents (*.pdf *.png *.jpg *.jpeg *.bmp *.txt *.escpos *.bin)",
+        )
+        if not filename:
+            return
+        try:
+            from server.printer_assets import store_asset
+            from server.printer_service import PrinterRegistry
+
+            path = Path(filename)
+            asset_id, asset_path, job_type = store_asset(path.name, path.read_bytes())
+            try:
+                job = PrinterRegistry().create_job(
+                    request_key=f"server-document-{uuid.uuid4()}",
+                    target_agent_id=target["agent_id"],
+                    printer_name=target["printer_name"],
+                    job_type=job_type,
+                    payload={
+                        "asset_id": asset_id,
+                        "asset_path": asset_path,
+                        "filename": path.name,
+                        "paper_size": self.print_paper_size.currentText().upper(),
+                        "orientation": self.print_orientation.currentText().lower(),
+                    },
+                    copies=self.print_copies.value(),
+                    source_agent_id="server-manager",
+                )
+            except Exception:
+                Path(asset_path).unlink(missing_ok=True)
+                raise
+            self._set_chip(self.printer_server_status, f"Document queued: {path.name} · {job['job_id']}", "ok")
+            self._refresh_printer_jobs()
+        except Exception as exc:
+            QMessageBox.critical(self, "Document Print Failed", str(exc))
+
+    def retry_selected_print_job(self) -> None:
+        row = self.printer_jobs_table.currentRow()
+        item = self.printer_jobs_table.item(row, 0) if row >= 0 else None
+        job_id = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if not job_id:
+            QMessageBox.warning(self, "Select Print Job", "Select a failed print job first.")
+            return
+        try:
+            from server.printer_service import PrinterRegistry
+
+            PrinterRegistry().retry_job(job_id)
+            self._set_chip(self.printer_server_status, f"Print job queued for retry: {job_id}", "ok")
+            self._refresh_printer_jobs()
+        except Exception as exc:
+            QMessageBox.warning(self, "Retry Unavailable", str(exc))
+
     def _refresh_all(self) -> None:
         self.refresh_activity()
         self.refresh_logs()
+        self.refresh_printer_agents()
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
             self._set_chip(
                 self.server_status,
@@ -1705,6 +1997,18 @@ def main() -> int:
         from tools.migrate_car_sqlite import main as migrate_car_sqlite
 
         migrate_car_sqlite()
+        return 0
+
+    from utils.single_instance import SingleInstanceGuard, show_already_running_message
+
+    # Apply the lock only to the manager GUI. Internal helper modes above may
+    # legitimately run as child processes of the already-open Server Manager.
+    instance_guard = SingleInstanceGuard(r"Global\KAY_POS_Server_Manager_SingleInstance_v1")
+    if not instance_guard.acquire():
+        show_already_running_message(
+            title="KAY POS Server Manager",
+            message="KAY POS Server Manager is already running on this computer.",
+        )
         return 0
 
     parser = argparse.ArgumentParser(add_help=False)

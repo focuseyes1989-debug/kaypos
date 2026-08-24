@@ -553,6 +553,22 @@ class ReceiptDialog(QDialog):
             QMessageBox.warning(self, "Print Error", "No receipt data.")
             return
 
+        from services.network_printer_client import queue_receipt
+
+        # A manual print from receipt history is an intentional reprint, so it
+        # receives a fresh request key rather than the checkout idempotency key.
+        network_result = queue_receipt(self.sale_id, lines)
+        if network_result.handled:
+            if network_result.success:
+                QMessageBox.information(
+                    self,
+                    "Network Print",
+                    f"Receipt queued successfully.\nJob: {network_result.job_id}",
+                )
+            else:
+                QMessageBox.warning(self, "Network Print Error", network_result.message)
+            return
+
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer_name = self.selected_printer_name()
         if not printer_name:

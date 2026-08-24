@@ -2,6 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRect, QRectF  # ✅ Added QRectF
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QBrush, QPen
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 
 
 class ToastNotificationWidget(QWidget):
@@ -16,6 +17,7 @@ class ToastNotificationWidget(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setup_ui()
+        theme_manager.theme_changed.connect(self._apply_theme)
         
         # Auto-hide timer
         self.timer = QTimer()
@@ -34,13 +36,7 @@ class ToastNotificationWidget(QWidget):
         # Main frame
         self.frame = QFrame()
         self.frame.setObjectName("toastFrame")
-        self.frame.setStyleSheet("""
-            QFrame#toastFrame {
-                background-color: #2f3136;
-                border-radius: 8px;
-                padding: 12px 16px;
-            }
-        """)
+        self._accent_color = get_theme_colors()['progress_bg']
         
         frame_layout = QHBoxLayout(self.frame)
         frame_layout.setSpacing(12)
@@ -81,6 +77,24 @@ class ToastNotificationWidget(QWidget):
         
         layout.addWidget(self.frame)
         self.setLayout(layout)
+        self._apply_theme()
+
+    def _apply_theme(self, *_):
+        colors = get_theme_colors()
+        self.frame.setStyleSheet(f"""
+            QFrame#toastFrame {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-left: 4px solid {self._accent_color};
+                border-radius: 10px;
+                padding: 12px 16px;
+            }}
+        """)
+        self.message_label.setStyleSheet(f"color: {colors['text']}; font-size: 13px; font-weight: 600;")
+        self.close_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; color: {colors['text_secondary']}; border: none; border-radius: 6px; padding: 4px; }}
+            QPushButton:hover {{ color: {colors['text']}; background-color: {colors['bg_hover']}; }}
+        """)
         
     def show_toast(self, message, type="success", duration=3000):
         """Toast ကို ပြသရန်"""
@@ -103,14 +117,8 @@ class ToastNotificationWidget(QWidget):
         
         # Update frame border color
         color = colors.get(type, "#3498db")
-        self.frame.setStyleSheet(f"""
-            QFrame#toastFrame {{
-                background-color: #2f3136;
-                border-radius: 8px;
-                padding: 12px 16px;
-                border-left: 4px solid {color};
-            }}
-        """)
+        self._accent_color = color
+        self._apply_theme()
         
         # Position at bottom-right
         parent = self.parent()

@@ -10,6 +10,7 @@ from utils.language import lang
 from utils.permissions import PermissionManager, Permission
 import hashlib
 import os
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 
 
 class UserDialog(QDialog):
@@ -17,8 +18,22 @@ class UserDialog(QDialog):
         super().__init__(parent)
         self.user_data = user_data
         self.current_user_id = current_user_id
-        self.setMinimumWidth(350)
-        layout = QFormLayout()
+        self.setMinimumWidth(460)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(16)
+        self.dialog_title = QLabel()
+        self.dialog_title.setObjectName("dialogTitle")
+        self.dialog_subtitle = QLabel("Set account details and workspace access.")
+        self.dialog_subtitle.setObjectName("dialogSubtitle")
+        root.addWidget(self.dialog_title)
+        root.addWidget(self.dialog_subtitle)
+
+        self.form_card = QWidget()
+        self.form_card.setObjectName("formCard")
+        self.form_layout = QFormLayout(self.form_card)
+        self.form_layout.setContentsMargins(18, 18, 18, 18)
+        self.form_layout.setVerticalSpacing(13)
 
         self.username_edit = QLineEdit()
         self.password_edit = QLineEdit()
@@ -29,18 +44,17 @@ class UserDialog(QDialog):
         self.role_combo = QComboBox()
         self.load_roles()  # Load roles from database
 
-        layout.addRow(QLabel("Username:"), self.username_edit)
-        layout.addRow(QLabel("Password:"), self.password_edit)
-        layout.addRow(QLabel("Confirm Password:"), self.confirm_edit)
-        layout.addRow(QLabel("Full Name:"), self.full_name_edit)
-        layout.addRow(QLabel("Role:"), self.role_combo)
+        self.form_layout.addRow(QLabel("Username:"), self.username_edit)
+        self.form_layout.addRow(QLabel("Password:"), self.password_edit)
+        self.form_layout.addRow(QLabel("Confirm Password:"), self.confirm_edit)
+        self.form_layout.addRow(QLabel("Full Name:"), self.full_name_edit)
+        self.form_layout.addRow(QLabel("Role:"), self.role_combo)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
-        layout.addRow(self.buttons)
-
-        self.setLayout(layout)
+        root.addWidget(self.form_card)
+        root.addWidget(self.buttons)
 
         if user_data:
             self.username_edit.setText(user_data.get("username", ""))
@@ -50,6 +64,21 @@ class UserDialog(QDialog):
                 self.role_combo.setCurrentIndex(idx)
 
         self.retranslateUi()
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
+
+    def _apply_theme(self, _theme_name=None):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel {{ color: {colors['text']}; background: transparent; }}
+            QLabel#dialogTitle {{ font-size: 20px; font-weight: 700; }}
+            QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
+            QWidget#formCard {{ background-color: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 12px; }}
+            QLineEdit, QComboBox {{ min-height: 38px; padding: 0 12px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QLineEdit:focus, QComboBox:focus {{ border-color: {colors['border_hover']}; }}
+            QPushButton {{ min-height: 36px; padding: 0 18px; border-radius: 8px; }}
+        """)
 
     def load_roles(self):
         """Load roles from user_roles table"""
@@ -70,17 +99,18 @@ class UserDialog(QDialog):
     def retranslateUi(self):
         if lang.get_current() == "my":
             self.setWindowTitle("အသုံးပြုသူပြင်ဆင်ရန်" if self.user_data else "အသုံးပြုသူအသစ်")
+            self.dialog_title.setText("အသုံးပြုသူပြင်ဆင်ရန်" if self.user_data else "အသုံးပြုသူအသစ်")
             # Translate labels
-            for i in range(self.layout().rowCount()):
-                label_item = self.layout().itemAt(i, QFormLayout.ItemRole.LabelRole)
+            for i in range(self.form_layout.rowCount()):
+                label_item = self.form_layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
                 if label_item and isinstance(label_item.widget(), QLabel):
                     text = label_item.widget().text()
                     if "Username:" in text:
                         label_item.widget().setText("အသုံးပြုသူအမည်:")
-                    elif "Password:" in text:
-                        label_item.widget().setText("စကားဝှက်:")
                     elif "Confirm Password:" in text:
                         label_item.widget().setText("စကားဝှက်အတည်ပြု:")
+                    elif "Password:" in text:
+                        label_item.widget().setText("စကားဝှက်:")
                     elif "Full Name:" in text:
                         label_item.widget().setText("အမည်အပြည့်:")
                     elif "Role:" in text:
@@ -93,9 +123,10 @@ class UserDialog(QDialog):
                 cancel_btn.setText("မလုပ်တော့")
         else:
             self.setWindowTitle("Edit User" if self.user_data else "Add User")
+            self.dialog_title.setText("Edit user" if self.user_data else "Add user")
             # Reset labels to English
-            for i in range(self.layout().rowCount()):
-                label_item = self.layout().itemAt(i, QFormLayout.ItemRole.LabelRole)
+            for i in range(self.form_layout.rowCount()):
+                label_item = self.form_layout.itemAt(i, QFormLayout.ItemRole.LabelRole)
                 if label_item and isinstance(label_item.widget(), QLabel):
                     text = label_item.widget().text()
                     if "အသုံးပြုသူအမည်" in text:

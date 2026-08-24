@@ -70,6 +70,7 @@ class AIAssistantWidget(QFrame):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("dashboardAIAssistant")
         self._is_dark = is_dark_theme()
         self._refresh_interval = DEFAULT_REFRESH_INTERVAL
         self._is_loading = False
@@ -123,8 +124,8 @@ class AIAssistantWidget(QFrame):
     
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
         
         # ============ HEADER ============
         self._setup_header(layout)
@@ -152,9 +153,10 @@ class AIAssistantWidget(QFrame):
     
     def _setup_header(self, layout):
         """Header with title and status badge only"""
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        self.header_widget = QFrame()
+        self.header_widget.setObjectName("aiAssistantHeader")
+        header_layout = QHBoxLayout(self.header_widget)
+        header_layout.setContentsMargins(12, 8, 12, 8)
         
         # Title with SVG icon
         title_icon = get_themed_icon_helper("smart_toy", 20, self._is_dark)
@@ -178,15 +180,15 @@ class AIAssistantWidget(QFrame):
         header_layout.addWidget(self.last_updated_label)
         
         header_layout.addStretch()
-        layout.addWidget(header_widget)
+        layout.addWidget(self.header_widget)
     
     def _setup_top_controls(self, layout):
         """Top control bar: Date Range + Refresh Interval with SVG icons"""
-        control_widget = QWidget()
-        control_widget.setStyleSheet(get_control_container_style())
-        control_layout = QHBoxLayout(control_widget)
+        self.control_widget = QFrame()
+        self.control_widget.setObjectName("aiAssistantControls")
+        control_layout = QHBoxLayout(self.control_widget)
         control_layout.setSpacing(10)
-        control_layout.setContentsMargins(0, 4, 0, 4)
+        control_layout.setContentsMargins(10, 8, 10, 8)
         
         # Date Range - with calendar SVG icon
         date_icon = get_themed_icon_helper("calendar", 16, self._is_dark)
@@ -206,6 +208,7 @@ class AIAssistantWidget(QFrame):
         self.date_range_combo.setCurrentText("Today")
         self.date_range_combo.currentTextChanged.connect(self._on_date_range_changed)
         self.date_range_combo.setFixedWidth(150)
+        self.date_range_combo.setFixedHeight(38)
         control_layout.addWidget(self.date_range_combo)
         
         control_layout.addStretch()
@@ -228,9 +231,10 @@ class AIAssistantWidget(QFrame):
         self.interval_combo.setCurrentText("60s")
         self.interval_combo.currentTextChanged.connect(self._on_refresh_interval_changed)
         self.interval_combo.setFixedWidth(75)
+        self.interval_combo.setFixedHeight(38)
         control_layout.addWidget(self.interval_combo)
         
-        layout.addWidget(control_widget)
+        layout.addWidget(self.control_widget)
     
     def _setup_bottom_controls(self, layout):
         """Bottom control bar: Search + Export with SVG icons"""
@@ -250,7 +254,7 @@ class AIAssistantWidget(QFrame):
         self.export_btn = ModernButton("Export", ModernButton.PRIMARY)
         self.export_btn.set_compact(False)
         self.export_btn.set_icon("file_export", size=(16, 16))
-        self.export_btn.setFixedHeight(30)
+        self.export_btn.setFixedHeight(38)
         self.export_btn.setFixedWidth(100)
         self.export_btn.clicked.connect(self._export_report)
         control_layout.addWidget(self.export_btn)
@@ -261,6 +265,9 @@ class AIAssistantWidget(QFrame):
     def _setup_tabs(self, layout):
         """Tab widget with SVG icons - Sales Summary style"""
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("dashboardAITabs")
+        self.tab_widget.setDocumentMode(True)
+        self.tab_widget.setUsesScrollButtons(True)
         self.tab_widget.setStyleSheet(get_tab_style())
         
         # ========== Tab 1: Insights ==========
@@ -307,71 +314,8 @@ class AIAssistantWidget(QFrame):
         layout.addWidget(self.tab_widget)
     
     def _apply_tab_bar_style(self):
-        """Apply tab bar style based on theme - Sales Summary style"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-                QTabBar::tab:selected QLabel {
-                    color: #ffffff;
-                }
-            """)
-        else:
-            self.tab_widget.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QTabBar::tab:selected QLabel {
-                    color: #212529;
-                }
-            """)
+        """Apply the shared launcher-style tab treatment."""
+        self.tab_widget.setStyleSheet(get_tab_style())
         
         self._update_tab_icons_color()
     
@@ -430,7 +374,14 @@ class AIAssistantWidget(QFrame):
     # ============================================================
     
     def _apply_style(self):
-        self.setStyleSheet(get_widget_style(self._is_dark))
+        colors = get_theme_colors()
+        self.setStyleSheet(get_widget_style(self._is_dark) + f"""
+            QFrame#aiAssistantHeader, QFrame#aiAssistantControls {{
+                background-color: {colors['input_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 10px;
+            }}
+        """)
     
     def _update_ui_colors(self):
         text_color = "#ffffff" if self._is_dark else "#212529"

@@ -9,7 +9,10 @@ from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 from ui.widgets.modern_button import ModernButton
-from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
+from ui.themes.theme_manager import (
+    theme_manager, get_theme_colors, get_icon_with_color, is_dark_theme
+)
 import os
 
 
@@ -79,15 +82,11 @@ class ReceiptDetailDialog(QDialog):
         title_layout = QHBoxLayout()
         
         # Icon label
-        icon_label = QLabel()
-        icon = self._load_svg_icon("receipt", size=(24, 24))
-        if icon and not icon.isNull():
-            icon_label.setPixmap(icon.pixmap(24, 24))
-            icon_label.setStyleSheet("background: transparent; border: none;")
-        else:
-            icon_label.setText("🧾")
-            icon_label.setStyleSheet("font-size: 20px; background: transparent; border: none;")
-        title_layout.addWidget(icon_label)
+        self.header_icon_label = QLabel()
+        self.header_icon_label.setObjectName("receiptHeaderIcon")
+        self.header_icon_label.setFixedSize(46, 46)
+        self.header_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_layout.addWidget(self.header_icon_label)
         
         title_label = QLabel("Receipt Details")
         title_label.setStyleSheet(f"font-size: 14pt; font-weight: bold; color: {colors['text']}; background: transparent; border: none;")
@@ -295,18 +294,7 @@ class ReceiptDetailDialog(QDialog):
         
         main_layout.addLayout(totals_layout)
 
-        # Close button with SVG icon
-        btn_close = ModernButton(" Close", ModernButton.TERTIARY)
-        btn_close.set_icon("close", size=(16, 16))
-        btn_close.set_compact(False)
-        btn_close.setFixedSize(120, 35)
-        btn_close.clicked.connect(self.accept)
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        btn_layout.addWidget(btn_close)
-        btn_layout.addStretch()
-        main_layout.addLayout(btn_layout)
+        self.btn_close = add_standard_close_footer(main_layout, self, "Close")
 
         self.setLayout(main_layout)
         
@@ -364,6 +352,21 @@ class ReceiptDetailDialog(QDialog):
                 background-color: {colors['bg']};
             }}
         """)
+
+        # Keep the header symbol bright and legible on both themes.  Rendering
+        # through the themed SVG helper also avoids the SVG's dark source fill.
+        if hasattr(self, "header_icon_label"):
+            primary = colors.get('primary', '#6675f5')
+            icon = get_icon_with_color("receipt_long", "#ffffff", (25, 25))
+            self.header_icon_label.setPixmap(icon.pixmap(25, 25))
+            self.header_icon_label.setStyleSheet(f"""
+                QLabel#receiptHeaderIcon {{
+                    background-color: {primary};
+                    border: none;
+                    border-radius: 12px;
+                    padding: 0px;
+                }}
+            """)
         
         # Update table style
         self._apply_table_style(colors)
@@ -371,80 +374,12 @@ class ReceiptDetailDialog(QDialog):
         # Update button
         for child in self.findChildren(ModernButton):
             child.update_theme()
-            child.set_icon("close", size=(16, 16))
+        if hasattr(self, "btn_close"):
+            self.btn_close.set_icon("close", size=(15, 15))
     
     def _apply_table_style(self, colors):
         """Apply theme-aware table styling"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
-        self.items_table.setStyleSheet(table_style)
+        self.items_table.setStyleSheet(modern_table_stylesheet(colors))
 
     def _load_sale_data(self):
         """Load regular sale data"""

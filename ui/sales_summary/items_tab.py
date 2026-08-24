@@ -9,6 +9,9 @@ from models.database import connect_db
 from utils.currency import format_money, get_currency_symbol
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.search_widget import ModernSearchWidget
+from ui.widgets.modern_button import ModernButton
+from ui.themes.theme_manager import get_theme_colors, get_icon_with_color, theme_manager
+from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
 from loguru import logger
 
 
@@ -198,8 +201,7 @@ class ItemsTab(QWidget):
             product_name: Name of the product
             sales: List of sales tuples (id, invoice_no, created_at, total)
         """
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QHBoxLayout
-        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QDialog, QFrame, QSizePolicy
         
         symbol = get_currency_symbol()
         lang = self.get_lang()
@@ -220,19 +222,49 @@ class ItemsTab(QWidget):
             view_header = "View"
             close_text = "Close"
         
-        dialog.resize(700, 450)
+        dialog.resize(820, 520)
+        dialog.setMinimumSize(720, 460)
         
         layout = QVBoxLayout(dialog)
-        
-        # Title
-        title_label = QLabel(f"📋 {product_name}")
-        title_label.setStyleSheet("font-size: 14pt; font-weight: bold; padding: 5px;")
-        layout.addWidget(title_label)
-        
-        # Info label
-        info_label = QLabel(f"Found {len(sales)} receipt(s)" if lang != "my" else f"ပြေစာ {len(sales)} ခု တွေ့ရှိပါသည်")
-        info_label.setStyleSheet("font-size: 10pt; color: #6c757d; padding: 5px;")
-        layout.addWidget(info_label)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(16)
+
+        header_card = QFrame()
+        header_card.setObjectName("receiptHistoryHeader")
+        header_layout = QHBoxLayout(header_card)
+        header_layout.setContentsMargins(16, 14, 16, 14)
+        header_layout.setSpacing(12)
+
+        icon_badge = QLabel()
+        icon_badge.setObjectName("receiptIconBadge")
+        icon_badge.setFixedSize(44, 44)
+        icon_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(icon_badge)
+
+        heading_layout = QVBoxLayout()
+        heading_layout.setContentsMargins(0, 0, 0, 0)
+        heading_layout.setSpacing(3)
+        title_label = QLabel(product_name)
+        title_label.setObjectName("receiptHistoryTitle")
+        subtitle_label = QLabel(
+            "Receipts containing this product"
+            if lang != "my" else "ဤပစ္စည်းပါဝင်သော ပြေစာများ"
+        )
+        subtitle_label.setObjectName("receiptHistorySubtitle")
+        heading_layout.addWidget(title_label)
+        heading_layout.addWidget(subtitle_label)
+        header_layout.addLayout(heading_layout, 1)
+
+        info_label = QLabel(
+            f"{len(sales)} RECEIPTS"
+            if lang != "my" else f"ပြေစာ {len(sales)} ခု"
+        )
+        info_label.setObjectName("receiptCountPill")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setMinimumWidth(100)
+        info_label.setFixedHeight(30)
+        header_layout.addWidget(info_label)
+        layout.addWidget(header_card)
         
         # Table
         table = QTableWidget()
@@ -240,13 +272,19 @@ class ItemsTab(QWidget):
         table.setHorizontalHeaderLabels([invoice_header, date_header, total_header, view_header])
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(54)
         
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        table.setColumnWidth(3, 80)
+        # Account for the shared modern-table horizontal cell padding so the
+        # 92px action button still has room to center without clipping.
+        table.setColumnWidth(3, 144)
         
         # Populate table
         for sale in sales:
@@ -256,7 +294,6 @@ class ItemsTab(QWidget):
             
             # Invoice No
             inv_item = QTableWidgetItem(invoice_no)
-            inv_item.setForeground(QColor("#5865f2"))
             table.setItem(row, 0, inv_item)
             
             # Date
@@ -266,24 +303,77 @@ class ItemsTab(QWidget):
             # Total
             total_item = QTableWidgetItem(format_money(total, symbol))
             total_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if total > 0:
-                total_item.setForeground(QColor(46, 204, 113))
             table.setItem(row, 2, total_item)
             
             # View button
-            btn_view = QPushButton("👁️" if lang != "my" else "👁️")
-            btn_view.setFixedSize(60, 28)
-            btn_view.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_view = ModernButton("View" if lang != "my" else "ကြည့်မည်", ModernButton.SECONDARY)
+            btn_view.set_icon("visibility", size=(15, 15))
+            btn_view.set_compact(True)
+            btn_view.setFixedSize(92, 34)
             btn_view.clicked.connect(lambda _, sid=sale_id: self._open_receipt_detail(sid))
-            table.setCellWidget(row, 3, btn_view)
+            button_cell = QWidget()
+            button_cell.setStyleSheet("background: transparent; border: none;")
+            button_cell.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            button_layout = QHBoxLayout(button_cell)
+            button_layout.setContentsMargins(4, 0, 4, 0)
+            button_layout.addWidget(btn_view, alignment=Qt.AlignmentFlag.AlignCenter)
+            table.setCellWidget(row, 3, button_cell)
         
         layout.addWidget(table)
         
-        # Close button
-        btn_close = QPushButton(close_text)
-        btn_close.setFixedHeight(35)
-        btn_close.clicked.connect(dialog.accept)
-        layout.addWidget(btn_close)
+        btn_close = add_standard_close_footer(layout, dialog, close_text)
+
+        def apply_dialog_theme(*_):
+            colors = get_theme_colors()
+            icon_badge.setPixmap(
+                get_icon_with_color("receipt_long", "#ffffff", (22, 22)).pixmap(22, 22)
+            )
+            inv_color = QColor(colors['progress_bg'])
+            total_color = QColor(colors['success'])
+            for row_index in range(table.rowCount()):
+                if table.item(row_index, 0):
+                    table.item(row_index, 0).setForeground(inv_color)
+                if table.item(row_index, 2):
+                    table.item(row_index, 2).setForeground(total_color)
+            dialog.setStyleSheet(f"""
+                QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+                QFrame#receiptHistoryHeader {{
+                    background-color: {colors['card_bg']};
+                    border: 1px solid {colors['border']};
+                    border-radius: 12px;
+                }}
+                QLabel#receiptIconBadge {{
+                    background-color: {colors['progress_bg']};
+                    border: none;
+                    border-radius: 11px;
+                }}
+                QLabel#receiptHistoryTitle {{
+                    color: {colors['text']};
+                    font-size: 16px;
+                    font-weight: 700;
+                    background: transparent;
+                }}
+                QLabel#receiptHistorySubtitle {{
+                    color: {colors['text_secondary']};
+                    font-size: 10px;
+                    background: transparent;
+                }}
+                QLabel#receiptCountPill {{
+                    color: {colors['progress_bg']};
+                    background-color: {colors['bg_hover']};
+                    border: 1px solid {colors['border']};
+                    border-radius: 8px;
+                    font-size: 9px;
+                    font-weight: 700;
+                    padding: 0 10px;
+                }}
+            """ + modern_table_stylesheet(colors))
+
+        theme_manager.theme_changed.connect(apply_dialog_theme)
+        dialog.finished.connect(
+            lambda _result: theme_manager.theme_changed.disconnect(apply_dialog_theme)
+        )
+        apply_dialog_theme()
         
         dialog.exec()
     

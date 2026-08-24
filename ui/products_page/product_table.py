@@ -182,7 +182,8 @@ class ProductTable(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(1, 1, 1, 10)
+        layout.setSpacing(8)
 
         self.table = QTableWidget()
         # Column count: ID, Image, Name, Category, Category Group, Barcode, Price, Stock, Sold By, Status
@@ -192,6 +193,7 @@ class ProductTable(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
         
         # ❌ REMOVE cellClicked - ဒီနေရာမှာ ဖယ်ရှားလိုက်ပါ
         # self.table.cellClicked.connect(self.on_row_clicked)  <-- ဒီ line ကို ဖယ်ရှားပါ
@@ -199,7 +201,8 @@ class ProductTable(QWidget):
         # ✅ Keep only double click for product detail
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
         
-        self.table.verticalHeader().setDefaultSectionSize(60)
+        self.table.verticalHeader().setDefaultSectionSize(62)
+        self.table.verticalHeader().setVisible(False)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID

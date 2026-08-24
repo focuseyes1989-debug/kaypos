@@ -1,4 +1,8 @@
-from PyQt6.QtWidgets import QDialog, QFormLayout, QLineEdit, QPushButton, QMessageBox, QDialogButtonBox
+from PyQt6.QtWidgets import (
+    QDialog, QFormLayout, QLineEdit, QMessageBox, QDialogButtonBox,
+    QVBoxLayout, QLabel, QFrame,
+)
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 from models.database import connect_db
 import hashlib
 import os
@@ -11,7 +15,25 @@ class ChangePasswordDialog(QDialog):
         self.username = username
         self.setWindowTitle("Change Password")
         self.setModal(True)
-        layout = QFormLayout()
+        self.setMinimumWidth(480)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(16)
+
+        title = QLabel("Change password")
+        title.setObjectName("dialogTitle")
+        subtitle = QLabel(f"Update the sign-in password for {username}.")
+        subtitle.setObjectName("dialogSubtitle")
+        root.addWidget(title)
+        root.addWidget(subtitle)
+
+        card = QFrame()
+        card.setObjectName("formCard")
+        layout = QFormLayout(card)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setHorizontalSpacing(18)
+        layout.setVerticalSpacing(14)
         self.old_password_input = QLineEdit()
         self.old_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         if old_password is not None:
@@ -26,8 +48,35 @@ class ChangePasswordDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.change_password)
         buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
-        self.setLayout(layout)
+        root.addWidget(card)
+        root.addWidget(buttons)
+
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
+
+    def _apply_theme(self, _theme_name=None):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel {{ color: {colors['text']}; background: transparent; }}
+            QLabel#dialogTitle {{ font-size: 20px; font-weight: 700; }}
+            QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
+            QFrame#formCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QLineEdit {{
+                min-height: 38px;
+                padding: 0 12px;
+                color: {colors['text']};
+                background-color: {colors['input_bg']};
+                border: 1px solid {colors['input_border']};
+                border-radius: 8px;
+            }}
+            QLineEdit:focus {{ border-color: {colors['border_hover']}; }}
+            QPushButton {{ min-height: 36px; padding: 0 18px; border-radius: 8px; }}
+        """)
 
     def change_password(self):
         old = self.old_password_input.text()

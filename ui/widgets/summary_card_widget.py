@@ -21,7 +21,8 @@ class SummaryCardWidget(QWidget):
     
     def __init__(self, title="", value="0", icon="", color="#5865f2", 
                  gradient_colors=None, icon_is_svg=False, parent=None,
-                 show_progress=False, progress_value=0, progress_max=100):
+                 show_progress=False, progress_value=0, progress_max=100,
+                 flat=False):
         super().__init__(parent)
         self._title = title
         self._raw_value = value
@@ -40,6 +41,7 @@ class SummaryCardWidget(QWidget):
         self._progress_max = progress_max
         self._comparison_text = ""
         self._comparison_direction = "neutral"
+        self._flat = bool(flat)
         
         # ✅ Load SVG icon if needed
         if self._icon_is_svg:
@@ -319,6 +321,8 @@ class SummaryCardWidget(QWidget):
     
     def _get_icon_color(self):
         """Get icon color based on current theme"""
+        if self._flat:
+            return self._color
         if self._is_dark:
             return "#ffffff"
         else:
@@ -381,6 +385,23 @@ class SummaryCardWidget(QWidget):
     
     def _apply_theme(self):
         """Apply theme-aware styles to card"""
+        if self._flat:
+            from ui.themes.theme_manager import get_theme_colors
+            colors = get_theme_colors()
+            self.card.set_flat_palette(colors['card_bg'], colors['border'], colors['card_hover'])
+            if hasattr(self, 'title_label'):
+                self.title_label.setStyleSheet(f"color:{colors['text_secondary']};font-size:8.5pt;font-weight:600;background:transparent;border:none;")
+            if hasattr(self, 'value_label'):
+                self.value_label.setStyleSheet(f"color:{colors['text']};font-size:15pt;font-weight:700;background:transparent;border:none;padding:3px 0 1px 0;")
+            if hasattr(self, 'icon_container'):
+                tint = QColor(self._color)
+                tint.setAlpha(34)
+                self.icon_container.setStyleSheet(
+                    f"QFrame{{background-color:{tint.name(QColor.NameFormat.HexArgb)};border:1px solid {self._color};border-radius:8px;}}"
+                )
+            self._update_icon_display()
+            return
+
         if hasattr(self.card, 'set_gradient_colors'):
             if self._is_dark:
                 dark_gradient = [self._darken_color(c, 10) for c in self._gradient_colors]
@@ -473,7 +494,7 @@ class SummaryCardWidget(QWidget):
     
     def setup_ui(self):
         # Card frame
-        self.card = ModernGradientCard(self._gradient_colors, self._color)
+        self.card = ModernGradientCard(self._gradient_colors, self._color, flat=self._flat)
         self.card.setFixedHeight(140 if self._show_progress else 120)
         self.card.setMinimumWidth(140)
         self.card.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -761,16 +782,26 @@ class SummaryCardWidget(QWidget):
 class ModernGradientCard(QFrame):
     """Custom QFrame with modern gradient background and glassmorphism effect"""
     
-    def __init__(self, gradient_colors, accent_color, parent=None):
+    def __init__(self, gradient_colors, accent_color, parent=None, flat=False):
         super().__init__(parent)
         self._gradient_colors = gradient_colors
         self._accent_color = accent_color
         self._radius = 8
+        self._flat = bool(flat)
+        self._surface_color = "#151c2a"
+        self._border_color = "#293348"
+        self._hover_color = "#192232"
         self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setMouseTracking(True)
         
     def set_gradient_colors(self, colors):
         self._gradient_colors = colors
+        self.update()
+
+    def set_flat_palette(self, surface, border, hover):
+        self._surface_color = surface
+        self._border_color = border
+        self._hover_color = hover
         self.update()
     
     def paintEvent(self, event):
@@ -778,6 +809,17 @@ class ModernGradientCard(QFrame):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         rect = self.rect()
+
+        if self._flat:
+            hovered = bool(getattr(self.parent(), '_is_hovered', False))
+            painter.setBrush(QBrush(QColor(self._hover_color if hovered else self._surface_color)))
+            painter.setPen(QPen(QColor(self._border_color), 1))
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 11, 11)
+            painter.setBrush(QBrush(QColor(self._accent_color)))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(rect.adjusted(12, rect.height() - 4, -12, -1), 2, 2)
+            painter.end()
+            return
         
         # ========== Main gradient background ==========
         gradient = QLinearGradient(

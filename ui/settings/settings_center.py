@@ -431,6 +431,15 @@ class SettingsCenterWidget(QWidget):
             conn.close()
         except Exception:
             pass
+        try:
+            from services.network_printer_client import network_printer_settings
+
+            network = network_printer_settings()
+            if network.get("receipt_printer_mode") == "network":
+                target = network.get("network_printer_name") or "not selected"
+                values["receipt_printer_name"] = f"Network: {target}"
+        except Exception:
+            pass
         if not values.get("receipt_printer_name"):
             default_printer = QPrinterInfo.defaultPrinter()
             if not default_printer.isNull():

@@ -41,7 +41,7 @@ class PaginationWidget(QWidget):
 
         # --- Previous Button ---
         self.btn_prev = QPushButton("‹")
-        self.btn_prev.setFixedSize(28, 28)
+        self.btn_prev.setFixedSize(32, 32)
         self.btn_prev.clicked.connect(self._prev_page)
         layout.addWidget(self.btn_prev)
 
@@ -55,7 +55,7 @@ class PaginationWidget(QWidget):
 
         # --- Next Button ---
         self.btn_next = QPushButton("›")
-        self.btn_next.setFixedSize(28, 28)
+        self.btn_next.setFixedSize(32, 32)
         self.btn_next.clicked.connect(self._next_page)
         layout.addWidget(self.btn_next)
 
@@ -71,35 +71,15 @@ class PaginationWidget(QWidget):
     def _apply_style(self):
         """Apply theme-aware stylesheet"""
         colors = get_theme_colors()
-        is_dark = colors.get('bg', '#36393f').startswith('#3') or colors.get('bg', '#36393f') == '#36393f'
-        
-        # Theme-aware colors
-        if is_dark:
-            bg_color = "#2f3136"
-            border_color = "#40444b"
-            text_color = "#dcddde"
-            text_secondary = "#b9bbbe"
-            hover_bg = "#40444b"
-            active_bg = "#5865f2"
-            active_hover = "#4752c4"
-            disabled_color = "#72767d"
-            input_bg = "transparent"
-            input_border = "#40444b"
-            combo_bg = "#2f3136"
-            combo_text = "#dcddde"
-        else:
-            bg_color = "#ffffff"
-            border_color = "#ced4da"
-            text_color = "#212529"
-            text_secondary = "#6c757d"
-            hover_bg = "#e9ecef"
-            active_bg = "#5865f2"
-            active_hover = "#4752c4"
-            disabled_color = "#adb5bd"
-            input_bg = "#ffffff"
-            input_border = "#ced4da"
-            combo_bg = "#ffffff"
-            combo_text = "#212529"
+        border_color = colors['border']
+        text_color = colors['text']
+        text_secondary = colors['text_secondary']
+        hover_bg = colors['bg_hover']
+        active_bg = colors['progress_bg']
+        active_hover = colors['border_hover']
+        disabled_color = colors['text_secondary']
+        combo_bg = colors['input_bg']
+        combo_text = colors['text']
 
         # Apply stylesheet
         self.setStyleSheet(f"""
@@ -116,8 +96,8 @@ class PaginationWidget(QWidget):
             QComboBox {{
                 background-color: {combo_bg};
                 border: 1px solid {border_color};
-                border-radius: 4px;
-                padding: 2px 6px;
+                border-radius: 7px;
+                padding: 3px 8px;
                 font-size: 10px;
                 color: {combo_text};
                 min-height: 22px;
@@ -138,7 +118,7 @@ class PaginationWidget(QWidget):
             QComboBox QAbstractItemView {{
                 background-color: {combo_bg};
                 border: 1px solid {border_color};
-                border-radius: 4px;
+                border-radius: 7px;
                 selection-background-color: {active_bg};
                 selection-color: white;
                 color: {combo_text};
@@ -149,15 +129,15 @@ class PaginationWidget(QWidget):
             QPushButton {{
                 background-color: transparent;
                 border: 1px solid {border_color};
-                border-radius: 4px;
+                border-radius: 7px;
                 color: {text_color};
                 font-size: 13px;
                 font-weight: 500;
                 padding: 0px 4px;
                 min-width: 24px;
-                max-width: 28px;
-                min-height: 24px;
-                max-height: 28px;
+                max-width: 32px;
+                min-height: 28px;
+                max-height: 32px;
             }}
             QPushButton:hover {{
                 background-color: {hover_bg};
@@ -189,22 +169,11 @@ class PaginationWidget(QWidget):
     def _get_button_style(self, is_active):
         """Return stylesheet for a single page button"""
         colors = get_theme_colors()
-        is_dark = colors.get('bg', '#36393f').startswith('#3') or colors.get('bg', '#36393f') == '#36393f'
-        
-        if is_dark:
-            bg_color = "#2f3136"
-            border_color = "#40444b"
-            text_color = "#dcddde"
-            hover_bg = "#40444b"
-            active_bg = "#5865f2"
-            active_hover = "#4752c4"
-        else:
-            bg_color = "#ffffff"
-            border_color = "#ced4da"
-            text_color = "#212529"
-            hover_bg = "#e9ecef"
-            active_bg = "#5865f2"
-            active_hover = "#4752c4"
+        border_color = colors['border']
+        text_color = colors['text']
+        hover_bg = colors['bg_hover']
+        active_bg = colors['progress_bg']
+        active_hover = colors['border_hover']
 
         if is_active:
             return f"""
@@ -212,14 +181,14 @@ class PaginationWidget(QWidget):
                     background-color: {active_bg};
                     border: 1px solid {active_bg};
                     color: white;
-                    border-radius: 4px;
+                    border-radius: 7px;
                     font-weight: 600;
                     font-size: 11px;
                     padding: 0px 4px;
                     min-width: 24px;
-                    max-width: 28px;
-                    min-height: 24px;
-                    max-height: 28px;
+                    max-width: 32px;
+                    min-height: 28px;
+                    max-height: 32px;
                 }}
                 QPushButton:hover {{
                     background-color: {active_hover};
@@ -231,14 +200,14 @@ class PaginationWidget(QWidget):
                 QPushButton {{
                     background-color: transparent;
                     border: 1px solid {border_color};
-                    border-radius: 4px;
+                    border-radius: 7px;
                     color: {text_color};
                     font-size: 11px;
                     padding: 0px 4px;
                     min-width: 24px;
-                    max-width: 28px;
-                    min-height: 24px;
-                    max-height: 28px;
+                    max-width: 32px;
+                    min-height: 28px;
+                    max-height: 32px;
                 }}
                 QPushButton:hover {{
                     background-color: {hover_bg};
@@ -291,7 +260,7 @@ class PaginationWidget(QWidget):
             page_num = 1
             
         button = QPushButton(str(page_num))
-        button.setFixedSize(28, 28)
+        button.setFixedSize(32, 32)
         button.setProperty("active", page_num == self._current_page)
         
         button.page_number = page_num
@@ -309,8 +278,7 @@ class PaginationWidget(QWidget):
         ellipsis_btn.setEnabled(False)
         
         colors = get_theme_colors()
-        is_dark = colors.get('bg', '#36393f').startswith('#3') or colors.get('bg', '#36393f') == '#36393f'
-        text_color = "#dcddde" if is_dark else "#6c757d"
+        text_color = colors['text_secondary']
         
         ellipsis_btn.setStyleSheet(f"""
             QPushButton {{
@@ -340,8 +308,7 @@ class PaginationWidget(QWidget):
             else:
                 # Ellipsis button
                 colors = get_theme_colors()
-                is_dark = colors.get('bg', '#36393f').startswith('#3') or colors.get('bg', '#36393f') == '#36393f'
-                text_color = "#dcddde" if is_dark else "#6c757d"
+                text_color = colors['text_secondary']
                 button.setStyleSheet(f"""
                     QPushButton {{
                         background-color: transparent;

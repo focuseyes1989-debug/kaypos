@@ -102,6 +102,7 @@ class DashboardPage(QWidget):
         
         # ✅ Update splitter handle style
         self._update_splitter_style()
+        self._apply_dashboard_style()
         
         self.style().unpolish(self)
         self.style().polish(self)
@@ -195,9 +196,10 @@ class DashboardPage(QWidget):
     # SETUP UI - 2 Column Layout (4:1 Ratio)
     # ============================================================
     def setup_ui(self):
+        self.setObjectName("dashboardPage")
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(4, 4, 4, 4)
         
         # ============================================================
         # SPLITTER: Left Column (80%) | Right Column (20%) - 4:1 Ratio
@@ -209,15 +211,22 @@ class DashboardPage(QWidget):
         self._update_splitter_style()
         
         # ---------- LEFT COLUMN ----------
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
+        self.left_widget = QWidget()
+        self.left_widget.setObjectName("dashboardMainColumn")
+        left_layout = QVBoxLayout(self.left_widget)
         left_layout.setSpacing(12)
-        left_layout.setContentsMargins(0, 0, 8, 0)
+        left_layout.setContentsMargins(0, 0, 10, 0)
         
         # 1. Date Range
+        self.filter_card = QFrame()
+        self.filter_card.setObjectName("dashboardFilterCard")
+        filter_layout = QHBoxLayout(self.filter_card)
+        filter_layout.setContentsMargins(14, 10, 14, 10)
         self.date_range = DateRangeWidget()
         self.date_range.date_range_changed.connect(self.on_date_range_changed)
-        left_layout.addWidget(self.date_range)
+        filter_layout.addWidget(self.date_range)
+        filter_layout.addStretch()
+        left_layout.addWidget(self.filter_card)
         
         # 2. Cards (2 rows x 5 cards) - Using SummaryCardWidget
         # Row 1: Today Cards
@@ -388,10 +397,11 @@ class DashboardPage(QWidget):
         left_layout.addWidget(backup_container)
         
         # ---------- RIGHT COLUMN (AI Assistant - 20%) ----------
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
+        self.right_widget = QFrame()
+        self.right_widget.setObjectName("dashboardAIColumn")
+        right_layout = QVBoxLayout(self.right_widget)
         right_layout.setSpacing(12)
-        right_layout.setContentsMargins(8, 0, 0, 0)
+        right_layout.setContentsMargins(1, 1, 1, 1)
         
         # ✅ AI Assistant - Live Data Analysis
         self.ai_assistant = AIAssistantWidget()
@@ -399,13 +409,31 @@ class DashboardPage(QWidget):
         right_layout.addWidget(self.ai_assistant, 1)
         
         # ---------- Add to Splitter ----------
-        self.splitter.addWidget(left_widget)
-        self.splitter.addWidget(right_widget)
+        self.splitter.addWidget(self.left_widget)
+        self.splitter.addWidget(self.right_widget)
         # ✅ 4:1 Ratio - Left 80%, Right 20%
         self.splitter.setSizes([800, 200])
         
         main_layout.addWidget(self.splitter, 1)
         self.setLayout(main_layout)
+        self._apply_dashboard_style()
+
+    def _apply_dashboard_style(self):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#dashboardPage {{ background: transparent; }}
+            QWidget#dashboardMainColumn {{ background: transparent; }}
+            QFrame#dashboardFilterCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QFrame#dashboardAIColumn {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+        """)
     
     def on_date_range_changed(self, from_date, to_date):
         self.refresh_dashboard()

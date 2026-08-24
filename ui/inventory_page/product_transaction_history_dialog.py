@@ -13,6 +13,7 @@ from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet, modern_panel_stylesheet
 from datetime import datetime
 
 
@@ -176,13 +177,7 @@ class ProductTransactionHistoryDialog(QDialog):
         self.load_current_stock()
     
     def _get_filter_frame_style(self, colors):
-        return f"""
-            QFrame#filter_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
-                padding: 5px;
-            }}
-        """
+        return modern_panel_stylesheet(colors, "filter_frame")
     
     def _get_combobox_style(self, colors):
         return f"""
@@ -225,76 +220,7 @@ class ProductTransactionHistoryDialog(QDialog):
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
-        self.table.setStyleSheet(table_style)
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
     
     def load_current_stock(self):
         conn = connect_db()

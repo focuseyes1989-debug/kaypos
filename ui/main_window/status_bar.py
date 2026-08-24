@@ -48,8 +48,9 @@ class StatusBar(QStatusBar):
         status_layout.setSpacing(8)
 
         self.ready_label = QLabel("Ready")
-        self.ready_label.setStyleSheet("""
-            color: #6c757d;
+        colors = get_theme_colors()
+        self.ready_label.setStyleSheet(f"""
+            color: {colors['text_secondary']};
             font-size: 9pt;
             background: transparent;
         """)
@@ -59,22 +60,22 @@ class StatusBar(QStatusBar):
         self.background_activity_progress.setRange(0, 0)
         self.background_activity_progress.setTextVisible(False)
         self.background_activity_progress.setFixedSize(80, 5)
-        self.background_activity_progress.setStyleSheet("""
-            QProgressBar {
-                background-color: #e9ecef;
+        self.background_activity_progress.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {colors['border']};
                 border: none;
                 border-radius: 3px;
-            }
-            QProgressBar::chunk {
-                background-color: #5865f2;
+            }}
+            QProgressBar::chunk {{
+                background-color: {colors['progress_bg']};
                 border-radius: 3px;
-            }
+            }}
         """)
         status_layout.addWidget(self.background_activity_progress)
         
         self.background_activity_label = QLabel("Background working...")
-        self.background_activity_label.setStyleSheet("""
-            color: #5865f2;
+        self.background_activity_label.setStyleSheet(f"""
+            color: {colors['progress_bg']};
             font-weight: 500;
             font-size: 9pt;
             background: transparent;
@@ -123,3 +124,20 @@ class StatusBar(QStatusBar):
                 padding: 3px 16px;
             }}
         """)
+        self.ready_label.setStyleSheet(
+            f"color: {colors['text_secondary']}; font-size: 9pt; background: transparent;"
+        )
+        self.background_activity_progress.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {colors['border']};
+                border: none;
+                border-radius: 3px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {colors['progress_bg']};
+                border-radius: 3px;
+            }}
+        """)
+        self.background_activity_label.setStyleSheet(
+            f"color: {colors['progress_bg']}; font-weight: 500; font-size: 9pt; background: transparent;"
+        )

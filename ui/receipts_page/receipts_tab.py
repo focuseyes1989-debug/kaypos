@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
-    QComboBox, QFileDialog, QGridLayout
+    QComboBox, QFileDialog, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor
@@ -115,8 +115,8 @@ class ReceiptsTab(QWidget):
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
         
-        self.table.setColumnWidth(8, 110)
-        self.table.setColumnWidth(9, 110)
+        self.table.setColumnWidth(8, 128)
+        self.table.setColumnWidth(9, 120)
         
         layout.addWidget(self.table)
 
@@ -141,12 +141,14 @@ class ReceiptsTab(QWidget):
 
     def _centered_cell_widget(self, widget):
         container = QWidget()
+        container.setObjectName("tableActionCell")
         container.setStyleSheet("background: transparent; border: none;")
-        container.setMinimumHeight(48)
-        layout = QGridLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(4, 0, 4, 0)
         layout.setSpacing(0)
-        layout.addWidget(widget, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(widget, alignment=Qt.AlignmentFlag.AlignCenter)
         return container
 
     def _on_theme_changed(self, theme_name):
@@ -285,8 +287,8 @@ class ReceiptsTab(QWidget):
         
         self.table.setHorizontalHeaderLabels(headers)
         
-        self.table.setColumnWidth(8, 110)
-        self.table.setColumnWidth(9, 100)
+        self.table.setColumnWidth(8, 128)
+        self.table.setColumnWidth(9, 120)
         
         # Update button icons
         self._update_button_icons()
@@ -450,7 +452,7 @@ class ReceiptsTab(QWidget):
                 sale_id, invoice_no, created_at, total, payment, change_amount, customer_name, payment_type_db = row_data
                 row = self.table.rowCount()
                 self.table.insertRow(row)
-                self.table.setRowHeight(row, 52)
+                self.table.setRowHeight(row, 58)
                 
                 # ✅ Use PyQt6 default colors - no custom text color
                 # ID (hidden)
@@ -490,9 +492,7 @@ class ReceiptsTab(QWidget):
                 btn_refund = ModernButton("Refund" if lang != "my" else "ပြန်အမ်းမည်", ModernButton.PRIMARY)
                 btn_refund.set_icon("currency_exchange", size=(14, 14))
                 btn_refund.set_compact(True)
-                btn_refund.setFixedHeight(32)
-                btn_refund.setMinimumWidth(80)
-                btn_refund.setMaximumWidth(100)
+                btn_refund.setFixedSize(104, 36)
                 btn_refund.clicked.connect(lambda _, sid=sale_id: self.refund_sale(sid))
                 self.table.setCellWidget(row, 8, self._centered_cell_widget(btn_refund))
 
@@ -500,9 +500,7 @@ class ReceiptsTab(QWidget):
                 btn_print = ModernButton("Print" if lang != "my" else "ထုတ်မည်", ModernButton.SECONDARY)
                 btn_print.set_icon("print", size=(14, 14))
                 btn_print.set_compact(True)
-                btn_print.setFixedHeight(32)
-                btn_print.setMinimumWidth(70)
-                btn_print.setMaximumWidth(100)
+                btn_print.setFixedSize(96, 36)
                 btn_print.clicked.connect(lambda _, sid=sale_id: self.print_receipt(sid))
                 self.table.setCellWidget(row, 9, self._centered_cell_widget(btn_print))
                 

@@ -39,10 +39,10 @@ class CartItemWidget(CashierCartItemWidget):
     THUMBNAIL_SIZE = 44
 
     def _setup_ui(self):
-        self.setFixedHeight(58)
+        self.setFixedHeight(66)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(9, 6, 9, 6)
+        layout.setSpacing(10)
 
         self.image_label = QLabel()
         self.image_label.setFixedSize(self.THUMBNAIL_SIZE, self.THUMBNAIL_SIZE)
@@ -166,15 +166,15 @@ class CartItemWidget(CashierCartItemWidget):
         text = colors.get("text", "#212529")
         secondary = colors.get("text_secondary", "#6c757d")
         card_bg = colors.get("card_bg", "#ffffff")
-        hover_bg = "#3a3d44" if is_dark_theme() else "#f8f9fa"
-        accent = "#5865f2"
+        hover_bg = colors.get("card_hover", colors.get("bg_hover", card_bg))
+        accent = colors.get("progress_bg", "#6675f5")
 
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {card_bg};
-                border-radius: 6px;
-                margin: 1px 0px;
-                border: none;
+                border-radius: 9px;
+                margin: 2px 0px;
+                border: 1px solid {colors.get('border', '#293348')};
             }}
             QFrame:hover {{
                 background-color: {hover_bg};
@@ -297,6 +297,7 @@ class CartWidget(CashierCartWidget):
     def update_change(self):
         parent = self._sales_page()
         symbol = get_currency_symbol()
+        colors = get_theme_colors()
         grand_total = 0.0
         payment = 0.0
         if parent and hasattr(parent, "totals_widget"):
@@ -307,12 +308,12 @@ class CartWidget(CashierCartWidget):
         if change >= 0:
             self.change_value.setText(format_money(change, symbol))
             self.change_value.setStyleSheet(
-                "font-size: 13pt; font-weight: bold; color: #27ae60; background: transparent; border: none;"
+                f"font-size: 13pt; font-weight: bold; color: {colors.get('success', '#27c992')}; background: transparent; border: none;"
             )
         else:
             self.change_value.setText(f"-{format_money(abs(change), symbol)}")
             self.change_value.setStyleSheet(
-                "font-size: 13pt; font-weight: bold; color: #e74c3c; background: transparent; border: none;"
+                f"font-size: 13pt; font-weight: bold; color: {colors.get('danger', '#ff6b7a')}; background: transparent; border: none;"
             )
 
     def clear(self):

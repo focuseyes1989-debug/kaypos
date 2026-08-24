@@ -5,18 +5,18 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtGui import QWheelEvent
-from ui.themes.theme_manager import get_theme_colors, get_current_theme, is_dark_theme
+from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.widgets.modern_button import ModernButton
 from loguru import logger
 
 
 class CategorySlider(QScrollArea):
-    """Horizontal scrollable category buttons with compact flat design."""
+    """Horizontal category chips styled as a modern filter surface."""
     
     category_selected = pyqtSignal(str)
     group_selected = pyqtSignal(str)
-    SLIDER_HEIGHT = 42
-    BUTTON_HEIGHT = 30
+    SLIDER_HEIGHT = 52
+    BUTTON_HEIGHT = 34
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,6 +24,7 @@ class CategorySlider(QScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setObjectName("categorySlider")
         
         # ✅ Compact height - same as combobox (32px)
         self.setFixedHeight(self.SLIDER_HEIGHT)
@@ -34,12 +35,12 @@ class CategorySlider(QScrollArea):
             viewport.installEventFilter(self)
         
         self._container = QWidget()
-        self._container.setStyleSheet("background-color: transparent;")
+        self._container.setObjectName("categorySliderContent")
         
         # ✅ Left-aligned layout
         self._layout = QHBoxLayout(self._container)
-        self._layout.setSpacing(4)
-        self._layout.setContentsMargins(4, 5, 8, 5)
+        self._layout.setSpacing(7)
+        self._layout.setContentsMargins(8, 8, 8, 8)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
         self.setWidget(self._container)
@@ -60,158 +61,80 @@ class CategorySlider(QScrollArea):
         self._scroll_multiplier = 3
         
         self.apply_compact_style()
+        theme_manager.theme_changed.connect(self.update_theme)
 
     def _configure_category_button(self, button):
         """Apply category-slider specific metrics after ModernButton compact setup."""
         button.setFixedHeight(self.BUTTON_HEIGHT)
-        button.setMinimumWidth(64)
+        button.setMinimumWidth(68)
         button.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
     
     def apply_compact_style(self):
         """Apply compact style for category buttons"""
-        is_dark = is_dark_theme()
         colors = get_theme_colors()
-        
-        if is_dark:
-            self.setStyleSheet("""
-                QScrollArea {
-                    background: transparent;
-                    border: none;
-                }
-                QScrollArea > QWidget > QWidget {
-                    background: transparent;
-                }
-                QScrollBar:horizontal {
-                    background: #2f3136;
-                    height: 2px;
-                    border-radius: 1px;
-                }
-                QScrollBar::handle:horizontal {
-                    background: #5865f2;
-                    border-radius: 1px;
-                    min-width: 30px;
-                }
-                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                    border: none;
-                    background: none;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QScrollArea {
-                    background: transparent;
-                    border: none;
-                }
-                QScrollArea > QWidget > QWidget {
-                    background: transparent;
-                }
-                QScrollBar:horizontal {
-                    background: #f1f3f5;
-                    height: 2px;
-                    border-radius: 1px;
-                }
-                QScrollBar::handle:horizontal {
-                    background: #5865f2;
-                    border-radius: 1px;
-                    min-width: 30px;
-                }
-                QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                    border: none;
-                    background: none;
-                }
-            """)
+        self.setStyleSheet(f"""
+            QScrollArea#categorySlider {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QScrollArea#categorySlider QWidget#qt_scrollarea_viewport,
+            QWidget#categorySliderContent {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar:horizontal {{
+                background: {colors['border']};
+                height: 3px;
+                border-radius: 1px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background: {colors['progress_bg']};
+                border-radius: 1px;
+                min-width: 30px;
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                border: none;
+                background: transparent;
+                width: 0px;
+            }}
+        """)
     
     def _get_button_style(self, is_checked=False, is_group=False, is_all=False, is_top=False):
         """
         Get compact button style based on type and state.
         """
-        is_dark = is_dark_theme()
         colors = get_theme_colors()
-        
-        # ✅ Discord Secondary Button Colors
-        if is_dark:
-            bg_color = "transparent"
-            bg_hover = "rgba(255, 255, 255, 0.06)"
-            bg_active = "rgba(255, 255, 255, 0.08)"
-            bg_checked = "rgba(88, 101, 242, 0.15)"
-            text_color = "#b9bbbe"
-            text_hover = "#dcddde"
-            text_checked = "#ffffff"
-            border_color = "transparent"
-            border_hover = "rgba(255, 255, 255, 0.1)"
-            border_checked = "#5865f2"
-        else:
-            bg_color = "transparent"
-            bg_hover = "rgba(0, 0, 0, 0.04)"
-            bg_active = "rgba(0, 0, 0, 0.06)"
-            bg_checked = "rgba(88, 101, 242, 0.08)"
-            text_color = "#4f5660"
-            text_hover = "#2e3338"
-            text_checked = "#5865f2"
-            border_color = "transparent"
-            border_hover = "rgba(0, 0, 0, 0.08)"
-            border_checked = "#5865f2"
-        
-        # Group specific colors
-        if is_group:
-            if is_dark:
-                text_checked = "#a89bff"
-                border_checked = "#a89bff"
-                bg_checked = "rgba(148, 132, 255, 0.15)"
-            else:
-                text_checked = "#6c5ce7"
-                border_checked = "#6c5ce7"
-                bg_checked = "rgba(108, 92, 231, 0.08)"
-        
-        # All button specific
-        if is_all:
-            if is_dark:
-                text_checked = "#5865f2"
-                border_checked = "#5865f2"
-                bg_checked = "rgba(88, 101, 242, 0.15)"
-            else:
-                text_checked = "#5865f2"
-                border_checked = "#5865f2"
-                bg_checked = "rgba(88, 101, 242, 0.08)"
-        
-        # ✅ Top Selling - Gold/Star color
-        if is_top:
-            if is_dark:
-                text_checked = "#f1c40f"
-                border_checked = "#f1c40f"
-                bg_checked = "rgba(241, 196, 15, 0.15)"
-            else:
-                text_checked = "#f39c12"
-                border_checked = "#f39c12"
-                bg_checked = "rgba(243, 156, 18, 0.10)"
+        text_color = colors['warning'] if is_top and not is_checked else colors['text_secondary']
         
         return f"""
             QPushButton {{
-                background-color: {bg_color};
+                background-color: transparent;
                 color: {text_color};
-                border: none;
-                border-bottom: 2px solid {border_color};
-                padding: 2px 12px;
-                font-size: 12px;
+                border: 1px solid transparent;
+                padding: 0px 13px;
+                font-size: 9.5pt;
                 font-weight: 500;
-                min-height: 20px;
-                max-height: 28px;
-                border-radius: 4px;
-                font-family: 'Segoe UI', -apple-system, sans-serif;
+                border-radius: 8px;
             }}
             QPushButton:hover {{
-                background-color: {bg_hover};
-                color: {text_hover};
-                border-bottom: 2px solid {border_hover};
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-color: {colors['border']};
             }}
             QPushButton:pressed {{
-                background-color: {bg_active};
+                background-color: {colors['card_hover']};
             }}
             QPushButton:checked {{
-                color: {text_checked};
-                border-bottom: 2px solid {border_checked};
+                color: #ffffff;
+                border: 1px solid {colors['progress_bg']};
                 font-weight: 600;
-                background-color: {bg_checked};
+                background-color: {colors['progress_bg']};
+            }}
+            QPushButton:checked:hover {{
+                color: #ffffff;
+                border-color: {colors['border_hover']};
+                background-color: {colors['border_hover']};
             }}
         """
     
@@ -221,13 +144,16 @@ class CategorySlider(QScrollArea):
         
         Args:
             categories: List of (category_name, group_id, group_name, is_favorite) tuples
-            groups: List of (group_id, group_name, description, is_favorite) tuples
-            top_categories: List of category names that are top selling (optional)
+            groups: Retained for API compatibility; groups are not shown.
+            top_categories: Category names ordered by usage/sales frequency.
         """
         self._categories = categories
         self._groups = groups
         self._top_categories = top_categories or []
         self._top_category_names = set(self._top_categories)
+        self._top_category_rank = {
+            name: index for index, name in enumerate(self._top_categories)
+        }
         
         # Clear existing buttons
         for btn in self._buttons:
@@ -247,47 +173,22 @@ class CategorySlider(QScrollArea):
         self._layout.addWidget(self._all_btn)
         self._buttons.append(self._all_btn)
         
-        # Get favorite categories only
-        favorite_categories = [c for c in categories if c[3] == 1]
-        favorite_group_ids = set()
-        
-        for cat in favorite_categories:
-            if cat[1] is not None:
-                favorite_group_ids.add(cat[1])
-        
-        # ✅ Sort categories: Top selling first, then favorites
+        # Popular categories are always visible even when they were not marked
+        # as favorites. Favorites fill the remainder of the slider.
+        visible_categories = [
+            category for category in categories
+            if category[3] == 1 or category[0] in self._top_category_names
+        ]
+        # Most-used categories keep their database ranking. Remaining favorite
+        # categories follow alphabetically; category-group buttons are omitted.
         def sort_key(cat):
             cat_name = cat[0]
-            is_top = cat_name in self._top_categories
-            is_fav = cat[3] == 1
-            # Top selling: priority 0, Favorites: priority 1, Others: priority 2
-            priority = 0 if is_top else (1 if is_fav else 2)
-            return (priority, cat_name)
-        
-        sorted_categories = sorted(favorite_categories, key=sort_key)
-        
-        # Favorite Groups - using ModernButton with SECONDARY style
-        if groups:
-            for group in groups:
-                if len(group) == 3:
-                    group_id, group_name, description = group
-                    is_favorite = 0
-                elif len(group) == 4:
-                    group_id, group_name, description, is_favorite = group
-                else:
-                    continue
-                
-                if group_id in favorite_group_ids or is_favorite:
-                    btn = ModernButton(group_name, ModernButton.SECONDARY)
-                    btn.setCheckable(True)
-                    btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                    btn.set_compact(True)
-                    self._configure_category_button(btn)
-                    btn.clicked.connect(lambda checked, name=group_name: self._on_group_clicked(name))
-                    self._layout.addWidget(btn)
-                    self._buttons.append(btn)
-                    self._group_buttons.append(btn)
-        
+            if cat_name in self._top_category_rank:
+                return (0, self._top_category_rank[cat_name], cat_name.casefold())
+            return (1, 0, cat_name.casefold())
+
+        sorted_categories = sorted(visible_categories, key=sort_key)
+
         # ✅ Categories - Top selling first with special style
         for cat in sorted_categories:
             if len(cat) == 3:
@@ -310,16 +211,16 @@ class CategorySlider(QScrollArea):
             btn.set_compact(True)
             self._configure_category_button(btn)
             
-            # ✅ Add star emoji for top selling
+            # Use the shared SVG set so the icon aligns with the chip text.
             if is_top:
-                btn.setText(f"⭐ {cat_name}")
+                btn.set_icon("trophy", size=(14, 14))
                 btn.setToolTip(f"Top Selling: {cat_name}")
             
             btn.clicked.connect(lambda checked, name=cat_name: self._on_category_clicked(name))
             self._layout.addWidget(btn)
             self._buttons.append(btn)
         
-        self._category_names = [c[0] for c in favorite_categories]
+        self._category_names = [c[0] for c in visible_categories]
         self._refresh_button_styles()
         
         self._container.adjustSize()
@@ -386,11 +287,12 @@ class CategorySlider(QScrollArea):
         """Programmatically select a group."""
         self._on_group_clicked(group_name)
     
-    def update_theme(self):
+    def update_theme(self, *_):
         """Update theme for all buttons."""
         for btn in self._buttons:
             if hasattr(btn, 'update_theme'):
                 btn.update_theme()
+            self._configure_category_button(btn)
         self._refresh_button_styles()
         self.apply_compact_style()
     

@@ -13,11 +13,11 @@ from PyQt6.QtCore import Qt
 class ThemeColors:
     """Color palette for the design system"""
     # Primary colors
-    primary: str = "#5865f2"
-    primary_hover: str = "#4752c4"
-    primary_active: str = "#3c45a3"
-    primary_light: str = "#e8ebff"
-    primary_dark: str = "#40444b"
+    primary: str = "#6675f5"
+    primary_hover: str = "#5867e8"
+    primary_active: str = "#4d5bd2"
+    primary_light: str = "#e7eaff"
+    primary_dark: str = "#303d9d"
     
     # Semantic colors
     success: str = "#2ecc71"
@@ -35,24 +35,24 @@ class ThemeColors:
     text_muted: str = "#b2bec3"
     text_light: str = "#ffffff"
     
-    bg: str = "#f5f6fa"
-    bg_hover: str = "#f0f1f4"
-    bg_active: str = "#e8e9ed"
+    bg: str = "#f4f6fb"
+    bg_hover: str = "#eef1fb"
+    bg_active: str = "#e5e9f5"
     card_bg: str = "#ffffff"
     
-    border: str = "#dfe6e9"
-    border_hover: str = "#b2bec3"
-    border_focus: str = "#5865f2"
+    border: str = "#dbe1ee"
+    border_hover: str = "#aeb9cf"
+    border_focus: str = "#6675f5"
     
     input_bg: str = "#ffffff"
-    input_border: str = "#ced4da"
-    input_focus: str = "#5865f2"
+    input_border: str = "#ccd4e3"
+    input_focus: str = "#6675f5"
     
-    table_header: str = "#f8f9fa"
-    table_alternate: str = "#f8f9fa"
-    table_selection: str = "#e9ecef"
+    table_header: str = "#f0f2f8"
+    table_alternate: str = "#f7f8fc"
+    table_selection: str = "#e7eaff"
     
-    progress_bg: str = "#5865f2"
+    progress_bg: str = "#6675f5"
     shadow: str = "rgba(0, 0, 0, 0.1)"
     
     # Scrollbar
@@ -63,54 +63,54 @@ class ThemeColors:
 @dataclass
 class DarkThemeColors:
     """Dark theme color palette"""
-    primary: str = "#5865f2"
-    primary_hover: str = "#4752c4"
-    primary_active: str = "#3c45a3"
-    primary_light: str = "#36393f"
-    primary_dark: str = "#202225"
+    primary: str = "#6675f5"
+    primary_hover: str = "#7885ff"
+    primary_active: str = "#5362dc"
+    primary_light: str = "#252d55"
+    primary_dark: str = "#111724"
     
-    success: str = "#3ba55d"
-    success_hover: str = "#2d8c47"
-    danger: str = "#ed4245"
-    danger_hover: str = "#c0392b"
-    warning: str = "#faa81a"
-    warning_hover: str = "#e67e22"
+    success: str = "#27c992"
+    success_hover: str = "#20ad7d"
+    danger: str = "#ff6b7a"
+    danger_hover: str = "#dc5262"
+    warning: str = "#f3a64a"
+    warning_hover: str = "#d8892f"
     info: str = "#3498db"
     info_hover: str = "#2980b9"
     
-    text: str = "#dcddde"
-    text_secondary: str = "#b9bbbe"
-    text_muted: str = "#72767d"
+    text: str = "#edf2ff"
+    text_secondary: str = "#aab4c8"
+    text_muted: str = "#707b91"
     text_light: str = "#ffffff"
     
-    bg: str = "#2f3136"
-    bg_hover: str = "#40444b"
-    bg_active: str = "#36393f"
-    card_bg: str = "#36393f"
+    bg: str = "#0d111b"
+    bg_hover: str = "#1c2535"
+    bg_active: str = "#202a3b"
+    card_bg: str = "#151c2a"
     
-    border: str = "#40444b"
-    border_hover: str = "#5a5f6b"
-    border_focus: str = "#5865f2"
+    border: str = "#293348"
+    border_hover: str = "#465573"
+    border_focus: str = "#6675f5"
     
-    input_bg: str = "#40444b"
-    input_border: str = "#40444b"
-    input_focus: str = "#5865f2"
+    input_bg: str = "#0f1520"
+    input_border: str = "#303b50"
+    input_focus: str = "#6675f5"
     
-    table_header: str = "#202225"
-    table_alternate: str = "#36393f"
-    table_selection: str = "#40444b"
+    table_header: str = "#182231"
+    table_alternate: str = "#111824"
+    table_selection: str = "#252d55"
     
-    progress_bg: str = "#5865f2"
+    progress_bg: str = "#6675f5"
     shadow: str = "rgba(0, 0, 0, 0.4)"
     
-    scrollbar_bg: str = "#2f3136"
-    scrollbar_handle: str = "#40444b"
-    scrollbar_handle_hover: str = "#5a5f6b"
+    scrollbar_bg: str = "#0f1520"
+    scrollbar_handle: str = "#3a465a"
+    scrollbar_handle_hover: str = "#526079"
 
 @dataclass
 class ThemeTypography:
     """Typography settings"""
-    font_family: str = "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif"
+    font_family: str = "'Segoe UI', 'Myanmar Text', 'Noto Sans Myanmar', 'Pyidaungsu', sans-serif"
     font_family_mono: str = "'Consolas', 'Courier New', monospace"
     
     # Sizes (in points)

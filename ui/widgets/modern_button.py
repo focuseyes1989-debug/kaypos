@@ -179,8 +179,8 @@ class ModernButton(QPushButton):
         self.setAutoExclusive(True)
         
         # Default size - normal (slightly reduced)
-        self.setMinimumHeight(30)
-        self.setMaximumHeight(38)
+        self.setMinimumHeight(38)
+        self.setMaximumHeight(44)
         
         # Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -204,62 +204,63 @@ class ModernButton(QPushButton):
         # Theme-aware color definitions
         if is_dark:
             # Dark theme colors
-            primary_color = "#5865f2"
-            primary_hover = "#4752c4"
-            primary_checked = "#4752c4"
-            primary_disabled = "#40444b"
+            primary_color = colors['progress_bg']
+            primary_hover = "#7885ff"
+            primary_checked = "#5664df"
+            primary_disabled = "#30384a"
             
             # Danger colors (dark theme)
-            danger_color = "#e74c3c"
-            danger_hover = "#c0392b"
-            danger_checked = "#c0392b"
-            danger_disabled = "#40444b"
+            danger_color = colors['danger']
+            danger_hover = "#ff7d8a"
+            danger_checked = "#dc5263"
+            danger_disabled = "#3b3039"
             
-            secondary_color = "#dcddde"
+            secondary_color = "#e8edfa"
             secondary_hover = "#ffffff"
-            secondary_border = "#40444b"
-            secondary_border_hover = "#5865f2"
+            secondary_border = "#34415a"
+            secondary_border_hover = colors['border_hover']
             
-            tertiary_color = "#b9bbbe"
-            tertiary_hover = "#dcddde"
+            tertiary_color = "#aebad1"
+            tertiary_hover = "#f4f7ff"
             
-            bg_hover = "#40444b"
-            bg_checked = "#40444b"
+            bg_hover = "#202a3d"
+            bg_checked = "#29354b"
             
-            disabled_text = "#72767d"
+            disabled_text = "#657089"
             
         else:
             # Light theme colors
-            primary_color = "#5865f2"
-            primary_hover = "#4752c4"
-            primary_checked = "#4752c4"
-            primary_disabled = "#e9ecef"
+            primary_color = colors['progress_bg']
+            primary_hover = "#5664df"
+            primary_checked = "#4654c7"
+            primary_disabled = "#e4e8f2"
             
             # Danger colors (light theme)
-            danger_color = "#dc3545"
-            danger_hover = "#b02a37"
-            danger_checked = "#b02a37"
-            danger_disabled = "#e9ecef"
+            danger_color = colors['danger']
+            danger_hover = "#c63d54"
+            danger_checked = "#ad3147"
+            danger_disabled = "#f2e3e7"
             
-            secondary_color = "#495057"
-            secondary_hover = "#212529"
-            secondary_border = "#ced4da"
-            secondary_border_hover = "#5865f2"
+            secondary_color = "#34405a"
+            secondary_hover = "#172033"
+            secondary_border = "#cbd4e4"
+            secondary_border_hover = colors['border_hover']
             
-            tertiary_color = "#6c757d"
-            tertiary_hover = "#495057"
+            tertiary_color = "#59657b"
+            tertiary_hover = "#202a3c"
             
-            bg_hover = "#f8f9fa"
-            bg_checked = "#f1f3f5"
+            bg_hover = "#eef1f8"
+            bg_checked = "#e2e7f1"
             
-            disabled_text = "#adb5bd"
+            disabled_text = "#9ba5b8"
         
         # Base styles common to all buttons
         style_sheet = f"""
             QPushButton {{
                 border: none;
-                border-radius: 5px;
-                font-weight: 500;
+                border-radius: 9px;
+                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+                font-weight: 600;
                 text-align: center;
                 outline: none;
             }}
@@ -274,7 +275,7 @@ class ModernButton(QPushButton):
                 cursor: default;
             }}
             QPushButton::icon {{
-                margin-right: 3px;
+                margin-right: 5px;
             }}
         """
         
@@ -286,6 +287,9 @@ class ModernButton(QPushButton):
                 }}
                 QPushButton:hover {{
                     background-color: {primary_hover};
+                }}
+                QPushButton:pressed {{
+                    background-color: {primary_checked};
                 }}
                 QPushButton:checked {{
                     background-color: {primary_checked};
@@ -309,6 +313,9 @@ class ModernButton(QPushButton):
                 QPushButton:hover {{
                     background-color: {danger_hover};
                 }}
+                QPushButton:pressed {{
+                    background-color: {danger_checked};
+                }}
                 QPushButton:checked {{
                     background-color: {danger_checked};
                     color: white;
@@ -325,7 +332,7 @@ class ModernButton(QPushButton):
         elif self._style == self.SECONDARY:
             style_sheet += f"""
                 QPushButton {{
-                    background-color: transparent;
+                    background-color: {colors['card_bg']};
                     color: {secondary_color};
                     border: 1px solid {secondary_border};
                 }}
@@ -341,6 +348,10 @@ class ModernButton(QPushButton):
                 }}
                 QPushButton:checked:hover {{
                     background-color: {bg_hover};
+                    border-color: {secondary_border_hover};
+                }}
+                QPushButton:pressed {{
+                    background-color: {bg_checked};
                     border-color: {secondary_border_hover};
                 }}
                 QPushButton:disabled {{
@@ -367,6 +378,10 @@ class ModernButton(QPushButton):
                 QPushButton:checked:hover {{
                     background-color: {bg_hover};
                 }}
+                QPushButton:pressed {{
+                    background-color: {bg_checked};
+                    color: {tertiary_hover};
+                }}
                 QPushButton:disabled {{
                     color: {disabled_text};
                 }}
@@ -377,24 +392,24 @@ class ModernButton(QPushButton):
             # Super compact - for toolbars and tight spaces
             style_sheet += """
                 QPushButton {
-                    padding: 2px 6px;
-                    font-size: 8pt;
+                    padding: 3px 8px;
+                    font-size: 8.5pt;
                 }
             """
         elif self._dense:
             # Dense - compact but readable
             style_sheet += """
                 QPushButton {
-                    padding: 3px 10px;
-                    font-size: 8.5pt;
+                    padding: 4px 12px;
+                    font-size: 9pt;
                 }
             """
         else:
             # Normal
             style_sheet += """
                 QPushButton {
-                    padding: 5px 16px;
-                    font-size: 9pt;
+                    padding: 6px 16px;
+                    font-size: 9.5pt;
                 }
             """
 
@@ -404,7 +419,7 @@ class ModernButton(QPushButton):
                     background-color: transparent;
                     color: {tertiary_color};
                     border: none;
-                    border-radius: 6px;
+                    border-radius: 8px;
                     padding: 4px;
                 }}
                 QPushButton:hover {{
@@ -536,14 +551,14 @@ class ModernButton(QPushButton):
         self._compact = compact
         if compact:
             self._dense = False
-            self.setMinimumHeight(24)
-            self.setMaximumHeight(28)
+            self.setMinimumHeight(30)
+            self.setMaximumHeight(32)
             self.setIconSize(QSize(14, 14))
             if not self.text().strip():
-                self.setMinimumWidth(28)
+                self.setMinimumWidth(32)
         else:
-            self.setMinimumHeight(30)
-            self.setMaximumHeight(38)
+            self.setMinimumHeight(38)
+            self.setMaximumHeight(44)
             self.setIconSize(QSize(16, 16))
             self.setMinimumWidth(0)
         self._apply_style()
@@ -553,14 +568,14 @@ class ModernButton(QPushButton):
         self._dense = dense
         if dense:
             self._compact = False
-            self.setMinimumHeight(28)
-            self.setMaximumHeight(32)
+            self.setMinimumHeight(34)
+            self.setMaximumHeight(38)
             self.setIconSize(QSize(15, 15))
             if not self.text().strip():
-                self.setMinimumWidth(32)
+                self.setMinimumWidth(36)
         else:
-            self.setMinimumHeight(30)
-            self.setMaximumHeight(38)
+            self.setMinimumHeight(38)
+            self.setMaximumHeight(44)
             self.setIconSize(QSize(16, 16))
             self.setMinimumWidth(0)
         self._apply_style()

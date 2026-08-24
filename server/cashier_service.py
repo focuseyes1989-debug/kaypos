@@ -1289,24 +1289,30 @@ def get_dashboard_summary(
     try:
         cursor.execute(
             """
-            SELECT COUNT(*), COALESCE(SUM(total), 0)
+            SELECT
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, 'completed'))) = 'completed' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, 'completed'))) IN ('completed', 'refunded') THEN total ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'refunded' THEN total ELSE 0 END), 0)
             FROM sales
-            WHERE COALESCE(status, 'completed') != 'deleted'
-              AND date(created_at) = date('now')
+            WHERE date(created_at) = date('now')
             """
         )
-        today_transactions, today_sales = cursor.fetchone()
+        today_transactions, today_gross_sales, today_refunds = cursor.fetchone()
+        today_sales = float(today_gross_sales or 0) - float(today_refunds or 0)
 
         cursor.execute(
             """
-            SELECT COUNT(*), COALESCE(SUM(total), 0)
+            SELECT
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, 'completed'))) = 'completed' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, 'completed'))) IN ('completed', 'refunded') THEN total ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'refunded' THEN total ELSE 0 END), 0)
             FROM sales
-            WHERE COALESCE(status, 'completed') != 'deleted'
-              AND date(created_at) BETWEEN ? AND ?
+            WHERE date(created_at) BETWEEN ? AND ?
             """,
             (start_text, end_text),
         )
-        period_transactions, period_sales = cursor.fetchone()
+        period_transactions, period_gross_sales, period_refunds = cursor.fetchone()
+        period_sales = float(period_gross_sales or 0) - float(period_refunds or 0)
 
         cursor.execute("SELECT COUNT(*) FROM products")
         product_count = cursor.fetchone()[0]
@@ -1328,7 +1334,7 @@ def get_dashboard_summary(
             """
             SELECT date(created_at) AS sale_day, COALESCE(SUM(total), 0)
             FROM sales
-            WHERE COALESCE(status, 'completed') != 'deleted'
+            WHERE LOWER(TRIM(COALESCE(status, 'completed'))) = 'completed'
               AND date(created_at) BETWEEN ? AND ?
             GROUP BY date(created_at)
             ORDER BY sale_day
@@ -1510,6 +1516,8 @@ def get_dashboard_summary(
         return {
             "today": {
                 "sales": float(today_sales or 0),
+                "gross_sales": float(today_gross_sales or 0),
+                "refunds": float(today_refunds or 0),
                 "transactions": int(today_transactions or 0),
             },
             "period": {
@@ -1519,6 +1527,8 @@ def get_dashboard_summary(
                     start_text if period_start == period_end else f"{start_text} to {end_text}"
                 ),
                 "sales": float(period_sales or 0),
+                "gross_sales": float(period_gross_sales or 0),
+                "refunds": float(period_refunds or 0),
                 "transactions": int(period_transactions or 0),
             },
             "trend": {

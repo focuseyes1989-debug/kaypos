@@ -823,7 +823,9 @@ class CategoryGroupsHandlers:
     
     def apply_theme(self):
         """Apply theme to the main dialog"""
-        self._apply_theme_to_ui(self.dialog)
+        # The main management workspace owns its modern table/header styling.
+        # Keep the legacy helper below for the smaller add/edit sub-dialogs.
+        self.dialog.ui.apply_theme(self.dialog)
     
     def _apply_theme_to_ui(self, dialog):
         """Apply theme colors to UI"""

@@ -1,5 +1,5 @@
 # ui/inventory_page/inventory_tabs.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QFileDialog, QMessageBox, QFrame
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from models.database import connect_db
@@ -20,7 +20,7 @@ from ui.inventory_page.stock_by_location_tab import StockByLocationTab
 
 # ✅ ModernButton import
 from ui.widgets.modern_button import ModernButton
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 
 
 class InventoryPage(QWidget):
@@ -50,11 +50,16 @@ class InventoryPage(QWidget):
             6: "location_on"      # location_on.svg
         }
         
+        self.setObjectName("inventoryPage")
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(14)
 
         # Export and Location button row - ✅ Buttons on the right side
-        btn_layout = QHBoxLayout()
+        self.toolbar_card = QFrame()
+        self.toolbar_card.setObjectName("inventoryToolbarCard")
+        btn_layout = QHBoxLayout(self.toolbar_card)
+        btn_layout.setContentsMargins(14, 10, 14, 10)
         btn_layout.setSpacing(8)
         
         # ✅ Add stretch to push buttons to the right
@@ -74,11 +79,14 @@ class InventoryPage(QWidget):
         self.btn_manage_locations.clicked.connect(self.open_warehouse_dialog)
         btn_layout.addWidget(self.btn_manage_locations)
         
-        layout.addLayout(btn_layout)
+        layout.addWidget(self.toolbar_card)
 
         # Tabs with colored SVG icons
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("inventoryTabs")
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.setDocumentMode(True)
 
         self.current_stock_tab = CurrentStockTab(self)
         self.low_stock_tab = LowStockTab(self)
@@ -123,64 +131,39 @@ class InventoryPage(QWidget):
 
     def _apply_tab_bar_style(self):
         """✅ Apply tab bar style based on theme - matching sales summary page"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-            """)
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QWidget#inventoryPage {{ background: transparent; }}
+            QFrame#inventoryToolbarCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QTabWidget#inventoryTabs::pane {{
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+                background-color: {colors['card_bg']};
+                top: -1px;
+            }}
+            QTabWidget#inventoryTabs QTabBar::tab {{
+                background-color: transparent;
+                color: {colors['text_secondary']};
+                padding: 10px 14px;
+                margin: 0 3px 7px 0;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            QTabWidget#inventoryTabs QTabBar::tab:selected {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
+                border-bottom: 2px solid {colors['progress_bg']};
+            }}
+            QTabWidget#inventoryTabs QTabBar::tab:hover:!selected {{
+                background-color: {colors['card_hover']};
+                color: {colors['text']};
+            }}
+        """)
         
         # ✅ Update tab icons color
         self._update_tab_icons_color()

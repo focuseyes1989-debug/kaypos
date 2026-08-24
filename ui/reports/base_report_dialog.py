@@ -147,65 +147,22 @@ class BaseReportDialog(QDialog):
             }}
         """)
         
-        # Update tab widget style
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-            """)
+        self.tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {colors['border']}; border-radius: 12px;
+                background-color: {colors['card_bg']};
+            }}
+            QTabBar::tab {{
+                background: transparent; color: {colors['text_secondary']};
+                padding: 9px 14px; margin-right: 3px;
+                border: none; border-bottom: 2px solid transparent;
+                font-weight: 600;
+            }}
+            QTabBar::tab:selected {{
+                color: {colors['text']}; border-bottom-color: {colors['border_hover']};
+            }}
+            QTabBar::tab:hover {{ background-color: {colors['bg_hover']}; color: {colors['text']}; }}
+        """)
     
     def on_theme_changed(self, theme_name):
         """Handle theme change"""

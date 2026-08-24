@@ -138,10 +138,10 @@ class Application:
         
         # Show login and run
         login_loop = self.create_login_loop()
-        login_loop()
-        
-        # ✅ Use exec() instead of exec_()
-        return_code = self.app.exec()
+        # The login loop owns the application's event loop. Starting a second
+        # app.exec() here leaves a headless pythonw process alive after the main
+        # window closes, so launchers continue to report the POS as running.
+        return_code = login_loop()
         
         # ✅ Force clean exit after app.exec() returns
         logger.info("Application exec completed, cleaning up...")
@@ -224,6 +224,12 @@ class Application:
         
         def run():
             while True:
+                # A loading overlay may have installed an application-wide wait
+                # cursor immediately before the previous window logged out.
+                # Ensure that stale override cursors never leak into LoginDialog.
+                while self.app.overrideCursor() is not None:
+                    self.app.restoreOverrideCursor()
+
                 login = LoginDialog()
                 if login.exec() != LoginDialog.DialogCode.Accepted:
                     logger.info("User cancelled login, exiting application.")
@@ -239,14 +245,14 @@ class Application:
                 # ✅ Load MainWindow asynchronously with lazy loading support
                 self._load_main_window_async(login.user_info)
                 
-                self.app.exec()
+                return_code = self.app.exec()
                 
                 if self.main_window and self.main_window.logout_triggered:
                     logger.info("User logged out, showing login screen again.")
                     continue
                 else:
                     logger.info("Application closed normally.")
-                    break
+                    return return_code
         
         return run
     

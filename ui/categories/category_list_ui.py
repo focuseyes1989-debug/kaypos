@@ -479,25 +479,14 @@ class CategoryListUI:
         """Get table style with theme-aware colors"""
         is_dark = is_dark_theme()
         
-        # Dark theme için alternatif renkler
-        if is_dark:
-            alt_bg = "#36393f"
-            header_bg = "#202225"
-            header_text = "#b9bbbe"
-            border_color = "#40444b"
-            grid_color = "#40444b"
-            selection_bg = "#40444b"
-            selection_color = "#dcddde"
-            hover_bg = "#40444b"
-        else:
-            alt_bg = "#f8f9fa"
-            header_bg = "#f1f3f5"
-            header_text = "#495057"
-            border_color = "#dee2e6"
-            grid_color = "#dee2e6"
-            selection_bg = "#e9ecef"
-            selection_color = "#212529"
-            hover_bg = "#f1f3f5"
+        alt_bg = colors['table_alt']
+        header_bg = colors['card_bg']
+        header_text = colors['text_secondary']
+        border_color = colors['border']
+        grid_color = colors['border']
+        selection_bg = colors['bg_hover']
+        selection_color = colors['text']
+        hover_bg = colors['card_hover']
         
         return f"""
             QTableWidget {{

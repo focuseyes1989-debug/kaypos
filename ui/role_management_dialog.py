@@ -8,6 +8,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.language import lang
+from ui.themes.theme_manager import get_theme_colors, theme_manager
+from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
 
 
 class RoleManagementDialog(QDialog):
@@ -20,15 +22,25 @@ class RoleManagementDialog(QDialog):
         self.selected_role_id = None
 
         layout = QVBoxLayout()
-        layout.setSpacing(15)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(16)
+
+        title = QLabel("Role management")
+        title.setObjectName("dialogTitle")
+        subtitle = QLabel("Create roles and control access to each part of the workspace.")
+        subtitle.setObjectName("dialogSubtitle")
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
 
         # ========== MAIN LAYOUT (Left + Right) ==========
         main_layout = QHBoxLayout()
         
         # ========== LEFT PANEL: Role List ==========
         left_panel = QWidget()
+        left_panel.setObjectName("roleCard")
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(16, 16, 16, 16)
+        left_layout.setSpacing(12)
         
         left_layout.addWidget(QLabel("Roles"))
         
@@ -55,8 +67,10 @@ class RoleManagementDialog(QDialog):
         
         # ========== RIGHT PANEL: Permission Settings ==========
         right_panel = QWidget()
+        right_panel.setObjectName("permissionCard")
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(16, 16, 16, 16)
+        right_layout.setSpacing(12)
         
         self.role_name_edit = QLineEdit()
         self.role_name_edit.setPlaceholderText("Role Name")
@@ -125,7 +139,6 @@ class RoleManagementDialog(QDialog):
         
         # Buttons
         self.btn_save = QPushButton("Save Role")
-        self.btn_save.setStyleSheet("background-color: #27ae60; color: white;")
         self.btn_save.clicked.connect(self.save_role)
         right_layout.addWidget(self.btn_save)
         
@@ -135,11 +148,11 @@ class RoleManagementDialog(QDialog):
         layout.addLayout(main_layout)
         
         # Close button
-        self.btn_close = QPushButton("Close")
-        self.btn_close.clicked.connect(self.accept)
-        layout.addWidget(self.btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.btn_close = add_standard_close_footer(layout, self)
         
         self.setLayout(layout)
+        theme_manager.theme_changed.connect(self._apply_theme)
+        self._apply_theme()
         self.load_roles()
         self.retranslateUi()
 
@@ -164,6 +177,30 @@ class RoleManagementDialog(QDialog):
             self.btn_delete_role.setText("Delete Role")
             self.btn_save.setText("Save Role")
             self.btn_close.setText("Close")
+
+    def _apply_theme(self, _theme_name=None):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel {{ color: {colors['text']}; background: transparent; }}
+            QLabel#dialogTitle {{ font-size: 22px; font-weight: 700; }}
+            QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
+            QWidget#roleCard, QWidget#permissionCard, QGroupBox {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QGroupBox {{ margin-top: 10px; padding-top: 12px; font-weight: 600; }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 6px; color: {colors['text_secondary']}; }}
+            QScrollArea, QScrollArea > QWidget > QWidget {{ background: transparent; border: none; }}
+            QLineEdit, QTextEdit {{
+                color: {colors['text']}; background-color: {colors['input_bg']};
+                border: 1px solid {colors['input_border']}; border-radius: 8px; padding: 8px 10px;
+            }}
+            QLineEdit:focus, QTextEdit:focus {{ border-color: {colors['border_hover']}; }}
+            QCheckBox {{ color: {colors['text']}; spacing: 8px; padding: 3px; }}
+            QPushButton {{ min-height: 36px; padding: 0 16px; border-radius: 8px; }}
+        """ + modern_table_stylesheet(colors))
 
     def load_roles(self):
         conn = connect_db()

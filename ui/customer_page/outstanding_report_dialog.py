@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
-    QGroupBox, QFileDialog, QFrame, QWidget
+    QGroupBox, QFileDialog, QFrame, QWidget, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QIcon, QColor
@@ -34,7 +34,8 @@ class OutstandingReportDialog(QDialog):
         )
         
         self.setWindowTitle("Outstanding Debts Report")
-        self.setMinimumSize(800, 550)
+        self.setMinimumSize(960, 620)
+        self.resize(1100, 720)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -45,12 +46,26 @@ class OutstandingReportDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(18)
+        layout.setContentsMargins(28, 24, 28, 24)
+
+        # Report heading
+        self.header_frame = QFrame()
+        self.header_frame.setObjectName("report_header")
+        header_layout = QVBoxLayout(self.header_frame)
+        header_layout.setContentsMargins(0, 0, 0, 2)
+        header_layout.setSpacing(5)
+        self.title_label = QLabel("Outstanding Debts")
+        self.title_label.setObjectName("report_title")
+        self.subtitle_label = QLabel("Review customer balances and overdue invoices at a glance.")
+        self.subtitle_label.setObjectName("report_subtitle")
+        header_layout.addWidget(self.title_label)
+        header_layout.addWidget(self.subtitle_label)
+        layout.addWidget(self.header_frame)
 
         # Summary cards - Using SummaryCardWidget with SVG icons
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(14)
 
         # ✅ Total Outstanding Card with SVG icon
         self.total_card = SummaryCardWidget(
@@ -61,6 +76,7 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.total_card.set_icon("money_off", is_svg=True, size=(24, 24))
+        self.total_card.setMinimumHeight(126)
         card_layout.addWidget(self.total_card)
 
         # ✅ Overdue Amount Card with SVG icon
@@ -72,6 +88,7 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.overdue_card.set_icon("warning", is_svg=True, size=(24, 24))
+        self.overdue_card.setMinimumHeight(126)
         card_layout.addWidget(self.overdue_card)
 
         # ✅ Customers with Debt Card with SVG icon
@@ -83,18 +100,32 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.customer_count_card.set_icon("groups", is_svg=True, size=(24, 24))
+        self.customer_count_card.setMinimumHeight(126)
         card_layout.addWidget(self.customer_count_card)
 
         layout.addLayout(card_layout)
 
-        # Table
+        # Data surface
+        self.table_frame = QFrame()
+        self.table_frame.setObjectName("report_table_frame")
+        table_layout = QVBoxLayout(self.table_frame)
+        table_layout.setContentsMargins(1, 1, 1, 1)
+        table_layout.setSpacing(0)
+
         self.table = QTableWidget()
+        self.table.setObjectName("outstanding_table")
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(["Customer ID", "Customer Name", "Phone", "Current Balance", "Credit Limit", "Overdue Invoices", "Status"])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setColumnHidden(0, True)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setWordWrap(False)
+        self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(42)
         
         # Apply table style
         colors = get_theme_colors()
@@ -107,7 +138,8 @@ class OutstandingReportDialog(QDialog):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        layout.addWidget(self.table)
+        table_layout.addWidget(self.table)
+        layout.addWidget(self.table_frame, 1)
 
         # Buttons - Using ModernButton with SVG icons
         button_frame = QFrame()
@@ -116,17 +148,17 @@ class OutstandingReportDialog(QDialog):
         
         btn_layout = QHBoxLayout(button_frame)
         btn_layout.setSpacing(12)
-        btn_layout.setContentsMargins(15, 8, 15, 8)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
         
         # ✅ Export button with SVG icon
-        self.btn_export = ModernButton(" Export CSV", ModernButton.SECONDARY)
+        self.btn_export = ModernButton("Export CSV", ModernButton.PRIMARY)
         self.btn_export.set_icon("file_export", size=(16, 16))
         self.btn_export.set_compact(False)
         self.btn_export.clicked.connect(self.export_report)
         btn_layout.addWidget(self.btn_export)
         
         # ✅ Refresh button with SVG icon
-        self.btn_refresh = ModernButton(" Refresh", ModernButton.SECONDARY)
+        self.btn_refresh = ModernButton("Refresh", ModernButton.SECONDARY)
         self.btn_refresh.set_icon("refresh", size=(16, 16))
         self.btn_refresh.set_compact(False)
         self.btn_refresh.clicked.connect(self.load_report)
@@ -135,9 +167,10 @@ class OutstandingReportDialog(QDialog):
         btn_layout.addStretch()
         
         # ✅ Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
+        self.btn_close.setFixedSize(112, 38)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         
@@ -172,6 +205,26 @@ class OutstandingReportDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {colors['bg']};
+                color: {colors['text']};
+                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+            }}
+            QFrame#report_header {{
+                background: transparent;
+                border: none;
+            }}
+            QLabel#report_title {{
+                color: {colors['text']};
+                font-size: 20pt;
+                font-weight: 700;
+            }}
+            QLabel#report_subtitle {{
+                color: {colors['text_secondary']};
+                font-size: 9.5pt;
+            }}
+            QFrame#report_table_frame {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
             }}
         """)
         
@@ -197,83 +250,48 @@ class OutstandingReportDialog(QDialog):
     def _get_button_frame_style(self, colors):
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
-                padding: 5px;
+                background: transparent;
+                border: none;
             }}
         """
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
+        table_style = f"""
+            QTableWidget#outstanding_table {{
+                background-color: {colors['card_bg']};
+                alternate-background-color: {colors['table_alt']};
+                color: {colors['text']};
+                border: none;
+                border-radius: 11px;
+                gridline-color: transparent;
+                selection-background-color: {colors['bg_hover']};
+                selection-color: {colors['text']};
+                font-size: 9.5pt;
+            }}
+            QTableWidget#outstanding_table::item {{
+                padding: 7px 12px;
+                border-bottom: 1px solid {colors['border']};
+            }}
+            QTableWidget#outstanding_table::item:hover,
+            QTableWidget#outstanding_table::item:selected {{
+                background-color: {colors['bg_hover']};
+            }}
+            QHeaderView::section {{
+                background-color: {colors['card_bg']};
+                color: {colors['text_secondary']};
+                padding: 11px 12px;
+                border: none;
+                border-bottom: 1px solid {colors['border']};
+                font-weight: 600;
+                font-size: 9pt;
+            }}
+            QTableCornerButton::section {{
+                background-color: {colors['card_bg']};
+                border: none;
+                border-bottom: 1px solid {colors['border']};
+            }}
+        """
         self.table.setStyleSheet(table_style)
 
     def get_lang(self):
@@ -285,24 +303,28 @@ class OutstandingReportDialog(QDialog):
         
         if lang_code == "my":
             self.setWindowTitle("အကြွေးကျန်စာရင်း အစီရင်ခံစာ")
+            self.title_label.setText("အကြွေးကျန်စာရင်း")
+            self.subtitle_label.setText("ဝယ်ယူသူများ၏ လက်ကျန်ငွေနှင့် သက်တမ်းလွန်ပြေစာများကို တစ်နေရာတည်းတွင် စစ်ဆေးနိုင်သည်။")
             self.total_card.set_title("စုစုပေါင်းအကြွေးကျန်")
             self.overdue_card.set_title("သက်တမ်းလွန်အကြွေး")
             self.customer_count_card.set_title("အကြွေးရှိသောဝယ်ယူသူများ")
-            self.btn_export.setText(" CSV ထုတ်မည်")
-            self.btn_refresh.setText(" ပြန်လည်")
-            self.btn_close.setText(" ပိတ်မည်")
+            self.btn_export.setText("CSV ထုတ်မည်")
+            self.btn_refresh.setText("ပြန်လည်ဖတ်မည်")
+            self.btn_close.setText("ပိတ်မည်")
             self.table.setHorizontalHeaderLabels([
                 "ID", "အမည်", "ဖုန်း", "လက်ကျန်အကြွေး", 
                 "ခရက်ဒစ်ကန့်သတ်ချက်", "သက်တမ်းလွန်ပြေစာ", "အခြေအနေ"
             ])
         else:
             self.setWindowTitle("Outstanding Debts Report")
+            self.title_label.setText("Outstanding Debts")
+            self.subtitle_label.setText("Review customer balances and overdue invoices at a glance.")
             self.total_card.set_title("Total Outstanding")
             self.overdue_card.set_title("Overdue Amount")
             self.customer_count_card.set_title("Customers with Debt")
-            self.btn_export.setText(" Export CSV")
-            self.btn_refresh.setText(" Refresh")
-            self.btn_close.setText(" Close")
+            self.btn_export.setText("Export CSV")
+            self.btn_refresh.setText("Refresh")
+            self.btn_close.setText("Close")
             self.table.setHorizontalHeaderLabels([
                 "ID", "Name", "Phone", "Current Balance", 
                 "Credit Limit", "Overdue Invoices", "Status"

@@ -21,6 +21,7 @@ class SuppliersTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(12)
 
         # Search and Filter row
@@ -40,6 +41,8 @@ class SuppliersTab(QWidget):
         # Status filter combo box
         filter_layout.addWidget(QLabel(tr("show_status")))
         self.status_filter = QComboBox()
+        self.status_filter.setMinimumWidth(170)
+        self.status_filter.setFixedHeight(38)
         self.status_filter.addItem(tr("all"), None)
         self.status_filter.addItem(tr("active"), "Active")
         self.status_filter.addItem(tr("inactive"), "Inactive")
@@ -122,6 +125,8 @@ class SuppliersTab(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         self.table.cellClicked.connect(self.select_supplier)
         self.table.setColumnHidden(0, True)
         
