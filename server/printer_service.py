@@ -48,6 +48,7 @@ class PrinterRegistry:
             ensure_column(cursor, "printer_agents", "api_key_hash", "TEXT")
             ensure_column(cursor, "printer_agents", "is_enabled", "INTEGER NOT NULL DEFAULT 1")
             ensure_column(cursor, "printer_agents", "allowed_job_types", "TEXT NOT NULL DEFAULT '[]'")
+            ensure_column(cursor, "network_printers", "is_enabled", "INTEGER NOT NULL DEFAULT 1")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_network_printers_seen ON network_printers(last_seen)")
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS network_print_jobs (
@@ -148,7 +149,9 @@ class PrinterRegistry:
                         is_default=excluded.is_default,
                         status='online',
                         last_seen=excluded.last_seen
-                """, (agent_id, item["name"], 1 if item["is_default"] else 0, stamp))
+                """, (
+                    agent_id, item["name"], 1 if item["is_default"] else 0, stamp,
+                ))
             conn.commit()
         except Exception:
             conn.rollback()
@@ -245,6 +248,33 @@ class PrinterRegistry:
             conn.close()
         return self.get_agent(agent_id) or {}
 
+    def set_printer_enabled(self, agent_id: str, printer_name: str, enabled: bool) -> dict:
+        self.ensure_schema()
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE network_printers SET is_enabled=? WHERE agent_id=? AND printer_name=?",
+                (1 if enabled else 0, str(agent_id or ""), str(printer_name or "")),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Printer not found")
+            cursor.execute(
+                "INSERT INTO printer_security_audit (event, agent_id, detail, created_at) VALUES (?, ?, ?, ?)",
+                (
+                    "printer_permission_updated", agent_id,
+                    f"printer={printer_name}; enabled={1 if enabled else 0}",
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return self.get_agent(agent_id) or {}
+
     def security_audit(self, limit: int = 100) -> list[dict]:
         self.ensure_schema()
         conn = self._connection_factory()
@@ -278,7 +308,7 @@ class PrinterRegistry:
             """, (cutoff,))
             agents = self._dict_rows(cursor)
             cursor.execute("""
-                SELECT agent_id, printer_name, is_default, status, last_seen
+                SELECT agent_id, printer_name, is_default, status, last_seen, is_enabled
                 FROM network_printers
                 ORDER BY is_default DESC, printer_name
             """)
@@ -289,6 +319,7 @@ class PrinterRegistry:
         by_agent: dict[str, list[dict]] = {}
         for printer in printers:
             printer["is_default"] = bool(printer.get("is_default"))
+            printer["is_enabled"] = bool(printer.get("is_enabled"))
             by_agent.setdefault(str(printer["agent_id"]), []).append(printer)
         for agent in agents:
             agent["is_online"] = bool(agent.get("is_online"))
@@ -367,11 +398,14 @@ class PrinterRegistry:
             if existing:
                 return self._public_job(existing[0]) or {}
             cursor.execute(
-                "SELECT 1 FROM network_printers WHERE agent_id=? AND printer_name=?",
+                "SELECT is_enabled FROM network_printers WHERE agent_id=? AND printer_name=?",
                 (target_agent_id, printer_name),
             )
-            if cursor.fetchone() is None:
+            printer_row = cursor.fetchone()
+            if printer_row is None:
                 raise ValueError("The selected printer is not registered to that PC")
+            if not bool(printer_row[0]):
+                raise ValueError("The selected printer has been disabled")
             job_id = str(uuid.uuid4())
             cursor.execute("""
                 INSERT INTO network_print_jobs
@@ -399,9 +433,13 @@ class PrinterRegistry:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM network_print_jobs
-                WHERE target_agent_id=? AND status='pending' AND attempts < max_attempts
-                ORDER BY created_at, job_id LIMIT ?
+                SELECT jobs.* FROM network_print_jobs AS jobs
+                JOIN network_printers AS printers
+                  ON printers.agent_id=jobs.target_agent_id
+                 AND printers.printer_name=jobs.printer_name
+                WHERE jobs.target_agent_id=? AND jobs.status='pending'
+                  AND jobs.attempts < jobs.max_attempts AND printers.is_enabled=1
+                ORDER BY jobs.created_at, jobs.job_id LIMIT ?
             """, (str(agent_id or ""), limit))
             return [self._public_job(row) or {} for row in self._dict_rows(cursor)]
         finally:
@@ -437,6 +475,13 @@ class PrinterRegistry:
                 raise ValueError("Print job was not assigned to this agent")
             if current.get("printer_name") not in names:
                 raise ValueError("Assigned printer is not installed on this agent")
+            cursor.execute(
+                "SELECT is_enabled FROM network_printers WHERE agent_id=? AND printer_name=?",
+                (agent_id, current.get("printer_name")),
+            )
+            printer_row = cursor.fetchone()
+            if not printer_row or not bool(printer_row[0]):
+                raise ValueError("Assigned printer has been disabled")
             cursor.execute("""
                 UPDATE network_print_jobs
                 SET status='printing', attempts=attempts+1, claimed_at=?, updated_at=?, error_message=''

@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 import requests
-from PyQt6.QtCore import QSize, QSizeF, Qt
+from PyQt6.QtCore import QMarginsF, QSize, QSizeF, Qt
 from PyQt6.QtGui import QFont, QImage, QPageLayout, QPageSize, QPainter
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtPrintSupport import QPrinter, QPrinterInfo
@@ -184,6 +184,12 @@ def print_test_page(printer_name: str, payload: dict | None = None, copies: int 
         painter.end()
 
 
+def printer_resolution_for_quality(quality: str, supported: list[int] | tuple[int, ...] = ()) -> int:
+    requested = {"draft": 150, "normal": 300, "high": 600}.get(str(quality or "normal").lower(), 300)
+    available = [int(value) for value in supported if int(value) > 0]
+    return min(available, key=lambda value: abs(value - requested)) if available else requested
+
+
 def _configured_printer(printer_name: str, payload: dict, copies: int) -> QPrinter:
     info = next((item for item in QPrinterInfo.availablePrinters() if item.printerName() == printer_name), None)
     if info is None:
@@ -195,9 +201,16 @@ def _configured_printer(printer_name: str, payload: dict, copies: int) -> QPrint
     sizes = {
         "A4": QPageSize(QPageSize.PageSizeId.A4),
         "A5": QPageSize(QPageSize.PageSizeId.A5),
+        "LETTER": QPageSize(QPageSize.PageSizeId.Letter),
+        "4X6": QPageSize(QSizeF(101.6, 152.4), QPageSize.Unit.Millimeter, "4 x 6 in"),
+        "5X7": QPageSize(QSizeF(127, 177.8), QPageSize.Unit.Millimeter, "5 x 7 in"),
         "58MM": QPageSize(QSizeF(58, 500), QPageSize.Unit.Millimeter, "58mm Receipt"),
         "80MM": QPageSize(QSizeF(80, 500), QPageSize.Unit.Millimeter, "80mm Receipt"),
     }
+    if paper == "CUSTOM":
+        width = max(20.0, min(float(payload.get("custom_width_mm") or 210.0), 1000.0))
+        height = max(20.0, min(float(payload.get("custom_height_mm") or 297.0), 1000.0))
+        sizes["CUSTOM"] = QPageSize(QSizeF(width, height), QPageSize.Unit.Millimeter, "Custom")
     printer.setPageSize(sizes.get(paper, sizes["A4"]))
     orientation = (
         QPageLayout.Orientation.Landscape
@@ -205,6 +218,18 @@ def _configured_printer(printer_name: str, payload: dict, copies: int) -> QPrint
         else QPageLayout.Orientation.Portrait
     )
     printer.setPageOrientation(orientation)
+    if bool(payload.get("borderless")):
+        page_layout = printer.pageLayout()
+        page_layout.setMargins(QMarginsF(0, 0, 0, 0))
+        printer.setPageLayout(page_layout)
+    printer.setResolution(printer_resolution_for_quality(
+        str(payload.get("quality") or "normal"), printer.supportedResolutions()
+    ))
+    printer.setColorMode(
+        QPrinter.ColorMode.GrayScale
+        if str(payload.get("color_mode") or "color").lower() == "grayscale"
+        else QPrinter.ColorMode.Color
+    )
     return printer
 
 
@@ -432,6 +457,7 @@ def main() -> int:
     )
     parser.add_argument("--tray", action="store_true", help="Run quietly in the Windows system tray")
     parser.add_argument("--configure", action="store_true", help="Open the Printer Agent setup window")
+    parser.add_argument("--open-manager", action="store_true", help="Open the Printer Agent management window")
     parser.add_argument("--install-startup", action="store_true", help="Start Printer Agent after Windows login")
     parser.add_argument("--remove-startup", action="store_true", help="Remove Printer Agent from Windows startup")
     args = parser.parse_args()
@@ -449,7 +475,7 @@ def main() -> int:
     if args.tray or (getattr(sys, "frozen", False) and not args.once):
         from printer_agent_gui import run_tray_agent
 
-        return run_tray_agent()
+        return run_tray_agent(open_manager=args.open_manager)
 
     app = QApplication.instance() or QApplication([sys.argv[0]])
     # Keep QApplication referenced while QPrinterInfo queries the Windows spooler.

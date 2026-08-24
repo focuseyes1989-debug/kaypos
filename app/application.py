@@ -86,6 +86,9 @@ class Application:
 
         # Create QApplication
         self.app = QApplication(sys.argv)
+        from utils.branded_icons import pos_icon
+        self.app.setApplicationName("KAY POS")
+        self.app.setWindowIcon(pos_icon())
         from utils.touch_scroll import install_global_touch_scrolling
         install_global_touch_scrolling(self.app)
         

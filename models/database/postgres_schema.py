@@ -456,6 +456,7 @@ def _ensure_supplier_inventory_tables(cursor):
             supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL,
             location TEXT,
             customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+            variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -526,6 +527,7 @@ def _ensure_supplier_inventory_tables(cursor):
             "supplier_id": "INTEGER",
             "location": "TEXT",
             "customer_id": "INTEGER",
+            "variant_id": "INTEGER",
             "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         },
         "purchase_orders": {

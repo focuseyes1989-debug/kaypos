@@ -2,16 +2,15 @@
 
 import os
 import sys
-from pathlib import Path
-
 from loguru import logger
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QFontDatabase, QIcon
+from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from app.config import config
 from core.exception_handler import setup_exception_handlers
 from utils.paths import ensure_directories, get_app_root
+from utils.branded_icons import pos_icon
 
 
 class CashierApplication:
@@ -29,7 +28,7 @@ class CashierApplication:
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
         self.app = QApplication(sys.argv)
         self.app.setApplicationName("ZAY POS Cashier Mode")
-        self.app.setWindowIcon(QIcon("assets/icons/app_icon.ico"))
+        self.app.setWindowIcon(pos_icon())
         self.app.setQuitOnLastWindowClosed(True)
         from utils.touch_scroll import install_global_touch_scrolling
         install_global_touch_scrolling(self.app)

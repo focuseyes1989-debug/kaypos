@@ -479,6 +479,7 @@ def create_tables():
             supplier_id INTEGER,
             location TEXT,
             customer_id INTEGER,  -- ✅ Added
+            variant_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
@@ -515,6 +516,13 @@ def create_tables():
                 logger.debug("Added customer_id column to stock_movements table")
             except Exception as e:
                 logger.warning(f"Could not add customer_id column: {e}")
+
+        if 'variant_id' not in sm_cols:
+            try:
+                cursor.execute("ALTER TABLE stock_movements ADD COLUMN variant_id INTEGER")
+                logger.debug("Added variant_id column to stock_movements table")
+            except Exception as e:
+                logger.warning(f"Could not add variant_id column: {e}")
 
         # ---------- Purchase Orders ----------
         cursor.execute("""

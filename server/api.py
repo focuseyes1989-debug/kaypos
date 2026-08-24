@@ -164,6 +164,11 @@ class PrinterAgentPermissions(BaseModel):
     allowed_job_types: List[str] = Field(default_factory=list, max_length=10)
 
 
+class NetworkPrinterPermissions(BaseModel):
+    printer_name: str = Field(..., min_length=1, max_length=255)
+    enabled: bool = True
+
+
 class NetworkPrintJobRequest(BaseModel):
     request_key: str = Field(..., min_length=8, max_length=128)
     target_agent_id: str = Field(..., min_length=8, max_length=128)
@@ -287,6 +292,23 @@ def update_printer_agent_permissions(
     return {"status": "SUCCESS", "data": agent}
 
 
+@app.put("/api/printer/agents/{agent_id}/printers/permissions")
+def update_network_printer_permissions(
+    agent_id: str,
+    payload: NetworkPrinterPermissions,
+    request: Request,
+    x_printer_api_key: Optional[str] = Header(default=None),
+):
+    from server.printer_service import PrinterRegistry
+
+    _require_printer_admin(request, x_printer_api_key)
+    try:
+        agent = PrinterRegistry().set_printer_enabled(agent_id, payload.printer_name, payload.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"status": "SUCCESS", "data": agent}
+
+
 @app.get("/api/printer/security-audit")
 def printer_security_audit(
     request: Request,
@@ -320,7 +342,13 @@ async def upload_network_print_job(
     request_key: str = Form(...),
     copies: int = Form(default=1),
     paper_size: str = Form(default="A4"),
+    custom_width_mm: float = Form(default=210.0),
+    custom_height_mm: float = Form(default=297.0),
+    borderless: bool = Form(default=False),
     orientation: str = Form(default="portrait"),
+    quality: str = Form(default="normal"),
+    paper_type: str = Form(default="automatic"),
+    color_mode: str = Form(default="color"),
     source_agent_id: str = Form(default="api-client"),
     x_printer_api_key: Optional[str] = Header(default=None),
 ):
@@ -331,10 +359,26 @@ async def upload_network_print_job(
     _require_printer_client(request, x_printer_api_key)
     paper_size = str(paper_size or "A4").upper()
     orientation = str(orientation or "portrait").lower()
-    if paper_size not in {"A4", "A5", "58MM", "80MM"}:
-        raise HTTPException(status_code=400, detail="paper_size must be A4, A5, 58mm, or 80mm")
+    if paper_size not in {"A4", "A5", "LETTER", "4X6", "5X7", "58MM", "80MM", "CUSTOM"}:
+        raise HTTPException(
+            status_code=400,
+            detail="paper_size must be A4, A5, Letter, 4x6, 5x7, 58mm, 80mm, or Custom",
+        )
+    if paper_size == "CUSTOM" and not (
+        20.0 <= custom_width_mm <= 1000.0 and 20.0 <= custom_height_mm <= 1000.0
+    ):
+        raise HTTPException(status_code=400, detail="custom paper dimensions must be between 20 and 1000 mm")
     if orientation not in {"portrait", "landscape"}:
         raise HTTPException(status_code=400, detail="orientation must be portrait or landscape")
+    quality = str(quality or "normal").lower()
+    paper_type = str(paper_type or "automatic").lower()
+    color_mode = str(color_mode or "color").lower()
+    if quality not in {"draft", "normal", "high"}:
+        raise HTTPException(status_code=400, detail="quality must be draft, normal, or high")
+    if paper_type not in {"driver_default", "automatic", "plain", "photo", "glossy", "matte"}:
+        raise HTTPException(status_code=400, detail="Unsupported paper_type")
+    if color_mode not in {"color", "grayscale"}:
+        raise HTTPException(status_code=400, detail="color_mode must be color or grayscale")
     data = await file.read(MAX_PRINT_ASSET_BYTES + 1)
     asset_path = None
     try:
@@ -353,7 +397,13 @@ async def upload_network_print_job(
                 "asset_path": asset_path,
                 "filename": file.filename or "document",
                 "paper_size": paper_size,
+                "custom_width_mm": float(custom_width_mm),
+                "custom_height_mm": float(custom_height_mm),
+                "borderless": bool(borderless),
                 "orientation": orientation,
+                "quality": quality,
+                "paper_type": paper_type,
+                "color_mode": color_mode,
             },
             copies=copies,
             source_agent_id=source_agent_id,

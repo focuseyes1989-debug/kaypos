@@ -7,6 +7,7 @@ operations separate from the cashier/client app.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import secrets
@@ -47,7 +48,6 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
-    QStyle,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -69,6 +69,7 @@ from utils.db_connection_config import (
     test_database_connection,
 )
 from utils.env_loader import load_project_env, save_project_env_values
+from utils.branded_icons import branded_tile_icon
 from utils.product_image_store import save_product_image_blob
 
 
@@ -79,6 +80,16 @@ AUTO_START_REGISTRY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 AUTO_START_APPROVED_PATH = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 AUTO_START_REGISTRY_NAME = "Kay POS Server Manager"
 DEFAULT_BROWSER_SERVER_PORT = 8000
+HIDDEN_PRINTERS_SETTING = "printer_server/hidden_printers"
+
+
+def server_manager_icon():
+    return branded_tile_icon("S", "#f3a64a")
+
+
+def printer_visibility_key(agent_id: str, printer_name: str) -> str:
+    """Return a stable local-settings key for one agent/printer pair."""
+    return f"{str(agent_id or '').strip()}\x1f{str(printer_name or '').strip()}"
 
 
 def auto_start_file_path() -> Path:
@@ -90,7 +101,13 @@ def auto_start_command() -> str:
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}" --auto-start --minimized'
     launcher_path = PROJECT_ROOT / "server_manager.py"
-    return f'"{sys.executable}" "{launcher_path}" --auto-start --minimized'
+    # python.exe creates a console window at login.  Prefer the windowed
+    # interpreter for the GUI-only Server Manager when running from source.
+    executable = Path(sys.executable)
+    pythonw = executable.with_name("pythonw.exe")
+    if os.name == "nt" and pythonw.is_file():
+        executable = pythonw
+    return f'"{executable}" "{launcher_path}" --auto-start --minimized'
 
 
 def auto_start_registry_state() -> str:
@@ -144,6 +161,7 @@ class ServerManagerWindow(QMainWindow):
     def __init__(self, auto_start=None) -> None:
         super().__init__()
         self.setWindowTitle("Kay POS Server Manager")
+        self.setWindowIcon(server_manager_icon())
         self.setMinimumSize(1000, 680)
         self.resize(1280, 820)
 
@@ -156,6 +174,7 @@ class ServerManagerWindow(QMainWindow):
 
         load_project_env()
         self._build_ui()
+        self.refresh_printer_enrollment_key()
         self._setup_system_tray()
         self._load_config()
         self._refresh_all()
@@ -208,8 +227,8 @@ class ServerManagerWindow(QMainWindow):
             ("Setup", "Initial configuration", self._wizard_tab()),
             ("Database", "Connection and schema", self._database_tab()),
             ("Services", "POS, car and PostgreSQL", self._server_tab()),
-            ("Printers", "LAN/Wi-Fi printer agents", self._printers_tab()),
             ("Activity", "Client request history", self._activity_tab()),
+            ("Printer Server", "Printer enrollment, status and jobs", self._printers_tab()),
             ("Logs", "Runtime diagnostics", self._logs_tab()),
         )
         self.nav_buttons = []
@@ -372,7 +391,7 @@ class ServerManagerWindow(QMainWindow):
                 color: #f3b45f;
                 background: #151c2a;
             }
-            QLineEdit, QSpinBox {
+            QLineEdit, QSpinBox, QComboBox {
                 background: #0f1520;
                 color: #edf2ff;
                 border: 1px solid #303b50;
@@ -381,8 +400,33 @@ class ServerManagerWindow(QMainWindow):
                 min-height: 24px;
                 selection-background-color: #d8892f;
             }
-            QLineEdit:focus, QSpinBox:focus {
+            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
                 border-color: #f3a64a;
+            }
+            QComboBox:hover {
+                border-color: #59677f;
+            }
+            QComboBox::drop-down {
+                background: #182231;
+                border: 0;
+                border-left: 1px solid #303b50;
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+                width: 28px;
+            }
+            QComboBox QAbstractItemView {
+                background: #151c2a;
+                color: #edf2ff;
+                border: 1px solid #3a465a;
+                border-radius: 6px;
+                padding: 4px;
+                outline: 0;
+                selection-background-color: #d8892f;
+                selection-color: #ffffff;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 30px;
+                padding: 4px 8px;
             }
             QCheckBox {
                 color: #c1cada;
@@ -450,6 +494,35 @@ class ServerManagerWindow(QMainWindow):
             QTabWidget::pane {
                 border: 0;
                 background: transparent;
+            }
+            QTabWidget#PrinterPageTabs::pane {
+                border: 1px solid #293348;
+                border-radius: 0 10px 10px 10px;
+                background: #101722;
+            }
+            QTabWidget#PrinterPageTabs QTabBar::tab {
+                background: #182231;
+                color: #c7d2e5;
+                border: 1px solid #303b50;
+                border-bottom: 0;
+                padding: 9px 18px;
+                min-width: 130px;
+                font-weight: 650;
+            }
+            QTabWidget#PrinterPageTabs QTabBar::tab:first {
+                border-top-left-radius: 8px;
+            }
+            QTabWidget#PrinterPageTabs QTabBar::tab:last {
+                border-top-right-radius: 8px;
+            }
+            QTabWidget#PrinterPageTabs QTabBar::tab:hover {
+                background: #243149;
+                color: #ffffff;
+            }
+            QTabWidget#PrinterPageTabs QTabBar::tab:selected {
+                background: #e89a3b;
+                color: #ffffff;
+                border-color: #e89a3b;
             }
             QScrollArea#PageScroll, QScrollArea#PageScroll > QWidget > QWidget {
                 background: transparent;
@@ -858,26 +931,6 @@ class ServerManagerWindow(QMainWindow):
         top.addWidget(refresh_button)
         layout.addLayout(top)
 
-        format_row = QHBoxLayout()
-        self.print_paper_size = QComboBox()
-        self.print_paper_size.addItems(["A4", "A5", "80mm", "58mm"])
-        self.print_orientation = QComboBox()
-        self.print_orientation.addItems(["Portrait", "Landscape"])
-        self.print_copies = QSpinBox()
-        self.print_copies.setRange(1, 99)
-        self.print_copies.setValue(1)
-        self.send_document_button = QPushButton("Print Document…")
-        self.send_document_button.clicked.connect(self.send_printer_document)
-        format_row.addWidget(QLabel("Paper"))
-        format_row.addWidget(self.print_paper_size)
-        format_row.addWidget(QLabel("Orientation"))
-        format_row.addWidget(self.print_orientation)
-        format_row.addWidget(QLabel("Copies"))
-        format_row.addWidget(self.print_copies)
-        format_row.addStretch()
-        format_row.addWidget(self.send_document_button)
-        layout.addLayout(format_row)
-
         self.activity_table = QTableWidget(0, 5)
         self.activity_table.setHorizontalHeaderLabels(["Time", "User", "Action", "Details", "IP"])
         self.activity_table.horizontalHeader().setStretchLastSection(True)
@@ -929,30 +982,50 @@ class ServerManagerWindow(QMainWindow):
         security_layout.addWidget(self.printer_enrollment_key_status)
         layout.addWidget(security_box)
 
+        self.printer_page_tabs = QTabWidget()
+        self.printer_page_tabs.setObjectName("PrinterPageTabs")
+        printer_list_page = QWidget()
+        printer_list_layout = QVBoxLayout(printer_list_page)
+        printer_list_layout.setContentsMargins(8, 10, 8, 8)
+        printer_list_layout.setSpacing(10)
+
         top = QHBoxLayout()
         self.printer_server_status = self._status_chip("Printer Server: registry not checked")
         self.send_test_print_button = QPushButton("Print Test Page")
         self.send_test_print_button.clicked.connect(self.send_printer_test_page)
         self.toggle_printer_agent_button = QPushButton("Enable / Disable PC")
         self.toggle_printer_agent_button.clicked.connect(self.toggle_selected_printer_agent)
+        self.toggle_printer_visibility_button = QPushButton("Hide / Show Printer")
+        self.toggle_printer_visibility_button.clicked.connect(self.toggle_selected_printer_visibility)
+        self.show_hidden_printers_check = QCheckBox("Show Hidden Printers")
+        self.show_hidden_printers_check.toggled.connect(
+            lambda _checked: self.refresh_printer_agents()
+        )
         refresh_button = QPushButton("Refresh Printers")
         refresh_button.clicked.connect(self.refresh_printer_agents)
         top.addWidget(self.printer_server_status)
         top.addStretch()
+        top.addWidget(self.show_hidden_printers_check)
+        top.addWidget(self.toggle_printer_visibility_button)
         top.addWidget(self.toggle_printer_agent_button)
         top.addWidget(self.send_test_print_button)
         top.addWidget(refresh_button)
-        layout.addLayout(top)
+        printer_list_layout.addLayout(top)
 
-        self.printer_agents_table = QTableWidget(0, 7)
+        self.printer_agents_table = QTableWidget(0, 8)
         self.printer_agents_table.setHorizontalHeaderLabels(
-            ["PC", "IP Address", "Agent", "Printer", "Default", "Status", "Last Seen"]
+            ["PC", "IP Address", "Agent", "Printer", "Default", "Status", "Visibility", "Last Seen"]
         )
         self.printer_agents_table.horizontalHeader().setStretchLastSection(True)
         self.printer_agents_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.printer_agents_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.printer_agents_table, 1)
+        printer_list_layout.addWidget(self.printer_agents_table, 1)
+        self.printer_page_tabs.addTab(printer_list_page, "Printer List")
 
+        jobs_page = QWidget()
+        jobs_layout = QVBoxLayout(jobs_page)
+        jobs_layout.setContentsMargins(8, 10, 8, 8)
+        jobs_layout.setSpacing(10)
         jobs_top = QHBoxLayout()
         jobs_label = QLabel("Recent Print Jobs")
         jobs_label.setObjectName("HeaderSubtitle")
@@ -961,7 +1034,7 @@ class ServerManagerWindow(QMainWindow):
         jobs_top.addWidget(jobs_label)
         jobs_top.addStretch()
         jobs_top.addWidget(self.retry_print_job_button)
-        layout.addLayout(jobs_top)
+        jobs_layout.addLayout(jobs_top)
         self.printer_jobs_table = QTableWidget(0, 8)
         self.printer_jobs_table.setHorizontalHeaderLabels(
             ["Created", "PC", "Printer", "Type", "Status", "Attempts", "Error", "Job ID"]
@@ -969,8 +1042,43 @@ class ServerManagerWindow(QMainWindow):
         self.printer_jobs_table.horizontalHeader().setStretchLastSection(True)
         self.printer_jobs_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.printer_jobs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.printer_jobs_table, 1)
+        jobs_layout.addWidget(self.printer_jobs_table, 1)
+        self.printer_page_tabs.addTab(jobs_page, "Recent Print Jobs")
+        layout.addWidget(self.printer_page_tabs, 1)
         return page
+
+    def _hidden_printer_keys(self) -> set[str]:
+        raw = self.settings.value(HIDDEN_PRINTERS_SETTING, "[]")
+        try:
+            values = json.loads(str(raw or "[]"))
+        except (TypeError, ValueError):
+            values = []
+        return {str(value) for value in values if str(value)}
+
+    def _save_hidden_printer_keys(self, values: set[str]) -> None:
+        self.settings.setValue(HIDDEN_PRINTERS_SETTING, json.dumps(sorted(values)))
+        self.settings.sync()
+
+    def toggle_selected_printer_visibility(self) -> None:
+        target = self._selected_network_printer()
+        if not target or not target.get("agent_id") or not target.get("printer_name"):
+            QMessageBox.warning(self, "Select Printer", "Select a printer row first.")
+            return
+        key = printer_visibility_key(target["agent_id"], target["printer_name"])
+        hidden = self._hidden_printer_keys()
+        if key in hidden:
+            hidden.remove(key)
+            action = "shown"
+        else:
+            hidden.add(key)
+            action = "hidden"
+        self._save_hidden_printer_keys(hidden)
+        self.refresh_printer_agents()
+        self._set_chip(
+            self.printer_server_status,
+            f"Printer {target['printer_name']} is now {action} in Server Manager.",
+            "ok" if action == "shown" else "warn",
+        )
 
     def refresh_printer_enrollment_key(self) -> None:
         key = os.getenv("KAY_PRINTER_ENROLLMENT_KEY", "").strip()
@@ -1075,7 +1183,6 @@ class ServerManagerWindow(QMainWindow):
         self.wizard_username_input.setText(cfg.get("username") or DEFAULT_DB_USER)
         self.wizard_password_input.setText(cfg.get("password") or "lonepair")
         self.allowed_subnet_input.setText(local_subnet())
-        self.refresh_printer_enrollment_key()
         self._set_chip(
             self.header_db_label,
             f"Database: {self.database_input.text()} @ {self.host_input.text()}:{self.port_input.value()}",
@@ -1508,7 +1615,7 @@ class ServerManagerWindow(QMainWindow):
 
     def _setup_system_tray(self) -> None:
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        self.tray_icon.setIcon(server_manager_icon())
         self.tray_icon.setToolTip("KAY POS Server Manager")
         tray_menu = QMenu(self)
         tray_menu.setObjectName("TrayMenu")
@@ -1883,22 +1990,36 @@ class ServerManagerWindow(QMainWindow):
 
             agents = PrinterRegistry().list_agents()
             self.printer_agents_table.setRowCount(0)
+            hidden_keys = self._hidden_printer_keys()
+            show_hidden = self.show_hidden_printers_check.isChecked()
             online_agents = sum(1 for agent in agents if agent.get("is_online"))
             online_printers = 0
+            hidden_printers = 0
             for agent in agents:
                 printers = agent.get("printers") or [None]
                 for printer in printers:
                     printer = printer or {}
+                    printer_name = printer.get("printer_name") or ""
+                    visibility_key = printer_visibility_key(agent.get("agent_id"), printer_name)
+                    is_hidden = bool(printer_name and visibility_key in hidden_keys)
+                    hidden_printers += int(is_hidden)
                     agent_online = bool(agent.get("is_online"))
-                    printer_online = agent_online and bool(agent.get("is_enabled", True)) and printer.get("status") == "online"
+                    printer_enabled = bool(printer.get("is_enabled", True))
+                    printer_online = (
+                        agent_online and bool(agent.get("is_enabled", True))
+                        and printer_enabled and printer.get("status") == "online"
+                    )
                     online_printers += int(printer_online)
+                    if is_hidden and not show_hidden:
+                        continue
                     values = (
                         agent.get("computer_name"),
                         agent.get("ip_address"),
                         agent.get("agent_version"),
-                        printer.get("printer_name") or "No printer detected",
+                        printer_name or "No printer detected",
                         "Yes" if printer.get("is_default") else "",
-                        "Online" if printer_online else "Offline",
+                        "Online" if printer_online else "Disabled" if not printer_enabled else "Offline",
+                        "Hidden" if is_hidden else "Shown",
                         printer.get("last_seen") or agent.get("last_seen"),
                     )
                     row_index = self.printer_agents_table.rowCount()
@@ -1908,16 +2029,17 @@ class ServerManagerWindow(QMainWindow):
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setData(Qt.ItemDataRole.UserRole, {
                             "agent_id": agent.get("agent_id"),
-                            "printer_name": printer.get("printer_name"),
+                            "printer_name": printer_name,
                             "is_online": printer_online,
                             "is_enabled": bool(agent.get("is_enabled", True)),
+                            "is_hidden": is_hidden,
                         })
                         self.printer_agents_table.setItem(row_index, column, item)
             tone = "ok" if online_agents else "warn"
             self._set_chip(
                 self.printer_server_status,
                 f"Printer Server: {online_agents}/{len(agents)} PC(s) online · "
-                f"{online_printers} printer(s) available",
+                f"{online_printers} printer(s) available · {hidden_printers} hidden",
                 tone,
             )
             self._refresh_printer_jobs()
@@ -2062,7 +2184,6 @@ class ServerManagerWindow(QMainWindow):
     def _refresh_all(self) -> None:
         self.refresh_activity()
         self.refresh_logs()
-        self.refresh_printer_agents()
         if self.server_process and self.server_process.state() != QProcess.ProcessState.NotRunning:
             self._set_chip(
                 self.server_status,
@@ -2122,6 +2243,7 @@ def main() -> int:
     args, qt_args = parser.parse_known_args(sys.argv[1:])
     app = QApplication([sys.argv[0], *qt_args])
     app.setQuitOnLastWindowClosed(False)
+    app.setWindowIcon(server_manager_icon())
     auto_start = False if args.no_auto_start else (True if args.auto_start else None)
     window = ServerManagerWindow(auto_start=auto_start)
     if args.minimized:

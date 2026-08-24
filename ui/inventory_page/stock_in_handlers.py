@@ -614,10 +614,10 @@ class StockInHandlers:
             
             cursor.execute("""
                 INSERT INTO stock_movements 
-                (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, notes, supplier_id, location)
-                VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, notes, supplier_id, location, variant_id)
+                VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (product_id, qty, old_stock, new_stock, f"Stock In via {d.stock_in_no.text()}", 
-                  po_no_input, received_by, notes, supplier_id, location))
+                  po_no_input, received_by, notes, supplier_id, location, variant_id))
             
             if supplier_id and supplier_id != "None":
                 if not po_no_input:

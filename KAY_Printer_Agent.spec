@@ -2,7 +2,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = collect_submodules('PyQt6.QtPrintSupport')
-hiddenimports += ['PyQt6.QtPdf', 'requests', 'urllib3', 'printer_agent_gui', 'utils.single_instance']
+hiddenimports += ['PyQt6.QtPdf', 'requests', 'urllib3', 'printer_agent_gui', 'printer_picture_page', 'printer_picture_print', 'utils.single_instance']
 
 a = Analysis(
     ['printer_agent.py'],

@@ -60,6 +60,33 @@ class PrinterServerPhase1Tests(unittest.TestCase):
         statuses = {item["printer_name"]: item["status"] for item in agent["printers"]}
         self.assertEqual(statuses, {"New Printer": "online", "Old Printer": "offline"})
 
+    def test_printer_can_be_disabled_without_heartbeat_resetting_it(self):
+        self.registry.heartbeat(
+            "agent-printer-toggle", "PHOTO-PC", "192.168.1.25",
+            [{"name": "Photo Printer", "is_default": True}],
+        )
+        agent = self.registry.set_printer_enabled("agent-printer-toggle", "Photo Printer", False)
+        self.assertFalse(agent["printers"][0]["is_enabled"])
+
+        # A normal Agent heartbeat updates availability but preserves the
+        # administrator's per-printer permission.
+        agent = self.registry.heartbeat(
+            "agent-printer-toggle", "PHOTO-PC", "192.168.1.25",
+            [{"name": "Photo Printer", "is_default": True}],
+        )
+        self.assertFalse(agent["printers"][0]["is_enabled"])
+        with self.assertRaisesRegex(ValueError, "disabled"):
+            self.registry.create_job(
+                "disabled-printer-job-001", "agent-printer-toggle", "Photo Printer"
+            )
+
+        agent = self.registry.set_printer_enabled("agent-printer-toggle", "Photo Printer", True)
+        self.assertTrue(agent["printers"][0]["is_enabled"])
+        job = self.registry.create_job(
+            "reenabled-printer-job-001", "agent-printer-toggle", "Photo Printer"
+        )
+        self.assertEqual(job["status"], "pending")
+
     def test_stale_agent_and_its_printers_are_offline(self):
         self.registry.heartbeat(
             "agent-0003", "STORE-PC", "192.168.1.23",

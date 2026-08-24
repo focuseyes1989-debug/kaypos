@@ -38,6 +38,7 @@ from utils.translations import tr
 from loguru import logger
 
 from ui.widgets.modern_button import ModernButton
+from utils.branded_icons import pos_icon
 
 
 class CashierUI(QMainWindow):
@@ -100,7 +101,7 @@ class CashierUI(QMainWindow):
         
         # Window setup
         self.setWindowTitle("💰 Cashier Mode - ZAY POS")
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         
         # Screen size အလိုက် Window Size ချိန်ညှိခြင်း
         self._setup_responsive_window()

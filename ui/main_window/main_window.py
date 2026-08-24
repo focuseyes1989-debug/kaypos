@@ -9,7 +9,6 @@ from typing import Optional, Dict, Any
 
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QWidget, QHBoxLayout, QLabel, QApplication
 from PyQt6.QtCore import pyqtSignal, QTimer, Qt
-from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.language import lang
 from utils.system_theme import system_theme
@@ -21,6 +20,7 @@ from ui.themes.theme_manager import get_theme_colors, theme_manager, apply_theme
 from loguru import logger
 from datetime import datetime
 from utils.performance import get_performance_settings
+from utils.branded_icons import pos_icon
 
 
 class MainWindow(MainWindowUI):
@@ -72,7 +72,7 @@ class MainWindow(MainWindowUI):
         self._ignore_next_startup_close = False
         
         # Window Icon ကို သတ်မှတ်ခြင်း
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         
         # Scaling အတွက် Constants များ
         self._keep_aspect_ratio = Qt.AspectRatioMode.KeepAspectRatio

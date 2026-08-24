@@ -778,7 +778,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
             # Get the original movement
             cursor.execute("""
                 SELECT product_id, type, quantity, old_stock, new_stock, 
-                       reason, reference, created_by, notes, location, supplier_id
+                       reason, reference, created_by, notes, location, supplier_id, variant_id
                 FROM stock_movements
                 WHERE id = ?
             """, (movement_id,))
@@ -788,7 +788,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 conn.rollback()
                 return {'success': False, 'message': 'Movement not found'}
             
-            product_id, mov_type, quantity, old_stock, new_stock, ref_reason, reference, created_by_orig, notes, location, supplier_id = movement
+            product_id, mov_type, quantity, old_stock, new_stock, ref_reason, reference, created_by_orig, notes, location, supplier_id, variant_id = movement
             
             # Determine reversal type
             if mov_type == 'in':
@@ -849,6 +849,35 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 SET stock = ?, last_updated = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (new_stock_after, product_id))
+
+            # Variant movements must be reversed at the same inventory level.
+            if variant_id:
+                cursor.execute(
+                    "SELECT stock FROM product_variants WHERE id = ? AND product_id = ?",
+                    (variant_id, product_id),
+                )
+                variant_row = cursor.fetchone()
+                if not variant_row:
+                    conn.rollback()
+                    return {'success': False, 'message': 'The movement variant no longer exists'}
+                variant_stock = variant_row[0] or 0
+                if mov_type == 'in':
+                    variant_stock_after = variant_stock - quantity
+                    if variant_stock_after < 0:
+                        conn.rollback()
+                        return {
+                            'success': False,
+                            'message': f'Insufficient variant stock to reverse. Current: {variant_stock}, Reversal: {quantity}',
+                        }
+                elif mov_type == 'out':
+                    variant_stock_after = variant_stock + quantity
+                else:
+                    change = (new_stock or 0) - (old_stock or 0)
+                    variant_stock_after = variant_stock - change
+                cursor.execute(
+                    "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND product_id = ?",
+                    (variant_stock_after, variant_id, product_id),
+                )
             
             # Update product locations if location was specified
             if location and mov_type == 'in':
@@ -894,8 +923,8 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
             
             cursor.execute("""
                 INSERT INTO stock_movements 
-                (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, notes, location, supplier_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, notes, location, supplier_id, variant_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 product_id, 
                 reversal_type, 
@@ -907,7 +936,8 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 created_by,
                 reversal_notes,
                 location,
-                supplier_id
+                supplier_id,
+                variant_id
             ))
             
             # Mark original movement as reversed

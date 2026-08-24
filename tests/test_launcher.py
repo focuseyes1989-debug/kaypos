@@ -68,7 +68,7 @@ class LauncherResolutionTests(unittest.TestCase):
             command, source = resolve_application_target(definition, tmp_dir)
             self.assertEqual(source, "script")
             self.assertEqual(command[1], str(script_path))
-            self.assertEqual(command[-1], "--tray")
+            self.assertEqual(command[-2:], ["--tray", "--open-manager"])
             self.assertEqual(INSTANCE_MUTEXES["printer"], r"Global\KAY_Printer_Agent_SingleInstance_v1")
 
     def test_should_auto_download_update_requires_available_update(self):

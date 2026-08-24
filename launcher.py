@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
+from utils.branded_icons import launcher_app_icon
 
 APP_NAME = "KAY POS"
 GITHUB_REPO = "focuseyes1989-debug/kaypos"
@@ -58,7 +59,7 @@ APPLICATIONS = (
     AppDefinition("pos", "KAY POS", "Point of Sale", "Sales, inventory, reports and daily business operations.", ("main.py",), ("ZAY_POS.exe", "KAY_POS.exe"), "#6675f5", "P", "pos-system.png"),
     AppDefinition("car", "Car Management", "Vehicle Service", "Register vehicles and drivers, prepare forms and manage QR print requests.", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
     AppDefinition("server", "Server Manager", "Services & Database", "Start browser services, monitor PostgreSQL and manage server connectivity.", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
-    AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "Share this PC's printers and process secure network print jobs in the system tray.", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray",)),
+    AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "Manage network printers, print documents and process secure print jobs.", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
 )
 
 STYLE = """
@@ -193,10 +194,7 @@ def apply_launcher_font(app: QApplication) -> None:
 
 
 def launcher_icon() -> QIcon:
-    for path in (Path(get_app_dir()) / "assets" / "kay" / "kay_multi.ico", Path(get_app_dir()) / "assets" / "icons" / "app_icon.ico"):
-        if path.is_file():
-            return QIcon(str(path))
-    return QIcon()
+    return launcher_app_icon()
 
 
 class AppCard(QFrame):

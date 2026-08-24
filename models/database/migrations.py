@@ -133,6 +133,7 @@ def fix_missing_columns():
             ('sale_items', 'cost', 'REAL DEFAULT 0'),
             ('expenses', 'image', 'TEXT'),
             ('stock_movements', 'location', 'TEXT'),
+            ('stock_movements', 'variant_id', 'INTEGER'),
             ('products', 'last_updated', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
             # Credit refund metadata (required by older packaged refund service).
             ('credit_sales', 'updated_at', 'TIMESTAMP'),

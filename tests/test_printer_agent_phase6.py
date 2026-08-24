@@ -7,6 +7,11 @@ import printer_agent
 
 
 class PrinterAgentPhase6Tests(unittest.TestCase):
+    def test_quality_uses_nearest_windows_printer_resolution(self):
+        self.assertEqual(printer_agent.printer_resolution_for_quality("draft", [300, 600]), 300)
+        self.assertEqual(printer_agent.printer_resolution_for_quality("normal", [203, 300, 600]), 300)
+        self.assertEqual(printer_agent.printer_resolution_for_quality("high", [300, 1200]), 300)
+        self.assertEqual(printer_agent.printer_resolution_for_quality("high", []), 600)
     def test_configuration_updates_preserve_agent_token(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "agent.json"

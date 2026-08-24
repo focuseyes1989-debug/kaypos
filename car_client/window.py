@@ -3,10 +3,9 @@
 from datetime import date, datetime
 from collections import Counter
 import os
-from pathlib import Path
 
 from PyQt6.QtCore import QDate, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QCloseEvent, QIcon
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -24,41 +23,48 @@ from car_client.records import DRIVER_FIELDS, FIELD_DEFINITIONS, VEHICLE_FIELDS,
 
 
 APP_STYLE = """
-QWidget { background: #202328; color: #f2f3f5; font-family: "Segoe UI", "Myanmar Text"; font-size: 10pt; }
+QWidget { background: #0d111b; color: #edf2ff; font-family: "Segoe UI", "Myanmar Text"; font-size: 10pt; }
 QLabel { background: transparent; border: none; }
-QFrame#sidebar { background: #181a1f; border-right: 1px solid #343840; }
-QLabel#brand { font-size: 18pt; font-weight: 700; color: #ffffff; }
-QLabel#pageTitle { font-size: 20pt; font-weight: 700; }
-QLabel#muted { color: #aeb3bd; }
-QFrame#card { background: #2a2e34; border: 1px solid #3b4049; border-radius: 10px; }
-QLineEdit, QSpinBox, QComboBox { background: #353a42; border: 1px solid #4a505b; border-radius: 6px; padding: 8px 10px; min-height: 20px; }
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid #5865f2; }
-QTableWidget { background: #2a2e34; alternate-background-color: #25292f; border: 1px solid #3b4049; border-radius: 8px; gridline-color: #3b4049; }
-QHeaderView::section { background: #20242a; color: #dfe2e7; border: none; border-right: 1px solid #3b4049; padding: 8px; font-weight: 600; }
+QFrame#sidebar { background: #111724; border-right: 1px solid #253044; }
+QLabel#brandMark { background: #27c992; color: white; border-radius: 13px; font-size: 18pt; font-weight: 900; }
+QLabel#brand { font-size: 18pt; font-weight: 800; color: #ffffff; }
+QLabel#pageTitle { font-size: 22pt; font-weight: 800; color: #ffffff; }
+QLabel#muted { color: #99a8bd; }
+QFrame#card { background: #151c2a; border: 1px solid #29384a; border-radius: 14px; }
+QLineEdit, QSpinBox, QComboBox, QDateEdit { background: #0f1722; border: 1px solid #334257; border-radius: 8px; padding: 8px 10px; min-height: 20px; selection-background-color: #218f70; }
+QLineEdit:hover, QSpinBox:hover, QComboBox:hover, QDateEdit:hover { border-color: #4a5b72; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QDateEdit:focus { border: 1px solid #27c992; }
+QComboBox QAbstractItemView { background: #151c2a; color: #edf2ff; border: 1px solid #334257; selection-background-color: #218f70; selection-color: white; outline: 0; }
+QTableWidget { background: #0b111b; alternate-background-color: #101824; border: 1px solid #29384a; border-radius: 10px; gridline-color: #202d3d; selection-background-color: #1d745d; selection-color: white; }
+QHeaderView::section { background: #172231; color: #d7e2f1; border: none; border-right: 1px solid #29384a; border-bottom: 1px solid #29384a; padding: 8px; font-weight: 700; }
 QScrollBar:vertical { background: transparent; width: 10px; margin: 3px 2px; }
-QScrollBar::handle:vertical { background: #565d68; min-height: 32px; border-radius: 4px; }
-QScrollBar::handle:vertical:hover { background: #6c7482; }
+QScrollBar::handle:vertical { background: #3b4b5e; min-height: 32px; border-radius: 4px; }
+QScrollBar::handle:vertical:hover { background: #27c992; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; background: transparent; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
 QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px 3px; }
-QScrollBar::handle:horizontal { background: #565d68; min-width: 32px; border-radius: 4px; }
-QScrollBar::handle:horizontal:hover { background: #6c7482; }
+QScrollBar::handle:horizontal { background: #3b4b5e; min-width: 32px; border-radius: 4px; }
+QScrollBar::handle:horizontal:hover { background: #27c992; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; background: transparent; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }
-QProgressBar#busy { min-height: 5px; max-height: 5px; border: none; border-radius: 2px; background: #343941; text-align: center; }
-QProgressBar#busy::chunk { background: #5865f2; border-radius: 2px; }
-QPushButton { background: #3a3f48; border: 1px solid #4c525e; border-radius: 6px; padding: 9px 16px; font-weight: 600; }
-QPushButton:hover { background: #454b56; }
-QPushButton#primary { background: #5865f2; border-color: #5865f2; color: white; }
-QPushButton#primary:hover { background: #6874f4; }
-QPushButton:disabled { color: #777d87; background: #30343a; }
-QPushButton#nav { background: transparent; border: none; text-align: left; padding: 10px 12px; color: #b9bec8; }
-QPushButton#nav:hover { background: #292d34; color: white; }
-QPushButton#nav:checked { background: #343a55; color: white; border-left: 3px solid #5865f2; }
-QLabel#status { border-radius: 6px; padding: 8px 12px; background: #343941; color: #c7cbd2; }
-QLabel#status[status="success"] { background: #173d2b; color: #56d797; }
+QProgressBar#busy { min-height: 5px; max-height: 5px; border: none; border-radius: 2px; background: #253243; text-align: center; }
+QProgressBar#busy::chunk { background: #27c992; border-radius: 2px; }
+QPushButton { background: #202b3a; border: 1px solid #354459; border-radius: 8px; padding: 9px 16px; font-weight: 650; color: #e1e9f5; }
+QPushButton:hover { background: #29384a; border-color: #4b6078; color: white; }
+QPushButton:pressed { background: #182331; }
+QPushButton#primary { background: #27c992; border-color: #27c992; color: white; }
+QPushButton#primary:hover { background: #39d6a4; border-color: #39d6a4; }
+QPushButton#primary:pressed { background: #1fac7d; border-color: #1fac7d; }
+QPushButton:disabled { color: #687588; background: #202734; border-color: #2a3342; }
+QPushButton#nav { background: transparent; border: none; text-align: left; padding: 11px 13px; color: #aeb9ca; }
+QPushButton#nav:hover { background: #182633; color: white; }
+QPushButton#nav:checked { background: #15372f; color: #75e2bd; border-left: 3px solid #27c992; }
+QLabel#status { border-radius: 8px; padding: 8px 12px; background: #182331; border: 1px solid #29384a; color: #bdc9da; }
+QLabel#status[status="success"] { background: #14382d; border-color: #205b47; color: #79e2bb; }
 QLabel#status[status="error"] { background: #482428; color: #ff858d; }
-QLabel#status[status="working"] { background: #31375b; color: #aeb5ff; }
+QLabel#status[status="working"] { background: #17372f; border-color: #245a48; color: #8be6c6; }
+QCheckBox { color: #c7d2e2; spacing: 7px; }
+QToolTip { background: #172231; color: #edf2ff; border: 1px solid #34465b; padding: 5px; }
 """
 
 
@@ -394,9 +400,9 @@ class CarClientWindow(QMainWindow):
         shell = QHBoxLayout(root); shell.setContentsMargins(0, 0, 0, 0); shell.setSpacing(0)
         sidebar = QFrame(); sidebar.setObjectName("sidebar"); sidebar.setFixedWidth(230)
         side = QVBoxLayout(sidebar); side.setContentsMargins(22, 28, 22, 22); side.setSpacing(10)
-        brand = QLabel("KAY CAR"); brand.setObjectName("brand")
+        brand_row=QHBoxLayout();brand_row.setSpacing(11);brand_mark=QLabel("C");brand_mark.setObjectName("brandMark");brand_mark.setFixedSize(44,44);brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter);brand=QLabel("KAY CAR");brand.setObjectName("brand");brand_row.addWidget(brand_mark);brand_row.addWidget(brand);brand_row.addStretch()
         subtitle = QLabel("Management Client"); subtitle.setObjectName("muted")
-        side.addWidget(brand); side.addWidget(subtitle); side.addSpacing(24)
+        side.addLayout(brand_row); side.addWidget(subtitle); side.addSpacing(24)
         self.dashboard_nav=QPushButton("Dashboard");self.dashboard_nav.setObjectName("nav");self.dashboard_nav.setCheckable(True)
         self.input_nav=QPushButton("Car Data Input");self.input_nav.setObjectName("nav");self.input_nav.setCheckable(True)
         self.records_nav=QPushButton("Car Records");self.records_nav.setObjectName("nav");self.records_nav.setCheckable(True)
@@ -475,7 +481,7 @@ class CarClientWindow(QMainWindow):
         charts=QGridLayout();charts.setHorizontalSpacing(14);charts.setVerticalSpacing(14)
         def chart_card(title_text,widget,row,column,column_span=1):
             card=QFrame();card.setObjectName("card");layout=QVBoxLayout(card);layout.setContentsMargins(16,14,16,14);caption=QLabel(title_text);caption.setStyleSheet("font-weight: 700;");layout.addWidget(caption);layout.addWidget(widget,1);charts.addWidget(card,row,column,1,column_span)
-        self.monthly_chart=HorizontalBarChart("#5865f2");self.type_chart=HorizontalBarChart("#3ba5d8");self.kind_chart=HorizontalBarChart("#e89b18");self.reused_chart=HorizontalBarChart("#9b7bf2");self.completeness_chart=CompletenessChart()
+        self.monthly_chart=HorizontalBarChart("#27c992");self.type_chart=HorizontalBarChart("#35a7a0");self.kind_chart=HorizontalBarChart("#e5a33c");self.reused_chart=HorizontalBarChart("#65b98e");self.completeness_chart=CompletenessChart()
         chart_card("Records Added by Month",self.monthly_chart,0,0);chart_card("Cars by Type",self.type_chart,0,1);chart_card("Cars by Kind",self.kind_chart,1,0);chart_card("Most Reused Cars · Drivers",self.reused_chart,1,1);chart_card("Complete vs Incomplete",self.completeness_chart,2,0,2);charts.setColumnStretch(0,1);charts.setColumnStretch(1,1);body.addLayout(charts)
         return page
 
@@ -966,5 +972,5 @@ class CarClientWindow(QMainWindow):
 def apply_app_identity(app: QApplication):
     app.setApplicationName("KAY Car Management")
     app.setOrganizationName("KAY POS")
-    icon_path = Path(__file__).resolve().parents[1] / "assets" / "kay" / "kay_multi.ico"
-    if icon_path.exists(): app.setWindowIcon(QIcon(str(icon_path)))
+    from utils.branded_icons import car_management_icon
+    app.setWindowIcon(car_management_icon())
