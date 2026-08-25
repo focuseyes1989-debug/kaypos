@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import QObject, QPointF, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QPainter, QPalette
+from PyQt6.QtCore import QMarginsF, QObject, QPointF, QRectF, QSizeF, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtGui import QPageLayout, QPageSize, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
     QComboBox, QDoubleSpinBox, QFrame, QHeaderView, QHBoxLayout, QLabel,
@@ -183,12 +183,57 @@ class ReceiptDialog(QDialog):
     def print_receipt(self) -> None:
         from PyQt6.QtGui import QTextDocument
         from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
+
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        # GA-E200I is an 80 mm roll printer. Give the Windows dialog a compact
+        # initial receipt page instead of inheriting an A4/very-long roll page.
+        initial_page = QPageSize(
+            QSizeF(80.0, 120.0), QPageSize.Unit.Millimeter,
+            "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
+        )
+        printer.setPageLayout(QPageLayout(
+            initial_page, QPageLayout.Orientation.Portrait,
+            QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
+        ))
         dialog = QPrintDialog(printer, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             document = QTextDocument()
+            document.setDocumentMargin(0)
             document.setHtml(self._html())
-            document.print(printer)
+
+            # QTextDocument lays text out in 96-DPI logical pixels. Measure the
+            # rendered content first, then make the roll page only that tall.
+            logical_dpi = 96.0
+            printable_width_mm = 72.0
+            logical_width = printable_width_mm * logical_dpi / 25.4
+            document.setTextWidth(logical_width)
+            content_height = document.documentLayout().documentSize().height()
+            content_height_mm = content_height * 25.4 / logical_dpi
+            page_height_mm = max(55.0, min(500.0, content_height_mm + 9.0))
+            receipt_page = QPageSize(
+                QSizeF(80.0, page_height_mm), QPageSize.Unit.Millimeter,
+                "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
+            )
+            printer.setPageLayout(QPageLayout(
+                receipt_page, QPageLayout.Orientation.Portrait,
+                QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
+            ))
+
+            # Draw the document ourselves. QTextDocument.print() paginates and
+            # adds a page number, which can make roll drivers feed to page end.
+            painter = QPainter(printer)
+            if not painter.isActive():
+                QMessageBox.critical(self, "Print Receipt", "Could not start the selected printer.")
+                return
+            scale = printer.resolution() / logical_dpi
+            paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
+            painter.translate(paint_rect.left(), paint_rect.top())
+            painter.scale(scale, scale)
+            document.drawContents(
+                painter,
+                QRectF(0.0, 0.0, logical_width, content_height),
+            )
+            painter.end()
 
 
 class LiteWindow(QMainWindow):
