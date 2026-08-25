@@ -71,6 +71,16 @@ class LauncherResolutionTests(unittest.TestCase):
             self.assertEqual(command[-2:], ["--tray", "--open-manager"])
             self.assertEqual(INSTANCE_MUTEXES["printer"], r"Global\KAY_Printer_Agent_SingleInstance_v1")
 
+    def test_lite_pos_resolves_source_entry_and_has_independent_mutex(self):
+        definition = next(item for item in APPLICATIONS if item.key == "lite")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = Path(tmp_dir) / "kay_pos_lite.py"
+            script_path.write_text("print('lite')", encoding="utf-8")
+            command, source = resolve_application_target(definition, tmp_dir)
+        self.assertEqual(source, "script")
+        self.assertEqual(command[1], str(script_path))
+        self.assertEqual(INSTANCE_MUTEXES["lite"], r"Global\KAY_POS_Lite_SingleInstance_v1")
+
     def test_should_auto_download_update_requires_available_update(self):
         self.assertTrue(should_auto_download_update(True, True))
         self.assertFalse(should_auto_download_update(False, True))

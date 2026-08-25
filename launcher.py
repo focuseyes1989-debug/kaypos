@@ -31,6 +31,7 @@ INSTANCE_MUTEXES = {
     "car": r"Global\KAY_Car_Management_SingleInstance_v1",
     "server": r"Global\KAY_POS_Server_Manager_SingleInstance_v1",
     "printer": r"Global\KAY_Printer_Agent_SingleInstance_v1",
+    "lite": r"Global\KAY_POS_Lite_SingleInstance_v1",
 }
 
 
@@ -39,6 +40,7 @@ class LauncherMode:
     CASHIER = "cashier"
     CAR = "car"
     SERVER = "server"
+    LITE = "lite"
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ APPLICATIONS = (
     AppDefinition("car", "Car Management", "Vehicle Service", "ယာဉ်နှင့် ယာဉ်မောင်းများ မှတ်ပုံတင်ခြင်း၊ ဖောင်များပြင်ဆင်ခြင်းနှင့် QR ပရင့်တောင်းဆိုမှုများကို စီမံပါ။", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
     AppDefinition("server", "Server Manager", "Services & Database", "ဘရောက်ဇာဝန်ဆောင်မှုများ စတင်ခြင်း၊ PostgreSQL စောင့်ကြည့်ခြင်းနှင့် ဆာဗာချိတ်ဆက်မှုကို စီမံပါ။", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
     AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "ကွန်ရက်ပရင်တာများ၊ စာရွက်စာတမ်းပရင့်ထုတ်ခြင်းနှင့် လုံခြုံသောပရင့်အလုပ်များကို စီမံပါ။", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
+    AppDefinition("lite", "KAY POS Lite", "Low-End Point of Sale", "စက်အင်အားနည်းသော PC များအတွက် မြန်ဆန်ပေါ့ပါးသည့် အရောင်းနှင့် စတော့စီမံခန့်ခွဲမှု။", ("kay_pos_lite.py",), ("KAY_POS_Lite.exe",), "#5365df", "L", "pos-system.png"),
 )
 
 STYLE = """
@@ -73,7 +76,7 @@ QLabel#muted { color:#99a4ba; }
 QLabel#clock { font-size:17pt; font-weight:700; color:white; }
 QFrame#appCard { background:#151c2a; border:1px solid #293348; border-radius:18px; }
 QFrame#appCard:hover { border-color:#465573; background:#192232; }
-QLabel#cardTitle { font-size:16pt; font-weight:750; color:white; }
+QLabel#cardTitle { font-size:13pt; font-weight:750; color:white; }
 QLabel#cardSubtitle { color:#8f9bb3; font-weight:650; }
 QLabel#description { color:#aab4c8; }
 QLabel#badgeReady { color:#79e2bb; background:#17382f; border:1px solid #245744; border-radius:9px; padding:5px 9px; font-weight:700; }
@@ -117,6 +120,8 @@ def _definition_for_mode(mode: str) -> AppDefinition:
         return APPLICATIONS[1]
     if mode == LauncherMode.SERVER:
         return APPLICATIONS[2]
+    if mode == LauncherMode.LITE:
+        return next(item for item in APPLICATIONS if item.key == "lite")
     return APPLICATIONS[0]
 
 
@@ -204,14 +209,14 @@ class AppCard(QFrame):
         super().__init__(parent)
         self.definition = definition
         self.setObjectName("appCard")
-        self.setMinimumHeight(245)
+        self.setMinimumHeight(300)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         body = QVBoxLayout(self)
-        body.setContentsMargins(22, 22, 22, 20)
-        body.setSpacing(11)
+        body.setContentsMargins(14, 14, 14, 13)
+        body.setSpacing(7)
         top = QHBoxLayout()
         glyph = QLabel(definition.glyph)
-        glyph.setFixedSize(52, 52)
+        glyph.setFixedSize(44, 44)
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         glyph.setStyleSheet(f"background:{definition.accent};color:white;border-radius:15px;font-size:20pt;font-weight:900;")
         top.addWidget(glyph)
@@ -228,7 +233,7 @@ class AppCard(QFrame):
         description.setObjectName("description")
         description.setWordWrap(True)
         description.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        description.setMinimumHeight(66)
+        description.setMinimumHeight(72)
         body.addWidget(title)
         body.addWidget(subtitle)
         body.addSpacing(3)
@@ -275,8 +280,8 @@ class ArtworkLabel(QLabel):
         super().__init__(parent)
         self.source = QPixmap(str(image_path))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumHeight(85)
-        self.setMaximumHeight(145)
+        self.setMinimumHeight(55)
+        self.setMaximumHeight(105)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -292,8 +297,8 @@ class LauncherWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("KAY Application Launcher")
         self.setWindowIcon(launcher_icon())
-        self.setMinimumSize(1100, 650)
-        self.resize(1400, 760)
+        self.setMinimumSize(1050, 620)
+        self.resize(1320, 700)
         self.setStyleSheet(STYLE)
         self.processes: dict[str, subprocess.Popen] = {}
         self.cards: dict[str, AppCard] = {}
@@ -314,51 +319,18 @@ class LauncherWindow(QMainWindow):
         shell = QHBoxLayout(root)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
-        sidebar = QFrame()
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(238)
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(24, 30, 24, 24)
-        side.setSpacing(10)
-        brand_row = QHBoxLayout()
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(20, 18, 20, 16)
+        layout.setSpacing(12)
+        header = QHBoxLayout()
         mark = QLabel("K")
         mark.setFixedSize(42, 42)
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mark.setStyleSheet("background:#6675f5;color:white;border-radius:12px;font-size:17pt;font-weight:900;")
-        brand_row.addWidget(mark)
-        brand = QLabel("KAY")
-        brand.setObjectName("brand")
-        brand_row.addWidget(brand)
-        brand_row.addStretch()
-        side.addLayout(brand_row)
-        product = QLabel("APPLICATION SUITE")
-        product.setObjectName("eyebrow")
-        side.addWidget(product)
-        side.addSpacing(28)
-        refresh = QPushButton("↻   Refresh Applications")
-        refresh.setObjectName("sideButton")
-        refresh.clicked.connect(self.refresh_targets)
-        logs = QPushButton("▣   Open Logs Folder")
-        logs.setObjectName("sideButton")
-        logs.clicked.connect(lambda: self.open_folder("logs"))
-        data = QPushButton("▤   Open Data Folder")
-        data.setObjectName("sideButton")
-        data.clicked.connect(lambda: self.open_folder("database"))
-        side.addWidget(refresh)
-        side.addWidget(logs)
-        side.addWidget(data)
-        side.addStretch()
-        version = QLabel(f"Launcher Hub\nVersion {current_version()}")
-        version.setObjectName("muted")
-        side.addWidget(version)
-        shell.addWidget(sidebar)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(34, 30, 34, 28)
-        layout.setSpacing(22)
-        header = QHBoxLayout()
+        header.addWidget(mark)
         heading = QVBoxLayout()
-        eyebrow = QLabel("WORKSPACE")
+        eyebrow = QLabel(f"KAY APPLICATION SUITE  ·  VERSION {current_version()}")
         eyebrow.setObjectName("eyebrow")
         title = QLabel("Choose an application")
         title.setObjectName("pageTitle")
@@ -369,6 +341,18 @@ class LauncherWindow(QMainWindow):
         heading.addWidget(hint)
         header.addLayout(heading)
         header.addStretch()
+        refresh = QPushButton("↻  Refresh")
+        refresh.setObjectName("sideButton")
+        refresh.clicked.connect(self.refresh_targets)
+        logs = QPushButton("▣  Logs")
+        logs.setObjectName("sideButton")
+        logs.clicked.connect(lambda: self.open_folder("logs"))
+        data = QPushButton("▤  Data")
+        data.setObjectName("sideButton")
+        data.clicked.connect(lambda: self.open_folder("database"))
+        header.addWidget(refresh)
+        header.addWidget(logs)
+        header.addWidget(data)
         clock_box = QVBoxLayout()
         self.clock_label = QLabel()
         self.clock_label.setObjectName("clock")
@@ -382,11 +366,13 @@ class LauncherWindow(QMainWindow):
         layout.addLayout(header)
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(12)
+        column_count = 5
         for index, definition in enumerate(APPLICATIONS):
             card = AppCard(definition)
             card.launch_requested.connect(self.launch_application)
             self.cards[definition.key] = card
-            row, column = divmod(index, 4)
+            row, column = divmod(index, column_count)
             grid.addWidget(card, row, column)
             grid.setColumnStretch(column, 1)
             grid.setRowStretch(row, 1)

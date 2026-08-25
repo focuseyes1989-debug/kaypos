@@ -598,6 +598,7 @@ def car_print_kiosk_page():
 
 class CartItem(BaseModel):
     product_id: int = Field(..., gt=0)
+    variant_id: Optional[int] = Field(default=None, gt=0)
     qty: int = Field(..., gt=0)
     manual_price: Optional[float] = None
 
@@ -610,6 +611,18 @@ class SaleRequest(BaseModel):
     discount_amount: float = 0
     points_used: int = 0
     customer_id: Optional[int] = None
+
+
+class RefundRequest(BaseModel):
+    reason: str = Field(default="Customer return", max_length=500)
+
+
+class StockAdjustmentRequest(BaseModel):
+    product_id: int = Field(..., gt=0)
+    variant_id: Optional[int] = Field(default=None, gt=0)
+    adjustment: int = Field(..., ge=-1000000, le=1000000)
+    reason: str = Field(default="Lite POS adjustment", max_length=500)
+    location: str = Field(default="Shop", max_length=200)
 
 
 class ExpenseRequest(BaseModel):
@@ -701,6 +714,23 @@ def products(
 @app.get("/api/products/barcode/{barcode}")
 def product_by_barcode(barcode: str, _: Dict[str, Any] = Depends(current_user)):
     return {"product": cashier_service.barcode_exists(barcode.strip())}
+
+
+@app.get("/api/products/scan/{code}")
+def scan_product(code: str, _: Dict[str, Any] = Depends(current_user)):
+    return {"product": cashier_service.scan_product(code.strip())}
+
+
+@app.post("/api/stock/adjust")
+def adjust_stock(payload: StockAdjustmentRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"product": cashier_service.adjust_stock(
+            product_id=payload.product_id, variant_id=payload.variant_id,
+            adjustment=payload.adjustment, reason=payload.reason,
+            location=payload.location, created_by=user.get("username", "Lite POS"),
+        )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/mobile/products")
@@ -827,6 +857,19 @@ def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_use
     except Exception as exc:
         logger.exception("Browser cashier checkout failed")
         raise HTTPException(status_code=500, detail=f"Checkout failed: {exc}") from exc
+
+
+@app.post("/api/sales/{sale_id}/refund")
+def refund_sale(sale_id: int, payload: RefundRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"receipt": cashier_service.refund_sale(
+            sale_id, payload.reason, user.get("username", "Lite POS")
+        )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lite POS refund failed")
+        raise HTTPException(status_code=500, detail=f"Refund failed: {exc}") from exc
 
 
 @app.get("/api/receipts/overview")
