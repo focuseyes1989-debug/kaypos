@@ -220,7 +220,7 @@ class PrinterRegistry:
             raise PermissionError(f"Printer Agent is not allowed to process {job_type} jobs")
 
     def set_agent_permissions(self, agent_id: str, enabled: bool, allowed_job_types: list[str]) -> dict:
-        supported = {"test_page", "pdf", "image", "text_receipt", "escpos_raw"}
+        supported = {"test_page", "pdf", "image", "text_receipt", "escpos_raw", "raw"}
         allowed = [item for item in dict.fromkeys(allowed_job_types or []) if item in supported]
         conn = self._connection_factory()
         try:
@@ -380,7 +380,7 @@ class PrinterRegistry:
         job_type = str(job_type or "test_page").strip()[:40]
         if not target_agent_id or not printer_name:
             raise ValueError("target_agent_id and printer_name are required")
-        if job_type not in {"test_page", "pdf", "image", "text_receipt", "escpos_raw"}:
+        if job_type not in {"test_page", "pdf", "image", "text_receipt", "escpos_raw", "raw"}:
             raise ValueError("Unsupported Phase 2 job type")
         copies = max(1, min(int(copies or 1), 99))
         max_attempts = max(1, min(int(max_attempts or 3), 10))

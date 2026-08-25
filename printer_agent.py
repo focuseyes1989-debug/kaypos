@@ -315,7 +315,7 @@ def print_escpos_raw(printer_name: str, data: bytes, copies: int) -> None:
         _fields_ = [("pDocName", ctypes.c_wchar_p), ("pOutputFile", ctypes.c_wchar_p), ("pDatatype", ctypes.c_wchar_p)]
     try:
         for _ in range(max(1, min(int(copies or 1), 99))):
-            doc = DOC_INFO_1("KAY ESC/POS Network Job", None, "RAW")
+            doc = DOC_INFO_1("KAY RAW Network Print Job", None, "RAW")
             if not winspool.StartDocPrinterW(handle, 1, ctypes.byref(doc)):
                 raise ctypes.WinError(ctypes.get_last_error())
             try:
@@ -327,7 +327,7 @@ def print_escpos_raw(printer_name: str, data: bytes, copies: int) -> None:
                     if not winspool.WritePrinter(handle, buffer, len(data), ctypes.byref(written)):
                         raise ctypes.WinError(ctypes.get_last_error())
                     if written.value != len(data):
-                        raise RuntimeError("Windows accepted only part of the ESC/POS job")
+                        raise RuntimeError("Windows accepted only part of the RAW print job")
                 finally:
                     winspool.EndPagePrinter(handle)
             finally:
@@ -382,7 +382,7 @@ def process_pending_jobs(server_url: str, agent_id: str, verify_tls: bool = True
             payload = job.get("payload") or {}
             if job_type == "test_page":
                 print_test_page(job["printer_name"], job.get("payload"), job.get("copies", 1))
-            elif job_type in {"pdf", "image", "escpos_raw"}:
+            elif job_type in {"pdf", "image", "escpos_raw", "raw"}:
                 content = download_job_content(server_url, job_id, agent_id, agent_key, verify_tls)
                 if job_type == "pdf":
                     print_pdf(job["printer_name"], content, payload, job.get("copies", 1))

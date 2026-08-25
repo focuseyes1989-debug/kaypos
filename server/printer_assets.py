@@ -18,6 +18,7 @@ ALLOWED_EXTENSIONS = {
     ".txt": "text_receipt",
     ".escpos": "escpos_raw",
     ".bin": "escpos_raw",
+    ".pcl": "raw",
 }
 
 
@@ -58,4 +59,3 @@ def resolve_asset(path_value: str) -> Path:
     if not path.is_file():
         raise FileNotFoundError("Print asset is no longer available")
     return path
-

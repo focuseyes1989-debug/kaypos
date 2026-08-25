@@ -49,6 +49,10 @@ from printer_agent import (
 from utils.single_instance import SingleInstanceGuard, show_already_running_message
 from utils.branded_icons import branded_tile_icon
 from printer_picture_page import PrintPicturesPage
+from virtual_printer import (
+    DEFAULT_DRIVER, VIRTUAL_PRINTER_NAME, install_virtual_printer,
+    installed_printer_drivers, remove_virtual_printer, VirtualPrinterBridge,
+)
 
 
 def _icon() -> QIcon:
@@ -232,9 +236,10 @@ class AgentSetupDialog(QDialog):
 class PrinterAgentDashboard(QDialog):
     """Printer operations UI; the Server Manager remains focused on server services."""
 
-    def __init__(self, parent=None, tray_icon: QSystemTrayIcon | None = None):
+    def __init__(self, parent=None, tray_icon: QSystemTrayIcon | None = None, virtual_bridge=None):
         super().__init__(parent)
         self.tray_icon = tray_icon
+        self.virtual_bridge = virtual_bridge
         self._allow_close = False
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -378,6 +383,31 @@ class PrinterAgentDashboard(QDialog):
         controls.addWidget(enable_disable)
         controls.addWidget(test)
         layout.addLayout(controls)
+
+        virtual = QFrame()
+        virtual.setObjectName("AgentStatus")
+        virtual_row = QGridLayout(virtual)
+        self.virtual_target_label = QLabel("Virtual target: not selected")
+        self.virtual_driver = QComboBox()
+        drivers = installed_printer_drivers()
+        xerox_drivers = [name for name in drivers if "xerox" in name.lower() and "pcl" in name.lower()]
+        self.virtual_driver.addItems(xerox_drivers or drivers)
+        if self.virtual_driver.findText(DEFAULT_DRIVER) >= 0:
+            self.virtual_driver.setCurrentText(DEFAULT_DRIVER)
+        set_target = QPushButton("Use Selected as Virtual Target")
+        set_target.clicked.connect(self.set_virtual_target)
+        install_virtual = QPushButton(f"Install {VIRTUAL_PRINTER_NAME}")
+        install_virtual.clicked.connect(self.install_virtual_queue)
+        remove_virtual = QPushButton("Remove Virtual Printer")
+        remove_virtual.clicked.connect(self.remove_virtual_queue)
+        virtual_row.addWidget(self.virtual_target_label, 0, 0, 1, 2)
+        virtual_row.addWidget(set_target, 0, 2)
+        virtual_row.addWidget(QLabel("Windows Driver"), 1, 0)
+        virtual_row.addWidget(self.virtual_driver, 1, 1)
+        virtual_row.addWidget(install_virtual, 1, 2)
+        virtual_row.addWidget(remove_virtual, 1, 3)
+        virtual_row.setColumnStretch(1, 1)
+        layout.addWidget(virtual)
 
         self.printers_table = QTableWidget(0, 8)
         self.printers_table.setHorizontalHeaderLabels(
@@ -749,9 +779,54 @@ class PrinterAgentDashboard(QDialog):
             if self.printers_table.rowCount():
                 self.printers_table.selectRow(selected_row if selected_row >= 0 else 0)
             self.connection_status.setText(f"Printer Server: online · {online} printer(s) available")
+            target = load_agent_config().get("virtual_printer_target") or {}
+            self.virtual_target_label.setText(
+                f"Virtual target: {target.get('computer_name')} · {target.get('printer_name')}"
+                if target.get("printer_name") else "Virtual target: not selected"
+            )
         except Exception as exc:
             self.printers_table.setRowCount(0)
             self.connection_status.setText(f"Printer Server: unavailable ({exc})")
+
+    def set_virtual_target(self) -> None:
+        target = self._online_target()
+        if not target:
+            return
+        row = self.printers_table.currentRow()
+        computer = self.printers_table.item(row, 0).text() if row >= 0 else "Remote PC"
+        saved = {
+            "agent_id": target["agent_id"], "printer_name": target["printer_name"],
+            "computer_name": computer,
+        }
+        save_agent_config(virtual_printer_target=saved)
+        self.virtual_target_label.setText(f"Virtual target: {computer} · {target['printer_name']}")
+        if self.virtual_bridge:
+            self.virtual_bridge.start()
+        QMessageBox.information(self, "Virtual Printer", "Selected remote printer is now the KAY virtual target.")
+
+    def install_virtual_queue(self) -> None:
+        driver = self.virtual_driver.currentText().strip()
+        if not driver:
+            QMessageBox.warning(self, "Virtual Printer", "Install a PCL6 printer driver first.")
+            return
+        try:
+            install_virtual_printer(driver)
+            save_agent_config(virtual_printer_driver=driver)
+            if self.virtual_bridge:
+                self.virtual_bridge.start()
+            QMessageBox.information(
+                self, "Virtual Printer",
+                f"{VIRTUAL_PRINTER_NAME} installed. It is now available in Photoshop, Office and Windows apps.",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Virtual Printer Setup", str(exc))
+
+    def remove_virtual_queue(self) -> None:
+        try:
+            remove_virtual_printer()
+            QMessageBox.information(self, "Virtual Printer", f"{VIRTUAL_PRINTER_NAME} was removed.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Virtual Printer Setup", str(exc))
 
     def _picture_job_queued(self, _job: dict) -> None:
         self.refresh_jobs()
@@ -904,6 +979,9 @@ class PrinterAgentDashboard(QDialog):
 class TrayAgent:
     def __init__(self, app: QApplication):
         self.app = app
+        self.virtual_bridge = VirtualPrinterBridge(load_agent_config)
+        self.virtual_bridge.start()
+        app.aboutToQuit.connect(self.virtual_bridge.stop)
         self.tray = QSystemTrayIcon(_icon(), app)
         self.tray.setToolTip("KAY Printer Agent · Starting")
         menu = QMenu()
@@ -939,7 +1017,9 @@ class TrayAgent:
 
     def open_manager(self, refresh: bool = True):
         if self.dashboard is None:
-            self.dashboard = PrinterAgentDashboard(tray_icon=self.tray)
+            self.dashboard = PrinterAgentDashboard(
+                tray_icon=self.tray, virtual_bridge=self.virtual_bridge
+            )
         if self.dashboard.isMinimized():
             self.dashboard.showNormal()
         else:

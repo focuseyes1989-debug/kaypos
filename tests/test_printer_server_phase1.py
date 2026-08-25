@@ -179,7 +179,7 @@ class PrinterServerPhase1Tests(unittest.TestCase):
 
     def test_phase3_document_formats_enter_the_same_queue(self):
         self._register_queue_printer()
-        for index, job_type in enumerate(("pdf", "image", "text_receipt", "escpos_raw"), start=1):
+        for index, job_type in enumerate(("pdf", "image", "text_receipt", "escpos_raw", "raw"), start=1):
             job = self.registry.create_job(
                 f"phase3-format-request-{index}",
                 "agent-queue-01",
@@ -190,7 +190,7 @@ class PrinterServerPhase1Tests(unittest.TestCase):
             )
             self.assertEqual(job["job_type"], job_type)
             self.assertEqual(job["copies"], 2)
-        self.assertEqual(len(self.registry.pending_jobs("agent-queue-01", 10)), 4)
+        self.assertEqual(len(self.registry.pending_jobs("agent-queue-01", 10)), 5)
 
 
 if __name__ == "__main__":
