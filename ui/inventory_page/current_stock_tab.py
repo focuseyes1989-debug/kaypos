@@ -145,8 +145,8 @@ class CurrentStockTab(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         self.load_categories()
+        self.retranslateUi(refresh=False)
         self.refresh()
-        self.retranslateUi()
 
     def _centered_cell_widget(self, widget):
         container = QWidget()
@@ -791,7 +791,7 @@ class CurrentStockTab(QWidget):
         except:
             return "en"
 
-    def retranslateUi(self):
+    def retranslateUi(self, refresh=True):
         lang = self.get_lang()
         
         # Update SearchWidget placeholder
@@ -826,9 +826,9 @@ class CurrentStockTab(QWidget):
         # ✅ Update button icons
         self._update_button_icons()
         
-        self.load_data()
+        if refresh:
+            self.load_data()
     
     def showEvent(self, event):
-        """Handle show event - refresh data"""
-        self.load_data()
+        """Rendering is refreshed by InventoryPage when this tab is selected."""
         super().showEvent(event)

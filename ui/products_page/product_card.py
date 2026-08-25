@@ -70,21 +70,12 @@ class ProductCards(QWidget):
         cursor = conn.cursor()
 
         try:
-            # Debug: Show all products with cost and stock
-            cursor.execute("SELECT id, name, cost, stock, sold_by FROM products")
-            all_products = cursor.fetchall()
-            logger.debug("=== All Products for Total Cost ===")
-            total_cost_sum = 0
-            for p in all_products:
-                cost_val = p[2] if p[2] is not None else 0
-                stock_val = p[3] if p[3] is not None else 0
-                sold_by = p[4] if p[4] else "Each"
-                if sold_by != "Service":
-                    product_total = cost_val * stock_val
-                    total_cost_sum += product_total
-                    logger.debug(f"Product: {p[1]}, Cost: {cost_val}, Stock: {stock_val}, Total: {product_total}")
-            
-            logger.debug(f"Total Cost calculated: {total_cost_sum}")
+            cursor.execute("""
+                SELECT COALESCE(SUM(COALESCE(cost, 0) * COALESCE(stock, 0)), 0)
+                FROM products
+                WHERE sold_by IS NULL OR sold_by != 'Service'
+            """)
+            total_cost_sum = cursor.fetchone()[0] or 0
             self.cards["total_cost"].setText(format_money(total_cost_sum, symbol))
 
             # Out of Stock

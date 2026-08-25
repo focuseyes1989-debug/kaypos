@@ -1,5 +1,5 @@
 # ui/inventory_page/inventory_tabs.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QFileDialog, QMessageBox, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QHBoxLayout, QFileDialog, QMessageBox, QFrame, QLabel
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from models.database import connect_db
@@ -27,6 +27,7 @@ class InventoryPage(QWidget):
     def __init__(self, user_role=None, parent=None):
         super().__init__(parent)
         self.user_role = user_role
+        self._initializing = True
         
         # ✅ Tab names for retranslation
         self.tab_names = {
@@ -89,21 +90,29 @@ class InventoryPage(QWidget):
         self.tabs.setDocumentMode(True)
 
         self.current_stock_tab = CurrentStockTab(self)
-        self.low_stock_tab = LowStockTab(self)
-        self.suppliers_tab = SuppliersTab(self)
-        self.purchase_history_tab = PurchaseHistoryTab(self)
-        self.expiry_tab = ExpiryTab(self)
-        self.logs_tab = LogsTab(self)
-        self.stock_by_location_tab = StockByLocationTab(self)
+        self.low_stock_tab = None
+        self.suppliers_tab = None
+        self.purchase_history_tab = None
+        self.expiry_tab = None
+        self.logs_tab = None
+        self.stock_by_location_tab = None
+        self._tab_attributes = {
+            0: "current_stock_tab", 1: "low_stock_tab", 2: "suppliers_tab",
+            3: "purchase_history_tab", 4: "expiry_tab", 5: "logs_tab",
+            6: "stock_by_location_tab",
+        }
+        self._tab_factories = {
+            1: LowStockTab, 2: SuppliersTab, 3: PurchaseHistoryTab,
+            4: ExpiryTab, 5: LogsTab, 6: StockByLocationTab,
+        }
 
         # ✅ Add tabs with colored icons
         self.tabs.addTab(self.current_stock_tab, self._load_colored_tab_icon(0), self.tab_names[0])
-        self.tabs.addTab(self.low_stock_tab, self._load_colored_tab_icon(1), self.tab_names[1])
-        self.tabs.addTab(self.suppliers_tab, self._load_colored_tab_icon(2), self.tab_names[2])
-        self.tabs.addTab(self.purchase_history_tab, self._load_colored_tab_icon(3), self.tab_names[3])
-        self.tabs.addTab(self.expiry_tab, self._load_colored_tab_icon(4), self.tab_names[4])
-        self.tabs.addTab(self.logs_tab, self._load_colored_tab_icon(5), self.tab_names[5])
-        self.tabs.addTab(self.stock_by_location_tab, self._load_colored_tab_icon(6), self.tab_names[6])
+        for index in range(1, 7):
+            placeholder = QLabel("This tab will load when selected.")
+            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            placeholder.setObjectName("inventoryTabPlaceholder")
+            self.tabs.addTab(placeholder, self._load_colored_tab_icon(index), self.tab_names[index])
 
         # ✅ Apply tab bar style for dark theme
         self._apply_tab_bar_style()
@@ -117,6 +126,7 @@ class InventoryPage(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         self.retranslateUi()
+        self._initializing = False
 
     def _on_theme_changed(self, theme_name):
         """Handle theme change - update tab bar style and icons"""
@@ -245,22 +255,34 @@ class InventoryPage(QWidget):
         dialog.exec()
 
     def on_tab_changed(self, index):
-        if index == 0:
-            self.current_stock_tab.refresh()
-        elif index == 1:
-            self.low_stock_tab.refresh()
-        elif index == 2:
-            self.suppliers_tab.refresh()
-        elif index == 3:
-            self.purchase_history_tab.refresh()
-        elif index == 4:
-            self.expiry_tab.refresh()
-        elif index == 5:
-            self.logs_tab.refresh()
-        elif index == 6:
-            self.stock_by_location_tab.refresh()
+        widget, created = self._ensure_tab_loaded(index)
+        if widget is not None and not created and hasattr(widget, "refresh"):
+            widget.refresh()
 
-    def retranslateUi(self):
+    def _ensure_tab_loaded(self, index):
+        attribute = self._tab_attributes.get(index)
+        if attribute is None:
+            return None, False
+        widget = getattr(self, attribute, None)
+        if widget is not None:
+            return widget, False
+        factory = self._tab_factories.get(index)
+        if factory is None:
+            return None, False
+        widget = factory(self)
+        old_widget = self.tabs.widget(index)
+        self.tabs.blockSignals(True)
+        self.tabs.removeTab(index)
+        self.tabs.insertTab(index, widget, self._load_colored_tab_icon(index), self.tab_names[index])
+        self.tabs.setCurrentIndex(index)
+        self.tabs.blockSignals(False)
+        if old_widget is not None:
+            old_widget.deleteLater()
+        setattr(self, attribute, widget)
+        self.retranslateUi(refresh=False)
+        return widget, True
+
+    def retranslateUi(self, refresh=True):
         lang = self.get_lang()
         
         # ✅ Tab titles with Myanmar translation
@@ -294,37 +316,23 @@ class InventoryPage(QWidget):
         # ✅ Update tab icons color for language change
         self._update_tab_icons_color()
         
-        self.refresh_all()
+        if refresh and not self._initializing:
+            self.refresh_all()
 
     def refresh_all(self):
-        self.current_stock_tab.refresh()
-        self.low_stock_tab.refresh()
-        self.suppliers_tab.refresh()
-        self.purchase_history_tab.refresh()
-        self.expiry_tab.refresh()
-        self.logs_tab.refresh()
-        self.stock_by_location_tab.refresh()
+        for attribute in self._tab_attributes.values():
+            widget = getattr(self, attribute, None)
+            if widget is not None and hasattr(widget, "refresh"):
+                widget.refresh()
         main_window = self.window()
         if hasattr(main_window, 'check_stock_alerts'):
             main_window.check_stock_alerts()
 
     def export_to_excel(self):
         current_tab = self.tabs.currentIndex()
-        
-        if current_tab == 0:
-            self.current_stock_tab.export_to_excel()
-        elif current_tab == 1:
-            self.low_stock_tab.export_to_excel()
-        elif current_tab == 2:
-            self.suppliers_tab.export_to_excel()
-        elif current_tab == 3:
-            self.purchase_history_tab.export_to_excel()
-        elif current_tab == 4:
-            self.expiry_tab.export_to_excel()
-        elif current_tab == 5:
-            self.logs_tab.export_to_excel()
-        elif current_tab == 6:
-            self.stock_by_location_tab.export_to_excel()
+        widget, _created = self._ensure_tab_loaded(current_tab)
+        if widget is not None and hasattr(widget, "export_to_excel"):
+            widget.export_to_excel()
     
     def showEvent(self, event):
         """✅ Update tab icons when shown"""

@@ -11,7 +11,6 @@ from ui.products_page.product_card import ProductCards
 from ui.products_page.product_table import ProductTable
 from ui.products_page.product_service import ProductService
 from ui.products_page.product_form_dialog import ProductFormDialog
-from ui.products_page.product_ai_chat_panel import ProductAIChatDialog
 from ui.products_page.manage_category_groups_dialog import ManageCategoryGroupsDialog
 from ui.print_barcode_dialog import PrintBarcodeDialog
 from utils.language import lang
@@ -125,17 +124,6 @@ class ProductsPage(QWidget):
         self.table.service_selected.connect(self.on_service_selected)
         main_layout.addWidget(self.table, 1)
 
-        self.ai_chat_dialog = ProductAIChatDialog(
-            self,
-            user_id=self.user_id,
-            can_view_sensitive=self._can_view_sensitive_ai_data(),
-        )
-        self.ai_chat_panel = self.ai_chat_dialog.panel
-        self.ai_chat_panel.product_action_requested.connect(self._handle_ai_product_action)
-        self.ai_chat_panel.audit_event.connect(self._handle_ai_audit_event)
-        self.ai_chat_dialog.visibility_changed.connect(self._on_ai_dialog_visibility_changed)
-        self.ai_chat_dialog.hide()
-
         # Bottom bar: Export Buttons (Excel + CSV)
         bottom_layout = QHBoxLayout()
         bottom_layout.setSpacing(6)  # âœ… Spacing á€€á€­á€¯ á€œá€»á€¾á€±á€¬á€·á€á€»á€œá€­á€¯á€€á€ºá€•á€«
@@ -177,6 +165,7 @@ class ProductsPage(QWidget):
 
     def toggle_ai_chat(self):
         """Show or hide the floating Products AI assistant."""
+        self._ensure_ai_chat()
         if self.ai_chat_dialog.isVisible():
             self.hide_ai_chat()
             return
@@ -186,8 +175,25 @@ class ProductsPage(QWidget):
         self.ai_chat_dialog.activateWindow()
         self.ai_chat_panel.chat.input_field.setFocus()
 
-    def hide_ai_chat(self):
+    def _ensure_ai_chat(self):
+        if hasattr(self, "ai_chat_dialog"):
+            return
+        from ui.products_page.product_ai_chat_panel import ProductAIChatDialog
+        self.ai_chat_dialog = ProductAIChatDialog(
+            self,
+            user_id=self.user_id,
+            can_view_sensitive=self._can_view_sensitive_ai_data(),
+        )
+        self.ai_chat_panel = self.ai_chat_dialog.panel
+        self.ai_chat_panel.product_action_requested.connect(self._handle_ai_product_action)
+        self.ai_chat_panel.audit_event.connect(self._handle_ai_audit_event)
+        self.ai_chat_dialog.visibility_changed.connect(self._on_ai_dialog_visibility_changed)
         self.ai_chat_dialog.hide()
+        self._sync_ai_context()
+
+    def hide_ai_chat(self):
+        if hasattr(self, "ai_chat_dialog"):
+            self.ai_chat_dialog.hide()
 
     def _on_ai_dialog_visibility_changed(self, visible):
         self.btn_ai_chat.setText(" Hide AI" if visible else " AI Assistant")
@@ -256,7 +262,7 @@ class ProductsPage(QWidget):
             if not PermissionManager.user_has_permission(self.user_id, Permission.VIEW_AI_PAGES):
                 self.btn_ai_chat.setEnabled(False)
                 self.btn_ai_chat.setToolTip("You don't have permission to use AI features")
-                self.ai_chat_dialog.hide()
+                self.hide_ai_chat()
 
     def _can_view_sensitive_ai_data(self):
         if not self.user_id:
