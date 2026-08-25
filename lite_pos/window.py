@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 from collections.abc import Callable
 
 from PyQt6.QtCore import QMarginsF, QObject, QPointF, QRectF, QSizeF, QThread, QTimer, Qt, pyqtSignal
@@ -18,6 +19,44 @@ from PyQt6.QtWidgets import (
 from lite_pos.api import LiteApiClient
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
+
+
+def open_local_cash_drawer(printer_name: str) -> None:
+    """Send the ESC/POS drawer pulse through a printer installed on this PC."""
+    printer_name = str(printer_name or "").strip()
+    if not printer_name:
+        raise ValueError("Select a local receipt printer first.")
+    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
+
+    class DOC_INFO_1(ctypes.Structure):
+        _fields_ = [
+            ("pDocName", ctypes.c_wchar_p),
+            ("pOutputFile", ctypes.c_wchar_p),
+            ("pDatatype", ctypes.c_wchar_p),
+        ]
+
+    handle = ctypes.c_void_p()
+    if not winspool.OpenPrinterW(ctypes.c_wchar_p(printer_name), ctypes.byref(handle), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        info = DOC_INFO_1("KAY POS Lite - Open Cash Drawer", None, "RAW")
+        if not winspool.StartDocPrinterW(handle, 1, ctypes.byref(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            if not winspool.StartPagePrinter(handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                command = b"\x1b\x70\x00\x19\xfa"
+                written = ctypes.c_ulong(0)
+                buffer = ctypes.create_string_buffer(command)
+                if not winspool.WritePrinter(handle, buffer, len(command), ctypes.byref(written)):
+                    raise ctypes.WinError(ctypes.get_last_error())
+            finally:
+                winspool.EndPagePrinter(handle)
+        finally:
+            winspool.EndDocPrinter(handle)
+    finally:
+        winspool.ClosePrinter(handle)
 
 
 class QPushButton(QtPushButton):
@@ -182,9 +221,17 @@ class ReceiptDialog(QDialog):
 
     def print_receipt(self) -> None:
         from PyQt6.QtGui import QTextDocument
-        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
+        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
 
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        saved_name = load_config().get("receipt_printer_name") or ""
+        saved_info = next(
+            (info for info in QPrinterInfo.availablePrinters() if info.printerName() == saved_name),
+            None,
+        )
+        printer = (
+            QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
+            if saved_info is not None else QPrinter(QPrinter.PrinterMode.HighResolution)
+        )
         # GA-E200I is an 80 mm roll printer. Give the Windows dialog a compact
         # initial receipt page instead of inheriting an A4/very-long roll page.
         initial_page = QPageSize(
@@ -275,6 +322,7 @@ class LiteWindow(QMainWindow):
         self._shortcuts = []
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
+        self._add_shortcut("Ctrl+Shift+P", self.configure_receipt_printer)
 
     def _add_shortcut(self, sequence: str, callback: Callable) -> None:
         shortcut = QShortcut(QKeySequence(sequence), self)
@@ -623,10 +671,14 @@ class LiteWindow(QMainWindow):
         self.print_receipt_button.setToolTip("Print the last receipt (Ctrl+P)")
         self.print_receipt_button.clicked.connect(self.print_last_receipt)
         self.cash_drawer_button = QPushButton("Cash Drawer")
-        self.cash_drawer_button.setToolTip("Open cash drawer on Server PC (Ctrl+Shift+D)")
+        self.cash_drawer_button.setToolTip("Open the drawer through this PC's receipt printer (Ctrl+Shift+D)")
         self.cash_drawer_button.clicked.connect(self.open_cash_drawer)
+        printer_setup = QPushButton("Printer…")
+        printer_setup.setToolTip("Select local receipt printer (Ctrl+Shift+P)")
+        printer_setup.clicked.connect(self.configure_receipt_printer)
         receipt_actions.addWidget(self.print_receipt_button)
         receipt_actions.addWidget(self.cash_drawer_button)
+        receipt_actions.addWidget(printer_setup)
         cart_layout.addLayout(receipt_actions)
         body.addWidget(cart_panel, 2)
         outer.addLayout(body, 1)
@@ -976,17 +1028,18 @@ class LiteWindow(QMainWindow):
         ReceiptDialog(self.last_receipt, self).print_receipt()
 
     def open_cash_drawer(self) -> None:
-        if not self.api:
-            QMessageBox.information(self, "Cash Drawer", "Sign in to the POS server first.")
-            return
         if self._threads:
             return
+        printer_name = str(load_config().get("receipt_printer_name") or "")
+        if not printer_name:
+            printer_name = self.configure_receipt_printer()
+            if not printer_name:
+                return
         self.cash_drawer_button.setEnabled(False)
         self.statusBar().showMessage("Opening cash drawer…")
 
-        def opened(result):
+        def opened(_result):
             self.cash_drawer_button.setEnabled(True)
-            printer_name = result.get("printer_name") or "receipt printer"
             self.statusBar().showMessage(f"Cash drawer opened · {printer_name}")
 
         def failed(error):
@@ -994,7 +1047,28 @@ class LiteWindow(QMainWindow):
             self.statusBar().showMessage("Could not open cash drawer")
             QMessageBox.warning(self, "Cash Drawer", error)
 
-        self._run_task(self.api.open_cash_drawer, opened, failed)
+        self._run_task(lambda: open_local_cash_drawer(printer_name), opened, failed)
+
+    def configure_receipt_printer(self) -> str:
+        from PyQt6.QtPrintSupport import QPrinterInfo
+
+        names = QPrinterInfo.availablePrinterNames()
+        if not names:
+            QMessageBox.warning(
+                self, "Receipt Printer",
+                "No Windows printers are installed on this PC. Install the GA-E200I driver first.",
+            )
+            return ""
+        current = str(load_config().get("receipt_printer_name") or "")
+        current_index = names.index(current) if current in names else 0
+        selected, accepted = QInputDialog.getItem(
+            self, "Local Receipt Printer", "Printer:", names, current_index, False,
+        )
+        if not accepted or not selected:
+            return ""
+        save_config({"receipt_printer_name": selected})
+        self.statusBar().showMessage(f"Local receipt printer · {selected}")
+        return str(selected)
 
     def open_sales_history(self) -> None:
         self.workspace_stack.setCurrentWidget(self.history_page)

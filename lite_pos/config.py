@@ -26,6 +26,7 @@ def load_config(path: Path | None = None) -> dict:
         # KAY Server Manager generates a self-signed LAN certificate by default.
         "insecure_tls": bool(data.get("insecure_tls", True)),
         "remember_username": str(data.get("remember_username") or ""),
+        "receipt_printer_name": str(data.get("receipt_printer_name") or "").strip(),
     }
 
 

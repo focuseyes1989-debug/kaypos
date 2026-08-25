@@ -19,7 +19,8 @@ KAY POS Lite is the low-end Windows client for the existing KAY POS Server and P
 ## Receipt and cash drawer shortcuts
 
 - `Ctrl+P`: print the latest completed or viewed receipt.
-- `Ctrl+Shift+D`: open the cash drawer through the receipt printer configured on the Server PC.
+- `Ctrl+Shift+D`: open the cash drawer through the receipt printer installed on the POS Lite client PC.
+- `Ctrl+Shift+P`: select the local receipt printer used for receipt printing and the cash drawer.
 
 ## Deployment note
 

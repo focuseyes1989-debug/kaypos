@@ -28,8 +28,10 @@ class PosLitePhase1Tests(unittest.TestCase):
                 "server_url": "https://192.168.1.10:8000",
                 "insecure_tls": True,
                 "remember_username": "cashier",
+                "receipt_printer_name": "GA-E200I",
             }, path)
             self.assertEqual(load_config(path), saved)
+            self.assertEqual(saved["receipt_printer_name"], "GA-E200I")
 
     @patch("lite_pos.api.requests.Session.request")
     def test_login_stores_token_and_me_uses_bearer_auth(self, request):
@@ -118,18 +120,6 @@ class PosLitePhase1Tests(unittest.TestCase):
         payload = request.call_args.kwargs["json"]
         self.assertEqual(payload["items"][0]["variant_id"], 12)
         self.assertEqual(payload["payment"], 10000)
-
-    @patch("lite_pos.api.requests.Session.request")
-    def test_cash_drawer_uses_authenticated_server_endpoint(self, request):
-        response = unittest.mock.Mock(ok=True)
-        response.json.return_value = {"status": "opened", "printer_name": "GA-E200I"}
-        request.return_value = response
-        client = LiteApiClient("https://server:8000")
-        client.token = "token"
-        result = client.open_cash_drawer()
-        self.assertEqual(result["status"], "opened")
-        self.assertTrue(request.call_args.args[1].endswith("/api/cashdrawer/open"))
-        self.assertEqual(request.call_args.args[0], "POST")
 
     def test_checkout_dialog_calculates_change(self):
         dialog = CheckoutDialog(7500)
