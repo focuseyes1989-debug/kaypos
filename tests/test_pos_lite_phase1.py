@@ -3,15 +3,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEventLoop, QTimer
-from PyQt6.QtGui import QPalette
-from PyQt6.QtWidgets import QApplication, QPushButton as QtPushButton
+from PyQt6.QtCore import QDate, QEventLoop, QSize, QTimer
+from PyQt6.QtGui import QPalette, QPixmap
+from PyQt6.QtWidgets import QApplication, QPushButton as QtPushButton, QTableWidgetItem
 
 from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CheckoutDialog, LiteWindow, ReceiptDialog
+from lite_pos.window import CheckoutDialog, ExpenseDialog, LiteWindow, ReceiptDialog
 
 
 class PosLitePhase1Tests(unittest.TestCase):
@@ -127,6 +127,31 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(dialog.change_label.text(), "2,500 Ks")
         dialog.close()
 
+    def test_expense_dialog_returns_server_payload(self):
+        dialog = ExpenseDialog(["Transport", "Utilities"])
+        dialog.category.setCurrentText("Transport")
+        dialog.description.setText("Delivery")
+        dialog.amount.setValue(3500)
+        dialog.date.setDate(QDate(2026, 8, 25))
+        values = dialog.values()
+        self.assertEqual(values["category"], "Transport")
+        self.assertEqual(values["amount"], 3500)
+        self.assertEqual(values["expense_date"], "2026-08-25")
+        dialog.close()
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_expense_api_lists_and_adds_expenses(self, request):
+        list_response = unittest.mock.Mock(ok=True)
+        list_response.json.return_value = {"expenses": [{"id": 1}], "total": 3500}
+        add_response = unittest.mock.Mock(ok=True)
+        add_response.json.return_value = {"expense": {"id": 2, "expense_no": "EXP-2"}}
+        request.side_effect = [list_response, add_response]
+        client = LiteApiClient("https://server:8000")
+        client.token = "token"
+        self.assertEqual(client.expenses(from_date="2026-08-01", to_date="2026-08-31")["total"], 3500)
+        saved = client.add_expense({"category": "Transport", "amount": 1000})
+        self.assertEqual(saved["expense_no"], "EXP-2")
+
     def test_completed_receipt_detail_has_refund_button(self):
         callback = unittest.mock.Mock()
         dialog = ReceiptDialog(
@@ -172,6 +197,37 @@ class PosLitePhase1Tests(unittest.TestCase):
         from lite_pos.window import QPushButton as CenteredButton
         self.assertGreater(len(window.findChildren(CenteredButton)), 10)
         self.assertTrue(all(button.styleSheet() == "" for button in window.findChildren(CenteredButton)))
+        window.close()
+
+    def test_sidebar_tracks_the_active_workspace_page(self):
+        window = LiteWindow()
+        self.assertTrue(window.nav_buttons["Dashboard"].isChecked())
+        window._activate_workspace("Expenses")
+        self.assertIs(window.workspace_stack.currentWidget(), window.expense_page)
+        self.assertTrue(window.nav_buttons["Expenses"].isChecked())
+        self.assertFalse(window.nav_buttons["Dashboard"].isChecked())
+        window.workspace_stack.setCurrentWidget(window.pos_page)
+        self.assertTrue(window.nav_buttons["Point of Sale"].isChecked())
+        window.close()
+
+    def test_product_table_has_lazy_thumbnail_column(self):
+        window = LiteWindow()
+        self.assertEqual(window.product_table.columnCount(), 6)
+        self.assertEqual(window.product_table.horizontalHeaderItem(0).text(), "Image")
+        self.assertEqual(window.product_page_size, 50)
+        self.assertEqual(window.product_table.iconSize(), QSize(44, 40))
+        window.close()
+
+    def test_thumbnail_updates_reuse_the_owned_table_item(self):
+        window = LiteWindow()
+        window.products = [{"id": 7}]
+        window.product_table.setRowCount(1)
+        item = QTableWidgetItem()
+        window.product_table.setItem(0, 0, item)
+        pixmap = QPixmap(4, 4)
+        window._apply_product_thumbnail(7, pixmap)
+        window._apply_product_thumbnail(7, pixmap)
+        self.assertIs(window.product_table.item(0, 0), item)
         window.close()
 
     def test_lite_uses_classic_windows_qt_style(self):

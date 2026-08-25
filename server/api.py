@@ -812,6 +812,18 @@ def expense_categories(_: Dict[str, Any] = Depends(current_user)):
     return {"categories": cashier_service.list_expense_categories()}
 
 
+@app.get("/api/expenses")
+def expenses(
+    q: str = Query(default="", max_length=200),
+    from_date: str = Query(default="", max_length=10),
+    to_date: str = Query(default="", max_length=10),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: Dict[str, Any] = Depends(current_user),
+):
+    return cashier_service.list_expenses(q, from_date, to_date, limit, offset)
+
+
 @app.post("/api/expenses")
 def add_expense(payload: ExpenseRequest, user: Dict[str, Any] = Depends(current_user)):
     try:

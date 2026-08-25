@@ -96,6 +96,21 @@ class LiteApiClient:
     def payment_types(self) -> list[str]:
         return list(self._request("GET", "/api/payment-types").get("payment_types") or ["Cash"])
 
+    def expense_categories(self) -> list[str]:
+        return list(self._request("GET", "/api/expenses/categories").get("categories") or [])
+
+    def expenses(
+        self, query: str = "", from_date: str = "", to_date: str = "",
+        limit: int = 100, offset: int = 0,
+    ) -> dict:
+        return self._request("GET", "/api/expenses", params={
+            "q": query.strip(), "from_date": from_date, "to_date": to_date,
+            "limit": max(1, min(limit, 200)), "offset": max(0, offset),
+        })
+
+    def add_expense(self, values: dict) -> dict:
+        return dict(self._request("POST", "/api/expenses", json=values).get("expense") or {})
+
     def checkout(self, items: list[dict], payment: float, payment_type: str = "Cash") -> dict:
         payload = self._request(
             "POST", "/api/sales",

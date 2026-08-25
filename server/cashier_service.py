@@ -1970,6 +1970,51 @@ def list_expense_categories() -> List[str]:
         conn.close()
 
 
+def list_expenses(
+    search: str = "", from_date: str = "", to_date: str = "",
+    limit: int = 100, offset: int = 0,
+) -> Dict[str, Any]:
+    """Return a compact filtered expense page and its matching total."""
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        where = []
+        params: List[Any] = []
+        if search.strip():
+            pattern = f"%{search.strip()}%"
+            where.append(
+                "(LOWER(COALESCE(category, '')) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(description, '')) LIKE LOWER(?) OR "
+                "LOWER(COALESCE(reference_no, '')) LIKE LOWER(?))"
+            )
+            params.extend([pattern, pattern, pattern])
+        if from_date:
+            where.append("expense_date >= ?")
+            params.append(from_date)
+        if to_date:
+            where.append("expense_date <= ?")
+            params.append(to_date)
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+        cursor.execute(f"SELECT COALESCE(SUM(amount), 0) FROM expenses {where_sql}", params)
+        total = float(cursor.fetchone()[0] or 0)
+        query_params = [*params, max(1, min(int(limit), 200)), max(0, int(offset))]
+        cursor.execute(
+            f"""
+            SELECT id, expense_no, expense_date, category, description, amount,
+                   payment_method, reference_no, notes, created_by
+            FROM expenses
+            {where_sql}
+            ORDER BY expense_date DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            query_params,
+        )
+        rows = [_dict_from_row(cursor, row) for row in cursor.fetchall()]
+        return {"expenses": rows, "total": total}
+    finally:
+        conn.close()
+
+
 def add_expense(
     *,
     category: str,

@@ -511,6 +511,15 @@ class CustomerLedgerDialog(QDialog):
         """Load complete ledger with all transaction types"""
         from_date = self.date_range_widget.get_from_date()
         to_date = self.date_range_widget.get_to_date()
+        # Treat the selected end date as an inclusive calendar day. Ledger
+        # timestamps include a time component, so comparing them directly to
+        # ``YYYY-MM-DD`` would otherwise exclude every transaction after
+        # midnight on the final day.
+        to_date_exclusive = (
+            QDate.fromString(to_date, "yyyy-MM-dd")
+            .addDays(1)
+            .toString("yyyy-MM-dd")
+        )
         
         symbol = get_currency_symbol()
         type_filter = self.type_filter.currentText()
@@ -569,7 +578,7 @@ class CustomerLedgerDialog(QDialog):
                     'sale' as category
                 FROM credit_sales cs
                 WHERE cs.customer_id = ?
-                  AND cs.sale_date BETWEEN ? AND ?
+                  AND cs.sale_date >= ? AND cs.sale_date < ?
                   AND COALESCE(cs.status, '') != 'refunded'
             """
             
@@ -586,7 +595,7 @@ class CustomerLedgerDialog(QDialog):
                     'payment' as category
                 FROM credit_payments cp
                 WHERE cp.customer_id = ?
-                  AND cp.payment_date BETWEEN ? AND ?
+                  AND cp.payment_date >= ? AND cp.payment_date < ?
             """
             
             # Query: Refunds
@@ -602,7 +611,7 @@ class CustomerLedgerDialog(QDialog):
                     'refund' as category
                 FROM credit_sales cs
                 WHERE cs.customer_id = ?
-                  AND cs.sale_date BETWEEN ? AND ?
+                  AND cs.sale_date >= ? AND cs.sale_date < ?
                   AND cs.status = 'refunded'
             """
             
@@ -634,7 +643,7 @@ class CustomerLedgerDialog(QDialog):
                                 'adjustment' as category
                             FROM credit_adjustments
                             WHERE customer_id = ?
-                              AND {date_col} BETWEEN ? AND ?
+                              AND {date_col} >= ? AND {date_col} < ?
                         """
                         has_adjustments = True
                     else:
@@ -674,7 +683,7 @@ class CustomerLedgerDialog(QDialog):
                                 'writeoff' as category
                             FROM credit_writeoffs
                             WHERE customer_id = ?
-                              AND {date_col} BETWEEN ? AND ?
+                              AND {date_col} >= ? AND {date_col} < ?
                         """
                         has_writeoffs = True
                     else:
@@ -691,7 +700,7 @@ class CustomerLedgerDialog(QDialog):
             entries = []
 
             # Get sales
-            cursor.execute(sales_query, (self.customer_id, from_date, to_date))
+            cursor.execute(sales_query, (self.customer_id, from_date, to_date_exclusive))
             for row in cursor.fetchall():
                 entries.append({
                     'date': row[0],
@@ -705,7 +714,7 @@ class CustomerLedgerDialog(QDialog):
                 })
 
             # Get payments
-            cursor.execute(payments_query, (self.customer_id, from_date, to_date))
+            cursor.execute(payments_query, (self.customer_id, from_date, to_date_exclusive))
             for row in cursor.fetchall():
                 entries.append({
                     'date': row[0],
@@ -719,7 +728,7 @@ class CustomerLedgerDialog(QDialog):
                 })
 
             # Get refunds
-            cursor.execute(refunds_query, (self.customer_id, from_date, to_date))
+            cursor.execute(refunds_query, (self.customer_id, from_date, to_date_exclusive))
             for row in cursor.fetchall():
                 entries.append({
                     'date': row[0],
@@ -734,7 +743,7 @@ class CustomerLedgerDialog(QDialog):
 
             # Get adjustments
             if has_adjustments:
-                cursor.execute(adjustments_query, (self.customer_id, from_date, to_date))
+                cursor.execute(adjustments_query, (self.customer_id, from_date, to_date_exclusive))
                 for row in cursor.fetchall():
                     entries.append({
                         'date': row[0],
@@ -749,7 +758,7 @@ class CustomerLedgerDialog(QDialog):
 
             # Get write-offs
             if has_writeoffs:
-                cursor.execute(writeoffs_query, (self.customer_id, from_date, to_date))
+                cursor.execute(writeoffs_query, (self.customer_id, from_date, to_date_exclusive))
                 for row in cursor.fetchall():
                     entries.append({
                         'date': row[0],
