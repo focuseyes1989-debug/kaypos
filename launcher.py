@@ -56,10 +56,10 @@ class AppDefinition:
 
 
 APPLICATIONS = (
-    AppDefinition("pos", "KAY POS", "Point of Sale", "Sales, inventory, reports and daily business operations.", ("main.py",), ("ZAY_POS.exe", "KAY_POS.exe"), "#6675f5", "P", "pos-system.png"),
-    AppDefinition("car", "Car Management", "Vehicle Service", "Register vehicles and drivers, prepare forms and manage QR print requests.", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
-    AppDefinition("server", "Server Manager", "Services & Database", "Start browser services, monitor PostgreSQL and manage server connectivity.", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
-    AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "Manage network printers, print documents and process secure print jobs.", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
+    AppDefinition("pos", "KAY POS", "Point of Sale", "ကုန်ပစ္စည်းစာရင်းများ၊ အရောင်း၊ အဝယ်၊ ကုန်ကျစရိတ်များနှင့် နေ့စဉ်လုပ်ငန်းများကို လွယ်ကူစွာ စီမံပါ။", ("main.py",), ("ZAY_POS.exe", "KAY_POS.exe"), "#6675f5", "P", "pos-system.png"),
+    AppDefinition("car", "Car Management", "Vehicle Service", "ယာဉ်နှင့် ယာဉ်မောင်းများ မှတ်ပုံတင်ခြင်း၊ ဖောင်များပြင်ဆင်ခြင်းနှင့် QR ပရင့်တောင်းဆိုမှုများကို စီမံပါ။", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
+    AppDefinition("server", "Server Manager", "Services & Database", "ဘရောက်ဇာဝန်ဆောင်မှုများ စတင်ခြင်း၊ PostgreSQL စောင့်ကြည့်ခြင်းနှင့် ဆာဗာချိတ်ဆက်မှုကို စီမံပါ။", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
+    AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "ကွန်ရက်ပရင်တာများ၊ စာရွက်စာတမ်းပရင့်ထုတ်ခြင်းနှင့် လုံခြုံသောပရင့်အလုပ်များကို စီမံပါ။", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
 )
 
 STYLE = """
@@ -227,6 +227,8 @@ class AppCard(QFrame):
         description = QLabel(definition.description)
         description.setObjectName("description")
         description.setWordWrap(True)
+        description.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        description.setMinimumHeight(66)
         body.addWidget(title)
         body.addWidget(subtitle)
         body.addSpacing(3)
@@ -360,7 +362,7 @@ class LauncherWindow(QMainWindow):
         eyebrow.setObjectName("eyebrow")
         title = QLabel("Choose an application")
         title.setObjectName("pageTitle")
-        hint = QLabel("Launch and monitor the tools used across your KAY business system.")
+        hint = QLabel("KAY Application Suite က သင့်လုပ်ငန်းကို ပိုမိုမြန်ဆန်စေမှာပါ")
         hint.setObjectName("muted")
         heading.addWidget(eyebrow)
         heading.addWidget(title)

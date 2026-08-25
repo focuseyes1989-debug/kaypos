@@ -160,7 +160,7 @@ def can_bind_port(host: str, port: int) -> bool:
 class ServerManagerWindow(QMainWindow):
     def __init__(self, auto_start=None) -> None:
         super().__init__()
-        self.setWindowTitle("Kay POS Server Manager")
+        self.setWindowTitle("Server Manager")
         self.setWindowIcon(server_manager_icon())
         self.setMinimumSize(1000, 680)
         self.resize(1280, 820)
@@ -262,7 +262,7 @@ class ServerManagerWindow(QMainWindow):
         eyebrow.setObjectName("Eyebrow")
         self.page_title = QLabel("Setup")
         self.page_title.setObjectName("HeaderTitle")
-        title = QLabel("Kay POS Server Manager")
+        title = QLabel("Server Manager")
         title.setObjectName("HeaderTitle")
         subtitle = QLabel("Setup PostgreSQL, manage services, and monitor client activity from the Server PC.")
         subtitle.setObjectName("HeaderSubtitle")
@@ -1616,7 +1616,7 @@ class ServerManagerWindow(QMainWindow):
     def _setup_system_tray(self) -> None:
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(server_manager_icon())
-        self.tray_icon.setToolTip("KAY POS Server Manager")
+        self.tray_icon.setToolTip("Server Manager")
         tray_menu = QMenu(self)
         tray_menu.setObjectName("TrayMenu")
         tray_menu.setStyleSheet("""
@@ -1718,7 +1718,7 @@ class ServerManagerWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Windows Auto Start",
-                "Auto start enabled. Kay POS Server Manager is now listed in Task Manager > Startup Apps.",
+                "Auto start enabled. Server Manager is now listed in Task Manager > Startup Apps.",
             )
         except OSError as exc:
             self._set_chip(self.auto_start_status, f"Windows auto start: failed ({exc})", "bad")
@@ -2201,7 +2201,7 @@ class ServerManagerWindow(QMainWindow):
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.hide()
             self.tray_icon.showMessage(
-                "KAY POS Server Manager",
+                "Server Manager",
                 "Server Manager is still running. POS and Car services were not stopped.",
                 QSystemTrayIcon.MessageIcon.Information,
                 3000,
@@ -2231,8 +2231,8 @@ def main() -> int:
     instance_guard = SingleInstanceGuard(r"Global\KAY_POS_Server_Manager_SingleInstance_v1")
     if not instance_guard.acquire():
         show_already_running_message(
-            title="KAY POS Server Manager",
-            message="KAY POS Server Manager is already running on this computer.",
+            title="Server Manager",
+            message="Server Manager is already running on this computer.",
         )
         return 0
 
