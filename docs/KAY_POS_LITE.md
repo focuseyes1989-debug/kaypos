@@ -16,6 +16,11 @@ KAY POS Lite is the low-end Windows client for the existing KAY POS Server and P
 - HTTP connections are pooled for the authenticated session.
 - All network and PostgreSQL work runs outside the Qt UI thread.
 
+## Receipt and cash drawer shortcuts
+
+- `Ctrl+P`: print the latest completed or viewed receipt.
+- `Ctrl+Shift+D`: open the cash drawer through the receipt printer configured on the Server PC.
+
 ## Deployment note
 
 No executable build is required. Copy/update the project source and dependencies, then launch `kay_pos_lite.py`. Restart the POS Server after server API updates.

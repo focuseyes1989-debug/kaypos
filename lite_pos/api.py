@@ -110,6 +110,10 @@ class LiteApiClient:
             raise LiteApiError("Server returned an incomplete receipt.")
         return dict(receipt)
 
+    def open_cash_drawer(self) -> dict:
+        """Ask the Server PC to pulse its configured receipt-printer drawer port."""
+        return dict(self._request("POST", "/api/cashdrawer/open"))
+
     def receipts(self, query: str = "", limit: int = 50, offset: int = 0) -> list[dict]:
         payload = self._request(
             "GET", "/api/receipts",

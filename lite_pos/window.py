@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt6.QtCore import QMarginsF, QObject, QPointF, QRectF, QSizeF, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QPageLayout, QPageSize, QPainter, QPalette
+from PyQt6.QtGui import QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
     QComboBox, QDoubleSpinBox, QFrame, QHeaderView, QHBoxLayout, QLabel,
@@ -247,6 +247,7 @@ class LiteWindow(QMainWindow):
         self.products: list[dict] = []
         self.selected_category = ""
         self.receipts: list[dict] = []
+        self.last_receipt: dict = {}
         self.history_offset = 0
         self.cart = LiteCart()
         self._threads: set[QThread] = set()
@@ -271,6 +272,15 @@ class LiteWindow(QMainWindow):
         status = QStatusBar()
         self.setStatusBar(status)
         self.statusBar().showMessage("Ready")
+        self._shortcuts = []
+        self._add_shortcut("Ctrl+P", self.print_last_receipt)
+        self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
+
+    def _add_shortcut(self, sequence: str, callback: Callable) -> None:
+        shortcut = QShortcut(QKeySequence(sequence), self)
+        shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        shortcut.activated.connect(callback)
+        self._shortcuts.append(shortcut)
 
     def _build_login_page(self) -> QWidget:
         page = QWidget()
@@ -607,6 +617,17 @@ class LiteWindow(QMainWindow):
         self.checkout_button.setEnabled(False)
         self.checkout_button.clicked.connect(self.open_checkout)
         cart_layout.addWidget(self.checkout_button)
+        receipt_actions = QHBoxLayout()
+        self.print_receipt_button = QPushButton("Print Receipt")
+        self.print_receipt_button.setEnabled(False)
+        self.print_receipt_button.setToolTip("Print the last receipt (Ctrl+P)")
+        self.print_receipt_button.clicked.connect(self.print_last_receipt)
+        self.cash_drawer_button = QPushButton("Cash Drawer")
+        self.cash_drawer_button.setToolTip("Open cash drawer on Server PC (Ctrl+Shift+D)")
+        self.cash_drawer_button.clicked.connect(self.open_cash_drawer)
+        receipt_actions.addWidget(self.print_receipt_button)
+        receipt_actions.addWidget(self.cash_drawer_button)
+        cart_layout.addLayout(receipt_actions)
         body.addWidget(cart_panel, 2)
         outer.addLayout(body, 1)
         return page
@@ -934,6 +955,8 @@ class LiteWindow(QMainWindow):
             self.cart.clear()
             self.render_cart()
             self.checkout_button.setText("Checkout")
+            self.last_receipt = dict(receipt)
+            self.print_receipt_button.setEnabled(True)
             self.statusBar().showMessage(f"Sale completed · {receipt.get('invoice_no') or ''}")
             ReceiptDialog(receipt, self).exec()
             QTimer.singleShot(100, self.load_products)
@@ -945,6 +968,33 @@ class LiteWindow(QMainWindow):
             QMessageBox.critical(self, "Checkout", error)
 
         self._run_task(lambda: self.api.checkout(items, payment, payment_type), completed, failed)
+
+    def print_last_receipt(self) -> None:
+        if not self.last_receipt:
+            QMessageBox.information(self, "Print Receipt", "No completed receipt is available to print yet.")
+            return
+        ReceiptDialog(self.last_receipt, self).print_receipt()
+
+    def open_cash_drawer(self) -> None:
+        if not self.api:
+            QMessageBox.information(self, "Cash Drawer", "Sign in to the POS server first.")
+            return
+        if self._threads:
+            return
+        self.cash_drawer_button.setEnabled(False)
+        self.statusBar().showMessage("Opening cash drawer…")
+
+        def opened(result):
+            self.cash_drawer_button.setEnabled(True)
+            printer_name = result.get("printer_name") or "receipt printer"
+            self.statusBar().showMessage(f"Cash drawer opened · {printer_name}")
+
+        def failed(error):
+            self.cash_drawer_button.setEnabled(True)
+            self.statusBar().showMessage("Could not open cash drawer")
+            QMessageBox.warning(self, "Cash Drawer", error)
+
+        self._run_task(self.api.open_cash_drawer, opened, failed)
 
     def open_sales_history(self) -> None:
         self.workspace_stack.setCurrentWidget(self.history_page)
@@ -1123,6 +1173,8 @@ class LiteWindow(QMainWindow):
 
         def loaded(receipt):
             self.history_status.setText("")
+            self.last_receipt = dict(receipt)
+            self.print_receipt_button.setEnabled(True)
             ReceiptDialog(receipt, self, self.refund_receipt).exec()
 
         self._run_task(
@@ -1180,6 +1232,8 @@ class LiteWindow(QMainWindow):
         self.user = {}
         self.products = []
         self.receipts = []
+        self.last_receipt = {}
+        self.print_receipt_button.setEnabled(False)
         self.history_table.setRowCount(0)
         self.cart.clear()
         self.render_cart()
