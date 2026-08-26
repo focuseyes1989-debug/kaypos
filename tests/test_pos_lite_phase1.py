@@ -11,7 +11,7 @@ from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CheckoutDialog, ExpenseDialog, LiteWindow, ReceiptDialog
+from lite_pos.window import CheckoutDialog, ExpenseDialog, LiteWindow, ProductEditorDialog, ReceiptDialog
 
 
 class PosLitePhase1Tests(unittest.TestCase):
@@ -29,9 +29,13 @@ class PosLitePhase1Tests(unittest.TestCase):
                 "insecure_tls": True,
                 "remember_username": "cashier",
                 "receipt_printer_name": "GA-E200I",
+                "print_receipt_after_sale": True,
+                "open_cash_drawer_after_sale": True,
             }, path)
             self.assertEqual(load_config(path), saved)
             self.assertEqual(saved["receipt_printer_name"], "GA-E200I")
+            self.assertTrue(saved["print_receipt_after_sale"])
+            self.assertTrue(saved["open_cash_drawer_after_sale"])
 
     @patch("lite_pos.api.requests.Session.request")
     def test_login_stores_token_and_me_uses_bearer_auth(self, request):
@@ -125,7 +129,45 @@ class PosLitePhase1Tests(unittest.TestCase):
         dialog = CheckoutDialog(7500)
         dialog.payment.setValue(10000)
         self.assertEqual(dialog.change_label.text(), "2,500 Ks")
+        self.assertFalse(dialog.print_after_sale.isChecked())
+        self.assertFalse(dialog.open_drawer_after_sale.isChecked())
+        self.assertTrue(hasattr(ReceiptDialog, "print_receipt_automatic"))
         dialog.close()
+
+    def test_checkout_dialog_selects_customer_for_credit_sale(self):
+        dialog = CheckoutDialog(15000, customers=[{
+            "id": 4, "name": "Ko Kyaw Moe", "phone": "09664362121",
+            "points": 12, "current_balance": 79000,
+        }], payment_types=["Cash", "KBZPay", "Credit"])
+        self.assertEqual(
+            [dialog.payment_type.itemText(index) for index in range(dialog.payment_type.count())],
+            ["Cash", "KBZPay", "Credit"],
+        )
+        dialog.customer.setCurrentIndex(1)
+        dialog.open_drawer_after_sale.setChecked(True)
+        dialog.payment_type.setCurrentText("Credit")
+        self.assertEqual(dialog.selected_customer_id(), 4)
+        self.assertEqual(dialog.payment.value(), 0)
+        self.assertFalse(dialog.payment.isEnabled())
+        self.assertFalse(dialog.open_drawer_after_sale.isEnabled())
+        self.assertFalse(dialog.open_drawer_after_sale.isChecked())
+        dialog.payment_type.setCurrentText("Cash")
+        self.assertTrue(dialog.open_drawer_after_sale.isEnabled())
+        self.assertTrue(dialog.open_drawer_after_sale.isChecked())
+        self.assertIn("79,000", dialog.customer_info.text())
+        dialog.close()
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_checkout_sends_customer_and_credit_sale_mode(self, request):
+        response = unittest.mock.Mock(ok=True)
+        response.json.return_value = {"receipt": {"id": 10, "invoice_no": "LITE-10", "total": 15000}}
+        request.return_value = response
+        client = LiteApiClient("https://server:8000")
+        client.checkout([{"product_id": 7, "qty": 1}], 0, "Credit", 4)
+        payload = request.call_args.kwargs["json"]
+        self.assertEqual(payload["customer_id"], 4)
+        self.assertEqual(payload["sale_mode"], "Credit")
+        self.assertEqual(payload["payment"], 0)
 
     def test_expense_dialog_returns_server_payload(self):
         dialog = ExpenseDialog(["Transport", "Utilities"])
@@ -151,6 +193,62 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(client.expenses(from_date="2026-08-01", to_date="2026-08-31")["total"], 3500)
         saved = client.add_expense({"category": "Transport", "amount": 1000})
         self.assertEqual(saved["expense_no"], "EXP-2")
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_stock_in_sends_complete_audit_details(self, request):
+        response = unittest.mock.Mock(ok=True)
+        response.json.return_value = {"product": {"id": 7, "stock": 14}}
+        request.return_value = response
+        client = LiteApiClient("https://server:8000")
+        client.adjust_stock(
+            7, 3, variant_id=12, supplier_id=2, unit_cost=1250, batch_no="BATCH-20260825",
+            received_by="Admin", location="Shop", notes="Delivery received",
+            customer_id=4, reference="SOUT-1", issued_by="Manager",
+            transaction_date="2026-08-25",
+        )
+        payload = request.call_args.kwargs["json"]
+        self.assertEqual(payload["variant_id"], 12)
+        self.assertEqual(payload["supplier_id"], 2)
+        self.assertEqual(payload["unit_cost"], 1250)
+        self.assertEqual(payload["batch_no"], "BATCH-20260825")
+        self.assertEqual(payload["received_by"], "Admin")
+        self.assertEqual(payload["notes"], "Delivery received")
+        self.assertEqual(payload["customer_id"], 4)
+        self.assertEqual(payload["reference"], "SOUT-1")
+        self.assertEqual(payload["issued_by"], "Manager")
+        self.assertEqual(payload["transaction_date"], "2026-08-25")
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_adjustment_transfer_and_movements_api(self, request):
+        adjustment_response = unittest.mock.Mock(ok=True)
+        adjustment_response.json.return_value = {"product": {"id": 7, "stock": 8}}
+        transfer_response = unittest.mock.Mock(ok=True)
+        transfer_response.json.return_value = {"product": {"id": 7, "stock": 8}}
+        movements_response = unittest.mock.Mock(ok=True)
+        movements_response.json.return_value = {"movements": [{"id": 1, "type": "adjustment"}]}
+        reverse_response = unittest.mock.Mock(ok=True)
+        reverse_response.json.return_value = {"success": True, "message": "Movement reversed"}
+        request.side_effect = [adjustment_response, transfer_response, movements_response, reverse_response]
+        client = LiteApiClient("https://server:8000")
+        client.set_stock_quantity({
+            "product_id": 7, "new_quantity": 8, "reason": "Counted",
+            "adjusted_by": "Admin", "location": "Shop",
+        })
+        client.transfer_stock({
+            "product_id": 7, "from_location": "Shop", "to_location": "Store",
+            "quantity": 2, "reason": "Replenishment",
+        })
+        movements = client.stock_movements(7)
+        self.assertEqual(movements[0]["type"], "adjustment")
+        reversed_result = client.reverse_stock_movement(1, "Counting correction")
+        self.assertTrue(reversed_result["success"])
+        self.assertEqual(request.call_args.kwargs["json"]["reason"], "Counting correction")
+
+    def test_stock_management_action_buttons_are_available(self):
+        window = LiteWindow()
+        labels = {button.text() for button in window.findChildren(QtPushButton)}
+        self.assertTrue({"Adjustment", "Transfer", "View Movements"}.issubset(labels))
+        window.close()
 
     def test_completed_receipt_detail_has_refund_button(self):
         callback = unittest.mock.Mock()
@@ -208,6 +306,10 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertFalse(window.nav_buttons["Dashboard"].isChecked())
         window.workspace_stack.setCurrentWidget(window.pos_page)
         self.assertTrue(window.nav_buttons["Point of Sale"].isChecked())
+        self.assertIn("Inventory", window.workspace_pages)
+        self.assertIn("Customers", window.workspace_pages)
+        self.assertNotIn("Stock & Customers", window.workspace_pages)
+        self.assertIsNot(window.workspace_pages["Inventory"], window.workspace_pages["Customers"])
         window.close()
 
     def test_product_table_has_lazy_thumbnail_column(self):
@@ -216,6 +318,84 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(window.product_table.horizontalHeaderItem(0).text(), "Image")
         self.assertEqual(window.product_page_size, 50)
         self.assertEqual(window.product_table.iconSize(), QSize(44, 40))
+        window.close()
+
+    def test_product_stock_status_distinguishes_low_out_and_service(self):
+        self.assertEqual(
+            LiteWindow._product_stock_status({"sold_by": "Each", "low_stock": 3}, 0),
+            "out",
+        )
+        self.assertEqual(
+            LiteWindow._product_stock_status({"sold_by": "Each", "low_stock": 3}, 2),
+            "low",
+        )
+        self.assertEqual(
+            LiteWindow._product_stock_status({
+                "sold_by": "Variants", "variants": [
+                    {"stock": 8, "low_stock": 2}, {"stock": 1, "low_stock": 2},
+                ],
+            }, 9),
+            "low",
+        )
+        self.assertEqual(
+            LiteWindow._product_stock_status({"sold_by": "Service"}, 0),
+            "normal",
+        )
+
+    def test_product_management_page_and_variant_editor(self):
+        window = LiteWindow()
+        self.assertIn("Products", window.workspace_pages)
+        self.assertEqual(window.manage_product_table.columnCount(), 9)
+        dialog = ProductEditorDialog(categories=["Frames"])
+        dialog.name.setText("Frame 5x7")
+        dialog.sold_by.setCurrentText("Variants")
+        dialog.add_variant({"color": "White", "sku": "FR-W", "stock": 3, "price": 5000})
+        values = dialog.values()
+        self.assertEqual(values["sold_by"], "Variants")
+        self.assertEqual(values["variants"][0]["sku"], "FR-W")
+        self.assertEqual(values["variants"][0]["stock"], 3)
+        dialog.close(); window.close()
+
+    def test_product_editor_matches_each_service_and_variant_forms(self):
+        dialog = ProductEditorDialog(categories=["CCTV"])
+        self.assertTrue(dialog.barcode.isVisibleTo(dialog))
+        self.assertTrue(dialog.price.isVisibleTo(dialog))
+        self.assertFalse(dialog.variants.isVisibleTo(dialog))
+        self.assertEqual((dialog.width(), dialog.height()), (750, 570))
+        dialog.sold_by.setCurrentText("Service")
+        self.assertTrue(dialog.barcode.isVisibleTo(dialog))
+        self.assertFalse(dialog.price.isVisibleTo(dialog))
+        self.assertIn("no stock tracking", dialog.mode_note.text())
+        self.assertEqual((dialog.width(), dialog.height()), (750, 400))
+        dialog.sold_by.setCurrentText("Variants")
+        self.assertFalse(dialog.barcode.isVisibleTo(dialog))
+        self.assertTrue(dialog.variants.isVisibleTo(dialog))
+        self.assertIn("barcode, price and stock", dialog.mode_note.text())
+        self.assertEqual((dialog.width(), dialog.height()), (750, 605))
+        dialog.close()
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_product_management_api_sends_variants(self, request):
+        response = unittest.mock.Mock(ok=True)
+        response.json.return_value = {"product": {"id": 19, "name": "Frame"}}
+        request.return_value = response
+        client = LiteApiClient("https://server:8000")
+        product = client.save_product({"name": "Frame", "sold_by": "Variants", "variants": [{"color": "White", "stock": 2}]})
+        self.assertEqual(product["id"], 19)
+        self.assertEqual(request.call_args.args[0], "POST")
+        self.assertEqual(request.call_args.kwargs["json"]["variants"][0]["color"], "White")
+
+    def test_management_stock_table_has_lazy_thumbnail_column(self):
+        window = LiteWindow()
+        self.assertEqual(window.stock_table.columnCount(), 5)
+        self.assertEqual(window.stock_table.horizontalHeaderItem(0).text(), "Image")
+        self.assertEqual(window.stock_table.iconSize(), QSize(44, 40))
+        window.management_products = [{"id": 8}]
+        window.stock_table.setRowCount(1)
+        item = QTableWidgetItem()
+        window.stock_table.setItem(0, 0, item)
+        window._apply_product_thumbnail(8, QPixmap(4, 4))
+        self.assertIs(window.stock_table.item(0, 0), item)
         window.close()
 
     def test_thumbnail_updates_reuse_the_owned_table_item(self):

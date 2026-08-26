@@ -623,6 +623,15 @@ class StockAdjustmentRequest(BaseModel):
     adjustment: int = Field(..., ge=-1000000, le=1000000)
     reason: str = Field(default="Lite POS adjustment", max_length=500)
     location: str = Field(default="Shop", max_length=200)
+    supplier_id: Optional[int] = Field(default=None, gt=0)
+    unit_cost: float = Field(default=0, ge=0)
+    batch_no: str = Field(default="", max_length=100)
+    received_by: str = Field(default="", max_length=200)
+    notes: str = Field(default="", max_length=2000)
+    customer_id: Optional[int] = Field(default=None, gt=0)
+    reference: str = Field(default="", max_length=200)
+    issued_by: str = Field(default="", max_length=200)
+    transaction_date: str = Field(default="", max_length=10)
 
 
 class ExpenseRequest(BaseModel):
@@ -633,6 +642,66 @@ class ExpenseRequest(BaseModel):
     payment_method: str = "Cash"
     reference_no: str = ""
     notes: str = ""
+
+
+class StockAdjustmentSetRequest(BaseModel):
+    product_id: int = Field(..., gt=0)
+    variant_id: Optional[int] = Field(default=None, gt=0)
+    new_quantity: int = Field(..., ge=0, le=1000000)
+    adjustment_type: str = Field(default="Add", max_length=20)
+    reason: str = Field(..., min_length=1, max_length=500)
+    adjusted_by: str = Field(..., min_length=1, max_length=200)
+    transaction_date: str = Field(default="", max_length=10)
+    location: str = Field(default="Shop", max_length=200)
+    notes: str = Field(default="", max_length=2000)
+    location_only: bool = False
+
+
+class StockTransferRequest(BaseModel):
+    product_id: int = Field(..., gt=0)
+    from_location: str = Field(..., min_length=1, max_length=200)
+    to_location: str = Field(..., min_length=1, max_length=200)
+    quantity: int = Field(..., gt=0, le=1000000)
+    reason: str = Field(..., min_length=1, max_length=500)
+    reference: str = Field(default="", max_length=200)
+    notes: str = Field(default="", max_length=2000)
+
+
+class MovementReverseRequest(BaseModel):
+    reason: str = Field(default="User requested reversal", min_length=1, max_length=500)
+
+
+class ProductVariantRequest(BaseModel):
+    color: str = ""
+    size: str = ""
+    sku: str = ""
+    barcode: str = ""
+    price: float = Field(default=0, ge=0)
+    cost: float = Field(default=0, ge=0)
+    stock: int = Field(default=0, ge=0)
+    low_stock: int = Field(default=0, ge=0)
+    active: bool = True
+
+
+class ProductManageRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=300)
+    category: str = ""
+    description: str = ""
+    sold_by: str = "Each"
+    price: float = Field(default=0, ge=0)
+    cost: float = Field(default=0, ge=0)
+    sku: str = ""
+    barcode: str = ""
+    stock: int = Field(default=0, ge=0)
+    low_stock: int = Field(default=0, ge=0)
+    unit: str = "pcs"
+    base_unit: str = "pcs"
+    pack_unit: str = ""
+    pack_size: int = Field(default=1, ge=1)
+    image_base64: str = ""
+    image_filename: str = ""
+    image_mime: str = ""
+    variants: List[ProductVariantRequest] = Field(default_factory=list)
 
 
 def current_user(authorization: str = Header(default="")) -> Dict[str, Any]:
@@ -711,6 +780,22 @@ def products(
     return {"products": cashier_service.list_products(q.strip(), category.strip(), limit, offset)}
 
 
+@app.post("/api/products/manage")
+def create_managed_product(payload: ProductManageRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"product": cashier_service.save_managed_product(payload.dict(), created_by=user.get("username", "Lite POS"))}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/products/manage/{product_id}")
+def update_managed_product(product_id: int, payload: ProductManageRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"product": cashier_service.save_managed_product(payload.dict(), product_id=product_id, created_by=user.get("username", "Lite POS"))}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/products/barcode/{barcode}")
 def product_by_barcode(barcode: str, _: Dict[str, Any] = Depends(current_user)):
     return {"product": cashier_service.barcode_exists(barcode.strip())}
@@ -727,8 +812,54 @@ def adjust_stock(payload: StockAdjustmentRequest, user: Dict[str, Any] = Depends
         return {"product": cashier_service.adjust_stock(
             product_id=payload.product_id, variant_id=payload.variant_id,
             adjustment=payload.adjustment, reason=payload.reason,
-            location=payload.location, created_by=user.get("username", "Lite POS"),
+            location=payload.location, supplier_id=payload.supplier_id,
+            unit_cost=payload.unit_cost, batch_no=payload.batch_no,
+            received_by=payload.received_by, notes=payload.notes,
+            customer_id=payload.customer_id, reference=payload.reference,
+            issued_by=payload.issued_by, transaction_date=payload.transaction_date,
+            created_by=user.get("username", "Lite POS"),
         )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/stock/adjustment")
+def set_stock_adjustment(payload: StockAdjustmentSetRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"product": cashier_service.set_stock_quantity(
+            **payload.dict(), created_by=user.get("username", "Lite POS")
+        )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/stock/transfer")
+def transfer_stock(payload: StockTransferRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"product": cashier_service.transfer_stock(
+            **payload.dict(), created_by=user.get("username", "Lite POS")
+        )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/stock/movements")
+def stock_movements(
+    product_id: int = Query(..., gt=0), limit: int = Query(default=200, ge=1, le=500),
+    _: Dict[str, Any] = Depends(current_user),
+):
+    return {"movements": cashier_service.list_stock_movements(product_id, limit)}
+
+
+@app.post("/api/stock/movements/{movement_id}/reverse")
+def reverse_movement(
+    movement_id: int, payload: MovementReverseRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return cashier_service.reverse_stock_movement_safe(
+            movement_id, payload.reason, user.get("username", "Lite POS")
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -800,6 +931,16 @@ def customers(
 @app.get("/api/payment-types")
 def payment_types(_: Dict[str, Any] = Depends(current_user)):
     return {"payment_types": cashier_service.list_payment_types()}
+
+
+@app.get("/api/suppliers")
+def suppliers(_: Dict[str, Any] = Depends(current_user)):
+    return {"suppliers": cashier_service.list_suppliers()}
+
+
+@app.get("/api/stock/locations")
+def stock_locations(_: Dict[str, Any] = Depends(current_user)):
+    return {"locations": cashier_service.list_stock_locations()}
 
 
 @app.get("/api/settings/cashier")

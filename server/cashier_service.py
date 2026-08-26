@@ -6,6 +6,7 @@ inside the server process and use explicit transactions for sale checkout.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 import ctypes
@@ -360,6 +361,44 @@ def list_categories() -> List[str]:
         conn.close()
 
 
+def list_suppliers() -> List[Dict[str, Any]]:
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT id, name, COALESCE(company_name, ''), COALESCE(phone, '')
+            FROM suppliers
+            WHERE LOWER(COALESCE(status, 'active')) = 'active'
+            ORDER BY name COLLATE NOCASE
+            """
+        )
+        return [
+            {"id": int(row[0]), "name": row[1] or "", "company_name": row[2], "phone": row[3]}
+            for row in cursor.fetchall()
+        ]
+    finally:
+        conn.close()
+
+
+def list_stock_locations() -> List[str]:
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT DISTINCT TRIM(location)
+            FROM product_locations
+            WHERE location IS NOT NULL AND TRIM(location) != ''
+            ORDER BY TRIM(location) COLLATE NOCASE
+            """
+        )
+        locations = [str(row[0]) for row in cursor.fetchall()]
+        return locations or ["Shop"]
+    finally:
+        conn.close()
+
+
 def barcode_exists(barcode: str, exclude_product_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
     barcode = str(barcode or "").strip()
     if not barcode:
@@ -531,6 +570,72 @@ def create_mobile_product(
         conn.close()
 
 
+def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = None, created_by: str = "Lite POS") -> Dict[str, Any]:
+    name = str(values.get("name") or "").strip()
+    if not name:
+        raise ValueError("Product name is required")
+    sold_by = str(values.get("sold_by") or "Each").strip()
+    variants = list(values.get("variants") or [])
+    barcode = str(values.get("barcode") or "").strip()
+    sku = str(values.get("sku") or "").strip()
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        if not is_postgres_backend(): cursor.execute("BEGIN IMMEDIATE")
+        if barcode:
+            cursor.execute("SELECT id FROM products WHERE barcode = ? AND id != ? LIMIT 1", (barcode, int(product_id or 0)))
+            if cursor.fetchone(): raise ValueError(f"Barcode already exists: {barcode}")
+        if sku:
+            cursor.execute("SELECT id FROM products WHERE sku = ? AND id != ? LIMIT 1", (sku, int(product_id or 0)))
+            if cursor.fetchone(): raise ValueError(f"SKU already exists: {sku}")
+        codes = [str(v.get("barcode") or "").strip() for v in variants] + [str(v.get("sku") or "").strip() for v in variants]
+        codes = [code for code in codes if code]
+        if len(codes) != len(set(codes)): raise ValueError("Variant SKU/barcode values must be unique")
+        image_values = {}
+        encoded = str(values.get("image_base64") or "")
+        if encoded:
+            try: image_bytes = base64.b64decode(encoded)
+            except Exception as exc: raise ValueError("Invalid product image") from exc
+            image_path, image_data, image_mime, image_filename = _save_mobile_product_image(
+                image_bytes, str(values.get("image_filename") or "product.jpg"), str(values.get("image_mime") or "image/jpeg")
+            )
+            image_values = {"image": image_path, "image_data": image_data, "image_mime": image_mime, "image_filename": image_filename}
+        stock = sum(int(v.get("stock") or 0) for v in variants) if _sold_by_mode(sold_by) == "variants" else int(values.get("stock") or 0)
+        product_values = {
+            "name": name, "category": str(values.get("category") or "").strip(),
+            "description": str(values.get("description") or "").strip(), "sold_by": sold_by,
+            "price": float(values.get("price") or 0), "cost": float(values.get("cost") or 0),
+            "sku": sku, "barcode": barcode, "stock": stock,
+            "low_stock": int(values.get("low_stock") or 0), "unit": str(values.get("unit") or "pcs").strip(),
+            "base_unit": str(values.get("base_unit") or values.get("unit") or "pcs").strip(),
+            "pack_unit": str(values.get("pack_unit") or "").strip(),
+            "pack_size": max(1, int(values.get("pack_size") or 1)),
+            **image_values,
+        }
+        if product_id:
+            assignments = ", ".join(f"{key} = ?" for key in product_values)
+            cursor.execute(f"UPDATE products SET {assignments}, last_updated = CURRENT_TIMESTAMP WHERE id = ?", (*product_values.values(), int(product_id)))
+            if cursor.rowcount != 1: raise ValueError("Product not found")
+        else:
+            _sync_postgres_id_sequences(cursor, ("products", "product_variants"))
+            product_id = _execute_dynamic_insert(cursor, "products", product_values)
+        cursor.execute("DELETE FROM product_variants WHERE product_id = ?", (int(product_id),))
+        if _sold_by_mode(sold_by) == "variants":
+            for variant in variants:
+                _execute_dynamic_insert(cursor, "product_variants", {
+                    "product_id": int(product_id), "color": str(variant.get("color") or "").strip(),
+                    "size": str(variant.get("size") or "").strip(), "sku": str(variant.get("sku") or "").strip(),
+                    "barcode": str(variant.get("barcode") or "").strip(), "price": float(variant.get("price") or 0),
+                    "cost": float(variant.get("cost") or 0), "stock": int(variant.get("stock") or 0),
+                    "low_stock": int(variant.get("low_stock") or 0), "active": 1 if variant.get("active", True) else 0,
+                })
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+    products = list_products(product_id=int(product_id), limit=1)
+    return products[0] if products else {"id": int(product_id)}
+
+
 def list_products(
     search: str = "", category: str = "", limit: int = 100, offset: int = 0,
     product_id: Optional[int] = None,
@@ -561,7 +666,10 @@ def list_products(
         cursor.execute(
             f"""
             SELECT p.id, p.name, p.category, p.price, p.cost, p.sku, p.barcode,
-                   {stock_expr} as stock, p.image, p.sold_by, p.unit
+                   {stock_expr} as stock, p.image, p.sold_by, p.unit,
+                   COALESCE(p.low_stock, 0) AS low_stock, COALESCE(p.description, '') AS description,
+                   COALESCE(p.base_unit, p.unit, 'pcs') AS base_unit,
+                   COALESCE(p.pack_unit, '') AS pack_unit, COALESCE(p.pack_size, 1) AS pack_size
             FROM products p
             {where_sql}
             ORDER BY p.is_favourite DESC, p.name COLLATE NOCASE
@@ -575,12 +683,13 @@ def list_products(
         discounts = _active_product_discounts(cursor, product_ids)
         tiers_by_product = _price_tiers_for_products(cursor, product_ids)
         variants_by_product: Dict[int, List[Dict[str, Any]]] = {}
+        locations_by_product: Dict[int, List[Dict[str, Any]]] = {}
         if product_ids:
             placeholders = ", ".join("?" for _ in product_ids)
             try:
                 cursor.execute(
                     f"""
-                    SELECT id, product_id, size, color, sku, barcode, price, stock, low_stock
+                    SELECT id, product_id, size, color, sku, barcode, price, cost, stock, low_stock
                     FROM product_variants
                     WHERE product_id IN ({placeholders}) AND COALESCE(active, 1) = 1
                     ORDER BY product_id, size, color, id
@@ -592,10 +701,29 @@ def list_products(
                         "variant_id": int(variant[0]), "size": variant[2] or "",
                         "color": variant[3] or "", "sku": variant[4] or "",
                         "barcode": variant[5] or "", "price": float(variant[6] or 0),
-                        "stock": int(variant[7] or 0), "low_stock": int(variant[8] or 0),
+                        "cost": float(variant[7] or 0), "stock": int(variant[8] or 0),
+                        "low_stock": int(variant[9] or 0),
                     })
             except Exception as exc:
                 logger.debug(f"Product variants unavailable for cashier list: {exc}")
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT product_id, location, SUM(COALESCE(quantity, 0))
+                    FROM product_locations
+                    WHERE product_id IN ({placeholders})
+                    GROUP BY product_id, location
+                    ORDER BY product_id, location
+                    """,
+                    product_ids,
+                )
+                for location_row in cursor.fetchall():
+                    locations_by_product.setdefault(int(location_row[0]), []).append({
+                        "location": location_row[1] or "Default",
+                        "quantity": int(location_row[2] or 0),
+                    })
+            except Exception as exc:
+                logger.debug(f"Product locations unavailable for cashier list: {exc}")
         products = []
         for row in rows:
             product = {product_columns[index]: row[index] for index in range(len(product_columns))}
@@ -615,10 +743,21 @@ def list_products(
                 if int(tier.get("active", 1)) == 1
             ]
             product["variants"] = variants_by_product.get(product_id, [])
+            product["locations"] = locations_by_product.get(product_id, [])
             available_stock = product["stock"]
             if _sold_by_mode(sold_by) == "variants" and product["variants"]:
                 available_stock = sum(int(variant.get("stock") or 0) for variant in product["variants"])
             product["is_out_of_stock"] = not product["is_service"] and available_stock <= 0
+            if _sold_by_mode(sold_by) == "variants" and product["variants"]:
+                product["is_low_stock"] = available_stock > 0 and any(
+                    int(variant.get("stock") or 0) <= int(variant.get("low_stock") or 0)
+                    for variant in product["variants"]
+                )
+            else:
+                product["is_low_stock"] = (
+                    not product["is_service"] and available_stock > 0
+                    and available_stock <= int(product.get("low_stock") or 0)
+                )
             products.append(product)
         return products
     finally:
@@ -747,7 +886,11 @@ def list_payment_types() -> List[str]:
     cursor = conn.cursor()
     try:
         try:
-            cursor.execute("SELECT name FROM payment_types ORDER BY name")
+            columns = _table_columns(cursor, "payment_types")
+            active_column = "active" if "active" in columns else "is_active" if "is_active" in columns else ""
+            order_sql = "sort_order, name" if "sort_order" in columns else "name"
+            where_sql = f"WHERE COALESCE({active_column}, 1) = 1" if active_column else ""
+            cursor.execute(f"SELECT name FROM payment_types {where_sql} ORDER BY {order_sql}")
             rows = cursor.fetchall()
         except Exception:
             rows = []
@@ -1309,6 +1452,10 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
 def adjust_stock(
     *, product_id: int, adjustment: int, variant_id: Optional[int] = None,
     reason: str = "Lite POS adjustment", location: str = "Shop", created_by: str = "Lite POS",
+    supplier_id: Optional[int] = None, unit_cost: float = 0, batch_no: str = "",
+    received_by: str = "", notes: str = "",
+    customer_id: Optional[int] = None, reference: str = "", issued_by: str = "",
+    transaction_date: str = "",
 ) -> Dict[str, Any]:
     """Apply a small audited stock-in/out operation in one transaction."""
     product_id = int(product_id or 0)
@@ -1318,16 +1465,25 @@ def adjust_stock(
         raise ValueError("Product and a non-zero quantity are required")
     reason = str(reason or "Lite POS adjustment").strip()[:500]
     location = str(location or "Shop").strip()[:200] or "Shop"
+    supplier_id = int(supplier_id or 0) or None
+    unit_cost = max(0.0, float(unit_cost or 0))
+    batch_no = str(batch_no or "").strip()[:100]
+    received_by = str(received_by or "").strip()[:200]
+    notes = str(notes or "").strip()[:2000]
+    customer_id = int(customer_id or 0) or None
+    reference = str(reference or "").strip()[:200]
+    issued_by = str(issued_by or "").strip()[:200]
+    transaction_date = str(transaction_date or "").strip()[:10]
     conn = connect_db()
     cursor = conn.cursor()
     try:
         if not is_postgres_backend():
             cursor.execute("BEGIN IMMEDIATE")
-        cursor.execute("SELECT name, COALESCE(stock, 0), sold_by FROM products WHERE id = ?", (product_id,))
+        cursor.execute("SELECT name, COALESCE(stock, 0), sold_by, COALESCE(cost, 0) FROM products WHERE id = ?", (product_id,))
         product = cursor.fetchone()
         if not product:
             raise ValueError("Product not found")
-        name, master_stock, sold_by = product
+        name, master_stock, sold_by, old_cost = product
         if _sold_by_mode(sold_by) == "service":
             raise ValueError("Service items do not use stock adjustments")
         master_stock = int(master_stock or 0)
@@ -1345,14 +1501,24 @@ def adjust_stock(
             movement_new = movement_old + adjustment
             if movement_new < 0:
                 raise ValueError(f"Only {movement_old} available for the selected variant")
-            cursor.execute(
-                "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (movement_new, variant_id),
-            )
+            if adjustment > 0:
+                cursor.execute(
+                    "UPDATE product_variants SET stock = ?, cost = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (movement_new, unit_cost, variant_id),
+                )
+            else:
+                cursor.execute(
+                    "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (movement_new, variant_id),
+                )
             next_master = max(0, master_stock + adjustment)
+            new_cost = (
+                ((master_stock * float(old_cost or 0)) + (adjustment * unit_cost)) / next_master
+                if adjustment > 0 and next_master > 0 else float(old_cost or 0)
+            )
             cursor.execute(
-                "UPDATE products SET stock = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-                (next_master, product_id),
+                "UPDATE products SET stock = ?, cost = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (next_master, new_cost, product_id),
             )
             movement_location = "Variant"
         else:
@@ -1364,8 +1530,19 @@ def adjust_stock(
                 (product_id,),
             )
             locations = cursor.fetchall()
-            if adjustment > 0 and locations:
-                target = next((row for row in locations if str(row[1] or "") == location), None)
+            if adjustment > 0:
+                if not batch_no:
+                    batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                cursor.execute(
+                    """
+                    SELECT id, location, quantity FROM product_locations
+                    WHERE product_id = ? AND location = ?
+                      AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ''
+                    LIMIT 1
+                    """,
+                    (product_id, location, batch_no),
+                )
+                target = cursor.fetchone()
                 if target:
                     cursor.execute(
                         "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1374,6 +1551,7 @@ def adjust_stock(
                 else:
                     _execute_dynamic_insert(cursor, "product_locations", {
                         "product_id": product_id, "location": location, "quantity": adjustment,
+                        "batch_no": batch_no, "expire_date": "",
                     })
             elif adjustment < 0 and locations:
                 remaining = abs(adjustment)
@@ -1390,19 +1568,29 @@ def adjust_stock(
                         break
                 if remaining:
                     raise ValueError("Location stock is lower than the requested Stock Out quantity")
+            next_master = master_stock + adjustment
+            new_cost = (
+                ((master_stock * float(old_cost or 0)) + (adjustment * unit_cost)) / next_master
+                if adjustment > 0 and next_master > 0 else float(old_cost or 0)
+            )
             cursor.execute(
-                "UPDATE products SET stock = stock + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-                (adjustment, product_id),
+                "UPDATE products SET stock = stock + ?, cost = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (adjustment, new_cost, product_id),
             )
             movement_location = location
-        _execute_dynamic_insert(cursor, "stock_movements", {
+        movement_values = {
             "product_id": product_id, "variant_id": variant_id,
             "type": "stock_in" if adjustment > 0 else "stock_out",
             "quantity": abs(adjustment), "old_stock": movement_old, "new_stock": movement_new,
-            "reason": reason, "reference": f"LITE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "created_by": created_by, "location": movement_location,
-            "notes": "KAY POS Lite stock adjustment",
-        })
+            "reason": reason, "reference": reference or f"LITE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "created_by": received_by or issued_by or created_by, "location": movement_location,
+            "supplier_id": supplier_id,
+            "customer_id": customer_id,
+            "notes": notes or (f"KAY POS Lite stock adjustment · Batch {batch_no}" if batch_no else "KAY POS Lite stock adjustment"),
+        }
+        if transaction_date:
+            movement_values["created_at"] = f"{transaction_date} {datetime.now().strftime('%H:%M:%S')}"
+        _execute_dynamic_insert(cursor, "stock_movements", movement_values)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1411,6 +1599,278 @@ def adjust_stock(
         conn.close()
     products = list_products(product_id=product_id, limit=1)
     return products[0] if products else {"id": product_id}
+
+
+def set_stock_quantity(
+    *, product_id: int, new_quantity: int, reason: str, adjusted_by: str,
+    variant_id: Optional[int] = None, adjustment_type: str = "Add",
+    transaction_date: str = "", location: str = "Shop", notes: str = "",
+    location_only: bool = False, created_by: str = "Lite POS",
+) -> Dict[str, Any]:
+    product_id = int(product_id or 0)
+    variant_id = int(variant_id or 0) or None
+    new_quantity = int(new_quantity)
+    if product_id <= 0 or new_quantity < 0:
+        raise ValueError("Product and a valid new quantity are required")
+    reason = str(reason or "").strip()
+    adjusted_by = str(adjusted_by or "").strip()
+    location = str(location or "Shop").strip() or "Shop"
+    if not reason or not adjusted_by:
+        raise ValueError("Reason and Adjusted By are required")
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute("SELECT COALESCE(stock, 0), sold_by FROM products WHERE id = ?", (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            raise ValueError("Product not found")
+        master_stock, sold_by = int(product[0] or 0), product[1]
+        if _sold_by_mode(sold_by) == "service":
+            raise ValueError("Service items do not use stock adjustments")
+        old_quantity = master_stock
+        if location_only and variant_id:
+            raise ValueError("Set Location Only is not available for variants")
+        if location_only:
+            cursor.execute(
+                "SELECT id FROM product_locations WHERE product_id = ? AND location = ? ORDER BY id LIMIT 1",
+                (product_id, location),
+            )
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute(
+                    "UPDATE product_locations SET quantity = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                    (master_stock, existing[0]),
+                )
+            else:
+                _execute_dynamic_insert(cursor, "product_locations", {
+                    "product_id": product_id, "location": location, "quantity": master_stock,
+                    "batch_no": "", "expire_date": "",
+                })
+            movement = {
+                "product_id": product_id, "type": "adjustment", "quantity": 0,
+                "old_stock": master_stock, "new_stock": master_stock,
+                "reason": f"Location set to {location}: {reason}",
+                "reference": f"ADJ-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "created_by": adjusted_by or created_by, "notes": str(notes or "").strip(),
+                "location": location,
+            }
+            if transaction_date:
+                movement["created_at"] = f"{str(transaction_date)[:10]} {datetime.now().strftime('%H:%M:%S')}"
+            _execute_dynamic_insert(cursor, "stock_movements", movement)
+            conn.commit()
+            products = list_products(product_id=product_id, limit=1)
+            return products[0] if products else {"id": product_id}
+        if variant_id:
+            cursor.execute(
+                "SELECT COALESCE(stock, 0) FROM product_variants WHERE id = ? AND product_id = ? AND COALESCE(active, 1) = 1",
+                (variant_id, product_id),
+            )
+            variant = cursor.fetchone()
+            if not variant:
+                raise ValueError("Selected variant is unavailable")
+            old_quantity = int(variant[0] or 0)
+            difference = new_quantity - old_quantity
+            cursor.execute(
+                "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (new_quantity, variant_id),
+            )
+            cursor.execute(
+                "UPDATE products SET stock = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (max(0, master_stock + difference), product_id),
+            )
+            movement_location = "Variant"
+        else:
+            difference = new_quantity - old_quantity
+            cursor.execute(
+                "UPDATE products SET stock = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (new_quantity, product_id),
+            )
+            if difference > 0:
+                cursor.execute(
+                    "SELECT id FROM product_locations WHERE product_id = ? AND location = ? ORDER BY id LIMIT 1",
+                    (product_id, location),
+                )
+                target = cursor.fetchone()
+                if target:
+                    cursor.execute(
+                        "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                        (difference, target[0]),
+                    )
+                else:
+                    _execute_dynamic_insert(cursor, "product_locations", {
+                        "product_id": product_id, "location": location, "quantity": difference,
+                        "batch_no": "", "expire_date": "",
+                    })
+            elif difference < 0:
+                cursor.execute(
+                    "SELECT id, quantity FROM product_locations WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY id",
+                    (product_id, location),
+                )
+                rows = cursor.fetchall()
+                if sum(int(row[1] or 0) for row in rows) < abs(difference):
+                    raise ValueError(f"Insufficient stock in {location}")
+                remaining = abs(difference)
+                for location_id, available in rows:
+                    take = min(remaining, int(available or 0))
+                    cursor.execute(
+                        "UPDATE product_locations SET quantity = quantity - ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                        (take, location_id),
+                    )
+                    remaining -= take
+                    if remaining <= 0:
+                        break
+            movement_location = location
+        movement = {
+            "product_id": product_id, "variant_id": variant_id, "type": "adjustment",
+            "quantity": abs(difference), "old_stock": old_quantity, "new_stock": new_quantity,
+            "reason": f"{adjustment_type}: {reason}",
+            "reference": f"ADJ-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "created_by": adjusted_by or created_by, "notes": str(notes or "").strip(),
+            "location": movement_location,
+        }
+        if transaction_date:
+            movement["created_at"] = f"{str(transaction_date)[:10]} {datetime.now().strftime('%H:%M:%S')}"
+        _execute_dynamic_insert(cursor, "stock_movements", movement)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    products = list_products(product_id=product_id, limit=1)
+    return products[0] if products else {"id": product_id}
+
+
+def transfer_stock(
+    *, product_id: int, from_location: str, to_location: str, quantity: int,
+    reason: str, reference: str = "", notes: str = "", created_by: str = "Lite POS",
+) -> Dict[str, Any]:
+    product_id, quantity = int(product_id or 0), int(quantity or 0)
+    from_location, to_location = str(from_location or "").strip(), str(to_location or "").strip()
+    reason = str(reason or "").strip()
+    if not product_id or quantity <= 0 or not from_location or not to_location or not reason:
+        raise ValueError("Product, locations, quantity and reason are required")
+    if from_location == to_location:
+        raise ValueError("From and To locations cannot be the same")
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute("SELECT COALESCE(stock, 0), sold_by FROM products WHERE id = ?", (product_id,))
+        product = cursor.fetchone()
+        if not product:
+            raise ValueError("Product not found")
+        if _sold_by_mode(product[1]) in {"service", "variants"}:
+            raise ValueError("Location transfer is only available for standard stock products")
+        total_stock = int(product[0] or 0)
+        cursor.execute(
+            "SELECT id, quantity, COALESCE(batch_no, ''), COALESCE(expire_date, '') FROM product_locations WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY id",
+            (product_id, from_location),
+        )
+        source_rows = cursor.fetchall()
+        if sum(int(row[1] or 0) for row in source_rows) < quantity:
+            raise ValueError(f"Insufficient stock in {from_location}")
+        remaining = quantity
+        allocations = []
+        for location_id, available, batch_no, expire_date in source_rows:
+            take = min(remaining, int(available or 0))
+            cursor.execute(
+                "UPDATE product_locations SET quantity = quantity - ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (take, location_id),
+            )
+            allocations.append((take, batch_no, expire_date))
+            remaining -= take
+            if remaining <= 0:
+                break
+        for take, batch_no, expire_date in allocations:
+            cursor.execute(
+                "SELECT id FROM product_locations WHERE product_id = ? AND location = ? AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ? LIMIT 1",
+                (product_id, to_location, batch_no, expire_date),
+            )
+            target = cursor.fetchone()
+            if target:
+                cursor.execute(
+                    "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                    (take, target[0]),
+                )
+            else:
+                _execute_dynamic_insert(cursor, "product_locations", {
+                    "product_id": product_id, "location": to_location, "quantity": take,
+                    "batch_no": batch_no, "expire_date": expire_date,
+                })
+        transfer_ref = str(reference or "").strip() or f"TRF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        for movement_type, movement_location, movement_reason in (
+            ("out", from_location, f"Transfer to {to_location}: {reason}"),
+            ("in", to_location, f"Transfer from {from_location}: {reason}"),
+        ):
+            _execute_dynamic_insert(cursor, "stock_movements", {
+                "product_id": product_id, "type": movement_type, "quantity": quantity,
+                "old_stock": total_stock, "new_stock": total_stock,
+                "reason": movement_reason, "reference": transfer_ref,
+                "created_by": created_by, "notes": str(notes or "").strip(),
+                "location": movement_location,
+            })
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    products = list_products(product_id=product_id, limit=1)
+    return products[0] if products else {"id": product_id}
+
+
+def list_stock_movements(product_id: int, limit: int = 200) -> List[Dict[str, Any]]:
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT sm.id, sm.created_at, sm.type, sm.quantity, sm.old_stock, sm.new_stock,
+                   sm.reason, sm.reference, sm.created_by, sm.location, sm.notes,
+                   pv.color, pv.size
+            FROM stock_movements sm
+            LEFT JOIN product_variants pv ON pv.id = sm.variant_id
+            WHERE sm.product_id = ?
+            ORDER BY sm.created_at DESC, sm.id DESC
+            LIMIT ?
+            """,
+            (int(product_id), max(1, min(int(limit), 500))),
+        )
+        columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def reverse_stock_movement_safe(movement_id: int, reason: str, created_by: str) -> Dict[str, Any]:
+    movement_id = int(movement_id or 0)
+    reason = str(reason or "").strip() or "User requested reversal"
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT reference, COALESCE(notes, ''), type FROM stock_movements WHERE id = ?",
+            (movement_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError("Movement not found")
+        reference, notes, movement_type = str(row[0] or ""), str(row[1] or ""), str(row[2] or "")
+        if "[REVERSED]" in notes or reference.endswith("-REV"):
+            raise ValueError("This movement has already been reversed")
+        if reference.startswith("REV-") or movement_type not in {"in", "out", "adjustment"}:
+            raise ValueError("This movement cannot be reversed")
+    finally:
+        conn.close()
+    from models.database.queries import reverse_stock_movement
+    result = reverse_stock_movement(movement_id, reason=reason, created_by=created_by)
+    if not result.get("success"):
+        raise ValueError(str(result.get("message") or "Movement reversal failed"))
+    return result
 
 
 def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:

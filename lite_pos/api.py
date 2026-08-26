@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from typing import Any
+import base64
+import mimetypes
+from pathlib import Path
 
 import requests
 
@@ -93,6 +96,19 @@ class LiteApiClient:
         product = payload.get("product")
         return dict(product) if product else None
 
+    def save_product(self, values: dict, product_id: int | None = None, image_path: str = "") -> dict:
+        payload = dict(values)
+        if image_path:
+            path = Path(image_path)
+            payload.update({
+                "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+                "image_filename": path.name,
+                "image_mime": mimetypes.guess_type(path.name)[0] or "image/jpeg",
+            })
+        method = "PUT" if product_id else "POST"
+        route = f"/api/products/manage/{int(product_id)}" if product_id else "/api/products/manage"
+        return dict(self._request(method, route, json=payload).get("product") or {})
+
     def payment_types(self) -> list[str]:
         return list(self._request("GET", "/api/payment-types").get("payment_types") or ["Cash"])
 
@@ -111,13 +127,17 @@ class LiteApiClient:
     def add_expense(self, values: dict) -> dict:
         return dict(self._request("POST", "/api/expenses", json=values).get("expense") or {})
 
-    def checkout(self, items: list[dict], payment: float, payment_type: str = "Cash") -> dict:
+    def checkout(
+        self, items: list[dict], payment: float, payment_type: str = "Cash",
+        customer_id: int | None = None,
+    ) -> dict:
         payload = self._request(
             "POST", "/api/sales",
             json={
                 "items": items, "payment": float(payment),
-                "payment_type": payment_type or "Cash", "sale_mode": "Cash",
-                "discount_amount": 0, "points_used": 0, "customer_id": None,
+                "payment_type": payment_type or "Cash",
+                "sale_mode": "Credit" if str(payment_type).lower() == "credit" else "Cash",
+                "discount_amount": 0, "points_used": 0, "customer_id": customer_id,
             },
         )
         receipt = payload.get("receipt") or {}
@@ -145,6 +165,12 @@ class LiteApiClient:
             "GET", "/api/customers", params={"q": query.strip(), "limit": max(1, min(limit, 200))}
         ).get("customers") or [])
 
+    def suppliers(self) -> list[dict]:
+        return list(self._request("GET", "/api/suppliers").get("suppliers") or [])
+
+    def stock_locations(self) -> list[str]:
+        return [str(value) for value in self._request("GET", "/api/stock/locations").get("locations") or ["Shop"]]
+
     def dashboard_summary(self, date_text: str) -> dict:
         return self._request(
             "GET", "/api/dashboard/summary",
@@ -154,11 +180,42 @@ class LiteApiClient:
     def adjust_stock(
         self, product_id: int, adjustment: int, *, variant_id: int | None = None,
         reason: str = "Lite POS adjustment", location: str = "Shop",
+        supplier_id: int | None = None, unit_cost: float = 0, batch_no: str = "",
+        received_by: str = "", notes: str = "",
+        customer_id: int | None = None, reference: str = "", issued_by: str = "",
+        transaction_date: str = "",
     ) -> dict:
         return dict(self._request("POST", "/api/stock/adjust", json={
             "product_id": int(product_id), "variant_id": variant_id,
             "adjustment": int(adjustment), "reason": reason, "location": location,
+            "supplier_id": supplier_id, "unit_cost": float(unit_cost or 0),
+            "batch_no": batch_no.strip(), "received_by": received_by.strip(),
+            "notes": notes.strip(),
+            "customer_id": customer_id, "reference": reference.strip(),
+            "issued_by": issued_by.strip(), "transaction_date": transaction_date.strip(),
         }).get("product") or {})
+
+    def set_stock_quantity(self, values: dict) -> dict:
+        return dict(self._request(
+            "POST", "/api/stock/adjustment", json=values
+        ).get("product") or {})
+
+    def transfer_stock(self, values: dict) -> dict:
+        return dict(self._request(
+            "POST", "/api/stock/transfer", json=values
+        ).get("product") or {})
+
+    def stock_movements(self, product_id: int, limit: int = 200) -> list[dict]:
+        return list(self._request(
+            "GET", "/api/stock/movements",
+            params={"product_id": int(product_id), "limit": max(1, min(limit, 500))},
+        ).get("movements") or [])
+
+    def reverse_stock_movement(self, movement_id: int, reason: str) -> dict:
+        return self._request(
+            "POST", f"/api/stock/movements/{int(movement_id)}/reverse",
+            json={"reason": reason.strip() or "User requested reversal"},
+        )
 
     def logout(self) -> None:
         self.token = ""
