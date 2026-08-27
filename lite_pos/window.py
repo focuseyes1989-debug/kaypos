@@ -2182,6 +2182,15 @@ class LiteWindow(QMainWindow):
         if self.sale_display:
             self.sale_display.close()
             return
+        self._open_sale_display(show_missing_message=True)
+
+    def open_sale_display_if_available(self) -> bool:
+        """Open the customer display automatically when a second screen exists."""
+        return self._open_sale_display(show_missing_message=False)
+
+    def _open_sale_display(self, show_missing_message: bool) -> bool:
+        if self.sale_display:
+            return True
         screens = QApplication.screens()
         current_screen = (
             self.windowHandle().screen() if self.windowHandle()
@@ -2189,11 +2198,12 @@ class LiteWindow(QMainWindow):
         ) or QApplication.primaryScreen()
         extended_screens = self._sale_display_targets(screens, current_screen)
         if not extended_screens:
-            QMessageBox.information(
-                self, "Sale Display",
-                "No extended display was detected. Connect a second monitor and choose Extend in Windows Display Settings.",
-            )
-            return
+            if show_missing_message:
+                QMessageBox.information(
+                    self, "Sale Display",
+                    "No extended display was detected. Connect a second monitor and choose Extend in Windows Display Settings.",
+                )
+            return False
         screen = extended_screens[0]
         display = LiteSaleDisplay(self.receipt_settings.get("shop_name") or "KAY POS")
         self.sale_display = display
@@ -2211,6 +2221,7 @@ class LiteWindow(QMainWindow):
         QTimer.singleShot(0, lambda current=display, target=screen: self._fullscreen_sale_display(current, target))
         self.sale_display_button.setText("Close Display")
         self.statusBar().showMessage(f"Sale Display active · {screen.name()}")
+        return True
 
     @staticmethod
     def _sale_display_targets(screens: list, current_screen) -> list:

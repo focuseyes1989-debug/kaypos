@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QDate, QEventLoop, QSize, QTimer
 from PyQt6.QtGui import QPalette, QPixmap
-from PyQt6.QtWidgets import QApplication, QDialog, QHeaderView, QPushButton as QtPushButton, QTableWidgetItem
+from PyQt6.QtWidgets import QApplication, QDialog, QHeaderView, QMessageBox, QPushButton as QtPushButton, QTableWidgetItem
 
 from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
@@ -357,6 +357,7 @@ class PosLitePhase1Tests(unittest.TestCase):
 
     def test_lite_window_keeps_native_content_with_launcher_branded_sidebar(self):
         window = LiteWindow()
+        window.apply_theme("Light", persist=False)
         self.assertEqual(window.styleSheet(), "")
         nav = window.workspace_page.findChild(
             __import__("PyQt6.QtWidgets", fromlist=["QFrame"]).QFrame, "nav"
@@ -447,6 +448,14 @@ class PosLitePhase1Tests(unittest.TestCase):
         first, second = object(), object()
         self.assertEqual(LiteWindow._sale_display_targets([first, second], first), [second])
         self.assertEqual(LiteWindow._sale_display_targets([first, second], second), [first])
+
+    @patch.object(QApplication, "screens", return_value=[])
+    def test_automatic_sale_display_is_silent_without_extended_screen(self, _screens):
+        window = LiteWindow()
+        with patch.object(QMessageBox, "information") as information:
+            self.assertFalse(window.open_sale_display_if_available())
+            information.assert_not_called()
+        window.close()
 
     def test_products_page_thumbnail_does_not_depend_on_pos_page_cache_render(self):
         window = LiteWindow()

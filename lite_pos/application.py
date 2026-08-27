@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
 
@@ -32,5 +33,8 @@ def run() -> int:
     font.setHintingPreference(QFont.HintingPreference.PreferVerticalHinting)
     app.setFont(font)
     window = LiteWindow()
-    window.show()
+    window.showFullScreen()
+    # Wait until Windows has assigned the POS window to its monitor before
+    # selecting and fullscreening the customer display on another monitor.
+    QTimer.singleShot(250, window.open_sale_display_if_available)
     return app.exec()
