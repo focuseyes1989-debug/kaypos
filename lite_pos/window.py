@@ -457,7 +457,7 @@ class ExpenseDialog(QDialog):
 
 
 class ProductEditorDialog(QDialog):
-    def __init__(self, product: dict | None = None, categories: list[str] | None = None, parent=None):
+    def __init__(self, product: dict | None = None, categories: list[str] | None = None, parent=None, existing_pixmap: QPixmap | None = None):
         super().__init__(parent)
         self.product = dict(product or {})
         self.image_path = ""
@@ -505,13 +505,36 @@ class ProductEditorDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(self.validate); buttons.rejected.connect(self.reject); outer.addWidget(buttons)
         for variant in self.product.get("variants") or []: self.add_variant(variant)
         self.sold_by.currentTextChanged.connect(self.update_variant_state); self.update_variant_state()
+        if existing_pixmap is not None and not existing_pixmap.isNull():
+            self.set_existing_image(existing_pixmap)
+        elif product:
+            self.image_preview.setText("Loading current image…")
+
+    def _show_image_preview(self, pixmap: QPixmap, label: str) -> bool:
+        if pixmap.isNull():
+            return False
+        self.image_preview.setText("")
+        self.image_preview.setPixmap(pixmap.scaled(
+            186, 131, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+        self.image_label.setText(label)
+        return True
+
+    def set_existing_image(self, pixmap: QPixmap) -> None:
+        self._show_image_preview(pixmap, "Current product image")
+
+    def set_existing_image_unavailable(self) -> None:
+        if not self.image_path:
+            self.image_preview.setPixmap(QPixmap())
+            self.image_preview.setText("No current image")
 
     def choose_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Product Image", "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)")
         if path:
             self.image_path = path; self.image_label.setText(path)
             pixmap=QPixmap(path)
-            if not pixmap.isNull(): self.image_preview.setText(""); self.image_preview.setPixmap(pixmap.scaled(186,131,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
+            self._show_image_preview(pixmap, path)
 
     def add_variant(self, values=None):
         values = values or {}; row = self.variants.rowCount(); self.variants.insertRow(row)
@@ -852,7 +875,7 @@ class ReceiptDialog(QDialog):
             QMessageBox.warning(
                 self, "Print Receipt",
                 "The configured receipt printer is not installed on this PC. "
-                "Select it with Configure Receipt Printer first.",
+                "Select it in Setting Center > Local Printer first.",
             )
             return
         printer = QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
@@ -931,7 +954,8 @@ class LiteWindow(QMainWindow):
 
         self.pages = QStackedWidget()
         self.setCentralWidget(self.pages)
-        self.login_page = self._build_login_page()
+        self.login_page = QWidget()
+        self.login_dialog = self._build_login_dialog()
         self.workspace_page = self._build_workspace_page()
         self.pages.addWidget(self.login_page)
         self.pages.addWidget(self.workspace_page)
@@ -950,7 +974,7 @@ class LiteWindow(QMainWindow):
         self._add_shortcut("Esc", self.exit_full_screen)
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
-        self._add_shortcut("Ctrl+Shift+P", self.configure_receipt_printer)
+        self._add_shortcut("Ctrl+Shift+P", self.open_printer_settings)
 
     def _apply_theme_styles(self) -> None:
         if self.theme_name == "Dark":
@@ -996,20 +1020,21 @@ class LiteWindow(QMainWindow):
             self.showNormal()
             self.statusBar().showMessage("Full screen closed")
 
-    def _build_login_page(self) -> QWidget:
-        page = QWidget()
-        outer = QVBoxLayout(page)
-        outer.setContentsMargins(20, 20, 20, 20)
-        outer.addStretch()
-        card = QFrame(objectName="card")
-        card.setMinimumWidth(520)
-        card.setMaximumWidth(560)
-        body = QVBoxLayout(card)
-        body.setContentsMargins(34, 28, 34, 28)
-        body.setSpacing(12)
+    def _build_login_dialog(self) -> QDialog:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Sign in · KAY POS Lite")
+        dialog.setModal(True)
+        dialog.setFixedSize(470, 380)
+        dialog.rejected.connect(self.close)
+        body = QVBoxLayout(dialog)
+        body.setContentsMargins(30, 24, 30, 24)
+        body.setSpacing(10)
         brand = QLabel("KAY POS LITE", objectName="brand")
-        title = QLabel("Sign in", objectName="title")
-        subtitle = QLabel("Connect to your existing KAY POS Server and PostgreSQL data.", objectName="muted")
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = QLabel("Welcome back", objectName="title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle = QLabel("Sign in to continue to your KAY POS workspace.", objectName="muted")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setWordWrap(True)
         body.addWidget(brand)
         body.addWidget(title)
@@ -1021,7 +1046,7 @@ class LiteWindow(QMainWindow):
         form.setVerticalSpacing(10)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.server_input = QLineEdit(config["server_url"])
-        self.server_input.setMinimumWidth(310)
+        self.server_input.setMinimumWidth(285)
         self.server_input.setPlaceholderText("https://192.168.1.10:8000")
         self.username_input = QLineEdit(config["remember_username"])
         self.password_input = QLineEdit()
@@ -1036,7 +1061,7 @@ class LiteWindow(QMainWindow):
         body.addWidget(self.insecure_check)
         self.login_status = QLabel("", objectName="muted")
         self.login_status.setWordWrap(True)
-        self.login_status.setMinimumHeight(44)
+        self.login_status.setMinimumHeight(34)
         self.login_status.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         body.addWidget(self.login_status)
         buttons = QHBoxLayout()
@@ -1050,9 +1075,24 @@ class LiteWindow(QMainWindow):
         buttons.addStretch()
         buttons.addWidget(self.login_button)
         body.addLayout(buttons)
-        outer.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
-        outer.addStretch()
-        return page
+        return dialog
+
+    def show_login_dialog(self) -> None:
+        if self.api or self.login_dialog.isVisible():
+            return
+        self.login_dialog.show()
+        screen = QApplication.primaryScreen()
+        parent_center = (
+            self.frameGeometry().center()
+            if self.isVisible()
+            else screen.availableGeometry().center() if screen else self.frameGeometry().center()
+        )
+        dialog_frame = self.login_dialog.frameGeometry()
+        dialog_frame.moveCenter(parent_center)
+        self.login_dialog.move(dialog_frame.topLeft())
+        self.login_dialog.raise_()
+        self.login_dialog.activateWindow()
+        self.username_input.setFocus()
 
     def _build_workspace_page(self) -> QWidget:
         page = QWidget()
@@ -1589,7 +1629,7 @@ class LiteWindow(QMainWindow):
         self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         for column,width in {2:150,3:90,4:75,5:80}.items():
             self.product_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive); self.product_table.setColumnWidth(column,width)
-        self.product_table.doubleClicked.connect(self.add_selected_product)
+        self.product_table.clicked.connect(self.add_selected_product)
         self.product_table.verticalScrollBar().valueChanged.connect(self._maybe_load_more_products)
         self.product_table.verticalScrollBar().valueChanged.connect(lambda _value: self.thumbnail_timer.start())
         body.addWidget(self.product_table, 3)
@@ -1636,6 +1676,7 @@ class LiteWindow(QMainWindow):
         total_row.addWidget(self.cart_total_label)
         cart_layout.addLayout(total_row)
         self.checkout_button = QPushButton("Checkout", objectName="primary")
+        self.checkout_button.setMinimumHeight(46)
         self.checkout_button.setEnabled(False)
         self.checkout_button.clicked.connect(self.open_checkout)
         cart_layout.addWidget(self.checkout_button)
@@ -1646,17 +1687,13 @@ class LiteWindow(QMainWindow):
         self.cash_drawer_button = QPushButton("Cash Drawer")
         self.cash_drawer_button.setToolTip("Open the drawer through this PC's receipt printer (Ctrl+Shift+D)")
         self.cash_drawer_button.clicked.connect(self.open_cash_drawer)
-        printer_setup = QPushButton("Printer…")
-        printer_setup.setToolTip("Select local receipt printer (Ctrl+Shift+P)")
-        printer_setup.clicked.connect(self.configure_receipt_printer)
         self.sale_display_button = QPushButton("Sale Display")
         self.sale_display_button.setToolTip("Show the live customer cart full-screen on an extended display")
         self.sale_display_button.clicked.connect(self.toggle_sale_display)
         receipt_actions.addWidget(self.add_expense_button)
         receipt_actions.addWidget(self.cash_drawer_button)
-        receipt_actions.addWidget(printer_setup)
+        receipt_actions.addWidget(self.sale_display_button)
         cart_layout.addLayout(receipt_actions)
-        cart_layout.addWidget(self.sale_display_button)
         body.addWidget(cart_panel, 2)
         outer.addLayout(body, 1)
         return page
@@ -1741,8 +1778,13 @@ class LiteWindow(QMainWindow):
             self.identity_label.setText(f"{name}\nRole: {role}")
             self.welcome_label.setText(f"Welcome, {name}. Connected as {role}.")
             self.pages.setCurrentWidget(self.workspace_page)
+            self.login_dialog.accept()
+            self.showFullScreen()
             self.statusBar().showMessage(f"Connected · {client.server_url}")
             self.workspace_stack.setCurrentWidget(self.pos_page)
+            # Let Windows assign the POS window to its monitor before opening
+            # the customer display on a different screen.
+            QTimer.singleShot(250, self.open_sale_display_if_available)
             QTimer.singleShot(100, self.load_categories)
             QTimer.singleShot(120, self.load_receipt_settings)
 
@@ -2344,9 +2386,9 @@ class LiteWindow(QMainWindow):
             return
         printer_name = str(load_config().get("receipt_printer_name") or "")
         if not printer_name:
-            printer_name = self.configure_receipt_printer()
-            if not printer_name:
-                return
+            QMessageBox.information(self, "Cash Drawer", "Select a local receipt printer in Setting Center > Local Printer first.")
+            self.open_printer_settings()
+            return
         self.cash_drawer_button.setEnabled(False)
         self.statusBar().showMessage("Opening cash drawer…")
 
@@ -2362,25 +2404,19 @@ class LiteWindow(QMainWindow):
         self._run_task(lambda: open_local_cash_drawer(printer_name), opened, failed)
 
     def configure_receipt_printer(self) -> str:
-        from PyQt6.QtPrintSupport import QPrinterInfo
+        """Compatibility entry point that now opens the centralized settings page."""
+        self.open_printer_settings()
+        return str(load_config().get("receipt_printer_name") or "")
 
-        names = QPrinterInfo.availablePrinterNames()
-        if not names:
-            QMessageBox.warning(
-                self, "Receipt Printer",
-                "No Windows printers are installed on this PC. Install the GA-E200I driver first.",
-            )
-            return ""
-        current = str(load_config().get("receipt_printer_name") or "")
-        current_index = names.index(current) if current in names else 0
-        selected, accepted = QInputDialog.getItem(
-            self, "Local Receipt Printer", "Printer:", names, current_index, False,
-        )
-        if not accepted or not selected:
-            return ""
-        save_config({"receipt_printer_name": selected})
-        self.statusBar().showMessage(f"Local receipt printer · {selected}")
-        return str(selected)
+    def open_printer_settings(self) -> None:
+        self.pages.setCurrentWidget(self.workspace_page)
+        self.workspace_stack.setCurrentWidget(self.settings_page)
+        for row in range(self.settings_page.nav.count()):
+            if self.settings_page.nav.item(row).text() == "Local Printer":
+                self.settings_page.nav.setCurrentRow(row)
+                break
+        self.settings_page.refresh_local_printers()
+        self.statusBar().showMessage("Setting Center · Local Printer")
 
     def open_sales_history(self) -> None:
         self.workspace_stack.setCurrentWidget(self.history_page)
@@ -2693,9 +2729,30 @@ class LiteWindow(QMainWindow):
     def edit_managed_product(self) -> None:
         row=self.manage_product_table.currentRow(); products=getattr(self,"managed_products",[])
         if row<0 or row>=len(products): QMessageBox.warning(self,"Products","Select a product row first."); return
-        product=products[row]; dialog=ProductEditorDialog(product,getattr(self,"managed_categories",[]),self)
+        product=products[row]; product_id=int(product.get("id") or 0)
+        dialog=ProductEditorDialog(product,getattr(self,"managed_categories",[]),self,existing_pixmap=self.thumbnail_cache.get(product_id))
+        self._load_editor_product_image(dialog, product_id)
         if dialog.exec()!=QDialog.DialogCode.Accepted:return
-        self._save_managed_product(dialog,int(product.get("id") or 0))
+        self._save_managed_product(dialog,product_id)
+
+    def _load_editor_product_image(self, dialog: ProductEditorDialog, product_id: int) -> None:
+        if not self.api or not product_id:
+            dialog.set_existing_image_unavailable()
+            return
+        reply = self.thumbnail_manager.get(QNetworkRequest(QUrl(f"{self.api.server_url}/api/products/{product_id}/image")))
+        if not self.api.verify_tls:
+            reply.sslErrors.connect(lambda _errors, current=reply: current.ignoreSslErrors())
+
+        def finished():
+            data = bytes(reply.readAll()) if reply.error() == QNetworkReply.NetworkError.NoError else b""
+            reply.deleteLater()
+            pixmap = QPixmap()
+            if data and pixmap.loadFromData(data):
+                dialog.set_existing_image(pixmap)
+            else:
+                dialog.set_existing_image_unavailable()
+
+        reply.finished.connect(finished)
 
     def _save_managed_product(self, dialog: ProductEditorDialog, product_id: int | None) -> None:
         self.manage_product_status.setText("Saving product…")
@@ -3318,6 +3375,8 @@ class LiteWindow(QMainWindow):
         self.pages.setCurrentWidget(self.login_page)
         self.login_status.setText("Signed out.")
         self.statusBar().showMessage("Ready")
+        self.hide()
+        QTimer.singleShot(0, self.show_login_dialog)
 
     def closeEvent(self, event) -> None:
         if self._threads:

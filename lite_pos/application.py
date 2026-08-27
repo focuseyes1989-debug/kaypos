@@ -33,8 +33,5 @@ def run() -> int:
     font.setHintingPreference(QFont.HintingPreference.PreferVerticalHinting)
     app.setFont(font)
     window = LiteWindow()
-    window.showFullScreen()
-    # Wait until Windows has assigned the POS window to its monitor before
-    # selecting and fullscreening the customer display on another monitor.
-    QTimer.singleShot(250, window.open_sale_display_if_available)
+    QTimer.singleShot(0, window.show_login_dialog)
     return app.exec()

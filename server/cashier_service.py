@@ -721,8 +721,25 @@ def list_products(
             pattern = f"%{search}%"
             params.extend([pattern, pattern, pattern])
         if category:
-            where.append("TRIM(COALESCE(category, '')) = ?")
-            params.append(category)
+            category_names = [str(category).strip()]
+            category_ids: List[int] = []
+            try:
+                category_columns = _table_columns(cursor, "categories")
+                if {"id", "name", "parent_id"}.issubset(category_columns):
+                    status_filter = "WHERE LOWER(COALESCE(status, 'active')) = 'active'" if "status" in category_columns else ""
+                    cursor.execute(f"SELECT id, TRIM(name), parent_id FROM categories {status_filter}")
+                    category_names, category_ids = expand_category_scope(category, cursor.fetchall())
+            except Exception as exc:
+                logger.debug(f"Could not expand category hierarchy for '{category}': {exc}")
+            name_placeholders = ", ".join("?" for _ in category_names)
+            category_filters = [f"LOWER(TRIM(COALESCE(p.category, ''))) IN ({name_placeholders})"]
+            category_params: List[Any] = [name.casefold() for name in category_names]
+            if category_ids and "category_id" in _table_columns(cursor, "products"):
+                id_placeholders = ", ".join("?" for _ in category_ids)
+                category_filters.append(f"p.category_id IN ({id_placeholders})")
+                category_params.extend(category_ids)
+            where.append(f"({' OR '.join(category_filters)})")
+            params.extend(category_params)
 
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
         params.extend([max(1, min(limit, 500)), max(0, offset)])
@@ -826,6 +843,27 @@ def list_products(
         return products
     finally:
         conn.close()
+
+
+def expand_category_scope(category: str, rows: Iterable[Any]) -> tuple[List[str], List[int]]:
+    """Return a selected category and every descendant in its hierarchy."""
+    selected = str(category or "").strip()
+    records = [
+        (int(row[0]), str(row[1] or "").strip(), int(row[2]) if row[2] is not None else None)
+        for row in rows if row and row[0] is not None and str(row[1] or "").strip()
+    ]
+    selected_ids = {record_id for record_id, name, _parent_id in records if name.casefold() == selected.casefold()}
+    descendant_ids = set(selected_ids)
+    changed = True
+    while changed:
+        changed = False
+        for record_id, _name, parent_id in records:
+            if parent_id in descendant_ids and record_id not in descendant_ids:
+                descendant_ids.add(record_id)
+                changed = True
+    names = {selected}
+    names.update(name for record_id, name, _parent_id in records if record_id in descendant_ids)
+    return sorted(names, key=str.casefold), sorted(descendant_ids)
 
 
 def scan_product(code: str) -> Optional[Dict[str, Any]]:

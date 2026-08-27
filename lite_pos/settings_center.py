@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
     QTextEdit, QVBoxLayout, QWidget,
 )
 
+from lite_pos.config import load_config, save_config
+
 
 class UserDialog(QDialog):
     def __init__(self, roles, user=None, parent=None):
@@ -38,12 +40,11 @@ class LiteSettingsCenter(QWidget):
         super().__init__(); self.host = host; self.api = lambda: host.api; self.settings = {}; self.payment_rows = []; self.users = []; self.roles = []
         root = QHBoxLayout(self); root.setContentsMargins(18, 18, 18, 18)
         left = QVBoxLayout(); title = QLabel("Setting Center"); title.setObjectName("title"); left.addWidget(title)
-        note = QLabel("KAY POS server settings · English interface"); note.setObjectName("muted"); left.addWidget(note)
         self.nav = QListWidget(); self.nav.setFixedWidth(210)
-        for text in ("Appearance", "Payment Types", "Tax and Discount", "Business and Branding", "Receipt Text", "Regional", "Users"): self.nav.addItem(text)
+        for text in ("Appearance", "Local Printer", "Payment Types", "Tax and Discount", "Business and Branding", "Receipt Text", "Regional", "Users"): self.nav.addItem(text)
         left.addWidget(self.nav, 1); root.addLayout(left)
         self.stack = QStackedWidget(); root.addWidget(self.stack, 1)
-        self.stack.addWidget(self._appearance_page()); self.stack.addWidget(self._payment_page()); self.stack.addWidget(self._tax_page()); self.stack.addWidget(self._branding_page())
+        self.stack.addWidget(self._appearance_page()); self.stack.addWidget(self._printer_page()); self.stack.addWidget(self._payment_page()); self.stack.addWidget(self._tax_page()); self.stack.addWidget(self._branding_page())
         self.stack.addWidget(self._receipt_page()); self.stack.addWidget(self._regional_page()); self.stack.addWidget(self._users_page())
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex); self.nav.setCurrentRow(0)
 
@@ -64,6 +65,20 @@ class LiteSettingsCenter(QWidget):
         apply_button.clicked.connect(self.save_appearance)
         layout.addWidget(apply_button, alignment=Qt.AlignmentFlag.AlignRight)
         return page
+
+    def _printer_page(self):
+        page, layout = self._page("Local Printer", "Configure receipt printing for this POS Lite device.")
+        group = QGroupBox("Receipt Printer"); form = QFormLayout(group); printer_row = QHBoxLayout()
+        self.receipt_printer = QComboBox(); self.receipt_printer.setMinimumWidth(280)
+        refresh = QPushButton("Refresh Printers"); refresh.clicked.connect(self.refresh_local_printers)
+        printer_row.addWidget(self.receipt_printer, 1); printer_row.addWidget(refresh); form.addRow("Windows Printer", printer_row)
+        self.print_after_sale = QCheckBox("Print receipt automatically after completing a sale")
+        self.open_drawer_after_sale = QCheckBox("Open cash drawer automatically after completing a sale")
+        form.addRow("", self.print_after_sale); form.addRow("", self.open_drawer_after_sale)
+        self.printer_status = QLabel(""); self.printer_status.setObjectName("muted"); self.printer_status.setWordWrap(True)
+        form.addRow("Status", self.printer_status); layout.addWidget(group); layout.addStretch()
+        save = QPushButton("Save Local Printer"); save.clicked.connect(self.save_local_printer)
+        layout.addWidget(save, alignment=Qt.AlignmentFlag.AlignRight); return page
 
     def _payment_page(self):
         page, layout = self._page("Payment Types", "Payment methods shared by KAY POS and every POS Lite client.")
@@ -102,9 +117,10 @@ class LiteSettingsCenter(QWidget):
 
     def refresh(self):
         self.theme.setCurrentText(getattr(self.host, "theme_name", "Light"))
+        self.refresh_local_printers()
         if not self.api(): return
         is_admin=str(self.host.user.get("role") or "").casefold()=="admin"
-        self.nav.item(6).setHidden(not is_admin)
+        self.nav.item(7).setHidden(not is_admin)
         self.host._run_task(self.api().lite_settings, self._settings_loaded, self._error)
         self.load_payment_types()
         if is_admin: self.load_users()
@@ -127,6 +143,22 @@ class LiteSettingsCenter(QWidget):
         self.host.apply_theme(self.theme.currentText())
         self.theme.setCurrentText(self.host.theme_name)
         self.host.statusBar().showMessage(f"{self.host.theme_name} theme applied")
+
+    def refresh_local_printers(self):
+        from PyQt6.QtPrintSupport import QPrinterInfo
+        config = load_config(); selected = str(config.get("receipt_printer_name") or "")
+        names = list(QPrinterInfo.availablePrinterNames()); self.receipt_printer.clear(); self.receipt_printer.addItem("Select a printer…", "")
+        for name in names: self.receipt_printer.addItem(name, name)
+        index = self.receipt_printer.findData(selected); self.receipt_printer.setCurrentIndex(index if index >= 0 else 0)
+        self.print_after_sale.setChecked(bool(config.get("print_receipt_after_sale")))
+        self.open_drawer_after_sale.setChecked(bool(config.get("open_cash_drawer_after_sale")))
+        self.printer_status.setText(f"{len(names)} Windows printer(s) available." if names else "No Windows printers detected. Install the printer driver, then refresh.")
+
+    def save_local_printer(self):
+        selected = str(self.receipt_printer.currentData() or "")
+        save_config({"receipt_printer_name": selected, "print_receipt_after_sale": self.print_after_sale.isChecked(), "open_cash_drawer_after_sale": self.open_drawer_after_sale.isChecked()})
+        self.printer_status.setText(f"Saved · {selected}" if selected else "Saved without a local receipt printer.")
+        self.host.statusBar().showMessage("Local printer settings saved")
 
     def load_payment_types(self):
         if self.api(): self.host._run_task(self.api().payment_type_records,self._payments_loaded,self._error)

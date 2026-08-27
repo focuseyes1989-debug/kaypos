@@ -12,7 +12,7 @@ from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
 from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ReceiptDialog
-from server.cashier_service import order_categories_by_usage
+from server.cashier_service import expand_category_scope, order_categories_by_usage
 
 
 class PosLitePhase1Tests(unittest.TestCase):
@@ -40,6 +40,16 @@ class PosLitePhase1Tests(unittest.TestCase):
             self.assertTrue(saved["print_receipt_after_sale"])
             self.assertTrue(saved["open_cash_drawer_after_sale"])
             self.assertEqual(saved["theme"], "Dark")
+
+    def test_parent_category_scope_includes_children_and_subchildren(self):
+        names, category_ids = expand_category_scope("Drinks", [
+            (1, "Drinks", None),
+            (2, "Juice", 1),
+            (3, "Orange Juice", 2),
+            (4, "Snacks", None),
+        ])
+        self.assertEqual(names, ["Drinks", "Juice", "Orange Juice"])
+        self.assertEqual(category_ids, [1, 2, 3])
 
     @patch("lite_pos.api.requests.Session.request")
     def test_login_stores_token_and_me_uses_bearer_auth(self, request):
@@ -377,6 +387,20 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertIn("Esc", [shortcut.key().toString() for shortcut in window._shortcuts])
         window.close()
 
+    def test_login_uses_compact_modal_dialog(self):
+        window = LiteWindow()
+        self.assertIsInstance(window.login_dialog, QDialog)
+        self.assertTrue(window.login_dialog.isModal())
+        self.assertLessEqual(window.login_dialog.width(), 500)
+        self.assertLessEqual(window.login_dialog.height(), 400)
+        self.assertEqual(window.login_dialog.windowTitle(), "Sign in · KAY POS Lite")
+        window.show_login_dialog()
+        self.app.processEvents()
+        self.assertFalse(window.isVisible())
+        self.assertTrue(window.login_dialog.isVisible())
+        window.login_dialog.hide()
+        window.close()
+
     def test_sidebar_tracks_the_active_workspace_page(self):
         window = LiteWindow()
         self.assertEqual(next(iter(window.nav_buttons)), "Point of Sale")
@@ -432,6 +456,20 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(window.product_table.iconSize(), QSize(44, 40))
         window.close()
 
+    def test_single_product_click_adds_item_to_cart(self):
+        window = LiteWindow()
+        window.products = [{
+            "id": 501, "name": "Single Click Product", "price": 2500,
+            "stock": 3, "sold_by": "each", "variants": [],
+        }]
+        window.product_table.setRowCount(1)
+        window.product_table.setItem(0, 1, QTableWidgetItem("Single Click Product"))
+        window.product_table.setCurrentCell(0, 1)
+        window.product_table.clicked.emit(window.product_table.model().index(0, 1))
+        self.assertEqual(window.cart.count(), 1)
+        self.assertEqual(window.cart.total(), 2500)
+        window.close()
+
     def test_sale_display_renders_live_cart_and_total(self):
         display = LiteSaleDisplay("Demo Shop")
         display.set_cart([
@@ -448,6 +486,31 @@ class PosLitePhase1Tests(unittest.TestCase):
         first, second = object(), object()
         self.assertEqual(LiteWindow._sale_display_targets([first, second], first), [second])
         self.assertEqual(LiteWindow._sale_display_targets([first, second], second), [first])
+
+    def test_pos_action_row_uses_sale_display_instead_of_printer_button(self):
+        window = LiteWindow()
+        button_texts = [button.text() for button in window.pos_page.findChildren(QtPushButton)]
+        self.assertIn("Sale Display", button_texts)
+        self.assertNotIn("Printer…", button_texts)
+        self.assertEqual(window.checkout_button.minimumHeight(), 46)
+        self.assertEqual(window.settings_page.nav.item(1).text(), "Local Printer")
+        window.close()
+
+    @patch("lite_pos.settings_center.save_config")
+    def test_local_printer_settings_save_device_preferences(self, save):
+        window = LiteWindow()
+        page = window.settings_page
+        page.receipt_printer.addItem("Test Receipt Printer", "Test Receipt Printer")
+        page.receipt_printer.setCurrentIndex(page.receipt_printer.count() - 1)
+        page.print_after_sale.setChecked(True)
+        page.open_drawer_after_sale.setChecked(True)
+        page.save_local_printer()
+        save.assert_called_once_with({
+            "receipt_printer_name": "Test Receipt Printer",
+            "print_receipt_after_sale": True,
+            "open_cash_drawer_after_sale": True,
+        })
+        window.close()
 
     @patch.object(QApplication, "screens", return_value=[])
     def test_automatic_sale_display_is_silent_without_extended_screen(self, _screens):
@@ -564,6 +627,18 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(values["variants"][0]["stock"], 3)
         dialog.close(); window.close()
 
+    def test_product_editor_shows_existing_product_image(self):
+        pixmap = QPixmap(120, 90)
+        pixmap.fill()
+        dialog = ProductEditorDialog(
+            {"id": 77, "name": "Camera", "sold_by": "Each"},
+            categories=["CCTV"], existing_pixmap=pixmap,
+        )
+        self.assertFalse(dialog.image_preview.pixmap().isNull())
+        self.assertEqual(dialog.image_label.text(), "Current product image")
+        self.assertEqual(dialog.image_path, "")
+        dialog.close()
+
     def test_product_editor_matches_each_service_and_variant_forms(self):
         dialog = ProductEditorDialog(categories=["CCTV"])
         self.assertTrue(dialog.barcode.isVisibleTo(dialog))
@@ -646,6 +721,10 @@ class PosLitePhase1Tests(unittest.TestCase):
     @patch("lite_pos.window.save_config")
     def test_lite_theme_can_switch_and_settings_exposes_appearance(self, save):
         window = LiteWindow()
+        self.assertNotIn(
+            "KAY POS server settings · English interface",
+            [label.text() for label in window.settings_page.findChildren(__import__("PyQt6.QtWidgets", fromlist=["QLabel"]).QLabel)],
+        )
         self.assertEqual(window.settings_page.nav.item(0).text(), "Appearance")
         self.assertEqual(
             [window.settings_page.theme.itemText(index) for index in range(window.settings_page.theme.count())],
