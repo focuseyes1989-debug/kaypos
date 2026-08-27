@@ -438,6 +438,11 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(display.total_label.text(), "8,000 Ks")
         display.close()
 
+    def test_sale_display_target_is_different_from_pos_window_screen(self):
+        first, second = object(), object()
+        self.assertEqual(LiteWindow._sale_display_targets([first, second], first), [second])
+        self.assertEqual(LiteWindow._sale_display_targets([first, second], second), [first])
+
     def test_products_page_thumbnail_does_not_depend_on_pos_page_cache_render(self):
         window = LiteWindow()
         window.managed_products = [{"id": 77, "thumbnail_url": "/api/products/77/thumbnail"}]

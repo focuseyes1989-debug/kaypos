@@ -2150,8 +2150,12 @@ class LiteWindow(QMainWindow):
         if self.sale_display:
             self.sale_display.close()
             return
-        primary = QApplication.primaryScreen()
-        extended_screens = [screen for screen in QApplication.screens() if screen is not primary]
+        screens = QApplication.screens()
+        current_screen = (
+            self.windowHandle().screen() if self.windowHandle()
+            else QApplication.screenAt(self.frameGeometry().center())
+        ) or QApplication.primaryScreen()
+        extended_screens = self._sale_display_targets(screens, current_screen)
         if not extended_screens:
             QMessageBox.information(
                 self, "Sale Display",
@@ -2163,13 +2167,30 @@ class LiteWindow(QMainWindow):
         self.sale_display = display
         display.closed.connect(self._sale_display_closed)
         display.set_cart(list(self.cart.items.values()))
+        # Create and show the native window on the target monitor before
+        # applying fullscreen. On Windows, fullscreening an unseen window can
+        # otherwise relocate it to the POS window's monitor.
+        display.showNormal()
         display.winId()
         if display.windowHandle():
             display.windowHandle().setScreen(screen)
         display.setGeometry(screen.geometry())
-        display.showFullScreen()
+        display.show()
+        QTimer.singleShot(0, lambda current=display, target=screen: self._fullscreen_sale_display(current, target))
         self.sale_display_button.setText("Close Display")
         self.statusBar().showMessage(f"Sale Display active · {screen.name()}")
+
+    @staticmethod
+    def _sale_display_targets(screens: list, current_screen) -> list:
+        return [screen for screen in screens if screen is not current_screen]
+
+    def _fullscreen_sale_display(self, display: LiteSaleDisplay, screen) -> None:
+        if self.sale_display is not display:
+            return
+        if display.windowHandle():
+            display.windowHandle().setScreen(screen)
+        display.setGeometry(screen.geometry())
+        display.showFullScreen()
 
     def _sale_display_closed(self) -> None:
         display = self.sale_display
