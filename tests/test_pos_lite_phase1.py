@@ -25,6 +25,7 @@ class PosLitePhase1Tests(unittest.TestCase):
             path = Path(folder) / "config.json"
             self.assertEqual(load_config(path)["server_url"], DEFAULT_SERVER_URL)
             self.assertTrue(load_config(path)["insecure_tls"])
+            self.assertEqual(load_config(path)["theme"], "Light")
             saved = save_config({
                 "server_url": "https://192.168.1.10:8000",
                 "insecure_tls": True,
@@ -32,11 +33,13 @@ class PosLitePhase1Tests(unittest.TestCase):
                 "receipt_printer_name": "GA-E200I",
                 "print_receipt_after_sale": True,
                 "open_cash_drawer_after_sale": True,
+                "theme": "Dark",
             }, path)
             self.assertEqual(load_config(path), saved)
             self.assertEqual(saved["receipt_printer_name"], "GA-E200I")
             self.assertTrue(saved["print_receipt_after_sale"])
             self.assertTrue(saved["open_cash_drawer_after_sale"])
+            self.assertEqual(saved["theme"], "Dark")
 
     @patch("lite_pos.api.requests.Session.request")
     def test_login_stores_token_and_me_uses_bearer_auth(self, request):
@@ -630,6 +633,24 @@ class PosLitePhase1Tests(unittest.TestCase):
             self.app.palette().color(QPalette.ColorRole.Window).name(),
             "#efefef",
         )
+
+    @patch("lite_pos.window.save_config")
+    def test_lite_theme_can_switch_and_settings_exposes_appearance(self, save):
+        window = LiteWindow()
+        self.assertEqual(window.settings_page.nav.item(0).text(), "Appearance")
+        self.assertEqual(
+            [window.settings_page.theme.itemText(index) for index in range(window.settings_page.theme.count())],
+            ["Light", "Dark"],
+        )
+        self.assertEqual(window.apply_theme("Dark"), "Dark")
+        self.assertEqual(
+            self.app.palette().color(QPalette.ColorRole.Window).name(),
+            "#171b26",
+        )
+        self.assertIn("#20283a", window.statusBar().styleSheet())
+        save.assert_called_once_with({"theme": "Dark"})
+        window.apply_theme("Light", persist=False)
+        window.close()
 
 
 if __name__ == "__main__":

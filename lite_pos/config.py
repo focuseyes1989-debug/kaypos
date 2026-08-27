@@ -29,6 +29,7 @@ def load_config(path: Path | None = None) -> dict:
         "receipt_printer_name": str(data.get("receipt_printer_name") or "").strip(),
         "print_receipt_after_sale": bool(data.get("print_receipt_after_sale", False)),
         "open_cash_drawer_after_sale": bool(data.get("open_cash_drawer_after_sale", False)),
+        "theme": "Dark" if str(data.get("theme") or "").casefold() == "dark" else "Light",
     }
 
 

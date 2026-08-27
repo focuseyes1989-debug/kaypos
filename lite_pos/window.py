@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 from lite_pos.api import LiteApiClient
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
+from lite_pos.theme import apply_lite_theme, normalize_theme
 from lite_pos.settings_center import LiteSettingsCenter
 
 
@@ -889,6 +890,7 @@ class LiteWindow(QMainWindow):
         self.setWindowTitle("KAY POS Lite")
         self.resize(1180, 680)
         self.setMinimumSize(960, 600)
+        self.theme_name = normalize_theme(load_config().get("theme"))
         self.api: LiteApiClient | None = None
         self.user: dict = {}
         self.products: list[dict] = []
@@ -940,18 +942,8 @@ class LiteWindow(QMainWindow):
                 frame.setFrameShape(QFrame.Shape.StyledPanel)
                 frame.setFrameShadow(QFrame.Shadow.Plain)
         status = QStatusBar()
-        status.setStyleSheet("""
-            QStatusBar {
-                color: #334155;
-                background: #eef1ff;
-                border-top: 1px solid #c7cefa;
-                padding: 2px 8px;
-            }
-            QStatusBar::item {
-                border: 0;
-            }
-        """)
         self.setStatusBar(status)
+        self._apply_theme_styles()
         self.statusBar().showMessage("Ready")
         self._shortcuts = []
         self._add_shortcut("F11", self.toggle_full_screen)
@@ -959,6 +951,31 @@ class LiteWindow(QMainWindow):
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
         self._add_shortcut("Ctrl+Shift+P", self.configure_receipt_printer)
+
+    def _apply_theme_styles(self) -> None:
+        if self.theme_name == "Dark":
+            foreground, background, border = "#dce3f3", "#20283a", "#36415a"
+        else:
+            foreground, background, border = "#334155", "#eef1ff", "#c7cefa"
+        self.statusBar().setStyleSheet(f"""
+            QStatusBar {{
+                color: {foreground};
+                background: {background};
+                border-top: 1px solid {border};
+                padding: 2px 8px;
+            }}
+            QStatusBar::item {{ border: 0; }}
+        """)
+
+    def apply_theme(self, theme_name: str, persist: bool = True) -> str:
+        app = QApplication.instance()
+        self.theme_name = normalize_theme(theme_name)
+        if app is not None:
+            self.theme_name = apply_lite_theme(app, self.theme_name)
+        self._apply_theme_styles()
+        if persist:
+            save_config({"theme": self.theme_name})
+        return self.theme_name
 
     def _add_shortcut(self, sequence: str, callback: Callable) -> None:
         shortcut = QShortcut(QKeySequence(sequence), self)

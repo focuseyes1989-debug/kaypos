@@ -40,16 +40,30 @@ class LiteSettingsCenter(QWidget):
         left = QVBoxLayout(); title = QLabel("Setting Center"); title.setObjectName("title"); left.addWidget(title)
         note = QLabel("KAY POS server settings · English interface"); note.setObjectName("muted"); left.addWidget(note)
         self.nav = QListWidget(); self.nav.setFixedWidth(210)
-        for text in ("Payment Types", "Tax and Discount", "Business and Branding", "Receipt Text", "Regional", "Users"): self.nav.addItem(text)
+        for text in ("Appearance", "Payment Types", "Tax and Discount", "Business and Branding", "Receipt Text", "Regional", "Users"): self.nav.addItem(text)
         left.addWidget(self.nav, 1); root.addLayout(left)
         self.stack = QStackedWidget(); root.addWidget(self.stack, 1)
-        self.stack.addWidget(self._payment_page()); self.stack.addWidget(self._tax_page()); self.stack.addWidget(self._branding_page())
+        self.stack.addWidget(self._appearance_page()); self.stack.addWidget(self._payment_page()); self.stack.addWidget(self._tax_page()); self.stack.addWidget(self._branding_page())
         self.stack.addWidget(self._receipt_page()); self.stack.addWidget(self._regional_page()); self.stack.addWidget(self._users_page())
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex); self.nav.setCurrentRow(0)
 
     def _page(self, title, description):
         page = QWidget(); layout = QVBoxLayout(page); heading = QLabel(title); heading.setObjectName("title"); layout.addWidget(heading)
         sub = QLabel(description); sub.setObjectName("muted"); sub.setWordWrap(True); layout.addWidget(sub); return page, layout
+
+    def _appearance_page(self):
+        page, layout = self._page("Appearance", "Choose the display theme for this POS Lite device.")
+        group = QGroupBox("Theme")
+        form = QFormLayout(group)
+        self.theme = QComboBox()
+        self.theme.addItems(["Light", "Dark"])
+        form.addRow("Color Theme", self.theme)
+        layout.addWidget(group)
+        layout.addStretch()
+        apply_button = QPushButton("Apply Theme")
+        apply_button.clicked.connect(self.save_appearance)
+        layout.addWidget(apply_button, alignment=Qt.AlignmentFlag.AlignRight)
+        return page
 
     def _payment_page(self):
         page, layout = self._page("Payment Types", "Payment methods shared by KAY POS and every POS Lite client.")
@@ -87,9 +101,10 @@ class LiteSettingsCenter(QWidget):
         row.addStretch(); layout.addLayout(row); self.user_actions=(add,edit,delete); return page
 
     def refresh(self):
+        self.theme.setCurrentText(getattr(self.host, "theme_name", "Light"))
         if not self.api(): return
         is_admin=str(self.host.user.get("role") or "").casefold()=="admin"
-        self.nav.item(5).setHidden(not is_admin)
+        self.nav.item(6).setHidden(not is_admin)
         self.host._run_task(self.api().lite_settings, self._settings_loaded, self._error)
         self.load_payment_types()
         if is_admin: self.load_users()
@@ -108,6 +123,10 @@ class LiteSettingsCenter(QWidget):
     def save_branding(self): self._save({"shop_name":self.shop_name.text().strip(),"shop_phone":self.shop_phone.text().strip(),"shop_address":self.shop_address.toPlainText().strip(),"shop_logo":self.logo_path.text().strip(),"shop_logo_image":self.settings.get("shop_logo_image",""),"shop_qr_code":self.qr_path.text().strip(),"shop_qr_code_image":self.settings.get("shop_qr_code_image",""),"shop_qr_name":self.qr_name.text().strip()},"Business and branding settings saved.")
     def save_receipt(self): self._save({"receipt_header":self.receipt_header.toPlainText(),"receipt_footer":self.receipt_footer.toPlainText(),"shop_footer_message":self.footer_message.text()},"Receipt text saved.")
     def save_regional(self): self._save({"language":"en","currency":self.currency.currentText(),"currency_symbol":self.currency_symbol.text().strip()},"Regional settings saved.")
+    def save_appearance(self):
+        self.host.apply_theme(self.theme.currentText())
+        self.theme.setCurrentText(self.host.theme_name)
+        self.host.statusBar().showMessage(f"{self.host.theme_name} theme applied")
 
     def load_payment_types(self):
         if self.api(): self.host._run_task(self.api().payment_type_records,self._payments_loaded,self._error)
