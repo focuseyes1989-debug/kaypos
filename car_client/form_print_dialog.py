@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ctypes
 import re
+import sys
+from ctypes import wintypes
 
 from PyQt6.QtCore import QSettings, QRectF, Qt
 from PyQt6.QtGui import QPageLayout, QPageSize, QPainter
@@ -46,7 +49,52 @@ def saved_printer_name(settings: QSettings | None = None) -> str:
 
 
 def available_printer_names() -> list[str]:
-    return [printer.printerName() for printer in QPrinterInfo.availablePrinters()]
+    """List printer queue names without opening vendor status monitors."""
+    if sys.platform != "win32":
+        return list(QPrinterInfo.availablePrinterNames())
+
+    class PRINTER_INFO_4W(ctypes.Structure):
+        _fields_ = [
+            ("pPrinterName", wintypes.LPWSTR),
+            ("pServerName", wintypes.LPWSTR),
+            ("Attributes", wintypes.DWORD),
+        ]
+
+    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
+    enum_printers = winspool.EnumPrintersW
+    enum_printers.argtypes = [
+        wintypes.DWORD, wintypes.LPWSTR, wintypes.DWORD, wintypes.LPBYTE,
+        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+    ]
+    needed = wintypes.DWORD(0)
+    returned = wintypes.DWORD(0)
+    flags = 0x00000002 | 0x00000004  # PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    enum_printers(flags, None, 4, None, 0, ctypes.byref(needed), ctypes.byref(returned))
+    if not needed.value:
+        return []
+    buffer = (ctypes.c_byte * needed.value)()
+    if not enum_printers(
+        flags, None, 4, ctypes.cast(buffer, wintypes.LPBYTE), needed.value,
+        ctypes.byref(needed), ctypes.byref(returned),
+    ):
+        return []
+    entries = ctypes.cast(buffer, ctypes.POINTER(PRINTER_INFO_4W))
+    return sorted(
+        {str(entries[index].pPrinterName or "").strip() for index in range(returned.value)} - {""},
+        key=str.casefold,
+    )
+
+
+def default_printer_name() -> str:
+    if sys.platform != "win32":
+        return str(QPrinterInfo.defaultPrinterName() or "")
+    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
+    needed = wintypes.DWORD(0)
+    winspool.GetDefaultPrinterW(None, ctypes.byref(needed))
+    if not needed.value:
+        return ""
+    buffer = ctypes.create_unicode_buffer(needed.value)
+    return buffer.value if winspool.GetDefaultPrinterW(buffer, ctypes.byref(needed)) else ""
 
 
 def automatic_print_ready(settings: QSettings | None = None) -> tuple[bool, str]:
@@ -54,7 +102,7 @@ def automatic_print_ready(settings: QSettings | None = None) -> tuple[bool, str]
     name = saved_printer_name(settings)
     if not name:
         return False, "Select and save a printer before enabling automatic printing."
-    available = {printer.printerName() for printer in QPrinterInfo.availablePrinters()}
+    available = set(available_printer_names())
     if name not in available:
         return False, f"Saved printer is unavailable: {name}"
     return True, name
@@ -145,7 +193,7 @@ class FormPrintSettingsDialog(QDialog):
         form.addRow("Page sequence", self.pages_edit)
 
         self.printer_combo = QComboBox()
-        available_names = [printer.printerName() for printer in QPrinterInfo.availablePrinters()]
+        available_names = available_printer_names()
         for name in available_names:
             self.printer_combo.addItem(name)
         form.addRow("Printer", self.printer_combo)
@@ -217,8 +265,8 @@ class FormPrintSettingsDialog(QDialog):
                 if name == saved_printer:
                     self.printer_combo.setCurrentIndex(index)
                     break
-        elif QPrinterInfo.defaultPrinter().printerName():
-            self.printer_combo.setCurrentText(QPrinterInfo.defaultPrinter().printerName())
+        elif default_printer_name():
+            self.printer_combo.setCurrentText(default_printer_name())
         self._select_data(self.color_combo, str(self.settings.value(self._key("color"), "color")))
         self._select_data(self.duplex_combo, str(self.settings.value(self._key("duplex"), "none")))
         if not available_names:
@@ -281,7 +329,7 @@ class FormPrintSettingsDialog(QDialog):
 
     def _configured_printer(self) -> QPrinter:
         printer_name = self._printer_name()
-        available_names = {printer.printerName() for printer in QPrinterInfo.availablePrinters()}
+        available_names = set(available_printer_names())
         if not printer_name or printer_name not in available_names:
             raise RuntimeError("The selected printer is not currently available.")
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)

@@ -10,7 +10,7 @@ from PyQt6.QtCore import QDate, QMarginsF, QObject, QRectF, QSize, QSizeF, QThre
 from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
+    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
     QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
     QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter,
@@ -106,6 +106,82 @@ class HorizontalWheelScrollArea(QScrollArea):
             event.accept()
             return
         super().wheelEvent(event)
+
+
+class LiteSaleDisplay(QWidget):
+    """Customer-facing cart display intended for a second monitor."""
+
+    closed = pyqtSignal()
+
+    def __init__(self, shop_name: str = "KAY POS", parent=None):
+        super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.setObjectName("liteSaleDisplay")
+        self.setWindowTitle("KAY POS Lite · Sale Display")
+        self.setStyleSheet("""
+            QWidget#liteSaleDisplay { background: #0d111b; color: #edf2ff; }
+            QLabel#displayShop { color: #ffffff; font-size: 28pt; font-weight: 800; }
+            QLabel#displayMessage { color: #99a4ba; font-size: 13pt; }
+            QLabel#displayTotalCaption { color: #aeb8ca; font-size: 18pt; font-weight: 600; }
+            QLabel#displayTotal { color: #ffffff; background: #5365df; border-radius: 18px;
+                                  padding: 18px 28px; font-size: 34pt; font-weight: 800; }
+            QTableWidget { background: #151c2a; color: #edf2ff; gridline-color: #293348;
+                           border: 1px solid #293348; font-size: 15pt; }
+            QHeaderView::section { background: #111724; color: #aeb8ca; border: 0;
+                                   border-bottom: 1px solid #293348; padding: 10px; font-size: 12pt; }
+        """)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(42, 34, 42, 38)
+        layout.setSpacing(18)
+        self.shop_label = QLabel(shop_name or "KAY POS", objectName="displayShop")
+        self.message_label = QLabel("Your order", objectName="displayMessage")
+        layout.addWidget(self.shop_label)
+        layout.addWidget(self.message_label)
+        self.items_table = QTableWidget(0, 4)
+        self.items_table.setHorizontalHeaderLabels(["Item", "Qty", "Price", "Amount"])
+        self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.items_table.verticalHeader().setVisible(False)
+        self.items_table.verticalHeader().setDefaultSectionSize(48)
+        self.items_table.horizontalHeader().setMinimumHeight(48)
+        self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in (1, 2, 3):
+            self.items_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        layout.addWidget(self.items_table, 1)
+        total_row = QHBoxLayout()
+        total_row.addStretch()
+        total_row.addWidget(QLabel("TOTAL", objectName="displayTotalCaption"))
+        self.total_label = QLabel("0 Ks", objectName="displayTotal")
+        self.total_label.setMinimumWidth(310)
+        self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        total_row.addWidget(self.total_label)
+        layout.addLayout(total_row)
+
+    def set_shop_name(self, shop_name: str) -> None:
+        self.shop_label.setText(str(shop_name or "KAY POS"))
+
+    def set_cart(self, items: list[dict]) -> None:
+        self.items_table.setRowCount(len(items))
+        total = 0.0
+        for row, item in enumerate(items):
+            quantity = int(item.get("qty") or 0)
+            price = float(item.get("price") or 0)
+            amount = price * quantity
+            total += amount
+            name = str(item.get("name") or "Item")
+            if item.get("variant_label"):
+                name += f" · {item['variant_label']}"
+            values = (name, f"{quantity:,}", f"{price:,.0f} Ks", f"{amount:,.0f} Ks")
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                if column:
+                    cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.items_table.setItem(row, column, cell)
+        self.message_label.setText(f"{sum(int(item.get('qty') or 0) for item in items):,} item(s)" if items else "Welcome · Your order will appear here")
+        self.total_label.setText(f"{total:,.0f} Ks")
+
+    def closeEvent(self, event) -> None:
+        self.closed.emit()
+        super().closeEvent(event)
 
 
 class TaskWorker(QObject):
@@ -841,6 +917,7 @@ class LiteWindow(QMainWindow):
         self.receipts: list[dict] = []
         self.last_receipt: dict = {}
         self.receipt_settings: dict = {}
+        self.sale_display: LiteSaleDisplay | None = None
         self.history_offset = 0
         self.cart = LiteCart()
         self._threads: set[QThread] = set()
@@ -1540,10 +1617,14 @@ class LiteWindow(QMainWindow):
         printer_setup = QPushButton("Printer…")
         printer_setup.setToolTip("Select local receipt printer (Ctrl+Shift+P)")
         printer_setup.clicked.connect(self.configure_receipt_printer)
+        self.sale_display_button = QPushButton("Sale Display")
+        self.sale_display_button.setToolTip("Show the live customer cart full-screen on an extended display")
+        self.sale_display_button.clicked.connect(self.toggle_sale_display)
         receipt_actions.addWidget(self.add_expense_button)
         receipt_actions.addWidget(self.cash_drawer_button)
         receipt_actions.addWidget(printer_setup)
         cart_layout.addLayout(receipt_actions)
+        cart_layout.addWidget(self.sale_display_button)
         body.addWidget(cart_panel, 2)
         outer.addLayout(body, 1)
         return page
@@ -1647,9 +1728,13 @@ class LiteWindow(QMainWindow):
 
     def load_receipt_settings(self) -> None:
         if not self.api: return
+        def loaded(settings):
+            self.receipt_settings = dict(settings)
+            if self.sale_display:
+                self.sale_display.set_shop_name(self.receipt_settings.get("shop_name") or "KAY POS")
         self._run_task(
             self.api.receipt_settings,
-            lambda settings: setattr(self, "receipt_settings", dict(settings)),
+            loaded,
             lambda error: self.statusBar().showMessage(f"Could not load receipt settings: {error}"),
         )
 
@@ -2058,6 +2143,41 @@ class LiteWindow(QMainWindow):
         self.cart_count_label.setText(f"{self.cart.count()} items")
         self.cart_total_label.setText(f"{self.cart.total():,.0f} Ks")
         self.checkout_button.setEnabled(bool(items) and not self._threads)
+        if self.sale_display:
+            self.sale_display.set_cart(items)
+
+    def toggle_sale_display(self) -> None:
+        if self.sale_display:
+            self.sale_display.close()
+            return
+        primary = QApplication.primaryScreen()
+        extended_screens = [screen for screen in QApplication.screens() if screen is not primary]
+        if not extended_screens:
+            QMessageBox.information(
+                self, "Sale Display",
+                "No extended display was detected. Connect a second monitor and choose Extend in Windows Display Settings.",
+            )
+            return
+        screen = extended_screens[0]
+        display = LiteSaleDisplay(self.receipt_settings.get("shop_name") or "KAY POS")
+        self.sale_display = display
+        display.closed.connect(self._sale_display_closed)
+        display.set_cart(list(self.cart.items.values()))
+        display.winId()
+        if display.windowHandle():
+            display.windowHandle().setScreen(screen)
+        display.setGeometry(screen.geometry())
+        display.showFullScreen()
+        self.sale_display_button.setText("Close Display")
+        self.statusBar().showMessage(f"Sale Display active · {screen.name()}")
+
+    def _sale_display_closed(self) -> None:
+        display = self.sale_display
+        self.sale_display = None
+        self.sale_display_button.setText("Sale Display")
+        if display:
+            display.deleteLater()
+        self.statusBar().showMessage("Sale Display closed")
 
     def open_checkout(self) -> None:
         if not self.api or not self.cart.items or self._threads:
@@ -3115,6 +3235,8 @@ class LiteWindow(QMainWindow):
         )
 
     def logout(self) -> None:
+        if self.sale_display:
+            self.sale_display.close()
         if self.api:
             self.api.close()
         self.api = None
@@ -3140,4 +3262,6 @@ class LiteWindow(QMainWindow):
             return
         if self.api:
             self.api.close()
+        if self.sale_display:
+            self.sale_display.close()
         event.accept()

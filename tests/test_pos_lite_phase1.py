@@ -11,7 +11,7 @@ from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteWindow, ProductEditorDialog, ReceiptDialog
+from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ReceiptDialog
 from server.cashier_service import order_categories_by_usage
 
 
@@ -425,6 +425,18 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(window.product_page_size, 50)
         self.assertEqual(window.product_table.iconSize(), QSize(44, 40))
         window.close()
+
+    def test_sale_display_renders_live_cart_and_total(self):
+        display = LiteSaleDisplay("Demo Shop")
+        display.set_cart([
+            {"name": "Coffee", "qty": 2, "price": 1500},
+            {"name": "Shirt", "variant_label": "Blue / M", "qty": 1, "price": 5000},
+        ])
+        self.assertEqual(display.shop_label.text(), "Demo Shop")
+        self.assertEqual(display.items_table.rowCount(), 2)
+        self.assertEqual(display.items_table.item(1, 0).text(), "Shirt · Blue / M")
+        self.assertEqual(display.total_label.text(), "8,000 Ks")
+        display.close()
 
     def test_products_page_thumbnail_does_not_depend_on_pos_page_cache_render(self):
         window = LiteWindow()
