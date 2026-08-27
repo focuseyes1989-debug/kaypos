@@ -954,6 +954,8 @@ class LiteWindow(QMainWindow):
         self.setStatusBar(status)
         self.statusBar().showMessage("Ready")
         self._shortcuts = []
+        self._add_shortcut("F11", self.toggle_full_screen)
+        self._add_shortcut("Esc", self.exit_full_screen)
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
         self._add_shortcut("Ctrl+Shift+P", self.configure_receipt_printer)
@@ -963,6 +965,19 @@ class LiteWindow(QMainWindow):
         shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         shortcut.activated.connect(callback)
         self._shortcuts.append(shortcut)
+
+    def toggle_full_screen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            self.statusBar().showMessage("Full screen closed")
+        else:
+            self.showFullScreen()
+            self.statusBar().showMessage("Full screen · Press F11 or Esc to exit")
+
+    def exit_full_screen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            self.statusBar().showMessage("Full screen closed")
 
     def _build_login_page(self) -> QWidget:
         page = QWidget()

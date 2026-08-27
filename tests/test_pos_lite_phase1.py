@@ -369,6 +369,8 @@ class PosLitePhase1Tests(unittest.TestCase):
         from lite_pos.window import QPushButton as CenteredButton
         self.assertGreater(len(window.findChildren(CenteredButton)), 10)
         self.assertTrue(all(button.styleSheet() == "" for button in window.findChildren(CenteredButton)))
+        self.assertIn("F11", [shortcut.key().toString() for shortcut in window._shortcuts])
+        self.assertIn("Esc", [shortcut.key().toString() for shortcut in window._shortcuts])
         window.close()
 
     def test_sidebar_tracks_the_active_workspace_page(self):
