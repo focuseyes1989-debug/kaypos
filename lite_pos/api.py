@@ -90,6 +90,17 @@ class LiteApiClient:
     def categories(self) -> list[str]:
         return [str(value) for value in self._request("GET", "/api/categories").get("categories") or []]
 
+    def managed_categories(self) -> list[dict]:
+        return list(self._request("GET", "/api/categories/manage").get("categories") or [])
+
+    def save_category(self, values: dict, category_id: int | None = None) -> dict:
+        method = "PUT" if category_id else "POST"
+        route = f"/api/categories/manage/{int(category_id)}" if category_id else "/api/categories/manage"
+        return dict(self._request(method, route, json=values).get("category") or {})
+
+    def delete_category(self, category_id: int) -> None:
+        self._request("DELETE", f"/api/categories/manage/{int(category_id)}")
+
     def scan_product(self, code: str) -> dict | None:
         from urllib.parse import quote
         payload = self._request("GET", f"/api/products/scan/{quote(code.strip(), safe='')}")
@@ -112,6 +123,40 @@ class LiteApiClient:
     def payment_types(self) -> list[str]:
         return list(self._request("GET", "/api/payment-types").get("payment_types") or ["Cash"])
 
+    def credit_settings(self) -> dict:
+        return dict(self._request("GET", "/api/credit/settings").get("settings") or {})
+
+    def lite_settings(self) -> dict:
+        return dict(self._request("GET", "/api/settings/lite").get("settings") or {})
+
+    def receipt_settings(self) -> dict:
+        return dict(self._request("GET", "/api/settings/receipt").get("settings") or {})
+
+    def save_lite_settings(self, values: dict) -> dict:
+        return dict(self._request("PUT", "/api/settings/lite", json={"settings": values}).get("settings") or {})
+
+    def payment_type_records(self) -> list[dict]:
+        return list(self._request("GET", "/api/settings/payment-types").get("payment_types") or [])
+
+    def save_payment_type(self, name: str, payment_id: int | None = None) -> dict:
+        method = "PUT" if payment_id else "POST"
+        path = f"/api/settings/payment-types/{int(payment_id)}" if payment_id else "/api/settings/payment-types"
+        return dict(self._request(method, path, json={"name": name.strip()}).get("payment_type") or {})
+
+    def delete_payment_type(self, payment_id: int) -> None:
+        self._request("DELETE", f"/api/settings/payment-types/{int(payment_id)}")
+
+    def users_settings(self) -> dict:
+        return self._request("GET", "/api/settings/users")
+
+    def save_user(self, values: dict, user_id: int | None = None) -> dict:
+        method = "PUT" if user_id else "POST"
+        path = f"/api/settings/users/{int(user_id)}" if user_id else "/api/settings/users"
+        return dict(self._request(method, path, json=values).get("user") or {})
+
+    def delete_user(self, user_id: int) -> None:
+        self._request("DELETE", f"/api/settings/users/{int(user_id)}")
+
     def expense_categories(self) -> list[str]:
         return list(self._request("GET", "/api/expenses/categories").get("categories") or [])
 
@@ -129,7 +174,8 @@ class LiteApiClient:
 
     def checkout(
         self, items: list[dict], payment: float, payment_type: str = "Cash",
-        customer_id: int | None = None,
+        customer_id: int | None = None, due_date: str = "", credit_notes: str = "",
+        allow_credit_over_limit: bool = False, discount_amount: float = 0,
     ) -> dict:
         payload = self._request(
             "POST", "/api/sales",
@@ -137,7 +183,10 @@ class LiteApiClient:
                 "items": items, "payment": float(payment),
                 "payment_type": payment_type or "Cash",
                 "sale_mode": "Credit" if str(payment_type).lower() == "credit" else "Cash",
-                "discount_amount": 0, "points_used": 0, "customer_id": customer_id,
+                "discount_amount": max(0.0, float(discount_amount or 0)),
+                "points_used": 0, "customer_id": customer_id,
+                "due_date": due_date, "credit_notes": credit_notes,
+                "allow_credit_over_limit": bool(allow_credit_over_limit),
             },
         )
         receipt = payload.get("receipt") or {}
@@ -171,10 +220,17 @@ class LiteApiClient:
     def stock_locations(self) -> list[str]:
         return [str(value) for value in self._request("GET", "/api/stock/locations").get("locations") or ["Shop"]]
 
-    def dashboard_summary(self, date_text: str) -> dict:
+    def dashboard_summary(
+        self, from_date: str, to_date: str | None = None, trend_days: int = 0,
+    ) -> dict:
+        to_date = to_date or from_date
         return self._request(
             "GET", "/api/dashboard/summary",
-            params={"from_date": date_text, "to_date": date_text, "trend_days": 0},
+            params={
+                "from_date": from_date,
+                "to_date": to_date,
+                "trend_days": max(0, min(int(trend_days), 31)),
+            },
         )
 
     def adjust_stock(

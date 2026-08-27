@@ -306,6 +306,38 @@ class CarRepository:
         finally:
             conn.close()
 
+    def search_public_records(self, query, limit=10) -> list[dict]:
+        """Return privacy-limited records for the mobile self-service search."""
+        query = str(query or "").strip()
+        if len(query) < 2 or len(query) > 100:
+            raise ValueError("Enter at least 2 characters to search.")
+        limit = max(1, min(int(limit or 10), 20))
+        pattern = f"%{query}%"
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, car_number, driver_name, kind_of_car, type_of_car
+                FROM cars
+                WHERE LOWER(COALESCE(car_number, '')) LIKE LOWER(?)
+                   OR LOWER(COALESCE(driver_name, '')) LIKE LOWER(?)
+                   OR LOWER(COALESCE(phone_number, '')) LIKE LOWER(?)
+                ORDER BY car_number, driver_name, id
+                LIMIT ?
+            """, (pattern, pattern, pattern, limit))
+            rows = self._rows(cursor)
+            return [{
+                "id": int(row["id"]),
+                "car_number": str(row.get("car_number") or "").strip(),
+                "driver_name": str(row.get("driver_name") or "").strip(),
+                "vehicle": " · ".join(value for value in (
+                    str(row.get("kind_of_car") or "").strip(),
+                    str(row.get("type_of_car") or "").strip(),
+                ) if value) or "—",
+            } for row in rows]
+        finally:
+            conn.close()
+
     def revoke_qr_token(self, record_id) -> bool:
         record_id = int(record_id or 0)
         if record_id <= 0:

@@ -34,7 +34,16 @@ class CarPrintWebTests(unittest.TestCase):
     def test_kiosk_page_accepts_scanner_input_and_returns_to_next_customer(self):
         text = (Path(STATIC_DIR) / "car_kiosk.html").read_text(encoding="utf-8")
         self.assertIn("scanInput", text)
+        self.assertIn("zxing-browser.min.js", text)
+        self.assertIn("decodeFromVideoDevice", text)
+        self.assertIn('id="qrVideo"', text)
+        self.assertIn("isSecureContext", text)
         self.assertIn("/car/print?t=", text)
+        self.assertIn("searchInput", text)
+        self.assertIn("/api/car/search?q=", text)
+        self.assertIn("/api/car/search-print-jobs", text)
+        self.assertNotIn("nrc_number", text)
+        self.assertNotIn("phone_number", text)
         owner = (Path(STATIC_DIR) / "car_print.html").read_text(encoding="utf-8")
         self.assertIn('location.href = "/car/kiosk"', owner)
 

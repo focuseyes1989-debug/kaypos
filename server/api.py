@@ -37,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -47,6 +47,8 @@ app.mount("/product-images", StaticFiles(directory=str(PRODUCT_IMAGES_DIR)), nam
 
 _TOKENS: Dict[str, Dict[str, Any]] = {}
 _CAR_PRINT_RATE: Dict[str, List[float]] = {}
+_CAR_SEARCH_RATE: Dict[str, List[float]] = {}
+_CAR_SEARCH_GRANTS: Dict[str, Dict[str, Any]] = {}
 
 
 async def _start_car_management_service_with_retry(
@@ -133,8 +135,39 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class LiteSettingsRequest(BaseModel):
+    settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PaymentTypeRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+
+
+class CategoryManageRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=160)
+    description: str = Field(default="", max_length=1000)
+    parent_id: Optional[int] = Field(default=None, gt=0)
+    sort_order: int = Field(default=0, ge=0, le=999999)
+    status: str = Field(default="active", max_length=20)
+
+
+class LiteUserRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=80)
+    password: str = Field(default="", max_length=256)
+    full_name: str = Field(default="", max_length=160)
+    role: str = Field(default="Cashier", max_length=80)
+    active: bool = True
+
+
 class CarPrintRequest(BaseModel):
     token: str = Field(..., min_length=32, max_length=128)
+    request_key: str = Field(..., min_length=16, max_length=128)
+    copies: int = Field(default=1, ge=1, le=99)
+    printer_name: str = Field(default="", max_length=255)
+
+
+class CarSearchPrintRequest(BaseModel):
+    grant: str = Field(..., min_length=32, max_length=128)
     request_key: str = Field(..., min_length=16, max_length=128)
     copies: int = Field(default=1, ge=1, le=99)
     printer_name: str = Field(default="", max_length=255)
@@ -523,6 +556,16 @@ def _check_car_print_rate(request: Request, maximum=8, window_seconds=60) -> Non
     _CAR_PRINT_RATE[address] = recent
 
 
+def _check_car_search_rate(request: Request, maximum=20, window_seconds=60) -> None:
+    address = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    recent = [stamp for stamp in _CAR_SEARCH_RATE.get(address, []) if now - stamp < window_seconds]
+    if len(recent) >= maximum:
+        raise HTTPException(status_code=429, detail="Too many searches. Please wait and try again.")
+    recent.append(now)
+    _CAR_SEARCH_RATE[address] = recent
+
+
 @app.post("/api/car/request")
 def car_management_https_request(
     payload: Dict[str, Any],
@@ -553,6 +596,30 @@ def public_car_qr_lookup(token: str):
     return {"status": "SUCCESS", "data": record}
 
 
+@app.get("/api/car/search")
+def public_car_search(request: Request, q: str = Query(..., min_length=2, max_length=100)):
+    """Privacy-limited mobile search with short-lived print grants."""
+    from server.car_management_service import CarRepository
+
+    _check_car_search_rate(request)
+    now = time.monotonic()
+    for key, value in list(_CAR_SEARCH_GRANTS.items()):
+        if float(value.get("expires", 0)) <= now:
+            _CAR_SEARCH_GRANTS.pop(key, None)
+    try:
+        records = CarRepository().search_public_records(q, 10)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    results = []
+    for record in records:
+        grant = secrets.token_urlsafe(32)
+        _CAR_SEARCH_GRANTS[grant] = {"car_id": int(record["id"]), "expires": now + 600}
+        public = {key: value for key, value in record.items() if key != "id"}
+        public["grant"] = grant
+        results.append(public)
+    return {"status": "SUCCESS", "data": results}
+
+
 @app.post("/api/car/print-jobs")
 def create_public_car_print_job(payload: CarPrintRequest, request: Request):
     from server.car_management_service import CarRepository
@@ -562,6 +629,28 @@ def create_public_car_print_job(payload: CarPrintRequest, request: Request):
         job = CarRepository().create_print_job(
             payload.token, payload.request_key, payload.copies, payload.printer_name
         )
+        return {"status": "SUCCESS", "data": job}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/car/search-print-jobs")
+def create_searched_car_print_job(payload: CarSearchPrintRequest, request: Request):
+    """Create a print job from a temporary search grant without exposing QR tokens."""
+    from server.car_management_service import CarRepository
+
+    _check_car_print_rate(request)
+    grant = _CAR_SEARCH_GRANTS.get(payload.grant)
+    if not grant or float(grant.get("expires", 0)) <= time.monotonic():
+        _CAR_SEARCH_GRANTS.pop(payload.grant, None)
+        raise HTTPException(status_code=400, detail="Search selection expired. Search again.")
+    repository = CarRepository()
+    try:
+        issued = repository.issue_qr_token(int(grant["car_id"]))
+        job = repository.create_print_job(
+            issued["token"], payload.request_key, payload.copies, payload.printer_name
+        )
+        _CAR_SEARCH_GRANTS.pop(payload.grant, None)
         return {"status": "SUCCESS", "data": job}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -591,6 +680,11 @@ def car_owner_print_page():
     return FileResponse(STATIC_DIR / "car_print.html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/car", response_class=HTMLResponse)
+def car_mobile_home_page():
+    return FileResponse(STATIC_DIR / "car_kiosk.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/car/kiosk", response_class=HTMLResponse)
 def car_print_kiosk_page():
     return FileResponse(STATIC_DIR / "car_kiosk.html", headers={"Cache-Control": "no-store"})
@@ -611,6 +705,9 @@ class SaleRequest(BaseModel):
     discount_amount: float = 0
     points_used: int = 0
     customer_id: Optional[int] = None
+    due_date: str = Field(default="", max_length=10)
+    credit_notes: str = Field(default="", max_length=2000)
+    allow_credit_over_limit: bool = False
 
 
 class RefundRequest(BaseModel):
@@ -767,6 +864,36 @@ def dashboard_summary(
 @app.get("/api/categories")
 def categories(_: Dict[str, Any] = Depends(current_user)):
     return {"categories": cashier_service.list_categories()}
+
+
+@app.get("/api/categories/manage")
+def managed_categories(_: Dict[str, Any] = Depends(current_user)):
+    return {"categories": cashier_service.list_managed_categories()}
+
+
+@app.post("/api/categories/manage")
+def create_managed_category(payload: CategoryManageRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"category": cashier_service.create_managed_category(payload.dict())}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/categories/manage/{category_id}")
+def update_managed_category(category_id: int, payload: CategoryManageRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"category": cashier_service.update_managed_category(category_id, payload.dict())}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/categories/manage/{category_id}")
+def delete_managed_category(category_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.delete_managed_category(category_id)
+        return {"deleted": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/products")
@@ -933,6 +1060,11 @@ def payment_types(_: Dict[str, Any] = Depends(current_user)):
     return {"payment_types": cashier_service.list_payment_types()}
 
 
+@app.get("/api/credit/settings")
+def credit_settings(_: Dict[str, Any] = Depends(current_user)):
+    return {"settings": cashier_service.get_credit_settings()}
+
+
 @app.get("/api/suppliers")
 def suppliers(_: Dict[str, Any] = Depends(current_user)):
     return {"suppliers": cashier_service.list_suppliers()}
@@ -946,6 +1078,85 @@ def stock_locations(_: Dict[str, Any] = Depends(current_user)):
 @app.get("/api/settings/cashier")
 def cashier_settings(_: Dict[str, Any] = Depends(current_user)):
     return {"settings": cashier_service.get_cashier_settings()}
+
+
+def _require_manager(user: Dict[str, Any]) -> None:
+    if str(user.get("role") or "").casefold() not in {"admin", "manager"}:
+        raise HTTPException(status_code=403, detail="Manager or Admin access is required.")
+
+
+def _require_admin(user: Dict[str, Any]) -> None:
+    if str(user.get("role") or "").casefold() != "admin":
+        raise HTTPException(status_code=403, detail="Admin access is required.")
+
+
+@app.get("/api/settings/lite")
+def lite_settings(user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    return {"settings": cashier_service.get_lite_settings()}
+
+
+@app.put("/api/settings/lite")
+def update_lite_settings(payload: LiteSettingsRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    try:
+        return {"settings": cashier_service.save_lite_settings(payload.settings)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/settings/payment-types")
+def payment_type_records(user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    return {"payment_types": cashier_service.list_payment_type_records()}
+
+
+@app.post("/api/settings/payment-types")
+def create_payment_type(payload: PaymentTypeRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    try: return {"payment_type": cashier_service.save_payment_type(payload.name)}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/payment-types/{payment_id}")
+def update_payment_type(payment_id: int, payload: PaymentTypeRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    try: return {"payment_type": cashier_service.save_payment_type(payload.name, payment_id)}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/settings/payment-types/{payment_id}")
+def remove_payment_type(payment_id: int, user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    try: cashier_service.delete_payment_type(payment_id); return {"status": "SUCCESS"}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/settings/users")
+def lite_users(user: Dict[str, Any] = Depends(current_user)):
+    _require_admin(user)
+    return {"users": cashier_service.list_lite_users(), "roles": cashier_service.list_user_roles()}
+
+
+@app.post("/api/settings/users")
+def create_lite_user(payload: LiteUserRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_admin(user)
+    try: return {"user": cashier_service.save_lite_user(payload.dict())}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/users/{user_id}")
+def update_lite_user(user_id: int, payload: LiteUserRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_admin(user)
+    try: return {"user": cashier_service.save_lite_user(payload.dict(), user_id)}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/settings/users/{user_id}")
+def remove_lite_user(user_id: int, user: Dict[str, Any] = Depends(current_user)):
+    _require_admin(user)
+    try: cashier_service.delete_lite_user(user_id, int(user.get("id") or 0)); return {"status": "SUCCESS"}
+    except Exception as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/expenses/categories")
@@ -1002,6 +1213,9 @@ def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_use
             discount_amount=payload.discount_amount,
             points_used=payload.points_used,
             customer_id=payload.customer_id,
+            due_date=payload.due_date,
+            credit_notes=payload.credit_notes,
+            allow_credit_over_limit=payload.allow_credit_over_limit,
             created_by=user.get("username", "Browser Cashier"),
         )
         return {"receipt": receipt}

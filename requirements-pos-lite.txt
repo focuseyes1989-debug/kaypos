@@ -1,0 +1,5 @@
+# KAY POS Lite desktop client only
+# Install with: python -m pip install -r requirements-pos-lite.txt
+
+PyQt6>=6.4.0,<7.0
+requests>=2.28.0,<3.0

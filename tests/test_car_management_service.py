@@ -83,6 +83,21 @@ class CarManagementServiceTests(unittest.TestCase):
         current = rotated["data"]["token"]
         self.assertEqual(self.handler.process({"type": "RESOLVE_QR", "data": {"token": current}})["status"], "ERROR")
 
+    def test_public_mobile_search_returns_only_safe_summary(self):
+        self.handler.process({"type": "SAVE_DATA", "data": self.record()})
+        rows = self.repository.search_public_records("1234")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["car_number"], "1A-1234")
+        self.assertEqual(rows[0]["driver_name"], "Test Driver")
+        self.assertNotIn("phone_number", rows[0])
+        self.assertNotIn("nrc_number", rows[0])
+        self.assertNotIn("address", rows[0])
+
+        phone_rows = self.repository.search_public_records("09123")
+        self.assertEqual(phone_rows[0]["id"], rows[0]["id"])
+        with self.assertRaises(ValueError):
+            self.repository.search_public_records("1")
+
     def test_print_job_queue_is_persistent_idempotent_and_tracks_status(self):
         self.handler.process({"type": "SAVE_DATA", "data": self.record()})
         record_id = self.repository.all()[0]["id"]

@@ -344,21 +344,77 @@ def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
+def order_categories_by_usage(names: Iterable[str], usage: Dict[str, float]) -> List[str]:
+    """Put frequently sold categories first, with deterministic alphabetical ties."""
+    normalized_usage = {str(name).strip().casefold(): float(value or 0) for name, value in usage.items()}
+    return sorted(names, key=lambda name: (-normalized_usage.get(str(name).casefold(), 0), str(name).casefold()))
+
+
 def list_categories() -> List[str]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """
-            SELECT DISTINCT TRIM(category) AS category
-            FROM products
-            WHERE category IS NOT NULL AND TRIM(category) != ''
-            ORDER BY TRIM(category) COLLATE NOCASE
-            """
-        )
-        return [row[0] for row in cursor.fetchall()]
+        names: set[str] = set()
+        usage: Dict[str, float] = {}
+        try:
+            category_columns = _table_columns(cursor, "categories")
+            status_filter = "AND LOWER(COALESCE(status, 'active')) = 'active'" if "status" in category_columns else ""
+            cursor.execute(f"SELECT TRIM(name) FROM categories WHERE TRIM(COALESCE(name, '')) != '' {status_filter}")
+            names.update(str(row[0]).strip() for row in cursor.fetchall() if row and row[0])
+        except Exception:
+            pass
+        cursor.execute("SELECT DISTINCT TRIM(category) FROM products WHERE TRIM(COALESCE(category, '')) != ''")
+        names.update(str(row[0]).strip() for row in cursor.fetchall() if row and row[0])
+        try:
+            cursor.execute(
+                """
+                SELECT TRIM(p.category), COALESCE(SUM(si.qty), 0)
+                FROM sale_items si
+                JOIN sales s ON s.id = si.sale_id
+                LEFT JOIN products p ON p.id = si.product_id
+                    OR (si.product_id IS NULL AND p.name = si.product_name)
+                WHERE LOWER(TRIM(COALESCE(s.status, 'completed'))) = 'completed'
+                  AND TRIM(COALESCE(p.category, '')) != ''
+                GROUP BY TRIM(p.category)
+                """
+            )
+            usage = {
+                str(row[0]).strip().casefold(): float(row[1] or 0)
+                for row in cursor.fetchall() if row and row[0]
+            }
+        except Exception:
+            # Older databases may not yet have every sales/category column.
+            # Categories still remain usable with alphabetical fallback order.
+            usage = {}
+        return order_categories_by_usage(names, usage)
     finally:
         conn.close()
+
+
+def list_managed_categories() -> List[Dict[str, Any]]:
+    """Return the same parent/child category records used by full KAY POS."""
+    from ui.categories.category_service import CategoryService
+
+    categories, _total = CategoryService().get_categories(limit=1000)
+    return list(categories)
+
+
+def create_managed_category(values: Dict[str, Any]) -> Dict[str, Any]:
+    from ui.categories.category_service import CategoryService
+
+    return dict(CategoryService().create_category(values))
+
+
+def update_managed_category(category_id: int, values: Dict[str, Any]) -> Dict[str, Any]:
+    from ui.categories.category_service import CategoryService
+
+    return dict(CategoryService().update_category(int(category_id), values))
+
+
+def delete_managed_category(category_id: int) -> None:
+    from ui.categories.category_service import CategoryService
+
+    CategoryService().delete_category(int(category_id), force=False)
 
 
 def list_suppliers() -> List[Dict[str, Any]]:
@@ -600,8 +656,9 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
             )
             image_values = {"image": image_path, "image_data": image_data, "image_mime": image_mime, "image_filename": image_filename}
         stock = sum(int(v.get("stock") or 0) for v in variants) if _sold_by_mode(sold_by) == "variants" else int(values.get("stock") or 0)
+        category_name = str(values.get("category") or "").strip()
         product_values = {
-            "name": name, "category": str(values.get("category") or "").strip(),
+            "name": name, "category": category_name,
             "description": str(values.get("description") or "").strip(), "sold_by": sold_by,
             "price": float(values.get("price") or 0), "cost": float(values.get("cost") or 0),
             "sku": sku, "barcode": barcode, "stock": stock,
@@ -611,6 +668,13 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
             "pack_size": max(1, int(values.get("pack_size") or 1)),
             **image_values,
         }
+        if "category_id" in _table_columns(cursor, "products"):
+            category_id = None
+            if category_name:
+                cursor.execute("SELECT id FROM categories WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1", (category_name,))
+                category_row = cursor.fetchone()
+                category_id = int(category_row[0]) if category_row else None
+            product_values["category_id"] = category_id
         if product_id:
             assignments = ", ".join(f"{key} = ?" for key in product_values)
             cursor.execute(f"UPDATE products SET {assignments}, last_updated = CURRENT_TIMESTAMP WHERE id = ?", (*product_values.values(), int(product_id)))
@@ -900,6 +964,159 @@ def list_payment_types() -> List[str]:
         conn.close()
 
 
+def get_credit_settings() -> Dict[str, Any]:
+    from services.credit_service import CreditService
+
+    return dict(CreditService().get_credit_settings())
+
+
+LITE_SETTING_DEFAULTS = {
+    "tax_enabled": "0", "tax_rate": "0", "discount_enabled": "0",
+    "discount_type": "percentage", "discount_value": "0",
+    "shop_name": "ZAY POS", "shop_phone": "", "shop_address": "",
+    "shop_logo": "", "shop_logo_image": "", "shop_qr_code": "", "shop_qr_code_image": "", "shop_qr_name": "",
+    "receipt_header": "", "receipt_footer": "", "shop_footer_message": "",
+    "currency": "Kyats (Ks)", "currency_symbol": "Ks", "language": "en",
+}
+
+
+def get_lite_settings() -> Dict[str, str]:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        keys = list(LITE_SETTING_DEFAULTS)
+        cursor.execute(
+            f"SELECT key, value FROM settings WHERE key IN ({', '.join('?' for _ in keys)})", keys
+        )
+        values = dict(LITE_SETTING_DEFAULTS)
+        values.update({str(key): str(value or "") for key, value in cursor.fetchall()})
+        return values
+    finally:
+        conn.close()
+
+
+def save_lite_settings(values: Dict[str, Any]) -> Dict[str, str]:
+    unknown = set(values) - set(LITE_SETTING_DEFAULTS)
+    if unknown:
+        raise ValueError(f"Unsupported setting: {sorted(unknown)[0]}")
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        for key, value in values.items():
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, str(value)),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+    return get_lite_settings()
+
+
+def list_payment_type_records() -> List[Dict[str, Any]]:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        columns = _table_columns(cursor, "payment_types")
+        active = "active" if "active" in columns else "is_active" if "is_active" in columns else ""
+        cursor.execute(f"SELECT id, name{', ' + active if active else ''} FROM payment_types ORDER BY name")
+        return [{"id": int(row[0]), "name": str(row[1]), "active": bool(row[2]) if active else True} for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def save_payment_type(name: str, payment_id: int | None = None) -> Dict[str, Any]:
+    name = str(name or "").strip()
+    if not name: raise ValueError("Payment type name is required.")
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        if payment_id:
+            cursor.execute("UPDATE payment_types SET name=? WHERE id=?", (name, int(payment_id)))
+            if cursor.rowcount < 1: raise ValueError("Payment type not found.")
+            result_id = int(payment_id)
+        else:
+            result_id = _execute_dynamic_insert(cursor, "payment_types", {"name": name, "active": 1, "is_active": 1})
+        conn.commit(); return {"id": result_id, "name": name, "active": True}
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+
+
+def delete_payment_type(payment_id: int) -> None:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM payment_types WHERE id=?", (int(payment_id),))
+        if cursor.rowcount < 1: raise ValueError("Payment type not found.")
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+
+
+def list_lite_users() -> List[Dict[str, Any]]:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, username, full_name, role, COALESCE(is_active, 1) FROM users ORDER BY username")
+        return [{"id": int(r[0]), "username": r[1], "full_name": r[2] or "", "role": r[3] or "Cashier", "active": bool(r[4])} for r in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def list_user_roles() -> List[str]:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM user_roles ORDER BY name")
+        roles = [str(r[0]) for r in cursor.fetchall()]
+        return roles or ["Admin", "Manager", "Cashier", "Viewer"]
+    except Exception:
+        return ["Admin", "Manager", "Cashier", "Viewer"]
+    finally:
+        conn.close()
+
+
+def save_lite_user(values: Dict[str, Any], user_id: int | None = None) -> Dict[str, Any]:
+    username = str(values.get("username") or "").strip(); password = str(values.get("password") or "")
+    if not username: raise ValueError("Username is required.")
+    if not user_id and not password: raise ValueError("Password is required for a new user.")
+    fields = {"username": username, "full_name": str(values.get("full_name") or "").strip(),
+              "role": str(values.get("role") or "Cashier"), "is_active": 1 if values.get("active", True) else 0}
+    if password:
+        salt = os.urandom(32).hex()
+        fields.update({"salt": salt, "password_hash": hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 100000).hex(), "force_password_change": 0})
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        if user_id:
+            assignments = ", ".join(f"{key}=?" for key in fields)
+            cursor.execute(f"UPDATE users SET {assignments} WHERE id=?", [*fields.values(), int(user_id)])
+            if cursor.rowcount < 1: raise ValueError("User not found.")
+            result_id = int(user_id)
+        else:
+            result_id = _execute_dynamic_insert(cursor, "users", fields)
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+    return next(user for user in list_lite_users() if user["id"] == result_id)
+
+
+def delete_lite_user(user_id: int, current_user_id: int) -> None:
+    if int(user_id) == int(current_user_id): raise ValueError("You cannot delete your own account.")
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT role FROM users WHERE id=?", (int(user_id),)); row = cursor.fetchone()
+        if not row: raise ValueError("User not found.")
+        if str(row[0]).casefold() == "admin":
+            cursor.execute("SELECT COUNT(*) FROM users WHERE LOWER(role)='admin' AND COALESCE(is_active,1)=1")
+            if int(cursor.fetchone()[0]) <= 1: raise ValueError("The only active admin cannot be deleted.")
+        cursor.execute("DELETE FROM users WHERE id=?", (int(user_id),)); conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+
+
 def get_cashier_settings() -> Dict[str, Any]:
     conn = connect_db()
     cursor = conn.cursor()
@@ -1044,6 +1261,9 @@ def create_sale(
     discount_amount: float = 0,
     points_used: int = 0,
     customer_id: Optional[int] = None,
+    due_date: str = "",
+    credit_notes: str = "",
+    allow_credit_over_limit: bool = False,
     created_by: str = "Browser Cashier",
 ) -> Dict[str, Any]:
     normalized_items = []
@@ -1209,11 +1429,31 @@ def create_sale(
         after_discount = max(0.0, subtotal - discount_amount - points_discount)
         tax_amount = after_discount * (float(settings.get("tax_rate") or 0) / 100.0) if settings.get("tax_enabled") else 0.0
         total = max(0.0, after_discount + tax_amount)
-        payment = 0.0 if is_credit else float(payment or 0)
+        payment = float(payment or 0)
+        if is_credit and (payment < 0 or payment > total):
+            raise ValueError("Credit paid amount must be between zero and the sale total")
         if not is_credit and payment < total:
             raise ValueError("Insufficient payment")
         if is_credit and not customer_id:
             raise ValueError("Customer is required for credit sale")
+
+        credit_balance = max(0.0, total - payment) if is_credit else 0.0
+        if is_credit:
+            credit_settings = get_credit_settings()
+            if not due_date:
+                due_date = (datetime.now() + timedelta(days=int(credit_settings.get("credit_due_days") or 15))).strftime("%Y-%m-%d")
+            try:
+                datetime.strptime(due_date, "%Y-%m-%d")
+            except ValueError as exc:
+                raise ValueError("Credit due date must use YYYY-MM-DD") from exc
+            cursor.execute("SELECT COALESCE(credit_limit, 0), COALESCE(current_balance, 0) FROM customers WHERE id = ?", (customer_id,))
+            credit_customer = cursor.fetchone()
+            if not credit_customer:
+                raise ValueError("Customer not found")
+            credit_limit, current_balance = map(float, credit_customer)
+            exceeds_limit = credit_limit > 0 and current_balance + credit_balance > credit_limit
+            if credit_settings.get("credit_limit_enabled", True) and exceeds_limit and not allow_credit_over_limit:
+                raise ValueError(f"Credit limit exceeded. Available credit: {max(0.0, credit_limit - current_balance):,.0f} Ks")
 
         change_amount = 0.0 if is_credit else payment - total
         gross_profit = subtotal - cogs
@@ -1292,19 +1532,22 @@ def create_sale(
                     "sale_id": sale_id,
                     "invoice_no": invoice_no,
                     "total_amount": total,
-                    "paid_amount": 0,
-                    "balance_amount": total,
-                    "status": "pending",
+                    "paid_amount": payment,
+                    "balance_amount": credit_balance,
+                    "status": "paid" if credit_balance <= 0 else "partial" if payment > 0 else "pending",
                     "sale_date": created_at,
-                    "notes": "Browser cashier credit sale",
+                    "due_date": due_date,
+                    "notes": str(credit_notes or "").strip() or "POS Lite credit sale",
                 },
             )
             cursor.execute(
                 "UPDATE customers SET current_balance = COALESCE(current_balance, 0) + ? WHERE id = ?",
-                (total, customer_id),
+                (credit_balance, customer_id),
             )
 
         receipt = _get_receipt_from_cursor(cursor, sale_id)
+        if is_credit:
+            receipt.update({"due_date": due_date, "paid_amount": payment, "balance_amount": credit_balance, "credit_notes": str(credit_notes or "").strip()})
         conn.commit()
         logger.info(f"Browser cashier sale created: {invoice_no} ({sale_id})")
         return receipt
@@ -1887,6 +2130,20 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
     if not row:
         raise ValueError("Receipt not found")
     sale = _dict_from_row(cursor, row)
+    if str(sale.get("payment_type") or "").casefold() == "credit":
+        try:
+            cursor.execute(
+                """SELECT paid_amount, balance_amount, due_date, notes
+                   FROM credit_sales
+                   WHERE sale_id = ? OR invoice_no = ?
+                   ORDER BY id DESC LIMIT 1""",
+                (sale_id, sale.get("invoice_no")),
+            )
+            credit = cursor.fetchone()
+            if credit:
+                sale.update({"paid_amount": float(credit[0] or 0), "balance_amount": float(credit[1] or 0), "due_date": str(credit[2] or ""), "credit_notes": str(credit[3] or "")})
+        except Exception:
+            pass
 
     item_columns = _table_columns(cursor, "sale_items")
     wanted_columns = [
@@ -2149,6 +2406,58 @@ def get_dashboard_summary(
         period_transactions, period_gross_sales, period_refunds = cursor.fetchone()
         period_sales = float(period_gross_sales or 0) - float(period_refunds or 0)
 
+        # Keep the Lite dashboard aligned with the definitions used by the
+        # KAY POS AI Dashboard: item gross - discounts - refunds = net sales,
+        # then net sales - COGS = gross profit.
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(si.qty * si.price), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            WHERE LOWER(TRIM(COALESCE(s.status, 'completed'))) = 'completed'
+              AND date(s.created_at) BETWEEN ? AND ?
+            """,
+            (start_text, end_text),
+        )
+        ai_gross_sales = float((cursor.fetchone() or (0,))[0] or 0)
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(discount_amount), 0)
+            FROM sales
+            WHERE LOWER(TRIM(COALESCE(status, 'completed'))) = 'completed'
+              AND date(created_at) BETWEEN ? AND ?
+            """,
+            (start_text, end_text),
+        )
+        ai_discounts = float((cursor.fetchone() or (0,))[0] or 0)
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(si.qty * si.price), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            WHERE LOWER(TRIM(COALESCE(s.status, ''))) = 'refunded'
+              AND date(s.created_at) BETWEEN ? AND ?
+            """,
+            (start_text, end_text),
+        )
+        ai_refunds = float((cursor.fetchone() or (0,))[0] or 0)
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(COALESCE(p.cost, 0) * si.qty), 0)
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON p.id = si.product_id
+                OR (si.product_id IS NULL AND p.name = si.product_name)
+            WHERE LOWER(TRIM(COALESCE(s.status, 'completed'))) = 'completed'
+              AND date(s.created_at) BETWEEN ? AND ?
+              AND LOWER(COALESCE(p.sold_by, '')) NOT LIKE ?
+            """,
+            (start_text, end_text, "service%"),
+        )
+        ai_cogs = float((cursor.fetchone() or (0,))[0] or 0)
+        ai_net_sales = ai_gross_sales - ai_discounts - ai_refunds
+        ai_gross_profit = ai_net_sales - ai_cogs
+
         cursor.execute("SELECT COUNT(*) FROM products")
         product_count = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM customers")
@@ -2159,11 +2468,23 @@ def get_dashboard_summary(
             f"""
             SELECT COUNT(*)
             FROM products p
-            WHERE LOWER(COALESCE(p.sold_by, '')) NOT LIKE 'service%'
+            WHERE LOWER(COALESCE(p.sold_by, '')) NOT LIKE ?
+              AND {stock_expr} > 0
               AND {stock_expr} <= COALESCE(p.low_stock, 0)
-            """
+            """,
+            ("service%",),
         )
         low_stock_count = cursor.fetchone()[0]
+        cursor.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM products p
+            WHERE LOWER(COALESCE(p.sold_by, '')) NOT LIKE ?
+              AND {stock_expr} <= 0
+            """,
+            ("service%",),
+        )
+        out_of_stock_count = cursor.fetchone()[0]
 
         cursor.execute(
             """
@@ -2310,6 +2631,7 @@ def get_dashboard_summary(
         )
         expense_count, expense_total = cursor.fetchone()
         period_profit = float(period_sales or 0) - float(expense_total or 0)
+        ai_net_profit = ai_gross_profit - float(expense_total or 0)
 
         cursor.execute(
             """
@@ -2376,6 +2698,7 @@ def get_dashboard_summary(
             "inventory": {
                 "products": int(product_count or 0),
                 "low_stock": int(low_stock_count or 0),
+                "out_of_stock": int(out_of_stock_count or 0),
             },
             "customers": int(customer_count or 0),
             "sales_by_day": sales_by_day,
@@ -2391,6 +2714,20 @@ def get_dashboard_summary(
                 "total": float(expense_total or 0),
             },
             "profit": period_profit,
+            "dashboard_metrics": {
+                "gross_sales": ai_gross_sales,
+                "discounts": ai_discounts,
+                "refunds": ai_refunds,
+                "net_sales": ai_net_sales,
+                "transactions": int(period_transactions or 0),
+                "cogs": ai_cogs,
+                "gross_profit": ai_gross_profit,
+                "expenses": float(expense_total or 0),
+                "net_profit": ai_net_profit,
+                "low_stock": int(low_stock_count or 0),
+                "out_of_stock": int(out_of_stock_count or 0),
+                "outstanding_credit": float(credit_summary["balance"] or 0),
+            },
             "credit_summary": credit_summary,
             "credit_accounts": credit_accounts,
         }
@@ -2402,7 +2739,7 @@ def get_receipt_settings() -> Dict[str, str]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        keys = ["shop_name", "receipt_header", "receipt_footer", "shop_footer_message", "currency_symbol"]
+        keys = ["shop_name", "shop_logo", "shop_logo_image", "receipt_header", "receipt_footer", "shop_footer_message", "currency_symbol"]
         placeholders = ", ".join("?" for _ in keys)
         cursor.execute(f"SELECT key, value FROM settings WHERE key IN ({placeholders})", keys)
         settings = {key: value for key, value in cursor.fetchall()}

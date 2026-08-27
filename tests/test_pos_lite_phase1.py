@@ -5,13 +5,14 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QDate, QEventLoop, QSize, QTimer
 from PyQt6.QtGui import QPalette, QPixmap
-from PyQt6.QtWidgets import QApplication, QPushButton as QtPushButton, QTableWidgetItem
+from PyQt6.QtWidgets import QApplication, QDialog, QHeaderView, QPushButton as QtPushButton, QTableWidgetItem
 
 from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CheckoutDialog, ExpenseDialog, LiteWindow, ProductEditorDialog, ReceiptDialog
+from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteWindow, ProductEditorDialog, ReceiptDialog
+from server.cashier_service import order_categories_by_usage
 
 
 class PosLitePhase1Tests(unittest.TestCase):
@@ -124,6 +125,7 @@ class PosLitePhase1Tests(unittest.TestCase):
         payload = request.call_args.kwargs["json"]
         self.assertEqual(payload["items"][0]["variant_id"], 12)
         self.assertEqual(payload["payment"], 10000)
+        self.assertEqual(payload["discount_amount"], 0)
 
     def test_checkout_dialog_calculates_change(self):
         dialog = CheckoutDialog(7500)
@@ -132,6 +134,22 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertFalse(dialog.print_after_sale.isChecked())
         self.assertFalse(dialog.open_drawer_after_sale.isChecked())
         self.assertTrue(hasattr(ReceiptDialog, "print_receipt_automatic"))
+        dialog.close()
+
+    def test_checkout_dialog_supports_amount_and_percent_discounts(self):
+        dialog = CheckoutDialog(10000)
+        dialog.discount_type.setCurrentIndex(dialog.discount_type.findData("amount"))
+        dialog.discount_value.setValue(1500)
+        self.assertEqual(dialog.discount_amount(), 1500)
+        self.assertEqual(dialog.payable_total(), 8500)
+        self.assertEqual(dialog.payment.value(), 8500)
+        self.assertEqual(dialog.total_due_label.text(), "8,500 Ks")
+        dialog.discount_type.setCurrentIndex(dialog.discount_type.findData("percent"))
+        dialog.discount_value.setValue(10)
+        self.assertEqual(dialog.discount_amount(), 1000)
+        self.assertEqual(dialog.payable_total(), 9000)
+        dialog.payment.setValue(10000)
+        self.assertEqual(dialog.change_label.text(), "1,000 Ks")
         dialog.close()
 
     def test_checkout_dialog_selects_customer_for_credit_sale(self):
@@ -148,7 +166,10 @@ class PosLitePhase1Tests(unittest.TestCase):
         dialog.payment_type.setCurrentText("Credit")
         self.assertEqual(dialog.selected_customer_id(), 4)
         self.assertEqual(dialog.payment.value(), 0)
-        self.assertFalse(dialog.payment.isEnabled())
+        self.assertTrue(dialog.payment.isEnabled())
+        self.assertTrue(dialog.credit_due_date.isVisibleTo(dialog))
+        dialog.payment.setValue(5000)
+        self.assertEqual(dialog.credit_balance_label.text(), "10,000 Ks")
         self.assertFalse(dialog.open_drawer_after_sale.isEnabled())
         self.assertFalse(dialog.open_drawer_after_sale.isChecked())
         dialog.payment_type.setCurrentText("Cash")
@@ -168,6 +189,18 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(payload["customer_id"], 4)
         self.assertEqual(payload["sale_mode"], "Credit")
         self.assertEqual(payload["payment"], 0)
+        self.assertIn("due_date", payload)
+        self.assertIn("credit_notes", payload)
+        self.assertFalse(payload["allow_credit_over_limit"])
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_checkout_sends_discount_amount(self, request):
+        response = unittest.mock.Mock(ok=True)
+        response.json.return_value = {"receipt": {"id": 11, "invoice_no": "LITE-11", "total": 9000}}
+        request.return_value = response
+        client = LiteApiClient("https://server:8000")
+        client.checkout([{"product_id": 7, "qty": 1}], 9000, "Cash", discount_amount=1000)
+        self.assertEqual(request.call_args.kwargs["json"]["discount_amount"], 1000)
 
     def test_expense_dialog_returns_server_payload(self):
         dialog = ExpenseDialog(["Transport", "Utilities"])
@@ -268,6 +301,41 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertNotIn("Refund Receipt", labels)
         refunded.close()
 
+    def test_receipt_uses_setting_center_text_logo_and_shop_name(self):
+        dialog = ReceiptDialog(
+            {
+                "invoice_no": "INV-10", "status": "completed", "created_at": "2026-08-26",
+                "total": 1200, "payment": 1500, "change_amount": 300, "items": [],
+            },
+            settings={
+                "shop_name": "KAY Mini Mart",
+                "shop_logo_image": "data:image/png;base64,QUJD",
+                "receipt_header": "Welcome\nDaily Fresh",
+                "receipt_footer": "No refund after 7 days",
+                "shop_footer_message": "Thank you!",
+                "currency_symbol": "Ks",
+            },
+        )
+        html = dialog._html()
+        self.assertIn("KAY Mini Mart", html)
+        self.assertIn("kaypos://receipt/logo", html)
+        self.assertIn("Welcome<br>Daily Fresh", html)
+        self.assertIn("No refund after 7 days", html)
+        self.assertIn("Thank you!", html)
+        dialog.close()
+
+    def test_credit_receipt_shows_paid_balance_and_due_date(self):
+        dialog = ReceiptDialog({
+            "invoice_no": "CR-1", "payment_type": "Credit", "total": 15000,
+            "payment": 5000, "paid_amount": 5000, "balance_amount": 10000,
+            "due_date": "2026-09-10", "items": [],
+        })
+        html = dialog._html()
+        self.assertIn("Credit Paid:</b> 5,000", html)
+        self.assertIn("Balance Due:</b> 10,000", html)
+        self.assertIn("2026-09-10", html)
+        dialog.close()
+
     def test_cart_handles_repeated_low_end_workload_without_duplicate_rows(self):
         cart = LiteCart()
         for product_id in range(1, 101):
@@ -284,9 +352,15 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertIs(client.session, session)
         client.close()
 
-    def test_lite_window_uses_native_qt_style_without_custom_stylesheet(self):
+    def test_lite_window_keeps_native_content_with_launcher_branded_sidebar(self):
         window = LiteWindow()
         self.assertEqual(window.styleSheet(), "")
+        nav = window.workspace_page.findChild(
+            __import__("PyQt6.QtWidgets", fromlist=["QFrame"]).QFrame, "nav"
+        )
+        self.assertIsNotNone(nav)
+        self.assertIn("#5365df", nav.styleSheet().lower())
+        self.assertIn("#eef1ff", window.statusBar().styleSheet().lower())
         self.assertTrue(all(
             frame.frameShape() == frame.Shape.StyledPanel
             for frame in window.findChildren(__import__("PyQt6.QtWidgets", fromlist=["QFrame"]).QFrame)
@@ -299,6 +373,8 @@ class PosLitePhase1Tests(unittest.TestCase):
 
     def test_sidebar_tracks_the_active_workspace_page(self):
         window = LiteWindow()
+        self.assertEqual(next(iter(window.nav_buttons)), "Point of Sale")
+        self.assertTrue(all(button.property("leftAligned") for button in window.nav_buttons.values()))
         self.assertTrue(window.nav_buttons["Dashboard"].isChecked())
         window._activate_workspace("Expenses")
         self.assertIs(window.workspace_stack.currentWidget(), window.expense_page)
@@ -312,12 +388,113 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertIsNot(window.workspace_pages["Inventory"], window.workspace_pages["Customers"])
         window.close()
 
+    def test_category_slider_preserves_server_popularity_order(self):
+        window = LiteWindow()
+        window._render_categories(["Drinks", "Snacks", "Household"])
+        labels = [button.text() for button in window.category_group.buttons()]
+        self.assertEqual(labels, ["All", "Drinks", "Snacks", "Household"])
+        window.close()
+
+    def test_popular_categories_are_ordered_before_alphabetical_categories(self):
+        categories = ["CCTV", "Services", "ရေခဲမှုန့်", "General"]
+        ordered = order_categories_by_usage(categories, {"services": 3791, "ရေခဲမှုန့်": 1696, "cctv": 3})
+        self.assertEqual(ordered, ["Services", "ရေခဲမှုန့်", "CCTV", "General"])
+
+    def test_lite_dashboard_matches_ai_dashboard_core_cards(self):
+        window = LiteWindow()
+        labels = {label.text().splitlines()[0] for label in window.dashboard_metrics}
+        self.assertEqual(labels, {
+            "Net Sales", "Transactions", "Gross Profit", "Expenses",
+            "Net Profit", "Refunds", "Low / Out of Stock", "Outstanding Credit",
+        })
+        self.assertEqual(
+            [window.dashboard_analytics.tabText(index) for index in range(window.dashboard_analytics.count())],
+            ["Sale Categories", "Expense Categories", "Sales by Payment Type", "Daily Sales Trend"],
+        )
+        today = QDate.currentDate()
+        self.assertEqual(window.dashboard_from.date(), QDate(today.year(), today.month(), 1))
+        self.assertEqual(window.dashboard_to.date(), today)
+        self.assertEqual(window.dashboard_sale_categories_status.text(), "0 item(s) loaded")
+        self.assertEqual(window.dashboard_sale_categories_total.text(), "Total · 0 Ks")
+        window.close()
+
     def test_product_table_has_lazy_thumbnail_column(self):
         window = LiteWindow()
         self.assertEqual(window.product_table.columnCount(), 6)
         self.assertEqual(window.product_table.horizontalHeaderItem(0).text(), "Image")
         self.assertEqual(window.product_page_size, 50)
         self.assertEqual(window.product_table.iconSize(), QSize(44, 40))
+        window.close()
+
+    def test_products_page_thumbnail_does_not_depend_on_pos_page_cache_render(self):
+        window = LiteWindow()
+        window.managed_products = [{"id": 77, "thumbnail_url": "/api/products/77/thumbnail"}]
+        window.managed_product_rows = {77: 0}
+        window.manage_product_table.setRowCount(1)
+        window.manage_product_table.setItem(0, 0, QTableWidgetItem())
+        pixmap = QPixmap(44, 40)
+        pixmap.fill()
+        window._apply_product_thumbnail(77, pixmap)
+        self.assertFalse(window.manage_product_table.item(0, 0).icon().isNull())
+        self.assertTrue(hasattr(window, "product_management_thumbnail_timer"))
+        window.close()
+
+    def test_product_page_exposes_parent_child_category_manager(self):
+        window = LiteWindow()
+        self.assertTrue(any(
+            button.text() == "Manage Categories"
+            for button in window.product_management_page.findChildren(QtPushButton)
+        ))
+
+        class FakeApi:
+            @staticmethod
+            def managed_categories():
+                return [
+                    {"id": 1, "name": "Drinks", "parent_id": None, "parent_name": "", "status": "active"},
+                    {"id": 2, "name": "Juice", "parent_id": 1, "parent_name": "Drinks", "status": "active"},
+                    {"id": 3, "name": "Orange Juice", "parent_id": 2, "parent_name": "Juice", "status": "active"},
+                ]
+
+        dialog = CategoryManagerDialog(FakeApi(), window)
+        self.assertEqual(dialog.table.rowCount(), 3)
+        self.assertEqual(dialog.table.item(0, 0).text(), "Drinks")
+        self.assertIn("Juice", dialog.table.item(1, 0).text())
+        self.assertNotEqual(dialog.table.item(0, 0).foreground().color(), dialog.table.item(1, 0).foreground().color())
+        self.assertNotEqual(dialog.table.item(1, 0).foreground().color(), dialog.table.item(2, 0).foreground().color())
+        self.assertEqual(dialog.table.item(0, 0).toolTip(), "Parent category")
+        self.assertEqual(dialog.table.item(1, 0).toolTip(), "Child category")
+        self.assertEqual(dialog.table.item(2, 0).toolTip(), "Sub-child category")
+        self.assertEqual(dialog.table.item(2, 1).foreground().color(), dialog.table.item(1, 0).foreground().color())
+        dialog.close(); window.close()
+
+    def test_pos_receipt_action_is_replaced_by_add_expense(self):
+        window = LiteWindow()
+        self.assertEqual(window.add_expense_button.text(), "Add Expense")
+        self.assertTrue(window.add_expense_button.isEnabled())
+        self.assertFalse(any(
+            button.text() == "Print Receipt"
+            for button in window.pos_page.findChildren(__import__("PyQt6.QtWidgets", fromlist=["QPushButton"]).QPushButton)
+        ))
+        window.close()
+
+    def test_pos_add_expense_loads_categories_before_opening_dialog(self):
+        window = LiteWindow()
+
+        class FakeApi:
+            @staticmethod
+            def expense_categories():
+                return ["Fuel", "Utilities"]
+
+        window.api = FakeApi()
+        window._run_task = lambda operation, success, _failure: success(operation())
+        with patch("lite_pos.window.ExpenseDialog") as dialog_class:
+            dialog_class.return_value.exec.return_value = QDialog.DialogCode.Rejected
+            window.add_expense()
+            dialog_class.assert_called_once_with(["Fuel", "Utilities"], window)
+        self.assertTrue(window.expense_categories_loaded)
+        self.assertEqual(window.add_expense_button.text(), "Add Expense")
+        self.assertTrue(window.add_expense_button.isEnabled())
+        window.api = None
         window.close()
 
     def test_product_stock_status_distinguishes_low_out_and_service(self):
@@ -408,6 +585,23 @@ class PosLitePhase1Tests(unittest.TestCase):
         window._apply_product_thumbnail(7, pixmap)
         window._apply_product_thumbnail(7, pixmap)
         self.assertIs(window.product_table.item(0, 0), item)
+        window.close()
+
+    def test_large_tables_avoid_resize_to_contents_and_page_loads_are_independent(self):
+        window = LiteWindow()
+        for table in (
+            window.manage_product_table, window.stock_table, window.customer_table,
+            window.product_table, window.expense_table, window.history_table,
+        ):
+            header = table.horizontalHeader()
+            for column in range(table.columnCount()):
+                self.assertNotEqual(header.sectionResizeMode(column), QHeaderView.ResizeMode.ResizeToContents)
+        product_token = window._new_page_load("products")
+        customer_token = window._new_page_load("customers")
+        self.assertTrue(window._page_load_is_current("products", product_token))
+        self.assertTrue(window._page_load_is_current("customers", customer_token))
+        self.assertNotEqual(window._new_page_load("products"), product_token)
+        self.assertTrue(window._page_load_is_current("customers", customer_token))
         window.close()
 
     def test_lite_uses_classic_windows_qt_style(self):

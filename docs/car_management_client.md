@@ -81,6 +81,14 @@ summary-card visibility and requires at least one visible card. Card visibility,
 recent-activity row count, chart period, and custom start/end dates persist in
 the current Windows user profile across app restarts.
 
+## Background Owner Web Print Agent
+
+The Owner Web Print Agent continues running in the Windows system tray when
+the Car Management window is closed. The Print page can enable launch after
+Windows login and close-to-tray behavior. Double-click the tray icon to reopen
+the app. Use **Exit Car Management and Print Agent** in the tray menu only when
+the web printer should deliberately go offline.
+
 ## Auto-filled car forms
 
 On **Car Records**, select a database row and click **Auto Fill Forms**. The

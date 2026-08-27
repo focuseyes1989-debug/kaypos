@@ -3,23 +3,25 @@
 from __future__ import annotations
 
 import ctypes
+import base64
 from collections.abc import Callable
 
 from PyQt6.QtCore import QDate, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTimer, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
+from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
-    QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QHeaderView, QHBoxLayout, QLabel,
+    QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
     QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter,
-    QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTextEdit,
+    QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
     QVBoxLayout, QWidget,
 )
 
 from lite_pos.api import LiteApiClient
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
+from lite_pos.settings_center import LiteSettingsCenter
 
 
 def open_local_cash_drawer(printer_name: str) -> None:
@@ -61,7 +63,7 @@ def open_local_cash_drawer(printer_name: str) -> None:
 
 
 class QPushButton(QtPushButton):
-    """Native button chrome with text painted at the exact rectangle center."""
+    """Native button chrome with consistent text placement."""
 
     def paintEvent(self, _event) -> None:
         option = QStyleOptionButton()
@@ -79,10 +81,13 @@ class QPushButton(QtPushButton):
         # Use one font-metrics baseline for every label. Per-string glyph
         # bounds vary with Myanmar combining marks and made adjacent category
         # buttons appear at different vertical positions.
-        text_rect = option.rect.translated(0, 1)
+        left_aligned = bool(self.property("leftAligned"))
+        text_rect = option.rect.adjusted(11 if left_aligned else 0, 0, -8 if left_aligned else 0, 0)
+        text_rect.translate(0, 1)
         painter.drawText(
             text_rect,
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            (Qt.AlignmentFlag.AlignLeft if left_aligned else Qt.AlignmentFlag.AlignHCenter)
+            | Qt.AlignmentFlag.AlignVCenter,
             text,
         )
 
@@ -125,16 +130,19 @@ class CheckoutDialog(QDialog):
     def __init__(
         self, total: float, parent=None, customers: list[dict] | None = None,
         print_after_sale: bool = False, open_drawer_after_sale: bool = False,
-        payment_types: list[str] | None = None,
+        payment_types: list[str] | None = None, credit_settings: dict | None = None,
     ):
         super().__init__(parent)
         self.total = float(total)
+        self.credit_settings = dict(credit_settings or {})
+        self.allow_credit_over_limit = False
         self.setWindowTitle("Checkout")
         self.setFixedWidth(390)
         layout = QVBoxLayout(self)
-        title = QLabel(f"Total · {self.total:,.0f} Ks", objectName="title")
-        layout.addWidget(title)
+        self.checkout_title = QLabel(f"Subtotal · {self.total:,.0f} Ks", objectName="title")
+        layout.addWidget(self.checkout_title)
         form = QFormLayout()
+        self.checkout_form = form
         self.customer = QComboBox()
         self.customer.setEditable(True)
         self.customer.addItem("Walk-in Customer", None)
@@ -147,13 +155,32 @@ class CheckoutDialog(QDialog):
         self.customer_info.setWordWrap(True)
         self.payment_type = QComboBox()
         configured_payment_types = [str(value).strip() for value in (payment_types or []) if str(value).strip()]
-        self.payment_type.addItems(configured_payment_types or ["Cash"])
+        configured_payment_types = configured_payment_types or ["Cash"]
+        if not any(value.casefold() == "credit" for value in configured_payment_types):
+            configured_payment_types.append("Credit")
+        self.payment_type.addItems(configured_payment_types)
+        self.discount_type = QComboBox()
+        self.discount_type.addItem("No Discount", "none")
+        self.discount_type.addItem("Amount", "amount")
+        self.discount_type.addItem("Percent", "percent")
+        self.discount_value = QDoubleSpinBox()
+        self.discount_value.setRange(0, self.total)
+        self.discount_value.setDecimals(2)
+        self.discount_value.setSingleStep(100)
+        self.discount_value.setEnabled(False)
+        self.discount_label = QLabel("0 Ks")
+        self.total_due_label = QLabel(f"{self.total:,.0f} Ks")
+        self._last_payable = self.total
         self.payment = QDoubleSpinBox()
         self.payment.setRange(0, 999999999999)
         self.payment.setDecimals(0)
         self.payment.setValue(self.total)
         self.payment.setSingleStep(1000)
         self.change_label = QLabel("0 Ks")
+        self.credit_balance_label = QLabel(f"{self.total:,.0f} Ks")
+        self.credit_due_date = QDateEdit(QDate.currentDate().addDays(int(self.credit_settings.get("credit_due_days") or 15)))
+        self.credit_due_date.setCalendarPopup(True); self.credit_due_date.setDisplayFormat("yyyy-MM-dd")
+        self.credit_notes = QTextEdit(); self.credit_notes.setMaximumHeight(65)
         self.print_after_sale = QCheckBox("Print receipt after completing sale")
         self.open_drawer_after_sale = QCheckBox("Open cash drawer after completing sale")
         self.print_after_sale.setChecked(bool(print_after_sale))
@@ -161,9 +188,16 @@ class CheckoutDialog(QDialog):
         self.open_drawer_after_sale.setChecked(self._drawer_preference)
         form.addRow("Customer", self.customer)
         form.addRow("Customer Info", self.customer_info)
+        form.addRow("Discount Type", self.discount_type)
+        form.addRow("Discount Value", self.discount_value)
+        form.addRow("Discount", self.discount_label)
+        form.addRow("Total Due", self.total_due_label)
         form.addRow("Payment Type", self.payment_type)
         form.addRow("Payment", self.payment)
         form.addRow("Change", self.change_label)
+        form.addRow("Balance Due", self.credit_balance_label)
+        form.addRow("Due Date", self.credit_due_date)
+        form.addRow("Credit Notes", self.credit_notes)
         form.addRow(self.print_after_sale)
         form.addRow(self.open_drawer_after_sale)
         layout.addLayout(form)
@@ -174,9 +208,40 @@ class CheckoutDialog(QDialog):
         layout.addWidget(buttons)
         self.payment.valueChanged.connect(self._update_change)
         self.payment_type.currentTextChanged.connect(self._payment_type_changed)
+        self.discount_type.currentIndexChanged.connect(self._discount_changed)
+        self.discount_value.valueChanged.connect(self._discount_changed)
         self.open_drawer_after_sale.toggled.connect(self._remember_drawer_preference)
         self.customer.currentIndexChanged.connect(self._customer_changed)
         self._customer_changed()
+        self._payment_type_changed(self.payment_type.currentText())
+
+    def discount_amount(self) -> float:
+        discount_type = self.discount_type.currentData()
+        value = float(self.discount_value.value() or 0)
+        if discount_type == "percent":
+            return min(self.total, self.total * min(value, 100.0) / 100.0)
+        if discount_type == "amount":
+            return min(self.total, value)
+        return 0.0
+
+    def payable_total(self) -> float:
+        return max(0.0, self.total - self.discount_amount())
+
+    def _discount_changed(self, _value=None) -> None:
+        discount_type = self.discount_type.currentData()
+        self.discount_value.setEnabled(discount_type != "none")
+        self.discount_value.setSuffix(" %" if discount_type == "percent" else " Ks" if discount_type == "amount" else "")
+        self.discount_value.setMaximum(100 if discount_type == "percent" else self.total)
+        if discount_type == "none" and self.discount_value.value():
+            self.discount_value.setValue(0)
+        payable = self.payable_total()
+        discount = self.discount_amount()
+        payment_type = self.payment_type.currentText().strip().lower()
+        if payment_type != "credit" and abs(self.payment.value() - self._last_payable) < 0.01:
+            self.payment.setValue(payable)
+        self._last_payable = payable
+        self.discount_label.setText(f"{discount:,.0f} Ks")
+        self.total_due_label.setText(f"{payable:,.0f} Ks")
         self._update_change()
 
     def _remember_drawer_preference(self, checked: bool) -> None:
@@ -190,7 +255,9 @@ class CheckoutDialog(QDialog):
             return
         self.customer_info.setText(
             f"Points: {float(customer.get('points') or 0):,.0f} · "
-            f"Outstanding: {float(customer.get('current_balance') or 0):,.0f} Ks"
+            f"Outstanding: {float(customer.get('current_balance') or 0):,.0f} Ks · "
+            f"Credit Limit: {float(customer.get('credit_limit') or 0):,.0f} Ks · "
+            f"Available: {max(0.0, float(customer.get('credit_limit') or 0) - float(customer.get('current_balance') or 0)):,.0f} Ks"
         )
 
     def selected_customer_id(self) -> int | None:
@@ -199,28 +266,59 @@ class CheckoutDialog(QDialog):
 
     def _payment_type_changed(self, payment_type: str) -> None:
         normalized_type = payment_type.strip().lower()
+        payable = self.payable_total()
         if normalized_type == "credit":
             self.payment.setValue(0)
         elif normalized_type != "cash":
-            self.payment.setValue(self.total)
-        self.payment.setEnabled(normalized_type == "cash")
+            self.payment.setValue(payable)
+        self.payment.setEnabled(normalized_type in {"cash", "credit"})
         self.open_drawer_after_sale.setEnabled(normalized_type == "cash")
         if normalized_type == "cash":
             self.open_drawer_after_sale.setChecked(self._drawer_preference)
         else:
             self.open_drawer_after_sale.setChecked(False)
+        is_credit = normalized_type == "credit"
+        self.form_label_for(self.payment).setText("Paid Today" if is_credit else "Payment")
+        self.form_label_for(self.change_label).setVisible(not is_credit); self.change_label.setVisible(not is_credit)
+        for widget in (self.credit_balance_label, self.credit_due_date, self.credit_notes):
+            widget.setVisible(is_credit); self.form_label_for(widget).setVisible(is_credit)
         self._update_change()
 
+    def form_label_for(self, widget):
+        return self.checkout_form.labelForField(widget)
+
     def _update_change(self) -> None:
-        change = max(0.0, self.payment.value() - self.total)
+        is_credit = self.payment_type.currentText().strip().lower() == "credit"
+        payable = self.payable_total()
+        change = 0.0 if is_credit else max(0.0, self.payment.value() - payable)
         self.change_label.setText(f"{change:,.0f} Ks")
+        self.credit_balance_label.setText(f"{max(0.0, payable - self.payment.value()):,.0f} Ks")
 
     def _accept_if_paid(self) -> None:
         is_credit = self.payment_type.currentText().strip().lower() == "credit"
+        payable = self.payable_total()
         if is_credit and not self.selected_customer_id():
             QMessageBox.warning(self, "Customer", "Select a customer for a credit sale.")
             return
-        if not is_credit and self.payment.value() < self.total:
+        if is_credit and self.payment.value() > payable:
+            QMessageBox.warning(self, "Credit Sale", "Paid Today cannot exceed the sale total.")
+            return
+        if is_credit:
+            customer = self.customer.currentData() or {}
+            limit = float(customer.get("credit_limit") or 0)
+            current = float(customer.get("current_balance") or 0)
+            balance = max(0.0, payable - self.payment.value())
+            exceeded = limit > 0 and current + balance > limit
+            if self.credit_settings.get("credit_limit_enabled", True) and exceeded:
+                answer = QMessageBox.warning(
+                    self, "Credit Limit Warning",
+                    f"Credit limit will be exceeded.\n\nLimit: {limit:,.0f} Ks\nCurrent balance: {current:,.0f} Ks\nThis credit: {balance:,.0f} Ks\nNew balance: {current + balance:,.0f} Ks\n\nProceed anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer != QMessageBox.StandardButton.Yes: return
+                self.allow_credit_over_limit = True
+        if not is_credit and self.payment.value() < payable:
             QMessageBox.warning(self, "Payment", "Payment is less than the sale total.")
             return
         self.accept()
@@ -377,17 +475,158 @@ class ProductEditorDialog(QDialog):
         return {"name":self.name.text().strip(),"category":self.category.currentText().strip(),"description":self.description.toPlainText().strip(),"sold_by":self.sold_by.currentText(),"sku":self.sku.text().strip() if self.sold_by.currentText()=="Each" else "","barcode":self.barcode.text().strip() if self.sold_by.currentText()!="Variants" else "","price":self.price.value() if self.sold_by.currentText()=="Each" else 0,"cost":self.cost.value() if self.sold_by.currentText()=="Each" else 0,"stock":self.stock.value() if self.sold_by.currentText()=="Each" else 0,"low_stock":self.low_stock.value() if self.sold_by.currentText()=="Each" else 0,"unit":self.unit.text().strip() or "pcs","base_unit":self.unit.text().strip() or "pcs","pack_unit":self.pack_unit.text().strip(),"pack_size":self.pack_size.value(),"variants":variants if self.sold_by.currentText()=="Variants" else []}
 
 
+class CategoryManagerDialog(QDialog):
+    """Manage the full KAY POS category hierarchy through the cashier server."""
+
+    def __init__(self, api: LiteApiClient, parent=None):
+        super().__init__(parent)
+        self.api = api
+        self.categories: list[dict] = []
+        self.editing_id: int | None = None
+        self.setWindowTitle("Manage Categories · Parent / Child")
+        self.resize(760, 560)
+        outer = QVBoxLayout(self)
+        heading = QLabel("Manage Categories", objectName="title")
+        subtitle = QLabel("Uses the same parent and child category information as KAY POS.", objectName="muted")
+        outer.addWidget(heading); outer.addWidget(subtitle)
+        body = QHBoxLayout(); outer.addLayout(body, 1)
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Category", "Parent", "Products", "Status"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(2, 80); self.table.setColumnWidth(3, 90)
+        self.table.itemSelectionChanged.connect(self._load_selected)
+        body.addWidget(self.table, 3)
+        legend = QLabel("Category hierarchy colors", objectName="muted")
+        legend.setTextFormat(Qt.TextFormat.RichText)
+        legend.setText('<span style="color:#5969ee">● Parent</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#138a72">● Child</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#d97706">● Sub Child</span>')
+        outer.addWidget(legend)
+        editor = QFrame(objectName="card"); form = QFormLayout(editor)
+        self.name = QLineEdit(); self.parent_category = QComboBox()
+        self.description = QTextEdit(); self.description.setMaximumHeight(90)
+        self.sort_order = QSpinBox(); self.sort_order.setRange(0, 999999)
+        self.status = QComboBox(); self.status.addItems(["active", "inactive"])
+        form.addRow("Category Name", self.name)
+        form.addRow("Parent Category", self.parent_category)
+        form.addRow("Description", self.description)
+        form.addRow("Sort Order", self.sort_order)
+        form.addRow("Status", self.status)
+        new_button = QPushButton("New Category")
+        save_button = QPushButton("Save Category", objectName="primary")
+        delete_button = QPushButton("Delete Selected")
+        new_button.clicked.connect(self._clear_editor)
+        save_button.clicked.connect(self._save)
+        delete_button.clicked.connect(self._delete)
+        form.addRow(new_button); form.addRow(save_button); form.addRow(delete_button)
+        body.addWidget(editor, 2)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject); outer.addWidget(buttons)
+        self.refresh()
+
+    def _ordered_categories(self) -> list[tuple[dict, int]]:
+        children: dict[int | None, list[dict]] = {}
+        known = {int(category.get("id") or 0) for category in self.categories}
+        for category in self.categories:
+            parent_id = category.get("parent_id")
+            key = int(parent_id) if parent_id and int(parent_id) in known else None
+            children.setdefault(key, []).append(category)
+        for values in children.values():
+            values.sort(key=lambda item: (int(item.get("sort_order") or 0), str(item.get("name") or "").casefold()))
+        ordered: list[tuple[dict, int]] = []
+        def add(parent_id: int | None, depth: int) -> None:
+            for category in children.get(parent_id, []):
+                ordered.append((category, depth)); add(int(category.get("id") or 0), depth + 1)
+        add(None, 0)
+        return ordered
+
+    def refresh(self) -> None:
+        try:
+            self.categories = self.api.managed_categories()
+        except Exception as exc:
+            QMessageBox.critical(self, "Categories", str(exc)); return
+        self.table.setRowCount(0)
+        ordered_categories = self._ordered_categories()
+        depths = {int(category.get("id") or 0): depth for category, depth in ordered_categories}
+        hierarchy_colors = {0: "#5969ee", 1: "#138a72"}
+        for category, depth in ordered_categories:
+            row = self.table.rowCount(); self.table.insertRow(row)
+            name_item = QTableWidgetItem(f"{'    ' * depth}{'↳ ' if depth else ''}{category.get('name') or ''}")
+            name_item.setData(Qt.ItemDataRole.UserRole, int(category.get("id") or 0))
+            hierarchy_color = QColor(hierarchy_colors.get(depth, "#d97706"))
+            name_item.setForeground(hierarchy_color)
+            name_item.setToolTip("Parent category" if depth == 0 else "Child category" if depth == 1 else "Sub-child category")
+            parent_item = QTableWidgetItem(str(category.get("parent_name") or "—"))
+            parent_id = int(category.get("parent_id") or 0)
+            if depth > 0: parent_item.setForeground(QColor(hierarchy_colors.get(depths.get(parent_id, 0), "#d97706")))
+            values = [name_item, parent_item, QTableWidgetItem(str(category.get("product_count") or 0)), QTableWidgetItem(str(category.get("status") or "active"))]
+            for column, item in enumerate(values): self.table.setItem(row, column, item)
+        self._populate_parents()
+
+    def _populate_parents(self) -> None:
+        current_parent = self.parent_category.currentData() if self.parent_category.count() else None
+        self.parent_category.clear(); self.parent_category.addItem("No Parent (Top Level)", None)
+        for category, depth in self._ordered_categories():
+            category_id = int(category.get("id") or 0)
+            if category_id != self.editing_id:
+                self.parent_category.addItem(f"{'    ' * depth}{category.get('name') or ''}", category_id)
+        index = self.parent_category.findData(current_parent)
+        self.parent_category.setCurrentIndex(max(0, index))
+
+    def _selected_category(self) -> dict | None:
+        row = self.table.currentRow()
+        item = self.table.item(row, 0) if row >= 0 else None
+        category_id = int(item.data(Qt.ItemDataRole.UserRole) or 0) if item else 0
+        return next((category for category in self.categories if int(category.get("id") or 0) == category_id), None)
+
+    def _load_selected(self) -> None:
+        category = self._selected_category()
+        if not category: return
+        self.editing_id = int(category.get("id") or 0)
+        self.name.setText(str(category.get("name") or ""))
+        self.description.setPlainText(str(category.get("description") or ""))
+        self.sort_order.setValue(int(category.get("sort_order") or 0))
+        self.status.setCurrentText(str(category.get("status") or "active"))
+        self._populate_parents()
+        index = self.parent_category.findData(category.get("parent_id"))
+        self.parent_category.setCurrentIndex(max(0, index))
+
+    def _clear_editor(self) -> None:
+        self.editing_id = None; self.table.clearSelection(); self.name.clear(); self.description.clear()
+        self.sort_order.setValue(0); self.status.setCurrentText("active"); self._populate_parents(); self.name.setFocus()
+
+    def _save(self) -> None:
+        name = self.name.text().strip()
+        if not name: QMessageBox.warning(self, "Categories", "Category name is required."); return
+        values = {"name": name, "description": self.description.toPlainText().strip(), "parent_id": self.parent_category.currentData(), "sort_order": self.sort_order.value(), "status": self.status.currentText()}
+        try:
+            self.api.save_category(values, self.editing_id)
+            self.refresh(); self._clear_editor()
+        except Exception as exc: QMessageBox.critical(self, "Categories", str(exc))
+
+    def _delete(self) -> None:
+        category = self._selected_category()
+        if not category: QMessageBox.information(self, "Categories", "Select a category first."); return
+        if QMessageBox.question(self, "Delete Category", f"Delete '{category.get('name')}'?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes: return
+        try:
+            self.api.delete_category(int(category.get("id") or 0)); self.refresh(); self._clear_editor()
+        except Exception as exc: QMessageBox.critical(self, "Categories", str(exc))
+
+
 class ReceiptDialog(QDialog):
-    def __init__(self, receipt: dict, parent=None, refund_callback: Callable[[dict], None] | None = None):
+    def __init__(self, receipt: dict, parent=None, refund_callback: Callable[[dict], None] | None = None, settings: dict | None = None):
         super().__init__(parent)
         self.receipt = receipt
+        self.settings = dict(settings or {})
         self.refund_callback = refund_callback
         self.setWindowTitle(f"Receipt · {receipt.get('invoice_no') or ''}")
         self.resize(520, 600)
         layout = QVBoxLayout(self)
         self.preview = QTextEdit()
         self.preview.setReadOnly(True)
-        self.preview.setHtml(self._html())
+        self._set_document_html(self.preview.document())
         layout.addWidget(self.preview)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         print_button = buttons.addButton("Print Receipt", QDialogButtonBox.ButtonRole.ActionRole)
@@ -409,24 +648,55 @@ class ReceiptDialog(QDialog):
 
     def _html(self) -> str:
         from html import escape
+        multiline = lambda value: escape(str(value or "")).replace("\n", "<br>")
+        shop_name = escape(str(self.settings.get("shop_name") or "KAY POS"))
+        currency = escape(str(self.settings.get("currency_symbol") or "Ks"))
+        logo_data = str(self.settings.get("shop_logo_image") or "").strip()
+        logo = '<p style="text-align:center;margin:0 0 4px"><img src="kaypos://receipt/logo" width="72"></p>' if logo_data.startswith("data:image/") else ""
+        header = multiline(self.settings.get("receipt_header"))
+        footer = multiline(self.settings.get("receipt_footer"))
+        footer_message = multiline(self.settings.get("shop_footer_message"))
         rows = "".join(
             f"<tr><td>{escape(str(item.get('product_name') or ''))}</td>"
             f"<td align='right'>{int(item.get('qty') or 0)}</td>"
             f"<td align='right'>{float(item.get('total') or 0):,.0f}</td></tr>"
             for item in self.receipt.get("items") or []
         )
+        header_html = f"<p style='text-align:center;margin:3px 0 8px'>{header}</p>" if header else ""
+        footer_html = f"<p style='text-align:center;margin:10px 0 3px'>{footer}</p>" if footer else ""
+        message_html = f"<p style='text-align:center;font-weight:bold;margin:4px 0'>{footer_message}</p>" if footer_message else ""
+        is_credit = str(self.receipt.get("payment_type") or "").casefold() == "credit"
+        credit_html = (
+            f"<p><b>Credit Paid:</b> {float(self.receipt.get('paid_amount') or self.receipt.get('payment') or 0):,.0f} {currency}<br>"
+            f"<b>Balance Due:</b> {float(self.receipt.get('balance_amount') or 0):,.0f} {currency}<br>"
+            f"<b>Due Date:</b> {escape(str(self.receipt.get('due_date') or '—'))}</p>"
+        ) if is_credit else ""
         return (
             "<div style='font-family:Segoe UI,Myanmar Text;font-size:10pt'>"
-            "<h2 style='text-align:center'>KAY POS</h2>"
+            f"{logo}<h2 style='text-align:center;margin:2px 0'>{shop_name}</h2>"
+            f"{header_html}"
             f"<p><b>Invoice:</b> {escape(str(self.receipt.get('invoice_no') or ''))}<br>"
             f"<b>Date:</b> {escape(str(self.receipt.get('created_at') or ''))}<br>"
             f"<b>Status:</b> {escape(str(self.receipt.get('status') or 'completed').title())}</p>"
             "<table width='100%' cellspacing='5'><tr><th align='left'>Item</th><th>Qty</th><th>Total</th></tr>"
             f"{rows}</table><hr>"
-            f"<h3 style='text-align:right'>Total: {float(self.receipt.get('total') or 0):,.0f} Ks</h3>"
-            f"<p style='text-align:right'>Payment: {float(self.receipt.get('payment') or 0):,.0f} Ks<br>"
-            f"Change: {float(self.receipt.get('change_amount') or 0):,.0f} Ks</p></div>"
+            f"<h3 style='text-align:right'>Total: {float(self.receipt.get('total') or 0):,.0f} {currency}</h3>"
+            f"<p style='text-align:right'>Payment: {float(self.receipt.get('payment') or 0):,.0f} {currency}<br>"
+            f"Change: {float(self.receipt.get('change_amount') or 0):,.0f} {currency}</p>"
+            f"{credit_html}{footer_html}{message_html}</div>"
         )
+
+    def _set_document_html(self, document) -> None:
+        logo_data = str(self.settings.get("shop_logo_image") or "")
+        if logo_data.startswith("data:image/") and "," in logo_data:
+            try:
+                image = QImage.fromData(base64.b64decode(logo_data.split(",", 1)[1]))
+                if not image.isNull():
+                    from PyQt6.QtGui import QTextDocument
+                    document.addResource(QTextDocument.ResourceType.ImageResource, QUrl("kaypos://receipt/logo"), image)
+            except Exception:
+                pass
+        document.setHtml(self._html())
 
     def print_receipt(self) -> None:
         from PyQt6.QtGui import QTextDocument
@@ -455,7 +725,7 @@ class ReceiptDialog(QDialog):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             document = QTextDocument()
             document.setDocumentMargin(0)
-            document.setHtml(self._html())
+            self._set_document_html(document)
 
             # QTextDocument lays text out in 96-DPI logical pixels. Measure the
             # rendered content first, then make the roll page only that tall.
@@ -511,7 +781,7 @@ class ReceiptDialog(QDialog):
         printer = QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
         document = QTextDocument()
         document.setDocumentMargin(0)
-        document.setHtml(self._html())
+        self._set_document_html(document)
         logical_dpi = 96.0
         logical_width = 72.0 * logical_dpi / 25.4
         document.setTextWidth(logical_width)
@@ -550,6 +820,10 @@ class LiteWindow(QMainWindow):
         self.product_has_more = False
         self.thumbnail_cache: dict[int, QPixmap] = {}
         self.thumbnail_pending: set[int] = set()
+        self.product_rows: dict[int, int] = {}
+        self.management_product_rows: dict[int, int] = {}
+        self.managed_product_rows: dict[int, int] = {}
+        self._page_load_tokens: dict[str, int] = {}
         self.thumbnail_manager = QNetworkAccessManager(self)
         self.thumbnail_timer = QTimer(self)
         self.thumbnail_timer.setSingleShot(True)
@@ -559,9 +833,14 @@ class LiteWindow(QMainWindow):
         self.management_thumbnail_timer.setSingleShot(True)
         self.management_thumbnail_timer.setInterval(80)
         self.management_thumbnail_timer.timeout.connect(self._load_visible_management_thumbnails)
+        self.product_management_thumbnail_timer = QTimer(self)
+        self.product_management_thumbnail_timer.setSingleShot(True)
+        self.product_management_thumbnail_timer.setInterval(80)
+        self.product_management_thumbnail_timer.timeout.connect(self._load_visible_managed_product_thumbnails)
         self.selected_category = ""
         self.receipts: list[dict] = []
         self.last_receipt: dict = {}
+        self.receipt_settings: dict = {}
         self.history_offset = 0
         self.cart = LiteCart()
         self._threads: set[QThread] = set()
@@ -584,6 +863,17 @@ class LiteWindow(QMainWindow):
                 frame.setFrameShape(QFrame.Shape.StyledPanel)
                 frame.setFrameShadow(QFrame.Shadow.Plain)
         status = QStatusBar()
+        status.setStyleSheet("""
+            QStatusBar {
+                color: #334155;
+                background: #eef1ff;
+                border-top: 1px solid #c7cefa;
+                padding: 2px 8px;
+            }
+            QStatusBar::item {
+                border: 0;
+            }
+        """)
         self.setStatusBar(status)
         self.statusBar().showMessage("Ready")
         self._shortcuts = []
@@ -662,15 +952,56 @@ class LiteWindow(QMainWindow):
         row.setSpacing(0)
         nav = QFrame(objectName="nav")
         nav.setFixedWidth(180)
+        # Match the KAY POS Lite tile in Launcher. Keep this stylesheet scoped
+        # to the navigation frame so the rest of Lite retains native Qt styling.
+        nav.setStyleSheet("""
+            QFrame#nav {
+                background: #5365df;
+                border: 0;
+            }
+            QFrame#nav QLabel {
+                color: #ffffff;
+                background: transparent;
+            }
+            QFrame#nav QLabel#brand {
+                font-weight: 800;
+            }
+            QFrame#nav QPushButton {
+                min-height: 38px;
+                padding: 0 11px;
+                text-align: left;
+                color: #eef1ff;
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 8px;
+                font-weight: 600;
+            }
+            QFrame#nav QPushButton:hover {
+                color: #ffffff;
+                background: #6575e7;
+            }
+            QFrame#nav QPushButton:checked {
+                color: #ffffff;
+                background: #3f50c6;
+                border-color: #8490ef;
+            }
+            QFrame#nav QPushButton#signOutButton {
+                color: #ffffff;
+                background: #4658cd;
+                border-color: #7180e8;
+            }
+            QFrame#nav QPushButton#signOutButton:hover {
+                background: #3949b5;
+            }
+        """)
         menu = QVBoxLayout(nav)
         menu.setContentsMargins(12, 17, 12, 14)
-        menu.addWidget(QLabel("KAY POS LITE", objectName="brand"))
-        menu.addSpacing(14)
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         self.nav_buttons: dict[str, QPushButton] = {}
-        for text in ("Dashboard", "Point of Sale", "Products", "Sales History", "Expenses", "Inventory", "Customers"):
+        for text in ("Point of Sale", "Dashboard", "Products", "Sales History", "Expenses", "Inventory", "Customers", "Setting Center"):
             button = QPushButton(text)
+            button.setProperty("leftAligned", True)
             button.setCheckable(True)
             button.clicked.connect(lambda _checked=False, name=text: self._activate_workspace(name))
             self.nav_group.addButton(button)
@@ -681,6 +1012,8 @@ class LiteWindow(QMainWindow):
         self.identity_label.setWordWrap(True)
         menu.addWidget(self.identity_label)
         logout = QPushButton("Sign Out")
+        logout.setObjectName("signOutButton")
+        logout.setProperty("leftAligned", True)
         logout.clicked.connect(self.logout)
         menu.addWidget(logout)
         row.addWidget(nav)
@@ -699,29 +1032,79 @@ class LiteWindow(QMainWindow):
         card_body = QVBoxLayout(card)
         card_body.setContentsMargins(18, 16, 18, 16)
         summary_top = QHBoxLayout()
-        summary_top.addWidget(QLabel("Today · PostgreSQL live summary"))
+        current_date = QDate.currentDate()
+        month_start = QDate(current_date.year(), current_date.month(), 1)
+        self.dashboard_period_label = QLabel("This Month · AI Dashboard metrics")
+        summary_top.addWidget(self.dashboard_period_label)
         summary_top.addStretch()
+        summary_top.addWidget(QLabel("From"))
+        self.dashboard_from = QDateEdit(month_start)
+        self.dashboard_from.setCalendarPopup(True)
+        self.dashboard_from.setDisplayFormat("yyyy-MM-dd")
+        summary_top.addWidget(self.dashboard_from)
+        summary_top.addWidget(QLabel("To"))
+        self.dashboard_to = QDateEdit(current_date)
+        self.dashboard_to.setCalendarPopup(True)
+        self.dashboard_to.setDisplayFormat("yyyy-MM-dd")
+        summary_top.addWidget(self.dashboard_to)
+        dashboard_today = QPushButton("Today")
+        dashboard_today.clicked.connect(self._dashboard_today)
+        summary_top.addWidget(dashboard_today)
         refresh_summary = QPushButton("Refresh")
         refresh_summary.clicked.connect(self.load_dashboard)
         summary_top.addWidget(refresh_summary)
         card_body.addLayout(summary_top)
-        metrics = QHBoxLayout()
-        self.dashboard_sales = QLabel("Sales\n—", objectName="title")
+        metrics = QGridLayout()
+        metrics.setHorizontalSpacing(10)
+        metrics.setVerticalSpacing(10)
+        self.dashboard_sales = QLabel("Net Sales\n—", objectName="title")
         self.dashboard_transactions = QLabel("Transactions\n—", objectName="title")
+        self.dashboard_gross_profit = QLabel("Gross Profit\n—", objectName="title")
+        self.dashboard_expenses = QLabel("Expenses\n—", objectName="title")
+        self.dashboard_net_profit = QLabel("Net Profit\n—", objectName="title")
         self.dashboard_refunds = QLabel("Refunds\n—", objectName="title")
-        self.dashboard_low_stock = QLabel("Low Stock\n—", objectName="title")
-        for metric in (self.dashboard_sales, self.dashboard_transactions, self.dashboard_refunds, self.dashboard_low_stock):
+        self.dashboard_low_stock = QLabel("Low / Out of Stock\n— / —", objectName="title")
+        self.dashboard_credit = QLabel("Outstanding Credit\n—", objectName="title")
+        self.dashboard_metrics = (
+            self.dashboard_sales, self.dashboard_transactions,
+            self.dashboard_gross_profit, self.dashboard_expenses,
+            self.dashboard_net_profit, self.dashboard_refunds,
+            self.dashboard_low_stock, self.dashboard_credit,
+        )
+        for index, metric in enumerate(self.dashboard_metrics):
             metric.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            metrics.addWidget(metric, 1)
+            metric.setMinimumHeight(72)
+            metric.setFrameShape(QFrame.Shape.StyledPanel)
+            metrics.addWidget(metric, index // 4, index % 4)
         card_body.addLayout(metrics)
         content_layout.addWidget(card)
-        content_layout.addStretch()
+
+        self.dashboard_analytics = QTabWidget()
+        self.dashboard_analytics.setMinimumHeight(245)
+        sale_categories_page, self.dashboard_sale_categories, self.dashboard_sale_categories_status, self.dashboard_sale_categories_total = self._dashboard_analytics_page(
+            ["Sale Category", "Quantity", "Sales"]
+        )
+        expense_categories_page, self.dashboard_expense_categories, self.dashboard_expense_categories_status, self.dashboard_expense_categories_total = self._dashboard_analytics_page(
+            ["Expense Category", "Entries", "Amount"]
+        )
+        payment_types_page, self.dashboard_payment_types, self.dashboard_payment_types_status, self.dashboard_payment_types_total = self._dashboard_analytics_page(
+            ["Payment Type", "Transactions", "Sales"]
+        )
+        daily_trend_page, self.dashboard_daily_trend, self.dashboard_daily_trend_status, self.dashboard_daily_trend_total = self._dashboard_analytics_page(
+            ["Date", "Sales"]
+        )
+        self.dashboard_analytics.addTab(sale_categories_page, "Sale Categories")
+        self.dashboard_analytics.addTab(expense_categories_page, "Expense Categories")
+        self.dashboard_analytics.addTab(payment_types_page, "Sales by Payment Type")
+        self.dashboard_analytics.addTab(daily_trend_page, "Daily Sales Trend")
+        content_layout.addWidget(self.dashboard_analytics, 1)
         self.pos_page = self._build_pos_page()
         self.product_management_page = self._build_product_management_page()
         self.history_page = self._build_history_page()
         self.expense_page = self._build_expense_page()
         self.management_page = self._build_management_page()
         self.customer_page = self._build_customer_page()
+        self.settings_page = LiteSettingsCenter(self)
         self.workspace_stack.addWidget(self.dashboard_page)
         self.workspace_stack.addWidget(self.pos_page)
         self.workspace_stack.addWidget(self.product_management_page)
@@ -729,6 +1112,7 @@ class LiteWindow(QMainWindow):
         self.workspace_stack.addWidget(self.expense_page)
         self.workspace_stack.addWidget(self.management_page)
         self.workspace_stack.addWidget(self.customer_page)
+        self.workspace_stack.addWidget(self.settings_page)
         self.workspace_pages = {
             "Dashboard": self.dashboard_page,
             "Point of Sale": self.pos_page,
@@ -737,11 +1121,62 @@ class LiteWindow(QMainWindow):
             "Expenses": self.expense_page,
             "Inventory": self.management_page,
             "Customers": self.customer_page,
+            "Setting Center": self.settings_page,
         }
         self.workspace_stack.currentChanged.connect(self._sync_nav_selection)
         self.nav_buttons["Dashboard"].setChecked(True)
         row.addWidget(self.workspace_stack, 1)
         return page
+
+    @staticmethod
+    def _dashboard_table(headers: list[str]) -> QTableWidget:
+        table = QTableWidget(0, len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in range(1, len(headers)):
+            table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        return table
+
+    @classmethod
+    def _dashboard_analytics_page(cls, headers: list[str]) -> tuple[QWidget, QTableWidget, QLabel, QLabel]:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        table = cls._dashboard_table(headers)
+        layout.addWidget(table, 1)
+        footer = QFrame()
+        footer.setFrameShape(QFrame.Shape.StyledPanel)
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(8, 5, 8, 5)
+        status = QLabel("0 item(s) loaded")
+        total = QLabel("Total · 0 Ks")
+        footer_layout.addWidget(status)
+        footer_layout.addStretch()
+        footer_layout.addWidget(total)
+        layout.addWidget(footer)
+        return page, table, status, total
+
+    @staticmethod
+    def _set_dashboard_footer(status: QLabel, total_label: QLabel, count: int, noun: str, total: float) -> None:
+        status.setText(f"{int(count):,} {noun}(s) loaded")
+        total_label.setText(f"Total · {float(total or 0):,.0f} Ks")
+
+    @staticmethod
+    def _fill_dashboard_table(table: QTableWidget, rows: list[tuple]) -> None:
+        table.setUpdatesEnabled(False)
+        table.setRowCount(len(rows))
+        for row_index, values in enumerate(rows):
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                if column:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                table.setItem(row_index, column, item)
+        table.setUpdatesEnabled(True)
+        table.viewport().update()
 
     def _activate_workspace(self, name: str) -> None:
         page = self.workspace_pages.get(name)
@@ -761,6 +1196,8 @@ class LiteWindow(QMainWindow):
             self.load_management()
         elif name == "Customers":
             self.load_customers()
+        elif name == "Setting Center":
+            self.settings_page.refresh()
 
     def _sync_nav_selection(self, _index: int) -> None:
         current = self.workspace_stack.currentWidget()
@@ -806,8 +1243,8 @@ class LiteWindow(QMainWindow):
         self.expense_table.verticalHeader().setDefaultSectionSize(27)
         self.expense_table.horizontalHeader().setFixedHeight(27)
         self.expense_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        for column in (0, 1, 2, 4, 5, 6):
-            self.expense_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column, width in {0:95,1:125,2:130,4:110,5:105,6:125}.items():
+            self.expense_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.expense_table.setColumnWidth(column,width)
         self.expense_table.verticalScrollBar().valueChanged.connect(self._maybe_load_more_expenses)
         outer.addWidget(self.expense_table, 1)
         bottom = QHBoxLayout()
@@ -818,6 +1255,7 @@ class LiteWindow(QMainWindow):
         bottom.addWidget(self.expense_total)
         outer.addLayout(bottom)
         self.expense_categories: list[str] = []
+        self.expense_categories_loaded = False
         self.expense_rows: list[dict] = []
         self.expense_page_size = 50
         self.expense_has_more = False
@@ -852,8 +1290,8 @@ class LiteWindow(QMainWindow):
         self.stock_table.setIconSize(QSize(44, 40))
         self.stock_table.setColumnWidth(0, 54)
         self.stock_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for column in (0, 2, 3, 4):
-            self.stock_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column, width in {0:54,2:160,3:85,4:85}.items():
+            self.stock_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.stock_table.setColumnWidth(column,width)
         self.stock_table.verticalScrollBar().valueChanged.connect(
             lambda _value: self.management_thumbnail_timer.start()
         )
@@ -905,8 +1343,8 @@ class LiteWindow(QMainWindow):
         self.customer_table.verticalHeader().setVisible(False)
         self.customer_table.verticalHeader().setDefaultSectionSize(29)
         self.customer_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in (1, 2, 3):
-            self.customer_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column, width in {1:150,2:100,3:130}.items():
+            self.customer_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.customer_table.setColumnWidth(column,width)
         customer_layout.addWidget(self.customer_table, 1)
         outer.addWidget(customer_box, 1)
         self.customer_status = QLabel("", objectName="muted")
@@ -917,15 +1355,18 @@ class LiteWindow(QMainWindow):
         page = QWidget(); outer = QVBoxLayout(page); outer.setContentsMargins(14,12,14,12); outer.setSpacing(8)
         top = QHBoxLayout(); top.addWidget(QLabel("Products", objectName="title")); top.addStretch()
         self.manage_product_search = QLineEdit(); self.manage_product_search.setPlaceholderText("Search name, SKU or barcode…"); self.manage_product_search.returnPressed.connect(self.load_product_management)
-        search = QPushButton("Search / Refresh"); add = QPushButton("Add Product"); edit = QPushButton("Edit Product")
-        search.clicked.connect(self.load_product_management); add.clicked.connect(self.add_managed_product); edit.clicked.connect(self.edit_managed_product)
-        top.addWidget(self.manage_product_search,1); top.addWidget(search); top.addWidget(add); top.addWidget(edit); outer.addLayout(top)
+        search = QPushButton("Search / Refresh"); categories = QPushButton("Manage Categories"); add = QPushButton("Add Product"); edit = QPushButton("Edit Product")
+        search.clicked.connect(self.load_product_management); categories.clicked.connect(self.manage_categories); add.clicked.connect(self.add_managed_product); edit.clicked.connect(self.edit_managed_product)
+        top.addWidget(self.manage_product_search,1); top.addWidget(search); top.addWidget(categories); top.addWidget(add); top.addWidget(edit); outer.addLayout(top)
         self.manage_product_table = QTableWidget(0,9)
         self.manage_product_table.setHorizontalHeaderLabels(["Image","Product","Category","SKU / Barcode","Sold By","Price","Cost","Stock","Low Stock"])
         self.manage_product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows); self.manage_product_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.manage_product_table.verticalHeader().setVisible(False); self.manage_product_table.verticalHeader().setDefaultSectionSize(44); self.manage_product_table.setIconSize(QSize(44,40))
         self.manage_product_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
-        for column in (0,2,3,4,5,6,7,8): self.manage_product_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.ResizeToContents)
+        for column,width in {0:54,2:120,3:160,4:90,5:90,6:90,7:75,8:85}.items(): self.manage_product_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive); self.manage_product_table.setColumnWidth(column,width)
+        self.manage_product_table.verticalScrollBar().valueChanged.connect(
+            lambda _value: self.product_management_thumbnail_timer.start()
+        )
         self.manage_product_table.doubleClicked.connect(self.edit_managed_product); outer.addWidget(self.manage_product_table,1)
         self.manage_product_status = QLabel("", objectName="muted"); outer.addWidget(self.manage_product_status)
         return page
@@ -964,8 +1405,8 @@ class LiteWindow(QMainWindow):
         self.history_table.horizontalHeader().setFixedHeight(27)
         self.history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.history_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for column in (1, 3, 4, 5, 6):
-            self.history_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column,width in {1:145,3:110,4:70,5:110,6:95}.items():
+            self.history_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive); self.history_table.setColumnWidth(column,width)
         self.history_table.doubleClicked.connect(self.view_selected_receipt)
         outer.addWidget(self.history_table, 1)
         actions = QHBoxLayout()
@@ -1037,8 +1478,8 @@ class LiteWindow(QMainWindow):
         self.product_table.setColumnWidth(0, 48)
         self.product_table.setIconSize(QSize(44, 40))
         self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        for column in range(2, 6):
-            self.product_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column,width in {2:150,3:90,4:75,5:80}.items():
+            self.product_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive); self.product_table.setColumnWidth(column,width)
         self.product_table.doubleClicked.connect(self.add_selected_product)
         self.product_table.verticalScrollBar().valueChanged.connect(self._maybe_load_more_products)
         self.product_table.verticalScrollBar().valueChanged.connect(lambda _value: self.thumbnail_timer.start())
@@ -1064,8 +1505,8 @@ class LiteWindow(QMainWindow):
         self.cart_table.verticalHeader().setDefaultSectionSize(30)
         self.cart_table.horizontalHeader().setFixedHeight(27)
         self.cart_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, 4):
-            self.cart_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        for column,width in {1:55,2:80,3:90}.items():
+            self.cart_table.horizontalHeader().setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive); self.cart_table.setColumnWidth(column,width)
         cart_layout.addWidget(self.cart_table, 1)
         controls = QHBoxLayout()
         decrease = QPushButton("−")
@@ -1090,17 +1531,16 @@ class LiteWindow(QMainWindow):
         self.checkout_button.clicked.connect(self.open_checkout)
         cart_layout.addWidget(self.checkout_button)
         receipt_actions = QHBoxLayout()
-        self.print_receipt_button = QPushButton("Print Receipt")
-        self.print_receipt_button.setEnabled(False)
-        self.print_receipt_button.setToolTip("Print the last receipt (Ctrl+P)")
-        self.print_receipt_button.clicked.connect(self.print_last_receipt)
+        self.add_expense_button = QPushButton("Add Expense")
+        self.add_expense_button.setToolTip("Record a new business expense")
+        self.add_expense_button.clicked.connect(self.add_expense)
         self.cash_drawer_button = QPushButton("Cash Drawer")
         self.cash_drawer_button.setToolTip("Open the drawer through this PC's receipt printer (Ctrl+Shift+D)")
         self.cash_drawer_button.clicked.connect(self.open_cash_drawer)
         printer_setup = QPushButton("Printer…")
         printer_setup.setToolTip("Select local receipt printer (Ctrl+Shift+P)")
         printer_setup.clicked.connect(self.configure_receipt_printer)
-        receipt_actions.addWidget(self.print_receipt_button)
+        receipt_actions.addWidget(self.add_expense_button)
         receipt_actions.addWidget(self.cash_drawer_button)
         receipt_actions.addWidget(printer_setup)
         cart_layout.addLayout(receipt_actions)
@@ -1130,6 +1570,15 @@ class LiteWindow(QMainWindow):
         # its finished signal fires or it may be collected before run() starts.
         self._workers.add(worker)
         thread.start()
+
+    def _new_page_load(self, page: str) -> int:
+        """Return a generation token so pages can load independently and discard stale replies."""
+        token = self._page_load_tokens.get(page, 0) + 1
+        self._page_load_tokens[page] = token
+        return token
+
+    def _page_load_is_current(self, page: str, token: int) -> bool:
+        return self._page_load_tokens.get(page) == token
 
     def _new_api(self) -> LiteApiClient:
         return LiteApiClient(self.server_input.text(), self.insecure_check.isChecked())
@@ -1175,39 +1624,54 @@ class LiteWindow(QMainWindow):
             self._set_busy(False, "")
             name = self.user.get("full_name") or self.user.get("username") or "User"
             role = self.user.get("role") or "User"
+            self.nav_buttons["Setting Center"].setVisible(str(role).casefold() in {"admin", "manager"})
             self.identity_label.setText(f"{name}\nRole: {role}")
             self.welcome_label.setText(f"Welcome, {name}. Connected as {role}.")
             self.pages.setCurrentWidget(self.workspace_page)
             self.statusBar().showMessage(f"Connected · {client.server_url}")
             self.workspace_stack.setCurrentWidget(self.pos_page)
             QTimer.singleShot(100, self.load_categories)
+            QTimer.singleShot(120, self.load_receipt_settings)
 
         self._run_task(authenticate, accepted, lambda error: self._set_busy(False, error))
 
     def load_products(self) -> None:
-        if not self.api or self._threads:
+        if not self.api:
             return
+        self._product_load_token = self._new_page_load("pos_products")
         self.products = []
+        self.product_rows = {}
         self.product_table.setRowCount(0)
         self.product_has_more = False
         self._load_product_page()
 
+    def load_receipt_settings(self) -> None:
+        if not self.api: return
+        self._run_task(
+            self.api.receipt_settings,
+            lambda settings: setattr(self, "receipt_settings", dict(settings)),
+            lambda error: self.statusBar().showMessage(f"Could not load receipt settings: {error}"),
+        )
+
     def _load_product_page(self) -> None:
-        if not self.api or self._threads:
+        if not self.api:
             return
+        load_token = getattr(self,"_product_load_token",None)
+        if load_token is None: load_token=self._new_page_load("pos_products"); self._product_load_token=load_token
         query = self.product_search.text().strip()
         category = self.selected_category
         offset = len(self.products)
         self.catalog_status.setText("Loading…" if offset == 0 else f"Loading more… {offset}")
 
         def loaded(products):
+            if not self._page_load_is_current("pos_products",load_token): return
             if self.product_search.text().strip() != query or self.selected_category != category:
                 QTimer.singleShot(100, self.load_products)
                 return
             page = list(products)
             start_row = len(self.products)
             self.products.extend(page)
-            self.product_table.setRowCount(len(self.products))
+            self.product_table.setUpdatesEnabled(False); self.product_table.blockSignals(True); self.product_table.setRowCount(len(self.products))
             for page_row, product in enumerate(page):
                 row = start_row + page_row
                 image_item = QTableWidgetItem()
@@ -1240,12 +1704,14 @@ class LiteWindow(QMainWindow):
                         item.setBackground(QColor("#fff3cd"))
                         item.setForeground(QColor("#664d03"))
                     self.product_table.setItem(row, column, item)
+                self.product_rows[int(product.get("id") or 0)] = row
                 if stock_status == "out":
                     image_item.setBackground(QColor("#f8d7da"))
                 elif stock_status == "low":
                     image_item.setBackground(QColor("#fff3cd"))
             self.product_has_more = len(page) == self.product_page_size
             self.catalog_status.setText(f"{len(self.products)} products")
+            self.product_table.blockSignals(False); self.product_table.setUpdatesEnabled(True); self.product_table.viewport().update()
             self.statusBar().showMessage("Product list ready")
             QTimer.singleShot(0, self._load_visible_product_thumbnails)
 
@@ -1343,6 +1809,36 @@ class LiteWindow(QMainWindow):
                 lambda current=reply, pid=product_id: self._thumbnail_finished(pid, current)
             )
 
+    def _load_visible_managed_product_thumbnails(self) -> None:
+        products = getattr(self, "managed_products", [])
+        if not self.api or not products or not self.manage_product_table.isVisible():
+            return
+        viewport = self.manage_product_table.viewport()
+        first = self.manage_product_table.rowAt(0)
+        last = self.manage_product_table.rowAt(max(0, viewport.height() - 1))
+        first = max(0, first if first >= 0 else 0)
+        last = min(len(products) - 1, last if last >= 0 else first + 15)
+        for row in range(max(0, first - 2), min(len(products), last + 3)):
+            product = products[row]
+            product_id = int(product.get("id") or 0)
+            url_path = str(product.get("thumbnail_url") or "")
+            if not product_id or not url_path:
+                continue
+            cached = self.thumbnail_cache.get(product_id)
+            if cached is not None:
+                self._apply_product_thumbnail(product_id, cached)
+                continue
+            if product_id in self.thumbnail_pending:
+                continue
+            self.thumbnail_pending.add(product_id)
+            url = url_path if "://" in url_path else f"{self.api.server_url}/{url_path.lstrip('/')}"
+            reply = self.thumbnail_manager.get(QNetworkRequest(QUrl(url)))
+            if not self.api.verify_tls:
+                reply.sslErrors.connect(lambda _errors, current=reply: current.ignoreSslErrors())
+            reply.finished.connect(
+                lambda current=reply, pid=product_id: self._thumbnail_finished(pid, current)
+            )
+
     def _thumbnail_finished(self, product_id: int, reply) -> None:
         self.thumbnail_pending.discard(product_id)
         data = bytes(reply.readAll()) if reply.error() == QNetworkReply.NetworkError.NoError else b""
@@ -1360,31 +1856,33 @@ class LiteWindow(QMainWindow):
         self._apply_product_thumbnail(product_id, pixmap)
 
     def _apply_product_thumbnail(self, product_id: int, pixmap: QPixmap) -> None:
-        for row, product in enumerate(self.products):
-            if int(product.get("id") or 0) == product_id:
-                item = self.product_table.item(row, 0)
-                if item is None:
-                    item = QTableWidgetItem()
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.product_table.setItem(row, 0, item)
-                item.setIcon(QIcon(pixmap))
-        for row, product in enumerate(getattr(self, "management_products", [])):
-            if int(product.get("id") or 0) == product_id:
-                item = self.stock_table.item(row, 0)
-                if item is None:
-                    item = QTableWidgetItem()
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.stock_table.setItem(row, 0, item)
-                item.setIcon(QIcon(pixmap))
+        for table,rows in (
+            (self.product_table,self.product_rows),
+            (self.stock_table,self.management_product_rows),
+            (self.manage_product_table,self.managed_product_rows),
+        ):
+            row=rows.get(product_id)
+            if row is None and not rows:
+                source=(
+                    self.products if table is self.product_table
+                    else getattr(self, "managed_products", []) if table is self.manage_product_table
+                    else getattr(self, "management_products", [])
+                )
+                rows.update({int(product.get("id") or 0):index for index,product in enumerate(source)})
+                row=rows.get(product_id)
+            if row is None or row<0 or row>=table.rowCount(): continue
+            item=table.item(row,0)
+            if item is None:
+                item=QTableWidgetItem();item.setTextAlignment(Qt.AlignmentFlag.AlignCenter);table.setItem(row,0,item)
+            item.setIcon(QIcon(pixmap))
 
     def load_categories(self) -> None:
         if not self.api:
             return
-        if self._threads:
-            QTimer.singleShot(100, self.load_categories)
-            return
+        load_token=self._new_page_load("categories")
 
         def loaded(categories):
+            if not self._page_load_is_current("categories",load_token): return
             self._render_categories(categories)
             QTimer.singleShot(100, self.load_products)
 
@@ -1564,14 +2062,15 @@ class LiteWindow(QMainWindow):
     def open_checkout(self) -> None:
         if not self.api or not self.cart.items or self._threads:
             return
-        if not hasattr(self, "management_customers") or not hasattr(self, "checkout_payment_types"):
+        if not hasattr(self, "management_customers") or not hasattr(self, "checkout_payment_types") or not hasattr(self, "checkout_credit_settings"):
             self.checkout_button.setEnabled(False)
             self.checkout_button.setText("Loading customers…")
 
             def checkout_settings_loaded(result):
-                customers, payment_types = result
+                customers, payment_types, credit_settings = result
                 self.management_customers = list(customers)
                 self.checkout_payment_types = list(payment_types)
+                self.checkout_credit_settings = dict(credit_settings)
                 self.checkout_button.setText("Checkout")
                 self.checkout_button.setEnabled(bool(self.cart.items))
                 QTimer.singleShot(50, self.open_checkout)
@@ -1580,6 +2079,7 @@ class LiteWindow(QMainWindow):
                 lambda: (
                     getattr(self, "management_customers", None) or self.api.customers("", limit=200),
                     self.api.payment_types(),
+                    self.api.credit_settings(),
                 ),
                 checkout_settings_loaded,
                 lambda error: (
@@ -1595,6 +2095,7 @@ class LiteWindow(QMainWindow):
             print_after_sale=preferences.get("print_receipt_after_sale", False),
             open_drawer_after_sale=preferences.get("open_cash_drawer_after_sale", False),
             payment_types=getattr(self, "checkout_payment_types", []),
+            credit_settings=getattr(self, "checkout_credit_settings", {}),
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1606,8 +2107,11 @@ class LiteWindow(QMainWindow):
             for item in self.cart.items.values()
         ]
         payment = dialog.payment.value()
+        discount_amount = dialog.discount_amount()
         payment_type = dialog.payment_type.currentText()
         customer_id = dialog.selected_customer_id()
+        due_date = dialog.credit_due_date.date().toString("yyyy-MM-dd") if payment_type.strip().lower() == "credit" else ""
+        credit_notes = dialog.credit_notes.toPlainText().strip() if payment_type.strip().lower() == "credit" else ""
         print_after_sale = dialog.print_after_sale.isChecked()
         open_drawer_after_sale = dialog.open_drawer_after_sale.isChecked()
         save_config({
@@ -1623,9 +2127,8 @@ class LiteWindow(QMainWindow):
             self.render_cart()
             self.checkout_button.setText("Checkout")
             self.last_receipt = dict(receipt)
-            self.print_receipt_button.setEnabled(True)
             self.statusBar().showMessage(f"Sale completed · {receipt.get('invoice_no') or ''}")
-            receipt_dialog = ReceiptDialog(receipt, self)
+            receipt_dialog = ReceiptDialog(receipt, self, settings=self.receipt_settings)
             if print_after_sale:
                 QTimer.singleShot(0, receipt_dialog.print_receipt_automatic)
             if open_drawer_after_sale:
@@ -1640,14 +2143,17 @@ class LiteWindow(QMainWindow):
             QMessageBox.critical(self, "Checkout", error)
 
         self._run_task(
-            lambda: self.api.checkout(items, payment, payment_type, customer_id), completed, failed
+            lambda: self.api.checkout(
+                items, payment, payment_type, customer_id, due_date, credit_notes,
+                dialog.allow_credit_over_limit, discount_amount,
+            ), completed, failed
         )
 
     def print_last_receipt(self) -> None:
         if not self.last_receipt:
             QMessageBox.information(self, "Print Receipt", "No completed receipt is available to print yet.")
             return
-        ReceiptDialog(self.last_receipt, self).print_receipt()
+        ReceiptDialog(self.last_receipt, self, settings=self.receipt_settings).print_receipt()
 
     def open_cash_drawer(self) -> None:
         if self._threads:
@@ -1702,16 +2208,19 @@ class LiteWindow(QMainWindow):
         self.load_expenses()
 
     def load_expenses(self) -> None:
-        if not self.api or self._threads:
+        if not self.api:
             return
+        self._expense_load_token=self._new_page_load("expenses")
         self.expense_rows = []
         self.expense_table.setRowCount(0)
         self.expense_has_more = False
         self._load_expense_page()
 
     def _load_expense_page(self) -> None:
-        if not self.api or self._threads:
+        if not self.api:
             return
+        load_token=getattr(self,"_expense_load_token",None)
+        if load_token is None: load_token=self._new_page_load("expenses"); self._expense_load_token=load_token
         query = self.expense_search.text().strip()
         from_date = self.expense_from.date().toString("yyyy-MM-dd")
         to_date = self.expense_to.date().toString("yyyy-MM-dd")
@@ -1719,12 +2228,14 @@ class LiteWindow(QMainWindow):
         self.expense_status.setText("Loading…" if offset == 0 else f"Loading more… {offset}")
 
         def loaded(result):
+            if not self._page_load_is_current("expenses",load_token): return
             categories, payload = result
             self.expense_categories = list(categories)
+            self.expense_categories_loaded = True
             page = list(payload.get("expenses") or [])
             start_row = len(self.expense_rows)
             self.expense_rows.extend(page)
-            self.expense_table.setRowCount(len(self.expense_rows))
+            self.expense_table.setUpdatesEnabled(False); self.expense_table.blockSignals(True); self.expense_table.setRowCount(len(self.expense_rows))
             for page_row, expense in enumerate(page):
                 row = start_row + page_row
                 values = (
@@ -1741,6 +2252,7 @@ class LiteWindow(QMainWindow):
             self.expense_has_more = len(page) == self.expense_page_size
             self.expense_total.setText(f"Total · {float(payload.get('total') or 0):,.0f} Ks")
             self.expense_status.setText(f"{len(self.expense_rows)} expense(s) loaded")
+            self.expense_table.blockSignals(False); self.expense_table.setUpdatesEnabled(True); self.expense_table.viewport().update()
 
         self._run_task(
             lambda: (
@@ -1765,6 +2277,27 @@ class LiteWindow(QMainWindow):
     def add_expense(self) -> None:
         if not self.api or self._threads:
             return
+        if not self.expense_categories_loaded:
+            self.add_expense_button.setEnabled(False)
+            self.add_expense_button.setText("Loading Categories…")
+
+            def categories_loaded(categories):
+                self.expense_categories = list(categories)
+                self.expense_categories_loaded = True
+                self.add_expense_button.setEnabled(True)
+                self.add_expense_button.setText("Add Expense")
+                self._show_expense_dialog()
+
+            def categories_failed(error):
+                self.add_expense_button.setEnabled(True)
+                self.add_expense_button.setText("Add Expense")
+                QMessageBox.critical(self, "Expense", error)
+
+            self._run_task(self.api.expense_categories, categories_loaded, categories_failed)
+            return
+        self._show_expense_dialog()
+
+    def _show_expense_dialog(self) -> None:
         dialog = ExpenseDialog(self.expense_categories, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -1788,25 +2321,85 @@ class LiteWindow(QMainWindow):
         self.workspace_stack.setCurrentWidget(self.dashboard_page)
         self.load_dashboard()
 
+    def _dashboard_today(self) -> None:
+        today = QDate.currentDate()
+        self.dashboard_from.setDate(today)
+        self.dashboard_to.setDate(today)
+        self.load_dashboard()
+
     def load_dashboard(self) -> None:
         if not self.api:
             return
-        if self._threads:
-            QTimer.singleShot(150, self.load_dashboard)
+        load_token=self._new_page_load("dashboard")
+        from_date = self.dashboard_from.date().toString("yyyy-MM-dd")
+        to_date = self.dashboard_to.date().toString("yyyy-MM-dd")
+        if from_date > to_date:
+            QMessageBox.warning(self, "Dashboard Date Range", "From date cannot be after To date.")
             return
-        from datetime import date
-        today = date.today().isoformat()
 
         def loaded(data):
+            if not self._page_load_is_current("dashboard",load_token): return
             current = data.get("today") or {}
-            self.dashboard_sales.setText(f"Sales\n{float(current.get('sales') or 0):,.0f} Ks")
-            self.dashboard_transactions.setText(f"Transactions\n{int(current.get('transactions') or 0)}")
-            self.dashboard_refunds.setText(f"Refunds\n{float(current.get('refunds') or 0):,.0f} Ks")
-            self.dashboard_low_stock.setText(f"Low Stock\n{int((data.get('inventory') or {}).get('low_stock') or 0)}")
-            self.statusBar().showMessage("Today’s summary refreshed")
+            metrics = data.get("dashboard_metrics") or {}
+            inventory = data.get("inventory") or {}
+            credit = data.get("credit_summary") or {}
+            self.dashboard_sales.setText(f"Net Sales\n{float(metrics.get('net_sales', current.get('sales')) or 0):,.0f} Ks")
+            self.dashboard_transactions.setText(f"Transactions\n{int(metrics.get('transactions', current.get('transactions')) or 0)}")
+            self.dashboard_gross_profit.setText(f"Gross Profit\n{float(metrics.get('gross_profit') or 0):,.0f} Ks")
+            self.dashboard_expenses.setText(f"Expenses\n{float(metrics.get('expenses', (data.get('expenses') or {}).get('total')) or 0):,.0f} Ks")
+            self.dashboard_net_profit.setText(f"Net Profit\n{float(metrics.get('net_profit', data.get('profit')) or 0):,.0f} Ks")
+            self.dashboard_refunds.setText(f"Refunds\n{float(metrics.get('refunds', current.get('refunds')) or 0):,.0f} Ks")
+            self.dashboard_low_stock.setText(
+                f"Low / Out of Stock\n{int(metrics.get('low_stock', inventory.get('low_stock')) or 0)} / "
+                f"{int(metrics.get('out_of_stock', inventory.get('out_of_stock')) or 0)}"
+            )
+            self.dashboard_credit.setText(f"Outstanding Credit\n{float(metrics.get('outstanding_credit', credit.get('balance')) or 0):,.0f} Ks")
+            category_sales = list(data.get("category_sales") or [])
+            expense_groups = list(data.get("expense_groups") or [])
+            payment_sales = list(data.get("payment_sales") or [])
+            sales_by_day = list(data.get("sales_by_day") or [])
+            self._fill_dashboard_table(self.dashboard_sale_categories, [
+                (row.get("label") or "Uncategorized", f"{float(row.get('qty') or 0):,.2f}", f"{float(row.get('total') or 0):,.0f} Ks")
+                for row in category_sales
+            ])
+            self._fill_dashboard_table(self.dashboard_expense_categories, [
+                (row.get("label") or "Uncategorized", f"{int(row.get('count') or 0):,}", f"{float(row.get('total') or 0):,.0f} Ks")
+                for row in expense_groups
+            ])
+            self._fill_dashboard_table(self.dashboard_payment_types, [
+                (row.get("label") or "Other", f"{int(row.get('count') or 0):,}", f"{float(row.get('total') or 0):,.0f} Ks")
+                for row in payment_sales
+            ])
+            self._fill_dashboard_table(self.dashboard_daily_trend, [
+                (row.get("date") or "", f"{float(row.get('total') or 0):,.0f} Ks")
+                for row in sales_by_day
+            ])
+            self._set_dashboard_footer(
+                self.dashboard_sale_categories_status, self.dashboard_sale_categories_total,
+                len(category_sales), "category", sum(float(row.get("total") or 0) for row in category_sales),
+            )
+            self._set_dashboard_footer(
+                self.dashboard_expense_categories_status, self.dashboard_expense_categories_total,
+                len(expense_groups), "expense category", sum(float(row.get("total") or 0) for row in expense_groups),
+            )
+            self._set_dashboard_footer(
+                self.dashboard_payment_types_status, self.dashboard_payment_types_total,
+                len(payment_sales), "payment type", sum(float(row.get("total") or 0) for row in payment_sales),
+            )
+            self._set_dashboard_footer(
+                self.dashboard_daily_trend_status, self.dashboard_daily_trend_total,
+                len(sales_by_day), "day", sum(float(row.get("total") or 0) for row in sales_by_day),
+            )
+            period = data.get("period") or {}
+            period_label = str(
+                period.get("label")
+                or (from_date if from_date == to_date else f"{from_date} to {to_date}")
+            )
+            self.dashboard_period_label.setText(f"{period_label} · AI Dashboard metrics")
+            self.statusBar().showMessage(f"Dashboard refreshed · {period_label}")
 
         self._run_task(
-            lambda: self.api.dashboard_summary(today), loaded,
+            lambda: self.api.dashboard_summary(from_date, to_date), loaded,
             lambda error: self.statusBar().showMessage(error),
         )
 
@@ -1817,17 +2410,16 @@ class LiteWindow(QMainWindow):
     def load_management(self) -> None:
         if not self.api:
             return
-        if self._threads:
-            QTimer.singleShot(150, self.load_management)
-            return
+        load_token=self._new_page_load("inventory")
         query = self.management_search.text().strip()
 
         def loaded(result):
+            if not self._page_load_is_current("inventory",load_token): return
             products, suppliers, locations = result
             self.management_products = list(products)
             self.management_suppliers = list(suppliers)
             self.management_locations = list(locations)
-            self.stock_table.setRowCount(len(products))
+            self.management_product_rows={}; self.stock_table.setUpdatesEnabled(False); self.stock_table.blockSignals(True); self.stock_table.setRowCount(len(products))
             for row, product in enumerate(products):
                 values = (
                     "", product.get("name") or "", product.get("barcode") or product.get("sku") or "—",
@@ -1838,6 +2430,8 @@ class LiteWindow(QMainWindow):
                     if column == 0:
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.stock_table.setItem(row, column, item)
+                self.management_product_rows[int(product.get("id") or 0)]=row
+            self.stock_table.blockSignals(False); self.stock_table.setUpdatesEnabled(True); self.stock_table.viewport().update()
             self.statusBar().showMessage(f"{len(products)} products loaded")
             QTimer.singleShot(0, self._load_visible_management_thumbnails)
 
@@ -1851,15 +2445,14 @@ class LiteWindow(QMainWindow):
     def load_customers(self) -> None:
         if not self.api:
             return
-        if self._threads:
-            QTimer.singleShot(150, self.load_customers)
-            return
+        load_token=self._new_page_load("customers")
         query = self.customer_search.text().strip()
         self.customer_status.setText("Loading…")
 
         def loaded(customers):
+            if not self._page_load_is_current("customers",load_token): return
             self.management_customers = list(customers)
-            self.customer_table.setRowCount(len(customers))
+            self.customer_table.setUpdatesEnabled(False); self.customer_table.blockSignals(True); self.customer_table.setRowCount(len(customers))
             for row, customer in enumerate(customers):
                 values = (
                     customer.get("name") or "", customer.get("phone") or "",
@@ -1868,6 +2461,7 @@ class LiteWindow(QMainWindow):
                 )
                 for column, value in enumerate(values):
                     self.customer_table.setItem(row, column, QTableWidgetItem(str(value)))
+            self.customer_table.blockSignals(False); self.customer_table.setUpdatesEnabled(True); self.customer_table.viewport().update()
             self.customer_status.setText(f"{len(customers)} customer(s) loaded")
             self.statusBar().showMessage(f"{len(customers)} customers loaded")
 
@@ -1877,11 +2471,14 @@ class LiteWindow(QMainWindow):
         )
 
     def load_product_management(self) -> None:
-        if not self.api or self._threads: return
+        if not self.api: return
+        load_token=self._new_page_load("products")
         query = self.manage_product_search.text().strip(); self.manage_product_status.setText("Loading…")
         def loaded(result):
+            if not self._page_load_is_current("products",load_token): return
             products, categories = result; self.managed_products = list(products); self.managed_categories = list(categories)
-            self.manage_product_table.setRowCount(len(products))
+            self.managed_product_rows = {}
+            self.manage_product_table.setUpdatesEnabled(False); self.manage_product_table.blockSignals(True); self.manage_product_table.setRowCount(len(products))
             for row, product in enumerate(products):
                 variants=product.get("variants") or []; mode=sold_by_mode(product.get("sold_by")); stock=sum(int(v.get("stock") or 0) for v in variants) if mode=="variants" else int(product.get("stock") or 0)
                 values=("",product.get("name") or "",product.get("category") or "",product.get("barcode") or product.get("sku") or "—",product.get("sold_by") or "Each",f"{float(product.get('price') or 0):,.0f}",f"{float(product.get('cost') or 0):,.0f}",stock,int(product.get("low_stock") or 0))
@@ -1891,8 +2488,17 @@ class LiteWindow(QMainWindow):
                     cached=self.thumbnail_cache.get(int(product.get("id") or 0)) if column==0 else None
                     if cached is not None: item.setIcon(QIcon(cached))
                     self.manage_product_table.setItem(row,column,item)
+                self.managed_product_rows[int(product.get("id") or 0)] = row
+            self.manage_product_table.blockSignals(False); self.manage_product_table.setUpdatesEnabled(True); self.manage_product_table.viewport().update()
             self.manage_product_status.setText(f"{len(products)} product(s) loaded")
+            QTimer.singleShot(0, self._load_visible_managed_product_thumbnails)
         self._run_task(lambda:(self.api.products(query,limit=100),self.api.categories()),loaded,lambda error:(self.manage_product_status.setText("Could not load products"),QMessageBox.critical(self,"Products",error)))
+
+    def manage_categories(self) -> None:
+        if not self.api or self._threads: return
+        CategoryManagerDialog(self.api, self).exec()
+        self.load_product_management()
+        self.load_categories()
 
     def add_managed_product(self) -> None:
         if not self.api or self._threads: return
@@ -2404,19 +3010,18 @@ class LiteWindow(QMainWindow):
     def load_history(self) -> None:
         if not self.api:
             return
-        if self._threads:
-            QTimer.singleShot(150, self.load_history)
-            return
+        load_token=self._new_page_load("history")
         query = self.history_search.text().strip()
         offset = self.history_offset
         self.history_status.setText("Loading…")
 
         def loaded(receipts):
+            if not self._page_load_is_current("history",load_token): return
             if query != self.history_search.text().strip() or offset != self.history_offset:
                 QTimer.singleShot(100, self.load_history)
                 return
             self.receipts = list(receipts)
-            self.history_table.setRowCount(len(self.receipts))
+            self.history_table.setUpdatesEnabled(False); self.history_table.blockSignals(True); self.history_table.setRowCount(len(self.receipts))
             for row, receipt in enumerate(self.receipts):
                 values = (
                     receipt.get("invoice_no") or "",
@@ -2429,6 +3034,7 @@ class LiteWindow(QMainWindow):
                 )
                 for column, value in enumerate(values):
                     self.history_table.setItem(row, column, QTableWidgetItem(str(value)))
+            self.history_table.blockSignals(False); self.history_table.setUpdatesEnabled(True); self.history_table.viewport().update()
             page_number = offset // 50 + 1
             self.history_status.setText(f"Page {page_number} · {len(self.receipts)} receipts")
             self.history_prev.setEnabled(offset > 0)
@@ -2458,8 +3064,7 @@ class LiteWindow(QMainWindow):
         def loaded(receipt):
             self.history_status.setText("")
             self.last_receipt = dict(receipt)
-            self.print_receipt_button.setEnabled(True)
-            ReceiptDialog(receipt, self, self.refund_receipt).exec()
+            ReceiptDialog(receipt, self, self.refund_receipt, self.receipt_settings).exec()
 
         self._run_task(
             lambda: self.api.receipt(sale_id), loaded,
@@ -2500,7 +3105,7 @@ class LiteWindow(QMainWindow):
         def refunded(receipt):
             self.history_status.setText("Refund completed")
             QMessageBox.information(self, "Refund", f"{invoice} was refunded and stock was restored.")
-            ReceiptDialog(receipt, self).exec()
+            ReceiptDialog(receipt, self, settings=self.receipt_settings).exec()
             QTimer.singleShot(100, self.load_history)
             QTimer.singleShot(200, self.load_products)
 
@@ -2517,7 +3122,9 @@ class LiteWindow(QMainWindow):
         self.products = []
         self.receipts = []
         self.last_receipt = {}
-        self.print_receipt_button.setEnabled(False)
+        self.receipt_settings = {}
+        self.expense_categories = []
+        self.expense_categories_loaded = False
         self.history_table.setRowCount(0)
         self.cart.clear()
         self.render_cart()

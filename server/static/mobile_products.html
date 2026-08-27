@@ -217,6 +217,155 @@
       .topbar { margin-bottom: 10px; }
     }
   </style>
+  <style>
+    /* Match the KAY Car mobile kiosk visual language. */
+    :root {
+      --bg: #0b1020;
+      --panel: #151c2f;
+      --ink: #f8fafc;
+      --muted: #aab4ca;
+      --line: #2b3652;
+      --brand: #6d7cff;
+      --brand-dark: #5969ee;
+      --danger: #ff5368;
+      --success: #39d98a;
+      --soft: #0f1526;
+      --login-blue: #6d7cff;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .46);
+    }
+    body {
+      min-height: 100dvh;
+      background: radial-gradient(circle at top, #202c50, #0b1020 58%);
+      color: var(--ink);
+      font-family: "Myanmar Text", "Segoe UI", sans-serif;
+    }
+    button {
+      min-height: 52px;
+      border-radius: 13px;
+      background: var(--brand);
+      padding: 10px 18px;
+      font-weight: 700;
+    }
+    button:hover { background: var(--brand-dark); }
+    button.secondary {
+      border: 1px solid #465475;
+      background: #0f1526;
+      color: var(--ink);
+    }
+    button.secondary:hover { border-color: var(--brand); background: #18213a; }
+    button.danger { background: var(--danger); }
+    input, select {
+      min-height: 54px;
+      border-color: #465475;
+      border-radius: 13px;
+      padding: 10px 14px;
+      background: #0f1526;
+      color: #fff;
+    }
+    input::placeholder { color: #7f8ba6; }
+    input:focus, select:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(109, 124, 255, .16);
+    }
+    label { color: var(--muted); }
+    .shell { width: min(100%, 920px); padding: 18px; }
+    .topbar {
+      position: static;
+      justify-content: center;
+      min-height: 68px;
+      margin: 0 0 18px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      backdrop-filter: none;
+    }
+    .mobile-mark {
+      width: 50px;
+      height: 50px;
+      border-radius: 16px;
+      background: var(--brand);
+    }
+    .title { flex: 0 1 auto; }
+    .title strong { font-size: 1.12rem; font-weight: 900; letter-spacing: .02em; }
+    .title span { color: var(--muted); }
+    #logoutBtn { margin-left: auto; min-height: 44px; }
+    .grid { gap: 16px; }
+    .panel {
+      border-color: var(--line);
+      border-radius: 24px;
+      padding: 24px;
+      background: rgba(21, 28, 47, .97);
+      box-shadow: var(--shadow);
+    }
+    .preview {
+      border: 3px dashed var(--brand);
+      border-radius: 24px;
+      background: #0f1526;
+      color: var(--muted);
+    }
+    .preview img { border-radius: 20px; }
+    .status {
+      border-color: #465475;
+      border-radius: 13px;
+      background: #0f1526;
+      color: var(--muted);
+    }
+    .status.error { border-color: rgba(255, 83, 104, .55); background: #321824; color: #ff9aaa; }
+    .recent-item { border-color: #394664; border-radius: 13px; background: #10182b; padding: 13px; }
+    .login {
+      min-height: 100dvh;
+      padding: 18px;
+      background: radial-gradient(circle at top, #202c50, #0b1020 58%);
+    }
+    .login-card {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 30px 26px;
+      background: rgba(21, 28, 47, .97);
+      box-shadow: var(--shadow);
+    }
+    .login-logo { justify-content: center; margin-bottom: 26px; }
+    .login-mark { width: 50px; height: 50px; border-radius: 16px; background: var(--brand); }
+    .login-logo h1, .login-card label { color: var(--ink); }
+    .login-logo p { color: var(--muted); }
+    .login-card input { min-height: 54px; border-color: #465475; border-radius: 13px; background: #0f1526; }
+    .login-card input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(109, 124, 255, .16); }
+    .login-card button { min-height: 52px; border-radius: 13px; background: var(--brand); font-weight: 700; }
+    .login-card button:hover { background: var(--brand-dark); }
+    .login-card .status { color: #ff9aaa; }
+    .success-modal { background: rgba(5, 9, 18, .76); }
+    .success-card { border-color: var(--line); border-radius: 24px; background: var(--panel); box-shadow: var(--shadow); }
+    .checkmark { background: #173c32; }
+    #scannerVideo { border: 3px solid var(--brand); border-radius: 24px; background: #080d19; }
+    .scanner-title { display: block; margin-bottom: 10px; text-align: center; font-size: 1.05rem; }
+    .scan-placeholder, .camera-box {
+      width: min(72vw, 260px);
+      aspect-ratio: 1;
+      margin: 12px auto 18px;
+      border-radius: 24px;
+    }
+    .scan-placeholder {
+      display: grid;
+      place-items: center;
+      border: 3px dashed var(--brand);
+      color: var(--ink);
+      font-size: 3.2rem;
+    }
+    .camera-box { position: relative; overflow: hidden; border: 3px solid var(--brand); background: #080d19; }
+    .camera-box[hidden], .scan-placeholder[hidden] { display: none !important; }
+    .camera-box #scannerVideo { display: block; width: 100%; height: 100%; border: 0; border-radius: 0; object-fit: cover; }
+    .camera-line { position: absolute; left: 12%; right: 12%; top: 50%; height: 2px; background: #ff5368; box-shadow: 0 0 12px #ff5368; }
+    .scanner-note { margin: 10px 0 18px; color: var(--muted); text-align: center; line-height: 1.55; }
+    #scanBtn { width: 100%; }
+    @media (max-width: 760px) {
+      .shell { padding: 12px; }
+      .topbar { gap: 10px; margin: 6px 0 16px; }
+      .mobile-mark { flex: 0 0 50px; }
+      .title { flex: 1; }
+      #logoutBtn { min-height: 42px; padding: 8px 12px; }
+      .panel { padding: 22px 16px; }
+    }
+  </style>
 </head>
 <body>
   <section id="loginView" class="login">
@@ -246,12 +395,6 @@
             <input id="name" name="name" required placeholder="e.g. Nestle Extreme Pink 70g">
           </label>
 
-          <label>Barcode
-            <div class="row">
-              <input id="barcode" name="barcode" inputmode="numeric" placeholder="Scan or type">
-              <button id="scanBtn" class="secondary" type="button">Scan</button>
-            </div>
-          </label>
           <label>SKU
             <input id="sku" name="sku" placeholder="Optional">
           </label>
@@ -275,6 +418,13 @@
             <input id="image" name="image" type="file" accept="image/*" capture="environment">
           </label>
 
+          <div id="preview" class="preview span-2">Take or choose a product photo</div>
+
+          <div class="span-2">
+            <strong>Recently Added</strong>
+            <div id="recent" class="recent" style="margin-top: 8px;"></div>
+          </div>
+
           <button id="saveBtn" class="span-2" type="submit">Save Product</button>
         </form>
       </section>
@@ -282,15 +432,17 @@
       <aside class="panel scanner-panel">
         <div id="status" class="status">Ready.</div>
         <div style="height: 12px;"></div>
-        <video id="scannerVideo" autoplay muted playsinline hidden></video>
-        <div id="scannerControls" class="row" hidden style="margin-top: 8px;">
-          <button id="stopScanBtn" class="danger" type="button">Stop Scan</button>
+        <strong class="scanner-title">Barcode Scanner</strong>
+        <div id="scannerPlaceholder" class="scan-placeholder" aria-hidden="true">▥</div>
+        <div id="scannerCamera" class="camera-box" hidden>
+          <video id="scannerVideo" autoplay muted playsinline></video>
+          <span class="camera-line"></span>
         </div>
-        <div style="height: 12px;"></div>
-        <div id="preview" class="preview">Take or choose a product photo</div>
-        <div style="height: 12px;"></div>
-        <strong>Recently Added</strong>
-        <div id="recent" class="recent" style="margin-top: 8px;"></div>
+        <button id="scanBtn" type="button">Camera ဖွင့်ပြီး Barcode Scan ဖတ်မည်</button>
+        <p id="scannerNote" class="scanner-note">Camera permission တောင်းပါမည်။ HTTPS connection လိုအပ်ပါသည်။</p>
+        <label for="barcode">Barcode Number
+          <input id="barcode" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Scan ဖတ်ပါ သို့မဟုတ် နံပါတ်ရိုက်ထည့်ပါ">
+        </label>
       </aside>
     </div>
   </main>
@@ -436,6 +588,7 @@
         const data = await api("/api/mobile/products", { method: "POST", body: form });
         rememberProduct(data.product);
         $("productForm").reset();
+        $("barcode").value = "";
         $("price").value = 0;
         $("lowStock").value = 0;
         $("preview").innerHTML = "Take or choose a product photo";
@@ -488,6 +641,10 @@
     }
 
     async function startScanner() {
+      if (state.zxingControls || state.stream || state.scanTimer) {
+        stopScanner();
+        return;
+      }
       state.scanCaptured = false;
       if (!window.isSecureContext) {
         setStatus("Live barcode scanning needs HTTPS on phones. Restart the server with --https, then open the https:// network address.", true);
@@ -498,8 +655,10 @@
         return;
       }
       const video = $("scannerVideo");
-      video.hidden = false;
-      $("scannerControls").hidden = false;
+      $("scannerPlaceholder").hidden = true;
+      $("scannerCamera").hidden = false;
+      $("scanBtn").textContent = "Camera ပိတ်မည်";
+      $("scannerNote").textContent = "Barcode ကို frame အလယ်တွင် တည့်တည့်ထားပါ။";
       if (window.ZXingBrowser?.BrowserMultiFormatReader) {
         try {
           state.zxingReader = state.zxingReader || new ZXingBrowser.BrowserMultiFormatReader();
@@ -546,14 +705,15 @@
       if (state.stream) state.stream.getTracks().forEach(track => track.stop());
       state.stream = null;
       $("scannerVideo").srcObject = null;
-      $("scannerVideo").hidden = true;
-      $("scannerControls").hidden = true;
+      $("scannerCamera").hidden = true;
+      $("scannerPlaceholder").hidden = false;
+      $("scanBtn").textContent = "Camera ဖွင့်ပြီး Barcode Scan ဖတ်မည်";
+      $("scannerNote").textContent = "Camera permission တောင်းပါမည်။ HTTPS connection လိုအပ်ပါသည်။";
     }
 
     $("loginForm").addEventListener("submit", login);
     $("productForm").addEventListener("submit", saveProduct);
     $("scanBtn").addEventListener("click", startScanner);
-    $("stopScanBtn").addEventListener("click", stopScanner);
     $("successOkBtn").addEventListener("click", closeSuccessDialog);
     $("successModal").addEventListener("click", event => {
       if (event.target === $("successModal")) closeSuccessDialog();
@@ -566,6 +726,8 @@
       state.user = null;
       showLogin();
     });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) stopScanner(); });
+    window.addEventListener("pagehide", stopScanner);
 
     if (state.token) showApp();
     else showLogin();

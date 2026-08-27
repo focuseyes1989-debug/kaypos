@@ -3,13 +3,14 @@
 from datetime import date, datetime
 from collections import Counter
 import os
+import sys
 
 from PyQt6.QtCore import QDate, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QAction, QCloseEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QProgressBar, QPushButton, QScrollArea, QSpinBox, QStackedWidget,
+    QMenu, QProgressBar, QPushButton, QScrollArea, QSpinBox, QStackedWidget, QSystemTrayIcon,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -20,6 +21,7 @@ from car_client.form_print_dialog import FormPrintSettingsDialog, available_prin
 from car_client.network import CarServerClient
 from car_client.qr_code import CarQrDialog, qr_access_url
 from car_client.records import DRIVER_FIELDS, FIELD_DEFINITIONS, VEHICLE_FIELDS, find_duplicate_records, validated_record
+from car_client.startup import set_windows_startup
 
 
 APP_STYLE = """
@@ -372,6 +374,8 @@ class CarClientWindow(QMainWindow):
     def __init__(self, store: SettingsStore | None = None):
         super().__init__()
         self.store = store or SettingsStore()
+        self._force_exit = False
+        self._tray_notice_shown = False
         self.connection_thread = None
         self.dashboard_thread = None
         self.save_thread = None
@@ -392,8 +396,39 @@ class CarClientWindow(QMainWindow):
         self.setStyleSheet(APP_STYLE)
         self._build_ui()
         self._load_settings()
+        self._setup_system_tray()
+        self.auto_start_enabled = self.store.settings.value("print_agent/windows_startup", True, type=bool)
+        if getattr(sys, "frozen", False) and self.auto_start_enabled:
+            try:set_windows_startup(True)
+            except OSError:pass
         self.print_agent_timer=QTimer(self);self.print_agent_timer.setInterval(5000);self.print_agent_timer.timeout.connect(self.poll_print_agent);self.print_agent_timer.start()
         QTimer.singleShot(1200,self.poll_print_agent)
+
+    def _setup_system_tray(self):
+        self.tray_icon = None
+        self.tray_status_action = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():return
+        self.tray_icon=QSystemTrayIcon(self.windowIcon(),self);self.tray_icon.setToolTip("KAY Car Management · Print Agent starting")
+        menu=QMenu(self);self.tray_status_action=QAction("Print Agent starting…",menu);self.tray_status_action.setEnabled(False)
+        open_action=QAction("Open Car Management",menu);open_action.triggered.connect(self.show_from_tray)
+        queue_action=QAction("Check Print Queue Now",menu);queue_action.triggered.connect(self.poll_print_agent)
+        exit_action=QAction("Exit Car Management and Print Agent",menu);exit_action.triggered.connect(self.exit_from_tray)
+        menu.addAction(self.tray_status_action);menu.addSeparator();menu.addAction(open_action);menu.addAction(queue_action);menu.addSeparator();menu.addAction(exit_action)
+        self.tray_icon.setContextMenu(menu);self.tray_icon.activated.connect(self._tray_activated);self.tray_icon.show()
+
+    def _tray_activated(self,reason):
+        if reason in (QSystemTrayIcon.ActivationReason.DoubleClick,QSystemTrayIcon.ActivationReason.Trigger):self.show_from_tray()
+
+    def show_from_tray(self):
+        if self.isMinimized():self.showNormal()
+        else:self.show()
+        self.raise_();self.activateWindow()
+
+    def exit_from_tray(self):
+        self._force_exit=True
+        self.print_agent_timer.stop()
+        if self.tray_icon:self.tray_icon.hide()
+        QApplication.instance().quit()
 
     def _build_ui(self):
         root = QWidget(); self.setCentralWidget(root)
@@ -574,8 +609,10 @@ class CarClientWindow(QMainWindow):
         self.print_settings_panel=FormPrintSettingsDialog(None,page,embedded=True);self.print_settings_panel.setObjectName("card");body.addWidget(self.print_settings_panel)
         agent_card=QFrame();agent_card.setObjectName("card");agent_layout=QVBoxLayout(agent_card);agent_layout.setContentsMargins(22,18,22,18)
         self.print_agent_enabled=QCheckBox("Enable automatic Owner Web print jobs");self.print_agent_enabled.setChecked(self.store.settings.value("print_agent/enabled",True,type=bool));agent_layout.addWidget(self.print_agent_enabled)
+        self.print_agent_startup=QCheckBox("Start in the Windows system tray after login");self.print_agent_startup.setChecked(self.store.settings.value("print_agent/windows_startup",True,type=bool));agent_layout.addWidget(self.print_agent_startup)
+        self.print_agent_close_to_tray=QCheckBox("Keep Print Agent running when this window is closed");self.print_agent_close_to_tray.setChecked(self.store.settings.value("print_agent/close_to_tray",True,type=bool));agent_layout.addWidget(self.print_agent_close_to_tray)
         agent_row=QHBoxLayout();self.print_agent_status=QLabel("Print Agent is starting...");self.print_agent_status.setObjectName("status");self.print_agent_status.setWordWrap(True);self.print_agent_poll_button=QPushButton("Check Queue Now");agent_row.addWidget(self.print_agent_status,1);agent_row.addWidget(self.print_agent_poll_button);agent_layout.addLayout(agent_row);body.addWidget(agent_card);body.addStretch()
-        self.print_agent_enabled.toggled.connect(self._print_agent_toggled);self.print_agent_poll_button.clicked.connect(self.poll_print_agent)
+        self.print_agent_enabled.toggled.connect(self._print_agent_toggled);self.print_agent_startup.toggled.connect(self._print_agent_startup_toggled);self.print_agent_close_to_tray.toggled.connect(lambda value:(self.store.settings.setValue("print_agent/close_to_tray",bool(value)),self.store.settings.sync()));self.print_agent_poll_button.clicked.connect(self.poll_print_agent)
         note=QLabel("Automatic jobs use the saved Windows printer and the page sequence attached to each server job.");note.setObjectName("muted");note.setWordWrap(True);body.addWidget(note)
         return page
 
@@ -584,9 +621,19 @@ class CarClientWindow(QMainWindow):
         if enabled:QTimer.singleShot(0,self.poll_print_agent)
         else:self._set_print_agent_status("Automatic Print Agent is disabled.")
 
+    def _print_agent_startup_toggled(self,enabled):
+        try:
+            path=set_windows_startup(bool(enabled));self.store.settings.setValue("print_agent/windows_startup",bool(enabled));self.store.settings.sync()
+            self._set_print_agent_status(f"Windows startup {'enabled' if enabled else 'disabled'} · {path}","success")
+        except OSError as exc:
+            self.print_agent_startup.blockSignals(True);self.print_agent_startup.setChecked(not enabled);self.print_agent_startup.blockSignals(False)
+            QMessageBox.warning(self,"Windows Startup",f"Could not update Windows startup:\n{exc}")
+
     def _set_print_agent_status(self,text,status=""):
         self.print_agent_status.setText(text);self.print_agent_status.setProperty("status",status)
         self.print_agent_status.style().unpolish(self.print_agent_status);self.print_agent_status.style().polish(self.print_agent_status)
+        if self.tray_status_action:self.tray_status_action.setText(text)
+        if self.tray_icon:self.tray_icon.setToolTip(f"KAY Car Management · {text}")
 
     def poll_print_agent(self):
         if not self.print_agent_enabled.isChecked():return
@@ -966,6 +1013,23 @@ class CarClientWindow(QMainWindow):
             elif self.pages.currentIndex()==2:self._set_records_status("A server request is still running. Please wait before closing.","working")
             else:self._set_status("A server request is still running. Please wait before closing.", "working")
             event.ignore(); return
+        keep_running = bool(
+            self.tray_icon and getattr(self, "print_agent_close_to_tray", None)
+            and self.print_agent_close_to_tray.isChecked()
+        )
+        if not self._force_exit and keep_running:
+            self.hide();event.ignore()
+            if not self._tray_notice_shown:
+                self.tray_icon.showMessage(
+                    "KAY Car Print Agent",
+                    "Car Management is still running in the system tray so web print jobs remain available.",
+                    QSystemTrayIcon.MessageIcon.Information,4000,
+                );self._tray_notice_shown=True
+            return
+        if not self._force_exit:
+            self._force_exit=True
+            if self.tray_icon:self.tray_icon.hide()
+            QTimer.singleShot(0,QApplication.instance().quit)
         super().closeEvent(event)
 
 

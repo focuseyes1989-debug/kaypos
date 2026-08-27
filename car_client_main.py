@@ -21,9 +21,12 @@ def main() -> int:
         return 0
 
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     apply_app_identity(app)
     window = CarClientWindow()
-    window.show()
+    start_in_tray = "--tray" in sys.argv
+    if not start_in_tray or not window.tray_icon:
+        window.show()
     return app.exec()
 
 
