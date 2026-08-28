@@ -418,6 +418,35 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertIsNot(window.workspace_pages["Inventory"], window.workspace_pages["Customers"])
         window.close()
 
+    def test_barcode_scan_is_not_blocked_by_catalog_task_and_keeps_checkout_enabled(self):
+        window = LiteWindow()
+        window.workspace_stack.setCurrentWidget(window.pos_page)
+        window.show()
+        self.app.processEvents()
+
+        class Api:
+            @staticmethod
+            def scan_product(code):
+                self.assertEqual(code, "123456")
+                return {
+                    "id": 7, "name": "Scanned item", "barcode": code,
+                    "price": 1500, "stock": 5, "sold_by": "Each", "variants": [],
+                }
+
+        window.api = Api()
+        window._threads.add(object())  # Simulate an in-flight debounced catalogue load.
+        window._run_task = lambda operation, success, _failure: success(operation())
+        window.product_search.setText("123456")
+        window.scan_or_search()
+        self.app.processEvents()
+
+        self.assertEqual(window.cart.count(), 1)
+        self.assertTrue(window.checkout_button.isEnabled())
+        self.assertEqual(window.product_search.text(), "")
+        self.assertTrue(window.product_search.hasFocus())
+        window._threads.clear()
+        window.close()
+
     def test_category_slider_preserves_server_popularity_order(self):
         window = LiteWindow()
         window._render_categories(["Drinks", "Snacks", "Household"])

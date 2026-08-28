@@ -947,6 +947,7 @@ class LiteWindow(QMainWindow):
         self.cart = LiteCart()
         self._threads: set[QThread] = set()
         self._workers: set[TaskWorker] = set()
+        self._scan_in_progress = False
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(350)
@@ -1332,7 +1333,9 @@ class LiteWindow(QMainWindow):
         if page is None:
             return
         self.workspace_stack.setCurrentWidget(page)
-        if name == "Dashboard":
+        if name == "Point of Sale":
+            self._focus_product_search()
+        elif name == "Dashboard":
             self.load_dashboard()
         elif name == "Products":
             self.load_product_management()
@@ -1354,6 +1357,19 @@ class LiteWindow(QMainWindow):
             if page is current:
                 self.nav_buttons[name].setChecked(True)
                 break
+        if current is self.pos_page:
+            self._focus_product_search()
+
+    def _focus_product_search(self, *, select_all: bool = False) -> None:
+        """Return scanner input to the POS search box after page/task changes."""
+        def focus() -> None:
+            if self.workspace_stack.currentWidget() is not self.pos_page:
+                return
+            self.product_search.setFocus(Qt.FocusReason.OtherFocusReason)
+            if select_all:
+                self.product_search.selectAll()
+
+        QTimer.singleShot(0, focus)
 
     def _build_expense_page(self) -> QWidget:
         page = QWidget()
@@ -1782,6 +1798,7 @@ class LiteWindow(QMainWindow):
             self.showFullScreen()
             self.statusBar().showMessage(f"Connected · {client.server_url}")
             self.workspace_stack.setCurrentWidget(self.pos_page)
+            self._focus_product_search()
             # Let Windows assign the POS window to its monitor before opening
             # the customer display on a different screen.
             QTimer.singleShot(250, self.open_sale_display_if_available)
@@ -2073,17 +2090,27 @@ class LiteWindow(QMainWindow):
         self.load_products()
 
     def scan_or_search(self) -> None:
-        if not self.api or self._threads:
+        if not self.api or self._scan_in_progress:
+            self._focus_product_search(select_all=True)
             return
         code = self.product_search.text().strip()
         if not code:
             self.load_products()
+            self._focus_product_search()
             return
+        # A scanner can take longer than the search debounce interval. Do not
+        # let that background catalogue request suppress or overwrite the scan.
+        self.search_timer.stop()
+        self._new_page_load("pos_products")
+        self._scan_in_progress = True
         self.catalog_status.setText("Scanning…")
 
         def scanned(product):
+            self._scan_in_progress = False
             if not product:
-                self.load_products()
+                self.catalog_status.setText("Barcode not found")
+                self.statusBar().showMessage(f"No product found for barcode / SKU: {code}")
+                self._focus_product_search(select_all=True)
                 return
             self.products = [product]
             self.product_has_more = False
@@ -2102,8 +2129,15 @@ class LiteWindow(QMainWindow):
             self._add_product_to_cart(product, matched, select_variant=matched_id is None)
             self.product_search.clear()
             self.catalog_status.setText("Barcode added")
+            self._focus_product_search()
 
-        self._run_task(lambda: self.api.scan_product(code), scanned, lambda error: self.statusBar().showMessage(error))
+        def failed(error):
+            self._scan_in_progress = False
+            self.catalog_status.setText("Barcode scan failed")
+            self.statusBar().showMessage(error)
+            self._focus_product_search(select_all=True)
+
+        self._run_task(lambda: self.api.scan_product(code), scanned, failed)
 
     def add_selected_product(self) -> None:
         row = self.product_table.currentRow()
@@ -2216,7 +2250,9 @@ class LiteWindow(QMainWindow):
                 self.cart_table.setItem(row, column, QTableWidgetItem(value))
         self.cart_count_label.setText(f"{self.cart.count()} items")
         self.cart_total_label.setText(f"{self.cart.total():,.0f} Ks")
-        self.checkout_button.setEnabled(bool(items) and not self._threads)
+        # Catalogue/barcode requests may still be finishing when a scanned item
+        # is rendered. They must not leave Checkout permanently disabled.
+        self.checkout_button.setEnabled(bool(items))
         if self.sale_display:
             self.sale_display.set_cart(items)
 

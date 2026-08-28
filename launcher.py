@@ -31,8 +31,8 @@ INSTANCE_MUTEXES = {
     "car": r"Global\KAY_Car_Management_SingleInstance_v1",
     "server": r"Global\KAY_POS_Server_Manager_SingleInstance_v1",
     "printer": r"Global\KAY_Printer_Agent_SingleInstance_v1",
-    "lite": r"Global\KAY_POS_Lite_SingleInstance_v1",
 }
+MULTI_INSTANCE_APPLICATIONS = {"lite"}
 
 
 class LauncherMode:
@@ -442,7 +442,11 @@ class LauncherWindow(QMainWindow):
             QMessageBox.critical(self, "Could Not Launch", f"{definition.title} could not start.\n\n{exc}")
             return
         self.processes[key] = process
-        self.cards[key].set_state("running")
+        if key in MULTI_INSTANCE_APPLICATIONS:
+            # Keep the launch action available for the next cashier window.
+            self.cards[key].set_state("ready", source)
+        else:
+            self.cards[key].set_state("running")
         self.status_label.setText(f"Opened {definition.title} from {source}")
 
     def open_folder(self, name: str) -> None:

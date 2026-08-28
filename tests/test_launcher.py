@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from launcher import APPLICATIONS, INSTANCE_MUTEXES, LauncherMode, resolve_application_target, resolve_launch_target, should_auto_download_update
+from launcher import APPLICATIONS, INSTANCE_MUTEXES, MULTI_INSTANCE_APPLICATIONS, LauncherMode, resolve_application_target, resolve_launch_target, should_auto_download_update
 from utils.single_instance import SingleInstanceGuard, is_single_instance_running
 
 
@@ -71,7 +71,7 @@ class LauncherResolutionTests(unittest.TestCase):
             self.assertEqual(command[-2:], ["--tray", "--open-manager"])
             self.assertEqual(INSTANCE_MUTEXES["printer"], r"Global\KAY_Printer_Agent_SingleInstance_v1")
 
-    def test_lite_pos_resolves_source_entry_and_has_independent_mutex(self):
+    def test_lite_pos_resolves_source_entry_and_allows_multiple_cashiers(self):
         definition = next(item for item in APPLICATIONS if item.key == "lite")
         with tempfile.TemporaryDirectory() as tmp_dir:
             script_path = Path(tmp_dir) / "kay_pos_lite.py"
@@ -79,7 +79,8 @@ class LauncherResolutionTests(unittest.TestCase):
             command, source = resolve_application_target(definition, tmp_dir)
         self.assertEqual(source, "script")
         self.assertEqual(command[1], str(script_path))
-        self.assertEqual(INSTANCE_MUTEXES["lite"], r"Global\KAY_POS_Lite_SingleInstance_v1")
+        self.assertNotIn("lite", INSTANCE_MUTEXES)
+        self.assertIn("lite", MULTI_INSTANCE_APPLICATIONS)
 
     def test_should_auto_download_update_requires_available_update(self):
         self.assertTrue(should_auto_download_update(True, True))
