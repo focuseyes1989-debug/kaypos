@@ -1,0 +1,6 @@
+# KAY Car Management standalone Windows client
+# Install with:
+#   python -m pip install -r requirements-car-management.txt
+
+PyQt6>=6.4.0,<7.0
+qrcode[pil]>=7.4.2,<9.0
