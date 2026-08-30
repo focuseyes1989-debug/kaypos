@@ -30,6 +30,7 @@ def load_config(path: Path | None = None) -> dict:
         "print_receipt_after_sale": bool(data.get("print_receipt_after_sale", False)),
         "open_cash_drawer_after_sale": bool(data.get("open_cash_drawer_after_sale", False)),
         "theme": "Dark" if str(data.get("theme") or "").casefold() == "dark" else "Light",
+        "product_view": "list" if str(data.get("product_view") or "").casefold() == "list" else "grid",
     }
 
 

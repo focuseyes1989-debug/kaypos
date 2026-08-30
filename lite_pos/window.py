@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
     QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter,
-    QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
+    QListWidget, QListWidgetItem, QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
     QVBoxLayout, QWidget,
 )
 
@@ -107,6 +107,141 @@ class HorizontalWheelScrollArea(QScrollArea):
             event.accept()
             return
         super().wheelEvent(event)
+
+
+class ResponsiveProductGrid(QListWidget):
+    """Distribute square product tiles across the full viewport width."""
+
+    preferred_tile_width = 128
+    tile_spacing = 3
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._tile_extent = 124
+        self._refit_pending = False
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.refit()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.refit()
+
+    def fit_item(self, item: QListWidgetItem) -> None:
+        item.setSizeHint(QSize(self._tile_extent, self._tile_extent))
+
+    def refit(self) -> None:
+        """Debounce resize/layout events into one stable column calculation."""
+        if self._refit_pending:
+            return
+        self._refit_pending = True
+        QTimer.singleShot(0, self._run_refit)
+
+    def _run_refit(self) -> None:
+        self._refit_pending = False
+        self._fit_columns()
+
+    def _fit_columns(self) -> None:
+        # Always reserve the vertical scrollbar width. Measuring viewport()
+        # directly made the cards wider when the bar disappeared, which could
+        # make it reappear and cause a visible resize loop.
+        frame = self.frameWidth() * 2
+        scrollbar = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
+        available = max(1, self.width() - frame - scrollbar - 2)
+        available_height = max(1, self.height() - frame - 2)
+        item_count = max(1, self.count())
+        max_columns = max(1, available // self.preferred_tile_width)
+
+        # On a large/full-screen display, use both dimensions so the catalogue
+        # does not collapse into a strip of tiny tiles along the top. Choose the
+        # square size that can show the current page while filling the viewport.
+        best_columns = 1
+        best_extent = 0
+        for candidate in range(1, item_count + 1):
+            rows = (item_count + candidate - 1) // candidate
+            width_extent = (available - self.tile_spacing * (candidate - 1)) // candidate
+            height_extent = (available_height - self.tile_spacing * (rows - 1)) // rows
+            extent = min(width_extent, height_extent)
+            if extent > best_extent:
+                best_columns, best_extent = candidate, extent
+
+        # Small windows remain scrollable and never squeeze products below the
+        # normal readable tile size. Larger windows grow the cards to consume
+        # otherwise empty width and height.
+        columns = best_columns if best_extent >= self.preferred_tile_width else max_columns
+        cell = max(72, (available - self.tile_spacing * (columns - 1)) // columns)
+        extent = max(68, cell - 2)
+        new_grid_size = QSize(cell, cell)
+        if self.gridSize() == new_grid_size and self._tile_extent == extent:
+            return
+        self._tile_extent = extent
+        self.setGridSize(new_grid_size)
+        for index in range(self.count()):
+            self.fit_item(self.item(index))
+        self.scheduleDelayedItemsLayout()
+
+
+class ProductGridTile(QFrame):
+    """Square, image-first POS tile with a caption overlay."""
+
+    def __init__(self, name: str, parent=None):
+        super().__init__(parent)
+        self.full_name = str(name or "Product")
+        self.source_pixmap: QPixmap | None = None
+        self.setObjectName("productGridTile")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.image_label = QLabel(self)
+        self.image_label.setObjectName("productGridImage")
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setText("▢")
+        self.caption_label = QLabel(self.full_name, self)
+        self.caption_label.setObjectName("productGridCaption")
+        self.caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.caption_label.setWordWrap(False)
+        self.image_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.caption_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setStyleSheet("""
+            QFrame#productGridTile { background: #7518a4; border: 1px solid #d9d9d9; }
+            QLabel#productGridImage { background: #7518a4; color: white; font-size: 17px; }
+            QLabel#productGridCaption { background: rgba(55, 55, 55, 185); color: white;
+                                        border: 0; padding: 3px 4px; font-size: 12px; }
+        """)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.image_label.setGeometry(self.rect())
+        caption_height = 38
+        self.caption_label.setGeometry(0, max(0, self.height() - caption_height), self.width(), caption_height)
+        self.caption_label.setText(self._short_caption(max(1, self.width() - 8)))
+        self.caption_label.raise_()
+        if self.source_pixmap is not None:
+            self._render_product_image()
+
+    def _short_caption(self, available_width: int) -> str:
+        metrics = self.caption_label.fontMetrics()
+        if metrics.horizontalAdvance(self.full_name) <= available_width:
+            return self.full_name
+        suffix = " ....."
+        text = self.full_name.rstrip()
+        while text and metrics.horizontalAdvance(text + suffix) > available_width:
+            text = text[:-1].rstrip()
+        return (text + suffix) if text else "....."
+
+    def _render_product_image(self) -> None:
+        if self.source_pixmap is None:
+            return
+        self.image_label.setPixmap(self.source_pixmap.scaled(
+            max(1, self.image_label.width()), max(1, self.image_label.height()),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+
+    def set_product_image(self, pixmap: QPixmap) -> None:
+        self.source_pixmap = pixmap
+        self.image_label.setText("")
+        self.image_label.setStyleSheet("background: white;")
+        self._render_product_image()
 
 
 class LiteSaleDisplay(QWidget):
@@ -922,6 +1057,9 @@ class LiteWindow(QMainWindow):
         self.thumbnail_cache: dict[int, QPixmap] = {}
         self.thumbnail_pending: set[int] = set()
         self.product_rows: dict[int, int] = {}
+        self.product_grid_items: dict[int, QListWidgetItem] = {}
+        self.product_grid_tiles: dict[int, ProductGridTile] = {}
+        self.product_view_mode = str(load_config().get("product_view") or "grid")
         self.management_product_rows: dict[int, int] = {}
         self.managed_product_rows: dict[int, int] = {}
         self._page_load_tokens: dict[str, int] = {}
@@ -973,6 +1111,8 @@ class LiteWindow(QMainWindow):
         self._shortcuts = []
         self._add_shortcut("F11", self.toggle_full_screen)
         self._add_shortcut("Esc", self.exit_full_screen)
+        self._add_shortcut("F2", lambda: self._focus_product_search(select_all=True))
+        self._add_shortcut("F4", self.open_checkout)
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
         self._add_shortcut("Ctrl+Shift+P", self.open_printer_settings)
@@ -1606,11 +1746,27 @@ class LiteWindow(QMainWindow):
         search_row = QHBoxLayout()
         self.product_search = QLineEdit()
         self.product_search.setPlaceholderText("Search name, SKU or barcode…")
+        self.product_search.setToolTip("Scan or enter a barcode / SKU · Press F2 to focus")
         self.product_search.textChanged.connect(lambda: self.search_timer.start())
         self.product_search.returnPressed.connect(self.scan_or_search)
         refresh = QPushButton("Refresh")
         refresh.clicked.connect(self.load_products)
         search_row.addWidget(self.product_search, 1)
+        self.list_view_button = QPushButton("List")
+        self.grid_view_button = QPushButton("Grid")
+        self.product_view_group = QButtonGroup(self)
+        self.product_view_group.setExclusive(True)
+        for button in (self.list_view_button, self.grid_view_button):
+            button.setCheckable(True)
+            self.product_view_group.addButton(button)
+        self.list_view_button.setToolTip("Show products as a compact list")
+        self.grid_view_button.setToolTip("Show products as image cards")
+        self.list_view_button.clicked.connect(lambda: self.set_product_view("list"))
+        self.grid_view_button.clicked.connect(lambda: self.set_product_view("grid"))
+        self.list_view_button.setChecked(self.product_view_mode == "list")
+        self.grid_view_button.setChecked(self.product_view_mode == "grid")
+        search_row.addWidget(self.list_view_button)
+        search_row.addWidget(self.grid_view_button)
         search_row.addWidget(refresh)
         outer.addLayout(search_row)
 
@@ -1648,7 +1804,25 @@ class LiteWindow(QMainWindow):
         self.product_table.clicked.connect(self.add_selected_product)
         self.product_table.verticalScrollBar().valueChanged.connect(self._maybe_load_more_products)
         self.product_table.verticalScrollBar().valueChanged.connect(lambda _value: self.thumbnail_timer.start())
-        body.addWidget(self.product_table, 3)
+        self.product_grid = ResponsiveProductGrid()
+        self.product_grid.setViewMode(QListWidget.ViewMode.IconMode)
+        self.product_grid.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.product_grid.setMovement(QListWidget.Movement.Static)
+        self.product_grid.setWrapping(True)
+        self.product_grid.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.product_grid.setSpacing(ResponsiveProductGrid.tile_spacing)
+        self.product_grid.setUniformItemSizes(True)
+        self.product_grid.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.product_grid.itemClicked.connect(self.add_grid_product)
+        self.product_grid.verticalScrollBar().valueChanged.connect(self._maybe_load_more_products)
+        self.product_grid.verticalScrollBar().valueChanged.connect(lambda _value: self.thumbnail_timer.start())
+        self.product_view_stack = QStackedWidget()
+        self.product_view_stack.addWidget(self.product_table)
+        self.product_view_stack.addWidget(self.product_grid)
+        self.product_view_stack.setCurrentWidget(
+            self.product_grid if self.product_view_mode == "grid" else self.product_table
+        )
+        body.addWidget(self.product_view_stack, 3)
 
         cart_panel = QFrame(objectName="card")
         cart_panel.setMinimumWidth(300)
@@ -1692,6 +1866,7 @@ class LiteWindow(QMainWindow):
         total_row.addWidget(self.cart_total_label)
         cart_layout.addLayout(total_row)
         self.checkout_button = QPushButton("Checkout", objectName="primary")
+        self.checkout_button.setToolTip("Complete the current sale · F4")
         self.checkout_button.setMinimumHeight(46)
         self.checkout_button.setEnabled(False)
         self.checkout_button.clicked.connect(self.open_checkout)
@@ -1813,7 +1988,10 @@ class LiteWindow(QMainWindow):
         self._product_load_token = self._new_page_load("pos_products")
         self.products = []
         self.product_rows = {}
+        self.product_grid_items = {}
+        self.product_grid_tiles = {}
         self.product_table.setRowCount(0)
+        self.product_grid.clear()
         self.product_has_more = False
         self._load_product_page()
 
@@ -1881,6 +2059,18 @@ class LiteWindow(QMainWindow):
                         item.setForeground(QColor("#664d03"))
                     self.product_table.setItem(row, column, item)
                 self.product_rows[int(product.get("id") or 0)] = row
+                grid_item = QListWidgetItem()
+                grid_item.setData(Qt.ItemDataRole.UserRole, row)
+                self.product_grid.fit_item(grid_item)
+                self.product_grid.addItem(grid_item)
+                product_id = int(product.get("id") or 0)
+                tile = ProductGridTile(product.get("name") or "Product")
+                tile.setToolTip(
+                    f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {display_stock}"
+                )
+                self.product_grid.setItemWidget(grid_item, tile)
+                self.product_grid_items[product_id] = grid_item
+                self.product_grid_tiles[product_id] = tile
                 if stock_status == "out":
                     image_item.setBackground(QColor("#f8d7da"))
                 elif stock_status == "low":
@@ -1888,6 +2078,7 @@ class LiteWindow(QMainWindow):
             self.product_has_more = len(page) == self.product_page_size
             self.catalog_status.setText(f"{len(self.products)} products")
             self.product_table.blockSignals(False); self.product_table.setUpdatesEnabled(True); self.product_table.viewport().update()
+            self.product_grid.refit()
             self.statusBar().showMessage("Product list ready")
             QTimer.singleShot(0, self._load_visible_product_thumbnails)
 
@@ -1922,16 +2113,42 @@ class LiteWindow(QMainWindow):
         return "normal"
 
     def _maybe_load_more_products(self, value: int) -> None:
-        bar = self.product_table.verticalScrollBar()
+        current = getattr(self, "product_view_stack", None)
+        widget = current.currentWidget() if current is not None else self.product_table
+        bar = widget.verticalScrollBar()
         if self.product_has_more and value >= max(0, bar.maximum() - 2) and not self._threads:
             self._load_product_page()
 
+    def set_product_view(self, mode: str) -> None:
+        """Switch the POS catalogue without changing its search or loaded products."""
+        mode = "grid" if str(mode).casefold() == "grid" else "list"
+        self.product_view_mode = mode
+        self.list_view_button.setChecked(mode == "list")
+        self.grid_view_button.setChecked(mode == "grid")
+        self.product_view_stack.setCurrentWidget(self.product_grid if mode == "grid" else self.product_table)
+        save_config({"product_view": mode})
+        QTimer.singleShot(0, self._load_visible_product_thumbnails)
+
+    def add_grid_product(self, item: QListWidgetItem) -> None:
+        row = int(item.data(Qt.ItemDataRole.UserRole) or 0)
+        if 0 <= row < len(self.products):
+            self._add_product_to_cart(self.products[row], None, select_variant=True)
+
     def _load_visible_product_thumbnails(self) -> None:
-        if not self.api or not self.products or not self.product_table.isVisible():
+        if not self.api or not self.products or not self.product_view_stack.isVisible():
             return
-        viewport = self.product_table.viewport()
-        first = self.product_table.rowAt(0)
-        last = self.product_table.rowAt(max(0, viewport.height() - 1))
+        if self.product_view_stack.currentWidget() is self.product_grid:
+            viewport_rect = self.product_grid.viewport().rect()
+            visible_rows = [
+                index for index in range(self.product_grid.count())
+                if self.product_grid.visualItemRect(self.product_grid.item(index)).intersects(viewport_rect)
+            ]
+            first = min(visible_rows) if visible_rows else 0
+            last = max(visible_rows) if visible_rows else min(len(self.products) - 1, 15)
+        else:
+            viewport = self.product_table.viewport()
+            first = self.product_table.rowAt(0)
+            last = self.product_table.rowAt(max(0, viewport.height() - 1))
         first = max(0, first if first >= 0 else 0)
         last = min(len(self.products) - 1, last if last >= 0 else first + 15)
         for row in range(max(0, first - 2), min(len(self.products), last + 3)):
@@ -2023,7 +2240,7 @@ class LiteWindow(QMainWindow):
         if not data or not pixmap.loadFromData(data):
             return
         pixmap = pixmap.scaled(
-            QSize(44, 40), Qt.AspectRatioMode.IgnoreAspectRatio,
+            QSize(144, 144), Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         if len(self.thumbnail_cache) >= 200:
@@ -2032,6 +2249,9 @@ class LiteWindow(QMainWindow):
         self._apply_product_thumbnail(product_id, pixmap)
 
     def _apply_product_thumbnail(self, product_id: int, pixmap: QPixmap) -> None:
+        grid_tile = self.product_grid_tiles.get(product_id)
+        if grid_tile is not None:
+            grid_tile.set_product_image(pixmap)
         for table,rows in (
             (self.product_table,self.product_rows),
             (self.stock_table,self.management_product_rows),
@@ -2114,6 +2334,9 @@ class LiteWindow(QMainWindow):
                 return
             self.products = [product]
             self.product_has_more = False
+            self.product_rows = {int(product.get("id") or 0): 0}
+            self.product_grid_items = {}
+            self.product_grid_tiles = {}
             self.product_table.setRowCount(1)
             self.product_table.setItem(0, 0, QTableWidgetItem())
             values = (
@@ -2123,6 +2346,20 @@ class LiteWindow(QMainWindow):
             )
             for column, value in enumerate(values, start=1):
                 self.product_table.setItem(0, column, QTableWidgetItem(str(value)))
+            self.product_grid.clear()
+            grid_item = QListWidgetItem()
+            grid_item.setData(Qt.ItemDataRole.UserRole, 0)
+            self.product_grid.fit_item(grid_item)
+            self.product_grid.addItem(grid_item)
+            product_id = int(product.get("id") or 0)
+            tile = ProductGridTile(product.get("name") or "Product")
+            tile.setToolTip(
+                f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {int(product.get('stock') or 0)}"
+            )
+            self.product_grid.setItemWidget(grid_item, tile)
+            self.product_grid_items[product_id] = grid_item
+            self.product_grid_tiles[product_id] = tile
+            self.product_grid.refit()
             QTimer.singleShot(0, self._load_visible_product_thumbnails)
             matched_id = product.get("matched_variant_id")
             matched = next((v for v in product.get("variants") or [] if int(v.get("variant_id") or 0) == int(matched_id or 0)), None)

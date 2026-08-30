@@ -385,6 +385,8 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertTrue(all(button.styleSheet() == "" for button in window.findChildren(CenteredButton)))
         self.assertIn("F11", [shortcut.key().toString() for shortcut in window._shortcuts])
         self.assertIn("Esc", [shortcut.key().toString() for shortcut in window._shortcuts])
+        self.assertIn("F2", [shortcut.key().toString() for shortcut in window._shortcuts])
+        self.assertIn("F4", [shortcut.key().toString() for shortcut in window._shortcuts])
         window.close()
 
     def test_login_uses_compact_modal_dialog(self):
@@ -416,6 +418,18 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertIn("Customers", window.workspace_pages)
         self.assertNotIn("Stock & Customers", window.workspace_pages)
         self.assertIsNot(window.workspace_pages["Inventory"], window.workspace_pages["Customers"])
+        window.close()
+
+    def test_pos_catalog_can_switch_between_list_and_grid_views(self):
+        window = LiteWindow()
+        window.set_product_view("list")
+        self.assertIs(window.product_view_stack.currentWidget(), window.product_table)
+        window.set_product_view("grid")
+        self.assertIs(window.product_view_stack.currentWidget(), window.product_grid)
+        self.assertTrue(window.grid_view_button.isChecked())
+        window.set_product_view("list")
+        self.assertIs(window.product_view_stack.currentWidget(), window.product_table)
+        self.assertTrue(window.list_view_button.isChecked())
         window.close()
 
     def test_barcode_scan_is_not_blocked_by_catalog_task_and_keeps_checkout_enabled(self):
