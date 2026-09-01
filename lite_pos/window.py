@@ -1238,13 +1238,13 @@ class ServiceOrderDialog(QDialog):
         self.job_time = QLineEdit(received_time)
         self.job_time.setPlaceholderText("HH:MM")
         self.job_title = QLineEdit(str(self.order.get("job_title") or ""))
-        self.job_title.setPlaceholderText("အလုပ်အမည်")
+        self.job_title.setPlaceholderText("Job name")
         self.complaint = QTextEdit(str(self.order.get("complaint") or "")); self.complaint.setMaximumHeight(110)
         self.expected_at = QLineEdit(str(self.order.get("expected_at") or "")); self.expected_at.setPlaceholderText("YYYY-MM-DD HH:MM")
         self.internal_notes = QTextEdit(str(self.order.get("internal_notes") or "")); self.internal_notes.setMaximumHeight(90)
         for label, widget in (
-            ("ရက်စွဲ", self.job_date), ("အချိန်", self.job_time), ("အလုပ်အမည်", self.job_title),
-            ("အချက်အလက်", self.complaint), ("ရက်ချိန်း", self.expected_at), ("မှတ်ချက်", self.internal_notes),
+            ("Date", self.job_date), ("Time", self.job_time), ("Job Name", self.job_title),
+            ("Details", self.complaint), ("Appointment", self.expected_at), ("Notes", self.internal_notes),
         ):
             form.addRow(label, widget)
         outer.addLayout(form)
@@ -1903,25 +1903,25 @@ class LiteWindow(QMainWindow):
         top = QHBoxLayout(); top.addWidget(QLabel("Service Jobs", objectName="title")); top.addStretch()
         self.service_order_presets_button = QPushButton(); self.service_order_presets_button.hide()
         self.service_order_reports_button = QPushButton(); self.service_order_reports_button.hide()
-        new_button = QPushButton("အလုပ်အသစ်ထည့်မည်", objectName="primary")
+        new_button = QPushButton("New Job", objectName="primary")
         new_button.clicked.connect(self.new_service_order)
         top.addWidget(self.service_order_presets_button); top.addWidget(self.service_order_reports_button); top.addWidget(new_button); outer.addLayout(top)
         filters = QHBoxLayout()
-        self.service_order_search = QLineEdit(); self.service_order_search.setPlaceholderText("အလုပ်အမည်၊ အချက်အလက်၊ မှတ်ချက် ရှာရန်…")
+        self.service_order_search = QLineEdit(); self.service_order_search.setPlaceholderText("Search job name, details or notes…")
         self.service_order_search.returnPressed.connect(self.load_service_orders)
         self.service_order_status_filter = QComboBox()
-        self.service_order_status_filter.addItem("အားလုံး", "")
-        self.service_order_status_filter.addItem("မပြီးသေး", "received")
-        self.service_order_status_filter.addItem("ပြီးပြီ", "completed")
+        self.service_order_status_filter.addItem("All", "")
+        self.service_order_status_filter.addItem("Not Completed", "received")
+        self.service_order_status_filter.addItem("Completed", "completed")
         self.service_order_status_filter.currentIndexChanged.connect(self.load_service_orders)
-        refresh = QPushButton("ပြန်ဖတ်မည်"); refresh.clicked.connect(self.load_service_orders)
+        refresh = QPushButton("Refresh"); refresh.clicked.connect(self.load_service_orders)
         filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
         outer.addLayout(filters)
 
         body = QHBoxLayout()
         list_panel = QFrame(objectName="card"); list_layout = QVBoxLayout(list_panel); list_layout.setContentsMargins(8, 8, 8, 8)
         self.service_order_table = QTableWidget(0, 7)
-        self.service_order_table.setHorizontalHeaderLabels(["ရက်စွဲ", "အချိန်", "အလုပ်အမည်", "အချက်အလက်", "ရက်ချိန်း", "အခြေအနေ", "ပြီးစီးသူ"])
+        self.service_order_table.setHorizontalHeaderLabels(["Date", "Time", "Job Name", "Details", "Appointment", "Status", "Completed By"])
         self.service_order_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.service_order_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.service_order_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -1940,7 +1940,7 @@ class LiteWindow(QMainWindow):
         self.service_order_detail_title = QLabel("Select a service order", objectName="title"); self.service_order_detail_title.setWordWrap(True)
         self.service_order_detail_summary = QLabel("", objectName="muted"); self.service_order_detail_summary.setWordWrap(True)
         detail_layout.addWidget(self.service_order_detail_title); detail_layout.addWidget(self.service_order_detail_summary)
-        detail_layout.addWidget(QLabel("အလုပ်အချက်အလက်"))
+        detail_layout.addWidget(QLabel("Job Details"))
         self.service_order_items_table = QTableWidget(0, 4)
         self.service_order_items_table.hide()
         self.service_order_items_table.setHorizontalHeaderLabels(["Description", "Type", "Qty", "Amount"])
@@ -1958,7 +1958,7 @@ class LiteWindow(QMainWindow):
         self.service_order_remove_item_button = QPushButton("Remove Item"); self.service_order_remove_item_button.clicked.connect(self.remove_service_order_item)
         item_actions.addWidget(self.service_order_add_item_button); item_actions.addWidget(self.service_order_edit_item_button); item_actions.addWidget(self.service_order_remove_item_button); item_actions.addStretch()
         self.service_order_add_item_button.hide(); self.service_order_edit_item_button.hide(); self.service_order_remove_item_button.hide()
-        detail_layout.addWidget(QLabel("လုပ်ဆောင်မှုမှတ်တမ်း"))
+        detail_layout.addWidget(QLabel("Activity History"))
         self.service_order_history = QListWidget(); self.service_order_history.setMaximumHeight(125)
         detail_layout.addWidget(self.service_order_history)
         payment_actions = QHBoxLayout()
@@ -1975,7 +1975,7 @@ class LiteWindow(QMainWindow):
         self.service_order_return_button.hide(); self.service_order_close_return_button.hide()
         actions = QHBoxLayout()
         self.service_order_edit_button = QPushButton("Edit"); self.service_order_edit_button.clicked.connect(self.edit_service_order)
-        self.service_order_next_status = QComboBox(); self.service_order_next_status.addItem("ပြီးပြီ", "completed")
+        self.service_order_next_status = QComboBox(); self.service_order_next_status.addItem("Completed", "completed")
         self.service_order_next_status.hide()
         self.service_order_change_button = QPushButton("Complete", objectName="primary"); self.service_order_change_button.clicked.connect(self.complete_selected_service_order)
         actions.addWidget(self.service_order_edit_button); actions.addStretch(); actions.addWidget(self.service_order_change_button)
@@ -3317,14 +3317,14 @@ class LiteWindow(QMainWindow):
                 status = str(order.get("status") or "received")
                 values = (
                     received[:10], received[11:16], order.get("job_title") or "—", order.get("complaint") or "—",
-                    order.get("expected_at") or "—", "ပြီးပြီ" if status == "completed" else "မပြီးသေး",
+                    order.get("expected_at") or "—", "Completed" if status == "completed" else "Not Completed",
                     order.get("completed_by") or "—",
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(str(value)); item.setData(Qt.ItemDataRole.UserRole, int(order.get("id") or 0))
                     self.service_order_table.setItem(row, column, item)
             self.service_order_table.setUpdatesEnabled(True); self.service_order_table.blockSignals(False)
-            self.service_order_list_status.setText(f"အလုပ် {len(orders)} ခု")
+            self.service_order_list_status.setText(f"{len(orders)} job(s)")
             self._clear_service_order_detail()
             if orders:
                 self.service_order_table.selectRow(0)
@@ -3360,14 +3360,14 @@ class LiteWindow(QMainWindow):
 
     def _show_service_order_detail(self, order: dict) -> None:
         status = str(order.get("status") or "received")
-        self.service_order_detail_title.setText(f"{order.get('job_title') or 'Service Job'} · {'ပြီးပြီ' if status == 'completed' else 'မပြီးသေး'}")
+        self.service_order_detail_title.setText(f"{order.get('job_title') or 'Service Job'} · {'Completed' if status == 'completed' else 'Not Completed'}")
         summary = (
-            f"ရက်စွဲ/အချိန်: {order.get('received_at') or '—'}\n"
-            f"အချက်အလက်: {order.get('complaint') or '—'}\n"
-            f"ရက်ချိန်း: {order.get('expected_at') or '—'}\n"
-            f"မှတ်ချက်: {order.get('internal_notes') or '—'}\n"
-            f"ထည့်သွင်းသူ: {order.get('created_by') or '—'}\n"
-            f"ပြီးစီးသူ: {order.get('completed_by') or '—'}"
+            f"Date/Time: {order.get('received_at') or '—'}\n"
+            f"Details: {order.get('complaint') or '—'}\n"
+            f"Appointment: {order.get('expected_at') or '—'}\n"
+            f"Notes: {order.get('internal_notes') or '—'}\n"
+            f"Created By: {order.get('created_by') or '—'}\n"
+            f"Completed By: {order.get('completed_by') or '—'}"
         )
         self.service_order_detail_summary.setText(summary)
         items = list(order.get("items") or [])
@@ -3395,12 +3395,12 @@ class LiteWindow(QMainWindow):
             )
         self.service_order_next_status.clear()
         if status not in {"completed", "delivered", "cancelled"}:
-            self.service_order_next_status.addItem("ပြီးပြီ", "completed")
+            self.service_order_next_status.addItem("Completed", "completed")
         self._set_service_order_actions_enabled(True)
 
     def _clear_service_order_detail(self) -> None:
         self.selected_service_order = {}
-        self.service_order_detail_title.setText("အလုပ်တစ်ခု ရွေးပါ")
+        self.service_order_detail_title.setText("Select a job")
         self.service_order_detail_summary.clear(); self.service_order_items_table.setRowCount(0); self.service_order_history.clear()
         self.service_order_next_status.clear(); self._set_service_order_actions_enabled(False)
 
@@ -3416,7 +3416,7 @@ class LiteWindow(QMainWindow):
     def complete_selected_service_order(self) -> None:
         if not self.api or not self.selected_service_order:
             return
-        if QMessageBox.question(self, "Complete Job", "ဒီအလုပ်ကို ပြီးပြီလို့ သတ်မှတ်မလား?") != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, "Complete Job", "Mark this job as completed?") != QMessageBox.StandardButton.Yes:
             return
         order_id = int(self.selected_service_order.get("id") or 0)
         self.service_order_change_button.setEnabled(False)
@@ -3543,9 +3543,9 @@ class LiteWindow(QMainWindow):
             for job in reversed(new_jobs):
                 if str(job.get("created_by") or "").casefold() == username:
                     continue
-                title = str(job.get("job_title") or "အလုပ်အသစ်")
+                title = str(job.get("job_title") or "New Job")
                 details = str(job.get("complaint") or "")
-                self.service_job_tray.showMessage("Service Job အသစ်", f"{title}\n{details}", QSystemTrayIcon.MessageIcon.Information, 8000)
+                self.service_job_tray.showMessage("New Service Job", f"{title}\n{details}", QSystemTrayIcon.MessageIcon.Information, 8000)
             if new_jobs and self.workspace_stack.currentWidget() is self.service_orders_page:
                 self.load_service_orders()
 
