@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import base64
+import html
 from collections.abc import Callable
 
 from PyQt6.QtCore import QDate, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTimer, Qt, QUrl, pyqtSignal
@@ -1042,6 +1043,294 @@ class ReceiptDialog(QDialog):
         painter.end()
 
 
+class ServiceOrderItemDialog(QDialog):
+    def __init__(self, parent=None, *, products: list[dict] | None = None, presets: list[dict] | None = None, item: dict | None = None):
+        super().__init__(parent)
+        self.products = list(products or [])
+        self.presets = list(presets or [])
+        self.item = dict(item or {})
+        self.setWindowTitle("Edit Order Item" if self.item else "Add Order Item")
+        self.setMinimumSize(560, 680)
+        outer = QVBoxLayout(self); form = QFormLayout()
+        self.preset = QComboBox(); self.preset.addItem("No preset / manual", None)
+        for preset in self.presets: self.preset.addItem(str(preset.get("name") or "Preset"), preset)
+        self.item_type = QComboBox(); self.item_type.addItem("Service", "service"); self.item_type.addItem("Part", "part"); self.item_type.addItem("Custom Charge", "custom")
+        self.product = QComboBox(); self.variant = QComboBox()
+        self.description = QLineEdit(str(self.item.get("description") or ""))
+        self.qty = QDoubleSpinBox(); self.qty.setRange(0.01, 999999); self.qty.setDecimals(2); self.qty.setValue(float(self.item.get("qty") or 1))
+        self.unit_price = QDoubleSpinBox(); self.unit_price.setRange(0, 999999999999); self.unit_price.setDecimals(0); self.unit_price.setSuffix(" Ks")
+        self.unit_price.setValue(float(self.item.get("unit_price") or 0))
+        self.estimated_cost = QDoubleSpinBox(); self.estimated_cost.setRange(0, 999999999999); self.estimated_cost.setDecimals(0); self.estimated_cost.setSuffix(" Ks")
+        self.estimated_cost.setValue(float(self.item.get("estimated_cost") or 0))
+        self.warranty_days = QSpinBox(); self.warranty_days.setRange(0, 36500); self.warranty_days.setSuffix(" days")
+        self.warranty_days.setValue(int(self.item.get("warranty_days") or 0))
+        self.pricing_unit = QComboBox()
+        for label, value in (("Per Page", "per_page"), ("Per Sheet", "per_sheet"), ("Per Copy", "per_copy"), ("Per Job", "per_job"), ("Per Item", "per_item")):
+            self.pricing_unit.addItem(label, value)
+        pricing_index = self.pricing_unit.findData(str(self.item.get("pricing_unit") or "per_item")); self.pricing_unit.setCurrentIndex(max(0, pricing_index))
+        self.pages_per_copy = QSpinBox(); self.pages_per_copy.setRange(1, 1000000); self.pages_per_copy.setValue(int(self.item.get("pages_per_copy") or 1))
+        self.copy_count = QSpinBox(); self.copy_count.setRange(1, 1000000); self.copy_count.setValue(int(self.item.get("copy_count") or 1))
+        self.paper_size = QComboBox(); self.paper_size.setEditable(True); self.paper_size.addItems(["", "A4", "A3", "A5", "Letter", "Legal", "4×6 Photo", "5×7 Photo", "Custom"])
+        self.paper_size.setCurrentText(str(self.item.get("paper_size") or ""))
+        self.paper_type = QComboBox(); self.paper_type.setEditable(True); self.paper_type.addItems(["", "Normal 70gsm", "Normal 80gsm", "Photo Glossy", "Photo Matte", "Sticker", "Card", "Customer Paper"])
+        self.paper_type.setCurrentText(str(self.item.get("paper_type") or ""))
+        self.color_mode = QComboBox()
+        for label, value in (("Not Applicable", "not_applicable"), ("Black & White", "bw"), ("Color", "color"), ("Photo", "photo")): self.color_mode.addItem(label, value)
+        self.color_mode.setCurrentIndex(max(0, self.color_mode.findData(str(self.item.get("color_mode") or "not_applicable"))))
+        self.print_side = QComboBox()
+        for label, value in (("Not Applicable", "not_applicable"), ("Single Side", "single"), ("Double Side", "double")): self.print_side.addItem(label, value)
+        self.print_side.setCurrentIndex(max(0, self.print_side.findData(str(self.item.get("print_side") or "not_applicable"))))
+        self.finishing = QLineEdit(str(self.item.get("finishing") or "")); self.finishing.setPlaceholderText("Staple, binding, lamination, cutting…")
+        self.file_name = QLineEdit(str(self.item.get("file_name") or ""))
+        self.total_sheets_label = QLabel("1 sheet", objectName="muted")
+        self.line_amount_label = QLabel("0 Ks", objectName="title")
+        current_type = str(self.item.get("item_type") or "service")
+        index = self.item_type.findData(current_type); self.item_type.setCurrentIndex(max(0, index))
+        for label, widget in (("Quick Preset", self.preset), ("Type", self.item_type), ("Product", self.product), ("Variant", self.variant), ("Description", self.description),
+                              ("Pricing Unit", self.pricing_unit), ("Pages / Copy", self.pages_per_copy), ("Copies", self.copy_count),
+                              ("Paper Size", self.paper_size), ("Paper Type", self.paper_type), ("Color", self.color_mode),
+                              ("Print Side", self.print_side), ("Finishing", self.finishing), ("File Name", self.file_name),
+                              ("Billable Quantity", self.qty), ("Physical Sheets", self.total_sheets_label),
+                              ("Unit Price", self.unit_price), ("Line Amount", self.line_amount_label),
+                              ("Estimated Cost", self.estimated_cost), ("Warranty", self.warranty_days)):
+            form.addRow(label, widget)
+        outer.addLayout(form)
+        note = QLabel("Parts stock is checked now but will only be deducted during Phase 5 checkout.", objectName="muted"); note.setWordWrap(True); outer.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self._validate); buttons.rejected.connect(self.reject); outer.addWidget(buttons)
+        self.item_type.currentIndexChanged.connect(self._populate_products)
+        self.preset.currentIndexChanged.connect(self._apply_preset)
+        self.product.currentIndexChanged.connect(self._product_changed)
+        self.variant.currentIndexChanged.connect(self._variant_changed)
+        self.pricing_unit.currentIndexChanged.connect(self._recalculate_print_totals)
+        self.pages_per_copy.valueChanged.connect(self._recalculate_print_totals)
+        self.copy_count.valueChanged.connect(self._recalculate_print_totals)
+        self.print_side.currentIndexChanged.connect(self._recalculate_print_totals)
+        self.qty.valueChanged.connect(self._recalculate_print_totals)
+        self.unit_price.valueChanged.connect(self._recalculate_print_totals)
+        self._populate_products()
+        self._recalculate_print_totals()
+
+    def _apply_preset(self) -> None:
+        preset = self.preset.currentData() or {}
+        if not preset:
+            return
+        service_index = self.item_type.findData("service"); self.item_type.setCurrentIndex(max(0, service_index))
+        product_id = int(preset.get("product_id") or 0)
+        for index in range(self.product.count()):
+            product = self.product.itemData(index) or {}
+            if int(product.get("id") or 0) == product_id:
+                self.product.setCurrentIndex(index); break
+        self.description.setText(str(preset.get("description") or preset.get("name") or ""))
+        for combo, key in ((self.pricing_unit, "pricing_unit"), (self.color_mode, "color_mode"), (self.print_side, "print_side")):
+            index = combo.findData(str(preset.get(key) or ""))
+            if index >= 0: combo.setCurrentIndex(index)
+        self.pages_per_copy.setValue(int(preset.get("pages_per_copy") or 1)); self.copy_count.setValue(int(preset.get("copy_count") or 1))
+        self.paper_size.setCurrentText(str(preset.get("paper_size") or "")); self.paper_type.setCurrentText(str(preset.get("paper_type") or ""))
+        self.finishing.setText(str(preset.get("finishing") or "")); self.unit_price.setValue(float(preset.get("unit_price") or 0))
+        self._recalculate_print_totals()
+
+    def _populate_products(self) -> None:
+        item_type = str(self.item_type.currentData() or "service")
+        current_id = int(self.item.get("product_id") or 0)
+        self.product.blockSignals(True); self.product.clear()
+        if item_type == "custom":
+            self.product.addItem("No catalog product", None)
+        else:
+            for product in self.products:
+                mode = sold_by_mode(product.get("sold_by"))
+                if (item_type == "service" and mode == "service") or (item_type == "part" and mode != "service"):
+                    stock = "Service" if mode == "service" else int(product.get("stock") or 0)
+                    self.product.addItem(f"{product.get('name') or 'Product'} · {stock}", product)
+        self.product.blockSignals(False)
+        if current_id:
+            for index in range(self.product.count()):
+                data = self.product.itemData(index) or {}
+                if int(data.get("id") or 0) == current_id:
+                    self.product.setCurrentIndex(index); break
+        self._product_changed()
+
+    def _product_changed(self) -> None:
+        product = self.product.currentData() or {}
+        self.variant.blockSignals(True); self.variant.clear()
+        variants = list(product.get("variants") or [])
+        for variant in variants:
+            label = " / ".join(filter(None, (str(variant.get("color") or ""), str(variant.get("size") or "")))) or f"Variant {variant.get('variant_id') or variant.get('id')}"
+            self.variant.addItem(f"{label} · Stock {int(variant.get('stock') or 0)}", variant)
+        current_variant = int(self.item.get("variant_id") or 0)
+        if current_variant:
+            for index in range(self.variant.count()):
+                data = self.variant.itemData(index) or {}
+                if int(data.get("variant_id") or data.get("id") or 0) == current_variant:
+                    self.variant.setCurrentIndex(index); break
+        self.variant.blockSignals(False)
+        is_custom = str(self.item_type.currentData()) == "custom"
+        self.product.setEnabled(not is_custom); self.variant.setVisible(bool(variants) and not is_custom)
+        if product and not self.item:
+            self.description.setText(str(product.get("name") or ""))
+            self.unit_price.setValue(float(product.get("price") or 0))
+        self._variant_changed()
+
+    def _variant_changed(self) -> None:
+        variant = self.variant.currentData() or {}
+        if variant and not self.item:
+            self.unit_price.setValue(float(variant.get("price") or self.unit_price.value()))
+
+    def _recalculate_print_totals(self) -> None:
+        pages = self.pages_per_copy.value(); copies = self.copy_count.value()
+        side = str(self.print_side.currentData() or "not_applicable")
+        sheets_per_copy = (pages + 1) // 2 if side == "double" else pages
+        total_sheets = sheets_per_copy * copies
+        pricing = str(self.pricing_unit.currentData() or "per_item")
+        quantities = {"per_page": pages * copies, "per_sheet": total_sheets, "per_copy": copies, "per_job": 1}
+        automatic = pricing in quantities
+        if automatic:
+            self.qty.blockSignals(True); self.qty.setValue(float(quantities[pricing])); self.qty.blockSignals(False)
+        self.qty.setEnabled(not automatic)
+        self.total_sheets_label.setText(f"{total_sheets:,} sheet(s)")
+        self.line_amount_label.setText(f"{self.qty.value() * self.unit_price.value():,.0f} Ks")
+
+    def _validate(self) -> None:
+        item_type = str(self.item_type.currentData() or "service")
+        if item_type != "custom" and not self.product.currentData():
+            QMessageBox.warning(self, "Order Item", "Select a catalog product."); return
+        product = self.product.currentData() or {}
+        if item_type == "part" and sold_by_mode(product.get("sold_by")) == "variants" and not self.variant.currentData():
+            QMessageBox.warning(self, "Order Item", "Select a product variant."); return
+        if not self.description.text().strip():
+            QMessageBox.warning(self, "Order Item", "Enter a description."); return
+        self.accept()
+
+    def values(self) -> dict:
+        product = self.product.currentData() or {}
+        variant = self.variant.currentData() or {}
+        item_type = str(self.item_type.currentData() or "service")
+        return {
+            "product_id": int(product.get("id") or 0) or None if item_type != "custom" else None,
+            "variant_id": int(variant.get("variant_id") or variant.get("id") or 0) or None if item_type != "custom" else None,
+            "item_type": item_type, "description": self.description.text().strip(), "qty": self.qty.value(),
+            "unit_price": self.unit_price.value(), "estimated_cost": self.estimated_cost.value(),
+            "actual_cost": float(self.item.get("actual_cost") or 0), "warranty_days": self.warranty_days.value(),
+            "pricing_unit": str(self.pricing_unit.currentData() or "per_item"),
+            "pages_per_copy": self.pages_per_copy.value(), "copy_count": self.copy_count.value(),
+            "paper_size": self.paper_size.currentText().strip(), "paper_type": self.paper_type.currentText().strip(),
+            "color_mode": str(self.color_mode.currentData() or "not_applicable"),
+            "print_side": str(self.print_side.currentData() or "not_applicable"),
+            "finishing": self.finishing.text().strip(), "file_name": self.file_name.text().strip(),
+        }
+
+
+class ServiceOrderDialog(QDialog):
+    """Compact create/edit form for the Phase 3 service-order workspace."""
+
+    def __init__(self, parent=None, *, order: dict | None = None, customers: list[dict] | None = None):
+        super().__init__(parent)
+        self.order = dict(order or {})
+        self.customers = list(customers or [])
+        self.setWindowTitle("Edit Service Order" if self.order else "New Service Order")
+        self.setMinimumSize(620, 650)
+        outer = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        body = QWidget()
+        form = QFormLayout(body)
+
+        self.customer = QComboBox()
+        self.customer.addItem("Walk-in / manual customer", None)
+        for customer in self.customers:
+            name = str(customer.get("name") or "Unnamed")
+            phone = str(customer.get("phone") or "")
+            self.customer.addItem(f"{name} · {phone}" if phone else name, int(customer.get("id") or 0) or None)
+        self.customer_name = QLineEdit(str(self.order.get("customer_name") or ""))
+        self.customer_phone = QLineEdit(str(self.order.get("customer_phone") or ""))
+        current_customer = self.order.get("customer_id")
+        if current_customer:
+            index = self.customer.findData(int(current_customer))
+            if index >= 0:
+                self.customer.setCurrentIndex(index)
+        self.customer.currentIndexChanged.connect(self._customer_selected)
+        self.priority = QComboBox(); self.priority.addItems(["normal", "urgent"])
+        self.priority.setCurrentText(str(self.order.get("priority") or "normal"))
+        self.assigned_to = QLineEdit(str(self.order.get("assigned_to") or ""))
+        self.expected_at = QLineEdit(str(self.order.get("expected_at") or ""))
+        self.expected_at.setPlaceholderText("YYYY-MM-DD HH:MM (optional)")
+        self.job_title = QLineEdit(str(self.order.get("job_title") or ""))
+        self.job_title.setPlaceholderText("e.g. A4 training manual, passport photos")
+        self.file_source = QComboBox(); self.file_source.setEditable(True)
+        self.file_source.addItems(["", "USB", "Telegram", "Viber", "Email", "Phone", "Walk-in document", "No file"])
+        source = str(self.order.get("file_source") or "")
+        source_index = self.file_source.findText(source)
+        self.file_source.setCurrentIndex(source_index if source_index >= 0 else 0)
+        if source and source_index < 0: self.file_source.setEditText(source)
+        self.file_reference = QLineEdit(str(self.order.get("file_reference") or ""))
+        self.file_reference.setPlaceholderText("File name, chat reference or storage note")
+        self.approval_status = QComboBox()
+        for label, value in (("Not Required", "not_required"), ("Waiting Customer", "waiting_customer"), ("Approved", "approved"), ("Changes Requested", "changes_requested")):
+            self.approval_status.addItem(label, value)
+        approval_index = self.approval_status.findData(str(self.order.get("approval_status") or "not_required")); self.approval_status.setCurrentIndex(max(0, approval_index))
+        self.item_name = QLineEdit(str(self.order.get("item_name") or ""))
+        self.item_model = QLineEdit(str(self.order.get("item_model") or ""))
+        self.serial_no = QLineEdit(str(self.order.get("serial_no") or ""))
+        self.deposit = QDoubleSpinBox(); self.deposit.setMaximum(999999999999); self.deposit.setDecimals(0)
+        self.deposit.setValue(float(self.order.get("deposit_amount") or 0)); self.deposit.setSuffix(" Ks")
+        self.accessories = QTextEdit(str(self.order.get("accessories") or "")); self.accessories.setMaximumHeight(65)
+        self.condition_notes = QTextEdit(str(self.order.get("condition_notes") or "")); self.condition_notes.setMaximumHeight(65)
+        self.complaint = QTextEdit(str(self.order.get("complaint") or "")); self.complaint.setMaximumHeight(80)
+        self.diagnosis = QTextEdit(str(self.order.get("diagnosis") or "")); self.diagnosis.setMaximumHeight(80)
+        self.internal_notes = QTextEdit(str(self.order.get("internal_notes") or "")); self.internal_notes.setMaximumHeight(70)
+        for label, widget in (
+            ("Existing Customer", self.customer), ("Customer Name", self.customer_name),
+            ("Phone", self.customer_phone), ("Priority", self.priority),
+            ("Job Title", self.job_title), ("File Source", self.file_source),
+            ("File Reference", self.file_reference), ("Customer Approval", self.approval_status),
+            ("Operator / Designer", self.assigned_to), ("Deadline", self.expected_at),
+            ("Job Instructions", self.complaint), ("Internal Notes", self.internal_notes),
+            ("Deposit", self.deposit),
+        ):
+            form.addRow(label, widget)
+        scroll.setWidget(body)
+        outer.addWidget(scroll, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self._validate); buttons.rejected.connect(self.reject)
+        outer.addWidget(buttons)
+
+    def _customer_selected(self) -> None:
+        customer_id = self.customer.currentData()
+        customer = next((row for row in self.customers if int(row.get("id") or 0) == int(customer_id or 0)), None)
+        if customer:
+            self.customer_name.setText(str(customer.get("name") or ""))
+            self.customer_phone.setText(str(customer.get("phone") or ""))
+
+    def _validate(self) -> None:
+        if not self.job_title.text().strip():
+            QMessageBox.warning(self, "Service Order", "Enter a job title.")
+            return
+        self.accept()
+
+    def values(self) -> dict:
+        return {
+            "customer_id": self.customer.currentData(),
+            "customer_name": self.customer_name.text().strip(),
+            "customer_phone": self.customer_phone.text().strip(),
+            "priority": self.priority.currentText(),
+            "assigned_to": self.assigned_to.text().strip(),
+            "expected_at": self.expected_at.text().strip(),
+            "job_title": self.job_title.text().strip(),
+            "file_source": self.file_source.currentText().strip(),
+            "file_reference": self.file_reference.text().strip(),
+            "approval_status": str(self.approval_status.currentData() or "not_required"),
+            "item_name": self.item_name.text().strip(),
+            "item_model": self.item_model.text().strip(),
+            "serial_no": self.serial_no.text().strip(),
+            "accessories": self.accessories.toPlainText().strip(),
+            "condition_notes": self.condition_notes.toPlainText().strip(),
+            "complaint": self.complaint.toPlainText().strip(),
+            "diagnosis": self.diagnosis.toPlainText().strip(),
+            "internal_notes": self.internal_notes.toPlainText().strip(),
+            "deposit_amount": self.deposit.value(),
+        }
+
+
 class LiteWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1078,6 +1367,8 @@ class LiteWindow(QMainWindow):
         self.product_management_thumbnail_timer.timeout.connect(self._load_visible_managed_product_thumbnails)
         self.selected_category = ""
         self.receipts: list[dict] = []
+        self.service_orders_data: list[dict] = []
+        self.selected_service_order: dict = {}
         self.last_receipt: dict = {}
         self.receipt_settings: dict = {}
         self.sale_display: LiteSaleDisplay | None = None
@@ -1289,7 +1580,7 @@ class LiteWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         self.nav_buttons: dict[str, QPushButton] = {}
-        for text in ("Point of Sale", "Dashboard", "Products", "Sales History", "Expenses", "Inventory", "Customers", "Setting Center"):
+        for text in ("Point of Sale", "Service Orders", "Dashboard", "Products", "Sales History", "Expenses", "Inventory", "Customers", "Setting Center"):
             button = QPushButton(text)
             button.setProperty("leftAligned", True)
             button.setCheckable(True)
@@ -1389,6 +1680,7 @@ class LiteWindow(QMainWindow):
         self.dashboard_analytics.addTab(daily_trend_page, "Daily Sales Trend")
         content_layout.addWidget(self.dashboard_analytics, 1)
         self.pos_page = self._build_pos_page()
+        self.service_orders_page = self._build_service_orders_page()
         self.product_management_page = self._build_product_management_page()
         self.history_page = self._build_history_page()
         self.expense_page = self._build_expense_page()
@@ -1397,6 +1689,7 @@ class LiteWindow(QMainWindow):
         self.settings_page = LiteSettingsCenter(self)
         self.workspace_stack.addWidget(self.dashboard_page)
         self.workspace_stack.addWidget(self.pos_page)
+        self.workspace_stack.addWidget(self.service_orders_page)
         self.workspace_stack.addWidget(self.product_management_page)
         self.workspace_stack.addWidget(self.history_page)
         self.workspace_stack.addWidget(self.expense_page)
@@ -1406,6 +1699,7 @@ class LiteWindow(QMainWindow):
         self.workspace_pages = {
             "Dashboard": self.dashboard_page,
             "Point of Sale": self.pos_page,
+            "Service Orders": self.service_orders_page,
             "Products": self.product_management_page,
             "Sales History": self.history_page,
             "Expenses": self.expense_page,
@@ -1475,6 +1769,8 @@ class LiteWindow(QMainWindow):
         self.workspace_stack.setCurrentWidget(page)
         if name == "Point of Sale":
             self._focus_product_search()
+        elif name == "Service Orders":
+            self.load_service_orders()
         elif name == "Dashboard":
             self.load_dashboard()
         elif name == "Products":
@@ -1654,6 +1950,91 @@ class LiteWindow(QMainWindow):
         outer.addWidget(customer_box, 1)
         self.customer_status = QLabel("", objectName="muted")
         outer.addWidget(self.customer_status)
+        return page
+
+    def _build_service_orders_page(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page); outer.setContentsMargins(14, 12, 14, 12); outer.setSpacing(8)
+        top = QHBoxLayout(); top.addWidget(QLabel("Service Orders", objectName="title")); top.addStretch()
+        self.service_order_presets_button = QPushButton("Quick Presets"); self.service_order_presets_button.clicked.connect(self.manage_print_service_presets)
+        self.service_order_reports_button = QPushButton("Reports"); self.service_order_reports_button.clicked.connect(self.open_service_order_reports)
+        new_button = QPushButton("New Service Order", objectName="primary")
+        new_button.clicked.connect(self.new_service_order)
+        top.addWidget(self.service_order_presets_button); top.addWidget(self.service_order_reports_button); top.addWidget(new_button); outer.addLayout(top)
+        filters = QHBoxLayout()
+        self.service_order_search = QLineEdit(); self.service_order_search.setPlaceholderText("Search order no., customer, phone, device or serial…")
+        self.service_order_search.returnPressed.connect(self.load_service_orders)
+        self.service_order_status_filter = QComboBox()
+        self.service_order_status_filter.addItem("All statuses", "")
+        for value in ("received", "typing_designing", "waiting_approval", "ready_to_print", "printing", "ready_for_pickup", "on_hold", "completed", "delivered", "cancelled", "assigned", "in_progress", "waiting_parts", "ready"):
+            self.service_order_status_filter.addItem(value.replace("_", " ").title(), value)
+        self.service_order_status_filter.currentIndexChanged.connect(self.load_service_orders)
+        refresh = QPushButton("Search / Refresh"); refresh.clicked.connect(self.load_service_orders)
+        filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
+        outer.addLayout(filters)
+
+        body = QHBoxLayout()
+        list_panel = QFrame(objectName="card"); list_layout = QVBoxLayout(list_panel); list_layout.setContentsMargins(8, 8, 8, 8)
+        self.service_order_table = QTableWidget(0, 6)
+        self.service_order_table.setHorizontalHeaderLabels(["Order", "Customer", "Item", "Status", "Priority", "Updated"])
+        self.service_order_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.service_order_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.service_order_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.service_order_table.verticalHeader().setVisible(False); self.service_order_table.verticalHeader().setDefaultSectionSize(29)
+        self.service_order_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.service_order_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for column, width in {0:145, 3:105, 4:75, 5:135}.items():
+            self.service_order_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.service_order_table.setColumnWidth(column, width)
+        self.service_order_table.itemSelectionChanged.connect(self.load_selected_service_order)
+        list_layout.addWidget(self.service_order_table, 1)
+        self.service_order_list_status = QLabel("", objectName="muted"); list_layout.addWidget(self.service_order_list_status)
+        body.addWidget(list_panel, 3)
+
+        detail = QFrame(objectName="card"); detail.setMinimumWidth(340); detail.setMaximumWidth(460)
+        detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(10, 10, 10, 10)
+        self.service_order_detail_title = QLabel("Select a service order", objectName="title"); self.service_order_detail_title.setWordWrap(True)
+        self.service_order_detail_summary = QLabel("", objectName="muted"); self.service_order_detail_summary.setWordWrap(True)
+        detail_layout.addWidget(self.service_order_detail_title); detail_layout.addWidget(self.service_order_detail_summary)
+        detail_layout.addWidget(QLabel("Order Items"))
+        self.service_order_items_table = QTableWidget(0, 4)
+        self.service_order_items_table.setHorizontalHeaderLabels(["Description", "Type", "Qty", "Amount"])
+        self.service_order_items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.service_order_items_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.service_order_items_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.service_order_items_table.verticalHeader().setVisible(False)
+        self.service_order_items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column, width in {1:70, 2:45, 3:90}.items():
+            self.service_order_items_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.service_order_items_table.setColumnWidth(column, width)
+        detail_layout.addWidget(self.service_order_items_table, 1)
+        item_actions = QHBoxLayout()
+        self.service_order_add_item_button = QPushButton("Add Item"); self.service_order_add_item_button.clicked.connect(self.add_service_order_item)
+        self.service_order_edit_item_button = QPushButton("Edit Item"); self.service_order_edit_item_button.clicked.connect(self.edit_service_order_item)
+        self.service_order_remove_item_button = QPushButton("Remove Item"); self.service_order_remove_item_button.clicked.connect(self.remove_service_order_item)
+        item_actions.addWidget(self.service_order_add_item_button); item_actions.addWidget(self.service_order_edit_item_button); item_actions.addWidget(self.service_order_remove_item_button); item_actions.addStretch()
+        detail_layout.addLayout(item_actions)
+        detail_layout.addWidget(QLabel("Status History"))
+        self.service_order_history = QListWidget(); self.service_order_history.setMaximumHeight(125)
+        detail_layout.addWidget(self.service_order_history)
+        payment_actions = QHBoxLayout()
+        self.service_order_deposit_button = QPushButton("Collect Deposit"); self.service_order_deposit_button.clicked.connect(self.collect_service_order_deposit)
+        self.service_order_checkout_button = QPushButton("Checkout", objectName="primary"); self.service_order_checkout_button.clicked.connect(self.checkout_selected_service_order)
+        self.service_order_job_ticket_button = QPushButton("Job Ticket"); self.service_order_job_ticket_button.clicked.connect(self.print_service_order_job_ticket)
+        self.service_order_receipt_button = QPushButton("Receipt"); self.service_order_receipt_button.clicked.connect(self.view_service_order_receipt)
+        payment_actions.addWidget(self.service_order_deposit_button); payment_actions.addWidget(self.service_order_checkout_button); payment_actions.addWidget(self.service_order_job_ticket_button); payment_actions.addWidget(self.service_order_receipt_button)
+        detail_layout.addLayout(payment_actions)
+        return_actions = QHBoxLayout()
+        self.service_order_return_button = QPushButton("Add Return Visit"); self.service_order_return_button.clicked.connect(self.add_service_order_return_visit)
+        self.service_order_close_return_button = QPushButton("Close Return"); self.service_order_close_return_button.clicked.connect(self.close_service_order_return_visit)
+        return_actions.addWidget(self.service_order_return_button); return_actions.addWidget(self.service_order_close_return_button); return_actions.addStretch()
+        detail_layout.addLayout(return_actions)
+        actions = QHBoxLayout()
+        self.service_order_edit_button = QPushButton("Edit"); self.service_order_edit_button.clicked.connect(self.edit_service_order)
+        self.service_order_next_status = QComboBox()
+        self.service_order_change_button = QPushButton("Change Status"); self.service_order_change_button.clicked.connect(self.change_selected_service_order_status)
+        actions.addWidget(self.service_order_edit_button); actions.addWidget(self.service_order_next_status, 1); actions.addWidget(self.service_order_change_button)
+        detail_layout.addLayout(actions)
+        self._set_service_order_actions_enabled(False)
+        body.addWidget(detail, 2); outer.addLayout(body, 1)
         return page
 
     def _build_product_management_page(self) -> QWidget:
@@ -1966,6 +2347,8 @@ class LiteWindow(QMainWindow):
             name = self.user.get("full_name") or self.user.get("username") or "User"
             role = self.user.get("role") or "User"
             self.nav_buttons["Setting Center"].setVisible(str(role).casefold() in {"admin", "manager"})
+            self.service_order_reports_button.setVisible(str(role).casefold() in {"admin", "manager"})
+            self.service_order_presets_button.setVisible(str(role).casefold() in {"admin", "manager"})
             self.identity_label.setText(f"{name}\nRole: {role}")
             self.welcome_label.setText(f"Welcome, {name}. Connected as {role}.")
             self.pages.setCurrentWidget(self.workspace_page)
@@ -2963,6 +3346,493 @@ class LiteWindow(QMainWindow):
             lambda error: (self.customer_status.setText("Could not load customers"), self.statusBar().showMessage(error)),
         )
 
+    def load_service_orders(self) -> None:
+        if not self.api:
+            return
+        token = self._new_page_load("service_orders")
+        query = self.service_order_search.text().strip()
+        status = str(self.service_order_status_filter.currentData() or "")
+        self.service_order_list_status.setText("Loading…")
+        self._set_service_order_actions_enabled(False)
+
+        def loaded(orders):
+            if not self._page_load_is_current("service_orders", token):
+                return
+            self.service_orders_data = list(orders)
+            self.selected_service_order = {}
+            self.service_order_table.blockSignals(True); self.service_order_table.setUpdatesEnabled(False)
+            self.service_order_table.setRowCount(len(orders))
+            for row, order in enumerate(orders):
+                values = (
+                    order.get("order_no") or "", order.get("customer_name") or order.get("customer_phone") or "Walk-in",
+                    order.get("job_title") or order.get("item_name") or "—", str(order.get("status") or "").replace("_", " ").title(),
+                    str(order.get("priority") or "normal").title(), order.get("updated_at") or "",
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value)); item.setData(Qt.ItemDataRole.UserRole, int(order.get("id") or 0))
+                    self.service_order_table.setItem(row, column, item)
+            self.service_order_table.setUpdatesEnabled(True); self.service_order_table.blockSignals(False)
+            self.service_order_list_status.setText(f"{len(orders)} service order(s) loaded")
+            self._clear_service_order_detail()
+            if orders:
+                self.service_order_table.selectRow(0)
+
+        self._run_task(
+            lambda: self.api.service_orders(query=query, status=status, limit=200), loaded,
+            lambda error: (self.service_order_list_status.setText("Could not load service orders"), QMessageBox.critical(self, "Service Orders", error)),
+        )
+
+    def load_selected_service_order(self) -> None:
+        if not self.api:
+            return
+        row = self.service_order_table.currentRow()
+        item = self.service_order_table.item(row, 0) if row >= 0 else None
+        order_id = int(item.data(Qt.ItemDataRole.UserRole) or 0) if item else 0
+        if not order_id:
+            self._clear_service_order_detail()
+            return
+        token = self._new_page_load("service_order_detail")
+        self.service_order_detail_title.setText("Loading order…")
+        self._set_service_order_actions_enabled(False)
+
+        def loaded(order):
+            if not self._page_load_is_current("service_order_detail", token):
+                return
+            self.selected_service_order = dict(order)
+            self._show_service_order_detail(order)
+
+        self._run_task(
+            lambda: self.api.service_order(order_id), loaded,
+            lambda error: (self._clear_service_order_detail(), QMessageBox.critical(self, "Service Order", error)),
+        )
+
+    def _show_service_order_detail(self, order: dict) -> None:
+        status = str(order.get("status") or "received")
+        self.service_order_detail_title.setText(f"{order.get('order_no') or 'Service Order'} · {status.replace('_', ' ').title()}")
+        summary = (
+            f"Customer: {order.get('customer_name') or 'Walk-in'}\n"
+            f"Phone: {order.get('customer_phone') or '—'}\n"
+            f"Job: {order.get('job_title') or order.get('item_name') or '—'}\n"
+            f"File: {order.get('file_source') or '—'} · {order.get('file_reference') or 'No reference'}\n"
+            f"Approval: {str(order.get('approval_status') or 'not_required').replace('_', ' ').title()}\n"
+            f"Operator: {order.get('assigned_to') or 'Unassigned'} · Priority: {order.get('priority') or 'normal'}\n"
+            f"Deadline: {order.get('expected_at') or '—'} · Deposit: {float(order.get('deposit_amount') or 0):,.0f} Ks\n"
+            f"Instructions: {order.get('complaint') or '—'}"
+            + (f"\nSALE REFUNDED: {order.get('sale_refunded_at')}" if order.get("sale_refunded_at") else "")
+        )
+        self.service_order_detail_summary.setText(summary)
+        items = list(order.get("items") or [])
+        self.service_order_items_table.setRowCount(len(items))
+        for row, line in enumerate(items):
+            options = " · ".join(value for value in (
+                str(line.get("paper_size") or ""), str(line.get("color_mode") or "").replace("not_applicable", ""),
+                str(line.get("print_side") or "").replace("not_applicable", ""), str(line.get("finishing") or ""),
+            ) if value)
+            description = str(line.get("description") or "") + (f"\n{options}" if options else "")
+            values = (description, line.get("item_type") or "", f"{float(line.get('qty') or 0):g}", f"{float(line.get('qty') or 0) * float(line.get('unit_price') or 0):,.0f}")
+            for column, value in enumerate(values):
+                table_item = QTableWidgetItem(str(value)); table_item.setData(Qt.ItemDataRole.UserRole, int(line.get("id") or 0))
+                self.service_order_items_table.setItem(row, column, table_item)
+        self.service_order_history.clear()
+        for history in order.get("status_history") or []:
+            actor = history.get("changed_by") or "User"
+            when = history.get("changed_at") or ""
+            target = str(history.get("to_status") or "").replace("_", " ").title()
+            note = f" · {history.get('note')}" if history.get("note") else ""
+            self.service_order_history.addItem(f"{when} · {target} · {actor}{note}")
+        for visit in order.get("return_visits") or []:
+            self.service_order_history.addItem(
+                f"{visit.get('visited_at') or ''} · Return {str(visit.get('status') or 'open').title()} · {visit.get('reason') or ''}"
+            )
+        transitions = {
+            "received": ("typing_designing", "waiting_approval", "ready_to_print", "on_hold", "cancelled"),
+            "typing_designing": ("waiting_approval", "ready_to_print", "on_hold", "cancelled"),
+            "waiting_approval": ("typing_designing", "ready_to_print", "on_hold", "cancelled"),
+            "ready_to_print": ("printing", "on_hold", "cancelled"),
+            "printing": ("ready_for_pickup", "on_hold", "cancelled"),
+            "ready_for_pickup": ("printing", "completed", "delivered", "cancelled"),
+            "assigned": ("in_progress", "on_hold", "cancelled"),
+            "in_progress": ("waiting_parts", "on_hold", "ready", "completed", "cancelled"),
+            "waiting_parts": ("in_progress", "on_hold", "cancelled"),
+            "on_hold": ("typing_designing", "waiting_approval", "ready_to_print", "printing", "assigned", "in_progress", "waiting_parts", "cancelled"),
+            "ready": ("in_progress", "completed", "delivered", "cancelled"),
+            "completed": ("delivered",),
+        }
+        self.service_order_next_status.clear()
+        for value in transitions.get(status, ()):
+            self.service_order_next_status.addItem(value.replace("_", " ").title(), value)
+        self._set_service_order_actions_enabled(True)
+
+    def _clear_service_order_detail(self) -> None:
+        self.selected_service_order = {}
+        self.service_order_detail_title.setText("Select a service order")
+        self.service_order_detail_summary.clear(); self.service_order_items_table.setRowCount(0); self.service_order_history.clear()
+        self.service_order_next_status.clear(); self._set_service_order_actions_enabled(False)
+
+    def _set_service_order_actions_enabled(self, enabled: bool) -> None:
+        closed = str(self.selected_service_order.get("status") or "") in {"completed", "delivered", "cancelled"}
+        self.service_order_edit_button.setEnabled(bool(enabled) and not closed)
+        self.service_order_add_item_button.setEnabled(bool(enabled) and not closed)
+        self.service_order_edit_item_button.setEnabled(bool(enabled) and not closed)
+        self.service_order_remove_item_button.setEnabled(bool(enabled) and not closed)
+        can_finance = str(self.user.get("role") or "").casefold() in {"admin", "manager", "cashier"}
+        self.service_order_deposit_button.setEnabled(bool(enabled) and not closed and can_finance)
+        checkout_ready = str(self.selected_service_order.get("status") or "") in {"ready", "ready_for_pickup", "completed"} and not self.selected_service_order.get("sale_id")
+        self.service_order_checkout_button.setEnabled(bool(enabled) and checkout_ready and can_finance)
+        self.service_order_job_ticket_button.setEnabled(bool(enabled))
+        self.service_order_receipt_button.setEnabled(bool(enabled) and int(self.selected_service_order.get("sale_id") or 0) > 0)
+        has_sale = int(self.selected_service_order.get("sale_id") or 0) > 0
+        self.service_order_return_button.setEnabled(bool(enabled) and has_sale)
+        has_open_return = any(str(visit.get("status")) == "open" for visit in self.selected_service_order.get("return_visits") or [])
+        self.service_order_close_return_button.setEnabled(bool(enabled) and has_open_return)
+        can_change = bool(enabled) and self.service_order_next_status.count() > 0
+        self.service_order_next_status.setEnabled(can_change); self.service_order_change_button.setEnabled(can_change)
+
+    def new_service_order(self) -> None:
+        self._open_service_order_dialog({})
+
+    def edit_service_order(self) -> None:
+        if self.selected_service_order:
+            self._open_service_order_dialog(self.selected_service_order)
+
+    def _selected_service_order_item(self) -> dict | None:
+        row = self.service_order_items_table.currentRow()
+        cell = self.service_order_items_table.item(row, 0) if row >= 0 else None
+        item_id = int(cell.data(Qt.ItemDataRole.UserRole) or 0) if cell else 0
+        return next((item for item in self.selected_service_order.get("items") or [] if int(item.get("id") or 0) == item_id), None)
+
+    def add_service_order_item(self) -> None:
+        if self.selected_service_order:
+            self._open_service_order_item_dialog({})
+
+    def edit_service_order_item(self) -> None:
+        item = self._selected_service_order_item()
+        if not item:
+            QMessageBox.information(self, "Order Item", "Select an order item to edit."); return
+        self._open_service_order_item_dialog(item)
+
+    def _open_service_order_item_dialog(self, item: dict) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        order_id = int(self.selected_service_order.get("id") or 0)
+        self.statusBar().showMessage("Loading service and parts catalog…")
+
+        def products_loaded(result):
+            products, presets = result
+            dialog = ServiceOrderItemDialog(self, products=products, presets=presets, item=item)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            values = dialog.values(); self._set_service_order_actions_enabled(False)
+            operation = (
+                (lambda: self.api.update_service_order_item(order_id, int(item["id"]), values))
+                if item else (lambda: self.api.add_service_order_item(order_id, values))
+            )
+            self._run_task(
+                operation, lambda _saved: self._refresh_service_order_detail(order_id),
+                lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Order Item", error)),
+            )
+
+        self._run_task(
+            lambda: (self.api.products("", limit=100), self.api.print_service_presets()), products_loaded,
+            lambda error: QMessageBox.critical(self, "Order Item", f"Could not load products: {error}"),
+        )
+
+    def remove_service_order_item(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        item = self._selected_service_order_item()
+        if not item:
+            QMessageBox.information(self, "Order Item", "Select an order item to remove."); return
+        answer = QMessageBox.question(
+            self, "Remove Order Item", f"Remove {item.get('description') or 'this item'}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        order_id = int(self.selected_service_order.get("id") or 0)
+        self._set_service_order_actions_enabled(False)
+        self._run_task(
+            lambda: self.api.delete_service_order_item(order_id, int(item.get("id") or 0)),
+            lambda _result: self._refresh_service_order_detail(order_id),
+            lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Order Item", error)),
+        )
+
+    def _refresh_service_order_detail(self, order_id: int) -> None:
+        if not self.api:
+            return
+        self._run_task(
+            lambda: self.api.service_order(order_id),
+            lambda order: (setattr(self, "selected_service_order", dict(order)), self._show_service_order_detail(order), self.statusBar().showMessage("Service order items updated")),
+            lambda error: QMessageBox.critical(self, "Service Order", error),
+        )
+
+    def _open_service_order_dialog(self, order: dict) -> None:
+        if not self.api:
+            return
+        self.statusBar().showMessage("Loading customers…")
+
+        def customers_loaded(customers):
+            dialog = ServiceOrderDialog(self, order=order, customers=customers)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            values = dialog.values()
+            self.statusBar().showMessage("Saving service order…")
+
+            def saved(saved_order):
+                self.statusBar().showMessage(f"Service order {saved_order.get('order_no') or ''} saved")
+                self.load_service_orders()
+
+            operation = (
+                (lambda: self.api.update_service_order(int(order["id"]), values))
+                if order else (lambda: self.api.create_service_order(values))
+            )
+            self._run_task(operation, saved, lambda error: QMessageBox.critical(self, "Service Order", error))
+
+        self._run_task(
+            lambda: self.api.customers("", limit=200), customers_loaded,
+            lambda error: QMessageBox.critical(self, "Service Order", f"Could not load customers: {error}"),
+        )
+
+    def change_selected_service_order_status(self) -> None:
+        if not self.api or not self.selected_service_order or self.service_order_next_status.count() == 0:
+            return
+        target = str(self.service_order_next_status.currentData() or "")
+        note, accepted = QInputDialog.getMultiLineText(
+            self, "Change Service Order Status", f"Change to {target.replace('_', ' ').title()}\nOptional note:", "",
+        )
+        if not accepted:
+            return
+        order_id = int(self.selected_service_order.get("id") or 0)
+        self._set_service_order_actions_enabled(False)
+
+        def changed(order):
+            self.selected_service_order = dict(order); self._show_service_order_detail(order); self.load_service_orders()
+
+        self._run_task(
+            lambda: self.api.change_service_order_status(order_id, target, note), changed,
+            lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Service Order", error)),
+        )
+
+    def collect_service_order_deposit(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        amount, accepted = QInputDialog.getDouble(self, "Collect Deposit", "Deposit amount (Ks):", 0, 1, 999999999999, 0)
+        if not accepted:
+            return
+        methods = [str(row.get("name") or "") for row in getattr(self, "checkout_payment_types", []) if row.get("name")] or ["Cash"]
+        payment_type, accepted = QInputDialog.getItem(self, "Deposit Payment", "Payment type:", methods, 0, False)
+        if not accepted:
+            return
+        reference, accepted = QInputDialog.getText(self, "Deposit Reference", "Reference (optional):")
+        if not accepted:
+            return
+        order_id = int(self.selected_service_order.get("id") or 0); self._set_service_order_actions_enabled(False)
+        self._run_task(
+            lambda: self.api.record_service_order_deposit(order_id, amount, payment_type, reference),
+            lambda order: (setattr(self, "selected_service_order", dict(order)), self._show_service_order_detail(order), self.statusBar().showMessage("Deposit recorded")),
+            lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Deposit", error)),
+        )
+
+    def checkout_selected_service_order(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        order = self.selected_service_order
+        total = sum(float(item.get("qty") or 0) * float(item.get("unit_price") or 0) for item in order.get("items") or [])
+        deposit = float(order.get("deposit_amount") or 0); balance = max(0.0, total - deposit)
+        methods = [str(row.get("name") or "") for row in getattr(self, "checkout_payment_types", []) if row.get("name")] or ["Cash", "Credit"]
+        payment_type, accepted = QInputDialog.getItem(self, "Service Checkout", f"Total {total:,.0f} Ks · Deposit {deposit:,.0f} Ks · Balance {balance:,.0f} Ks\nPayment type:", methods, 0, False)
+        if not accepted:
+            return
+        payment, accepted = QInputDialog.getDouble(self, "Service Checkout", "Payment received now (Ks):", balance, 0, 999999999999, 0)
+        if not accepted:
+            return
+        answer = QMessageBox.question(
+            self, "Complete Service Checkout", f"Create the POS sale and deduct parts stock?\n\nAmount now: {payment:,.0f} Ks",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        order_id = int(order.get("id") or 0); self._set_service_order_actions_enabled(False)
+
+        def completed(saved):
+            self.selected_service_order = dict(saved); self._show_service_order_detail(saved)
+            receipt = dict(saved.get("receipt") or {})
+            if receipt:
+                self.last_receipt = receipt
+                ReceiptDialog(receipt, self, settings=self.receipt_settings).exec()
+            self.load_service_orders(); QTimer.singleShot(150, self.load_products)
+
+        self._run_task(
+            lambda: self.api.checkout_service_order(order_id, payment, payment_type), completed,
+            lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Service Checkout", error)),
+        )
+
+    def view_service_order_receipt(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        sale_id = int(self.selected_service_order.get("sale_id") or 0)
+        if sale_id <= 0:
+            return
+        self._run_task(
+            lambda: self.api.receipt(sale_id),
+            lambda receipt: ReceiptDialog(receipt, self, settings=self.receipt_settings).exec(),
+            lambda error: QMessageBox.critical(self, "Service Receipt", error),
+        )
+
+    def add_service_order_return_visit(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        reason, accepted = QInputDialog.getMultiLineText(self, "Return Visit", "Reason for return visit:")
+        if not accepted or not reason.strip():
+            return
+        order_id = int(self.selected_service_order.get("id") or 0)
+        self._run_task(
+            lambda: self.api.add_service_order_return_visit(order_id, reason),
+            lambda order: (setattr(self, "selected_service_order", dict(order)), self._show_service_order_detail(order)),
+            lambda error: QMessageBox.critical(self, "Return Visit", error),
+        )
+
+    def close_service_order_return_visit(self) -> None:
+        if not self.api or not self.selected_service_order:
+            return
+        visit = next((row for row in self.selected_service_order.get("return_visits") or [] if str(row.get("status")) == "open"), None)
+        if not visit:
+            return
+        resolution, accepted = QInputDialog.getMultiLineText(self, "Close Return Visit", "Resolution:")
+        if not accepted or not resolution.strip():
+            return
+        order_id = int(self.selected_service_order.get("id") or 0)
+        self._run_task(
+            lambda: self.api.close_service_order_return_visit(order_id, int(visit.get("id") or 0), resolution),
+            lambda order: (setattr(self, "selected_service_order", dict(order)), self._show_service_order_detail(order)),
+            lambda error: QMessageBox.critical(self, "Return Visit", error),
+        )
+
+    def open_service_order_reports(self) -> None:
+        if not self.api:
+            return
+        today = QDate.currentDate(); start = QDate(today.year(), today.month(), 1)
+        self.statusBar().showMessage("Loading service reports…")
+
+        def loaded(result):
+            summary, warranties, notifications = result
+            dialog = QDialog(self); dialog.setWindowTitle("Service Reports"); dialog.resize(760, 620)
+            layout = QVBoxLayout(dialog)
+            metrics = QLabel(
+                f"Orders: {int(summary.get('orders') or 0):,}    Revenue: {float(summary.get('revenue') or 0):,.0f} Ks    "
+                f"Actual Cost: {float(summary.get('actual_cost') or 0):,.0f} Ks    Avg Turnaround: {float(summary.get('average_turnaround_hours') or 0):,.1f} hours",
+                objectName="title",
+            ); metrics.setWordWrap(True); layout.addWidget(metrics)
+            tabs = QTabWidget()
+            status_text = QTextEdit(); status_text.setReadOnly(True)
+            status_text.setPlainText("\n".join(f"{key.replace('_', ' ').title()}: {value}" for key, value in (summary.get("status_counts") or {}).items()))
+            tech_text = QTextEdit(); tech_text.setReadOnly(True)
+            tech_text.setPlainText("\n".join(f"{row.get('technician')}: {row.get('orders')} orders · {row.get('completed')} completed · {float(row.get('revenue') or 0):,.0f} Ks" for row in summary.get("technicians") or []) or "No technician data")
+            service_text = QTextEdit(); service_text.setReadOnly(True)
+            service_text.setPlainText("\n".join(f"{row.get('name')}: {float(row.get('quantity') or 0):g} units · {int(row.get('sheets') or 0):,} sheets · {float(row.get('revenue') or 0):,.0f} Ks" for row in summary.get("service_types") or []) or "No service data")
+            paper_text = QTextEdit(); paper_text.setReadOnly(True)
+            paper_text.setPlainText("\n".join(f"{row.get('name')}: {float(row.get('quantity') or 0):g} units · {int(row.get('sheets') or 0):,} sheets · {float(row.get('revenue') or 0):,.0f} Ks" for row in summary.get("paper_sizes") or []) or "No paper data")
+            color_text = QTextEdit(); color_text.setReadOnly(True)
+            color_text.setPlainText("\n".join(f"{str(row.get('name') or '').replace('_', ' ').title()}: {float(row.get('quantity') or 0):g} units · {int(row.get('sheets') or 0):,} sheets · {float(row.get('revenue') or 0):,.0f} Ks" for row in summary.get("color_modes") or []) or "No color data")
+            warranty_text = QTextEdit(); warranty_text.setReadOnly(True)
+            warranty_text.setPlainText("\n".join(f"{row.get('warranty_expires_at')} · {row.get('order_no')} · {row.get('customer_name')} · {row.get('description')}" for row in warranties) or "No warranties expiring in 30 days")
+            notification_text = QTextEdit(); notification_text.setReadOnly(True)
+            notification_text.setPlainText("\n".join(f"{row.get('created_at')} · {row.get('recipient') or 'No phone'} · {row.get('message')}" for row in notifications) or "No pending notifications")
+            tabs.addTab(status_text, "Status Summary"); tabs.addTab(service_text, "Service Types"); tabs.addTab(paper_text, "Paper Sizes"); tabs.addTab(color_text, "Color Modes"); tabs.addTab(tech_text, "Operators"); tabs.addTab(warranty_text, "Warranties"); tabs.addTab(notification_text, "Notification Queue")
+            layout.addWidget(tabs, 1)
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+            self.statusBar().showMessage("Service reports loaded"); dialog.exec()
+
+        from_date = start.toString("yyyy-MM-dd"); to_date = today.toString("yyyy-MM-dd")
+        self._run_task(
+            lambda: (self.api.service_order_report(from_date, to_date), self.api.service_order_warranties(30), self.api.service_order_notifications("pending")),
+            loaded, lambda error: QMessageBox.critical(self, "Service Reports", error),
+        )
+
+    def manage_print_service_presets(self) -> None:
+        if not self.api:
+            return
+        def loaded(result):
+            products, presets = result
+            services = [product for product in products if sold_by_mode(product.get("sold_by")) == "service"]
+            dialog = QDialog(self); dialog.setWindowTitle("Print Service Quick Presets"); dialog.resize(720, 470)
+            layout = QVBoxLayout(dialog)
+            table = QTableWidget(len(presets), 5); table.setHorizontalHeaderLabels(["Preset", "Service Product", "Pricing", "Output", "Price"])
+            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows); table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers); table.verticalHeader().setVisible(False)
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch); table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            products_by_id = {int(product.get("id") or 0): product for product in services}
+            for row, preset in enumerate(presets):
+                product = products_by_id.get(int(preset.get("product_id") or 0), {})
+                values = (preset.get("name") or "", product.get("name") or "Missing product", str(preset.get("pricing_unit") or "").replace("_", " ").title(), f"{preset.get('paper_size') or '—'} · {str(preset.get('color_mode') or '').title()} · {str(preset.get('print_side') or '').title()}", f"{float(preset.get('unit_price') or 0):,.0f} Ks")
+                for column, value in enumerate(values):
+                    cell = QTableWidgetItem(str(value)); cell.setData(Qt.ItemDataRole.UserRole, int(preset.get("id") or 0)); table.setItem(row, column, cell)
+            layout.addWidget(table, 1)
+            actions = QHBoxLayout(); add = QPushButton("Add Preset"); edit = QPushButton("Edit Preset"); deactivate = QPushButton("Deactivate")
+            actions.addWidget(add); actions.addWidget(edit); actions.addWidget(deactivate); actions.addStretch()
+            close = QPushButton("Close"); close.clicked.connect(dialog.accept); actions.addWidget(close); layout.addLayout(actions)
+            def selected():
+                row = table.currentRow(); return presets[row] if 0 <= row < len(presets) else None
+            def open_editor(preset=None):
+                editor = ServiceOrderItemDialog(dialog, products=services, item=dict(preset or {}))
+                if editor.exec() != QDialog.DialogCode.Accepted: return
+                name, accepted = QInputDialog.getText(dialog, "Preset Name", "Preset name:", text=str((preset or {}).get("name") or editor.description.text()))
+                if not accepted or not name.strip(): return
+                values = editor.values(); values.update({"name": name.strip(), "description": editor.description.text().strip(), "sort_order": int((preset or {}).get("sort_order") or 0), "active": True})
+                preset_id = int((preset or {}).get("id") or 0) or None
+                self._run_task(lambda: self.api.save_print_service_preset(values, preset_id), lambda _saved: (dialog.accept(), self.manage_print_service_presets()), lambda error: QMessageBox.critical(dialog, "Preset", error))
+            add.clicked.connect(lambda: open_editor())
+            edit.clicked.connect(lambda: open_editor(selected()) if selected() else QMessageBox.information(dialog, "Preset", "Select a preset to edit."))
+            def deactivate_selected():
+                preset = selected()
+                if not preset: QMessageBox.information(dialog, "Preset", "Select a preset to deactivate."); return
+                if QMessageBox.question(dialog, "Deactivate Preset", f"Deactivate {preset.get('name')}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes: return
+                self._run_task(lambda: self.api.delete_print_service_preset(int(preset.get("id") or 0)), lambda _result: (dialog.accept(), self.manage_print_service_presets()), lambda error: QMessageBox.critical(dialog, "Preset", error))
+            deactivate.clicked.connect(deactivate_selected); table.doubleClicked.connect(lambda _index: open_editor(selected()))
+            dialog.exec()
+        self._run_task(
+            lambda: (self.api.products("", limit=100), self.api.print_service_presets()), loaded,
+            lambda error: QMessageBox.critical(self, "Quick Presets", error),
+        )
+
+    def print_service_order_job_ticket(self) -> None:
+        if not self.selected_service_order:
+            return
+        from PyQt6.QtGui import QTextDocument
+        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
+        order = self.selected_service_order
+        total = sum(float(item.get("qty") or 0) * float(item.get("unit_price") or 0) for item in order.get("items") or [])
+        total_sheets = sum(int(item.get("total_sheets") or 0) for item in order.get("items") or [])
+        deposit = float(order.get("deposit_amount") or 0)
+        lines = "".join(
+            "<tr>"
+            f"<td><b>{html.escape(str(item.get('description') or ''))}</b><br><small>{html.escape(str(item.get('file_name') or ''))}</small></td>"
+            f"<td>{html.escape(str(item.get('paper_size') or '—'))}<br><small>{html.escape(str(item.get('paper_type') or ''))}</small></td>"
+            f"<td>{html.escape(str(item.get('color_mode') or '—')).replace('_', ' ').title()}<br>{html.escape(str(item.get('print_side') or '—')).replace('_', ' ').title()}</td>"
+            f"<td>{int(item.get('pages_per_copy') or 1):,} × {int(item.get('copy_count') or 1):,}<br><small>{int(item.get('total_sheets') or 0):,} sheets</small></td>"
+            f"<td>{html.escape(str(item.get('finishing') or '—'))}</td>"
+            f"<td>{float(item.get('qty') or 0):g} × {float(item.get('unit_price') or 0):,.0f}<br><b>{float(item.get('qty') or 0) * float(item.get('unit_price') or 0):,.0f} Ks</b></td>"
+            "</tr>"
+            for item in order.get("items") or []
+        )
+        ticket_html = f"""
+            <style>body {{ font-family: sans-serif; font-size: 10pt; }} table {{ border-collapse: collapse; }} th {{ background: #eeeeee; }} th, td {{ padding: 5px; vertical-align: top; }} .right {{ text-align: right; }}</style>
+            <h2>KAY POS · PRINT PRODUCTION SLIP</h2><h3>{html.escape(str(order.get('order_no') or ''))} · {html.escape(str(order.get('job_title') or order.get('item_name') or ''))}</h3>
+            <p><b>Customer:</b> {html.escape(str(order.get('customer_name') or 'Walk-in'))} · {html.escape(str(order.get('customer_phone') or ''))}<br>
+            <b>File:</b> {html.escape(str(order.get('file_source') or '—'))} · {html.escape(str(order.get('file_reference') or ''))}<br>
+            <b>Deadline:</b> {html.escape(str(order.get('expected_at') or '—'))} · <b>Operator:</b> {html.escape(str(order.get('assigned_to') or 'Unassigned'))}<br>
+            <b>Approval:</b> {html.escape(str(order.get('approval_status') or 'not_required')).replace('_', ' ').title()} · <b>Status:</b> {html.escape(str(order.get('status') or '')).replace('_', ' ').title()}<br>
+            <b>Instructions:</b> {html.escape(str(order.get('complaint') or '—'))}</p>
+            <table width='100%' border='1'><tr><th>Service / File</th><th>Paper</th><th>Output</th><th>Pages × Copies</th><th>Finishing</th><th>Amount</th></tr>{lines}</table>
+            <p class='right'><b>Total sheets:</b> {total_sheets:,}<br><b>Order total:</b> {total:,.0f} Ks<br><b>Deposit:</b> {deposit:,.0f} Ks<br><b>Balance:</b> {max(0.0, total - deposit):,.0f} Ks</p>
+            <p><br><b>Production check:</b> File □ &nbsp; Size □ &nbsp; Color □ &nbsp; Sides □ &nbsp; Copies □ &nbsp; Finishing □</p>
+            <p><br>Customer approval/signature: ____________________ &nbsp; Operator: ____________________</p>
+        """
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+        dialog = QPrintDialog(printer, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            document = QTextDocument(); document.setHtml(ticket_html); document.print(printer)
+
     def load_product_management(self) -> None:
         if not self.api: return
         load_token=self._new_page_load("products")
@@ -3631,8 +4501,9 @@ class LiteWindow(QMainWindow):
     def logout(self) -> None:
         if self.sale_display:
             self.sale_display.close()
-        if self.api:
-            self.api.close()
+        close_api = getattr(self.api, "close", None)
+        if callable(close_api):
+            close_api()
         self.api = None
         self.user = {}
         self.products = []

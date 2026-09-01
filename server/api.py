@@ -23,6 +23,7 @@ from utils.paths import get_product_images_dir
 load_project_env()
 
 from server import cashier_service
+from server.service_order_service import ServiceOrderRepository
 from server.asyncio_errors import install_windows_disconnect_handler
 
 
@@ -97,6 +98,10 @@ async def configure_asyncio_error_handling() -> None:
     except Exception as exc:
         logger.warning(f"Could not initialize Printer Server registry: {exc}")
     try:
+        ServiceOrderRepository().ensure_schema()
+    except Exception as exc:
+        logger.warning(f"Could not initialize Service Order schema: {exc}")
+    try:
         from models.database.stock_audit import clamp_all_location_stock_to_master
         fixed = clamp_all_location_stock_to_master("Cashier Server Startup")
         if fixed:
@@ -156,6 +161,143 @@ class LiteUserRequest(BaseModel):
     password: str = Field(default="", max_length=256)
     full_name: str = Field(default="", max_length=160)
     role: str = Field(default="Cashier", max_length=80)
+    active: bool = True
+
+
+class ServiceOrderCreateRequest(BaseModel):
+    customer_id: Optional[int] = Field(default=None, gt=0)
+    customer_name: str = Field(default="", max_length=160)
+    customer_phone: str = Field(default="", max_length=80)
+    priority: str = Field(default="normal", pattern="^(normal|urgent)$")
+    assigned_to: str = Field(default="", max_length=160)
+    received_at: str = Field(default="", max_length=40)
+    expected_at: str = Field(default="", max_length=40)
+    item_name: str = Field(default="", max_length=200)
+    item_model: str = Field(default="", max_length=160)
+    serial_no: str = Field(default="", max_length=160)
+    job_title: str = Field(default="", max_length=240)
+    file_source: str = Field(default="", max_length=80)
+    file_reference: str = Field(default="", max_length=500)
+    approval_status: str = Field(default="not_required", pattern="^(not_required|waiting_customer|approved|changes_requested)$")
+    accessories: str = Field(default="", max_length=2000)
+    condition_notes: str = Field(default="", max_length=4000)
+    complaint: str = Field(default="", max_length=4000)
+    diagnosis: str = Field(default="", max_length=4000)
+    internal_notes: str = Field(default="", max_length=4000)
+    deposit_amount: float = Field(default=0, ge=0)
+
+
+class ServiceOrderUpdateRequest(BaseModel):
+    customer_id: Optional[int] = Field(default=None, gt=0)
+    customer_name: Optional[str] = Field(default=None, max_length=160)
+    customer_phone: Optional[str] = Field(default=None, max_length=80)
+    priority: Optional[str] = Field(default=None, pattern="^(normal|urgent)$")
+    assigned_to: Optional[str] = Field(default=None, max_length=160)
+    expected_at: Optional[str] = Field(default=None, max_length=40)
+    item_name: Optional[str] = Field(default=None, max_length=200)
+    item_model: Optional[str] = Field(default=None, max_length=160)
+    serial_no: Optional[str] = Field(default=None, max_length=160)
+    job_title: Optional[str] = Field(default=None, max_length=240)
+    file_source: Optional[str] = Field(default=None, max_length=80)
+    file_reference: Optional[str] = Field(default=None, max_length=500)
+    approval_status: Optional[str] = Field(default=None, pattern="^(not_required|waiting_customer|approved|changes_requested)$")
+    accessories: Optional[str] = Field(default=None, max_length=2000)
+    condition_notes: Optional[str] = Field(default=None, max_length=4000)
+    complaint: Optional[str] = Field(default=None, max_length=4000)
+    diagnosis: Optional[str] = Field(default=None, max_length=4000)
+    internal_notes: Optional[str] = Field(default=None, max_length=4000)
+    deposit_amount: Optional[float] = Field(default=None, ge=0)
+
+
+class ServiceOrderItemRequest(BaseModel):
+    product_id: Optional[int] = Field(default=None, gt=0)
+    variant_id: Optional[int] = Field(default=None, gt=0)
+    item_type: str = Field(default="service", pattern="^(service|part|custom)$")
+    description: str = Field(..., min_length=1, max_length=500)
+    qty: float = Field(default=1, gt=0, le=999999)
+    unit_price: float = Field(default=0, ge=0)
+    estimated_cost: float = Field(default=0, ge=0)
+    actual_cost: float = Field(default=0, ge=0)
+    warranty_days: int = Field(default=0, ge=0, le=36500)
+    pricing_unit: str = Field(default="per_item", pattern="^(per_page|per_sheet|per_copy|per_job|per_item)$")
+    pages_per_copy: int = Field(default=1, ge=1, le=1000000)
+    copy_count: int = Field(default=1, ge=1, le=1000000)
+    paper_size: str = Field(default="", max_length=80)
+    paper_type: str = Field(default="", max_length=160)
+    color_mode: str = Field(default="not_applicable", pattern="^(bw|color|photo|not_applicable)$")
+    print_side: str = Field(default="not_applicable", pattern="^(single|double|not_applicable)$")
+    finishing: str = Field(default="", max_length=500)
+    file_name: str = Field(default="", max_length=500)
+
+
+class ServiceOrderItemUpdateRequest(BaseModel):
+    product_id: Optional[int] = Field(default=None, gt=0)
+    variant_id: Optional[int] = Field(default=None, gt=0)
+    item_type: Optional[str] = Field(default=None, pattern="^(service|part|custom)$")
+    description: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    qty: Optional[float] = Field(default=None, gt=0, le=999999)
+    unit_price: Optional[float] = Field(default=None, ge=0)
+    estimated_cost: Optional[float] = Field(default=None, ge=0)
+    actual_cost: Optional[float] = Field(default=None, ge=0)
+    warranty_days: Optional[int] = Field(default=None, ge=0, le=36500)
+    pricing_unit: Optional[str] = Field(default=None, pattern="^(per_page|per_sheet|per_copy|per_job|per_item)$")
+    pages_per_copy: Optional[int] = Field(default=None, ge=1, le=1000000)
+    copy_count: Optional[int] = Field(default=None, ge=1, le=1000000)
+    paper_size: Optional[str] = Field(default=None, max_length=80)
+    paper_type: Optional[str] = Field(default=None, max_length=160)
+    color_mode: Optional[str] = Field(default=None, pattern="^(bw|color|photo|not_applicable)$")
+    print_side: Optional[str] = Field(default=None, pattern="^(single|double|not_applicable)$")
+    finishing: Optional[str] = Field(default=None, max_length=500)
+    file_name: Optional[str] = Field(default=None, max_length=500)
+
+
+class ServiceOrderStatusRequest(BaseModel):
+    status: str = Field(..., pattern="^(received|typing_designing|waiting_approval|ready_to_print|printing|ready_for_pickup|assigned|in_progress|waiting_parts|on_hold|ready|completed|delivered|cancelled)$")
+    note: str = Field(default="", max_length=2000)
+
+
+class ServiceOrderDepositRequest(BaseModel):
+    amount: float = Field(..., gt=0)
+    payment_type: str = Field(default="Cash", min_length=1, max_length=80)
+    reference_no: str = Field(default="", max_length=160)
+    note: str = Field(default="", max_length=1000)
+
+
+class ServiceOrderCheckoutRequest(BaseModel):
+    payment: float = Field(default=0, ge=0)
+    payment_type: str = Field(default="Cash", min_length=1, max_length=80)
+    allow_credit_over_limit: bool = False
+
+
+class ServiceOrderReturnVisitRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=2000)
+    visited_at: str = Field(default="", max_length=40)
+    handled_by: str = Field(default="", max_length=160)
+
+
+class ServiceOrderReturnCloseRequest(BaseModel):
+    resolution: str = Field(..., min_length=1, max_length=2000)
+
+
+class ServiceOrderNotificationStatusRequest(BaseModel):
+    status: str = Field(..., pattern="^(sent|failed)$")
+    error_message: str = Field(default="", max_length=2000)
+
+
+class PrintServicePresetRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=160)
+    product_id: int = Field(..., gt=0)
+    description: str = Field(default="", max_length=500)
+    pricing_unit: str = Field(default="per_item", pattern="^(per_page|per_sheet|per_copy|per_job|per_item)$")
+    unit_price: float = Field(default=0, ge=0)
+    pages_per_copy: int = Field(default=1, ge=1, le=1000000)
+    copy_count: int = Field(default=1, ge=1, le=1000000)
+    paper_size: str = Field(default="", max_length=80)
+    paper_type: str = Field(default="", max_length=160)
+    color_mode: str = Field(default="not_applicable", pattern="^(bw|color|photo|not_applicable)$")
+    print_side: str = Field(default="not_applicable", pattern="^(single|double|not_applicable)$")
+    finishing: str = Field(default="", max_length=500)
+    sort_order: int = Field(default=0, ge=0, le=999999)
     active: bool = True
 
 
@@ -1090,6 +1232,26 @@ def _require_admin(user: Dict[str, Any]) -> None:
         raise HTTPException(status_code=403, detail="Admin access is required.")
 
 
+def _require_service_checkout(user: Dict[str, Any]) -> None:
+    if str(user.get("role") or "").casefold() not in {"admin", "manager", "cashier"}:
+        raise HTTPException(status_code=403, detail="Cashier, Manager or Admin access is required.")
+
+
+def _model_values(payload: BaseModel, *, exclude_unset: bool = False) -> Dict[str, Any]:
+    """Support the Pydantic versions used by source and packaged servers."""
+    if hasattr(payload, "model_dump"):
+        return payload.model_dump(exclude_unset=exclude_unset)
+    return payload.dict(exclude_unset=exclude_unset)
+
+
+def _service_order_error(exc: ValueError) -> HTTPException:
+    detail = str(exc)
+    return HTTPException(
+        status_code=404 if "not found" in detail.casefold() else 400,
+        detail=detail,
+    )
+
+
 @app.get("/api/settings/lite")
 def lite_settings(user: Dict[str, Any] = Depends(current_user)):
     _require_manager(user)
@@ -1194,6 +1356,267 @@ def add_expense(payload: ExpenseRequest, user: Dict[str, Any] = Depends(current_
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/service-orders")
+def service_orders(
+    status: str = Query(default="", max_length=40),
+    q: str = Query(default="", max_length=200),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"service_orders": ServiceOrderRepository().list(
+            status=status, search=q, limit=limit, offset=offset,
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders", status_code=201)
+def create_service_order(
+    payload: ServiceOrderCreateRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        values = _model_values(payload)
+        if not values.get("received_at"):
+            values.pop("received_at", None)
+        return {"service_order": ServiceOrderRepository().create(
+            values, created_by=user.get("username") or "POS Lite",
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.get("/api/service-orders/{order_id}")
+def service_order(order_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"service_order": ServiceOrderRepository().get(order_id)}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.put("/api/service-orders/{order_id}")
+def update_service_order(
+    order_id: int,
+    payload: ServiceOrderUpdateRequest,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"service_order": ServiceOrderRepository().update(
+            order_id, _model_values(payload, exclude_unset=True),
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders/{order_id}/items", status_code=201)
+def add_service_order_item(
+    order_id: int,
+    payload: ServiceOrderItemRequest,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"item": ServiceOrderRepository().add_item(order_id, _model_values(payload))}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.put("/api/service-orders/{order_id}/items/{item_id}")
+def update_service_order_item(
+    order_id: int,
+    item_id: int,
+    payload: ServiceOrderItemUpdateRequest,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"item": ServiceOrderRepository().update_item(
+            order_id, item_id, _model_values(payload, exclude_unset=True),
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.delete("/api/service-orders/{order_id}/items/{item_id}")
+def delete_service_order_item(
+    order_id: int,
+    item_id: int,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        ServiceOrderRepository().delete_item(order_id, item_id)
+        return {"status": "SUCCESS"}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders/{order_id}/status")
+def change_service_order_status(
+    order_id: int,
+    payload: ServiceOrderStatusRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"service_order": ServiceOrderRepository().change_status(
+            order_id,
+            payload.status,
+            changed_by=user.get("username") or "POS Lite",
+            note=payload.note,
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders/{order_id}/deposit")
+def record_service_order_deposit(
+    order_id: int,
+    payload: ServiceOrderDepositRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_service_checkout(user)
+    try:
+        return {"service_order": ServiceOrderRepository().record_deposit(
+            order_id, payload.amount, payment_type=payload.payment_type,
+            reference_no=payload.reference_no, note=payload.note,
+            received_by=user.get("username") or "POS Lite",
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders/{order_id}/checkout")
+def checkout_service_order(
+    order_id: int,
+    payload: ServiceOrderCheckoutRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_service_checkout(user)
+    try:
+        return {"service_order": ServiceOrderRepository().checkout(
+            order_id, payment=payload.payment, payment_type=payload.payment_type,
+            allow_credit_over_limit=payload.allow_credit_over_limit,
+            created_by=user.get("username") or "POS Lite",
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+    except Exception as exc:
+        logger.exception("Service order checkout failed")
+        raise HTTPException(status_code=500, detail=f"Service order checkout failed: {exc}") from exc
+
+
+@app.post("/api/service-orders/{order_id}/return-visits", status_code=201)
+def add_service_order_return_visit(
+    order_id: int, payload: ServiceOrderReturnVisitRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"service_order": ServiceOrderRepository().add_return_visit(
+            order_id, reason=payload.reason, visited_at=payload.visited_at,
+            handled_by=payload.handled_by, created_by=user.get("username") or "POS Lite",
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.post("/api/service-orders/{order_id}/return-visits/{visit_id}/close")
+def close_service_order_return_visit(
+    order_id: int, visit_id: int, payload: ServiceOrderReturnCloseRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"service_order": ServiceOrderRepository().close_return_visit(
+            order_id, visit_id, resolution=payload.resolution,
+            handled_by=user.get("username") or "POS Lite",
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.get("/api/service-orders-reports/summary")
+def service_order_report_summary(
+    from_date: str = Query(...), to_date: str = Query(...),
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"summary": ServiceOrderRepository().analytics(from_date, to_date)}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.get("/api/print-service-presets")
+def print_service_presets(_: Dict[str, Any] = Depends(current_user)):
+    return {"presets": ServiceOrderRepository().list_presets()}
+
+
+@app.post("/api/print-service-presets", status_code=201)
+def create_print_service_preset(
+    payload: PrintServicePresetRequest, user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"preset": ServiceOrderRepository().save_preset(_model_values(payload))}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.put("/api/print-service-presets/{preset_id}")
+def update_print_service_preset(
+    preset_id: int, payload: PrintServicePresetRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"preset": ServiceOrderRepository().save_preset(_model_values(payload), preset_id)}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.delete("/api/print-service-presets/{preset_id}")
+def delete_print_service_preset(
+    preset_id: int, user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        ServiceOrderRepository().deactivate_preset(preset_id)
+        return {"status": "SUCCESS"}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.get("/api/service-orders-reports/warranties")
+def service_order_warranties(
+    days: int = Query(default=30, ge=0, le=3650),
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    return {"warranties": ServiceOrderRepository().warranty_items(days=days)}
+
+
+@app.get("/api/service-orders-notifications")
+def service_order_notifications(
+    status: str = Query(default="pending", pattern="^(pending|sent|failed)$"),
+    limit: int = Query(default=100, ge=1, le=200),
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    return {"notifications": ServiceOrderRepository().notifications(status=status, limit=limit)}
+
+
+@app.post("/api/service-orders-notifications/{notification_id}/status")
+def update_service_order_notification(
+    notification_id: int, payload: ServiceOrderNotificationStatusRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"notification": ServiceOrderRepository().update_notification(
+            notification_id, status=payload.status, error_message=payload.error_message,
+        )}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
 @app.post("/api/cashdrawer/open")
 def open_cashdrawer(_: Dict[str, Any] = Depends(current_user)):
     try:
@@ -1229,9 +1652,15 @@ def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_use
 @app.post("/api/sales/{sale_id}/refund")
 def refund_sale(sale_id: int, payload: RefundRequest, user: Dict[str, Any] = Depends(current_user)):
     try:
-        return {"receipt": cashier_service.refund_sale(
-            sale_id, payload.reason, user.get("username", "Lite POS")
-        )}
+        actor = user.get("username", "Lite POS")
+        receipt = cashier_service.refund_sale(sale_id, payload.reason, actor)
+        try:
+            ServiceOrderRepository().mark_sale_refunded(
+                sale_id, refunded_by=actor, note=f"Sale refunded: {payload.reason}",
+            )
+        except Exception as link_exc:
+            logger.error(f"Sale {sale_id} was refunded but its service-order audit update failed: {link_exc}")
+        return {"receipt": receipt}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

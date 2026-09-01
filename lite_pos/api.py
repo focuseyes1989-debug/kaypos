@@ -209,6 +209,105 @@ class LiteApiClient:
             "POST", f"/api/sales/{int(sale_id)}/refund", json={"reason": reason.strip()}
         ).get("receipt") or {})
 
+    def service_orders(
+        self, query: str = "", status: str = "", limit: int = 100, offset: int = 0,
+    ) -> list[dict]:
+        return list(self._request("GET", "/api/service-orders", params={
+            "q": query.strip(), "status": status.strip(),
+            "limit": max(1, min(limit, 200)), "offset": max(0, offset),
+        }).get("service_orders") or [])
+
+    def service_order(self, order_id: int) -> dict:
+        return dict(self._request(
+            "GET", f"/api/service-orders/{int(order_id)}"
+        ).get("service_order") or {})
+
+    def create_service_order(self, values: dict) -> dict:
+        return dict(self._request(
+            "POST", "/api/service-orders", json=values,
+        ).get("service_order") or {})
+
+    def update_service_order(self, order_id: int, values: dict) -> dict:
+        return dict(self._request(
+            "PUT", f"/api/service-orders/{int(order_id)}", json=values,
+        ).get("service_order") or {})
+
+    def change_service_order_status(self, order_id: int, status: str, note: str = "") -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/status",
+            json={"status": status.strip(), "note": note.strip()},
+        ).get("service_order") or {})
+
+    def add_service_order_item(self, order_id: int, values: dict) -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/items", json=values,
+        ).get("item") or {})
+
+    def update_service_order_item(self, order_id: int, item_id: int, values: dict) -> dict:
+        return dict(self._request(
+            "PUT", f"/api/service-orders/{int(order_id)}/items/{int(item_id)}", json=values,
+        ).get("item") or {})
+
+    def delete_service_order_item(self, order_id: int, item_id: int) -> None:
+        self._request("DELETE", f"/api/service-orders/{int(order_id)}/items/{int(item_id)}")
+
+    def record_service_order_deposit(
+        self, order_id: int, amount: float, payment_type: str = "Cash",
+        reference_no: str = "", note: str = "",
+    ) -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/deposit",
+            json={"amount": float(amount), "payment_type": payment_type, "reference_no": reference_no, "note": note},
+        ).get("service_order") or {})
+
+    def checkout_service_order(
+        self, order_id: int, payment: float, payment_type: str = "Cash",
+        allow_credit_over_limit: bool = False,
+    ) -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/checkout",
+            json={"payment": float(payment), "payment_type": payment_type, "allow_credit_over_limit": bool(allow_credit_over_limit)},
+        ).get("service_order") or {})
+
+    def add_service_order_return_visit(self, order_id: int, reason: str, handled_by: str = "") -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/return-visits",
+            json={"reason": reason, "handled_by": handled_by, "visited_at": ""},
+        ).get("service_order") or {})
+
+    def close_service_order_return_visit(self, order_id: int, visit_id: int, resolution: str) -> dict:
+        return dict(self._request(
+            "POST", f"/api/service-orders/{int(order_id)}/return-visits/{int(visit_id)}/close",
+            json={"resolution": resolution},
+        ).get("service_order") or {})
+
+    def service_order_report(self, from_date: str, to_date: str) -> dict:
+        return dict(self._request(
+            "GET", "/api/service-orders-reports/summary",
+            params={"from_date": from_date, "to_date": to_date},
+        ).get("summary") or {})
+
+    def service_order_warranties(self, days: int = 30) -> list[dict]:
+        return list(self._request(
+            "GET", "/api/service-orders-reports/warranties", params={"days": max(0, int(days))},
+        ).get("warranties") or [])
+
+    def service_order_notifications(self, status: str = "pending") -> list[dict]:
+        return list(self._request(
+            "GET", "/api/service-orders-notifications", params={"status": status, "limit": 200},
+        ).get("notifications") or [])
+
+    def print_service_presets(self) -> list[dict]:
+        return list(self._request("GET", "/api/print-service-presets").get("presets") or [])
+
+    def save_print_service_preset(self, values: dict, preset_id: int | None = None) -> dict:
+        method = "PUT" if preset_id else "POST"
+        path = f"/api/print-service-presets/{int(preset_id)}" if preset_id else "/api/print-service-presets"
+        return dict(self._request(method, path, json=values).get("preset") or {})
+
+    def delete_print_service_preset(self, preset_id: int) -> None:
+        self._request("DELETE", f"/api/print-service-presets/{int(preset_id)}")
+
     def customers(self, query: str = "", limit: int = 100) -> list[dict]:
         return list(self._request(
             "GET", "/api/customers", params={"q": query.strip(), "limit": max(1, min(limit, 200))}
