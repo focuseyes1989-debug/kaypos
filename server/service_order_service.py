@@ -133,6 +133,7 @@ def ensure_service_order_schema(cursor) -> None:
             received_at TIMESTAMP NOT NULL,
             expected_at TIMESTAMP,
             completed_at TIMESTAMP,
+            completed_by TEXT,
             delivered_at TIMESTAMP,
             item_name TEXT,
             item_model TEXT,
@@ -185,6 +186,7 @@ def ensure_service_order_schema(cursor) -> None:
     """)
     _ensure_column(cursor, "service_orders", "checkout_started_at", "TIMESTAMP")
     _ensure_column(cursor, "service_orders", "sale_refunded_at", "TIMESTAMP")
+    _ensure_column(cursor, "service_orders", "completed_by", "TEXT")
     _ensure_column(cursor, "service_orders", "job_title", "TEXT")
     _ensure_column(cursor, "service_orders", "file_source", "TEXT")
     _ensure_column(cursor, "service_orders", "file_reference", "TEXT")
@@ -1152,7 +1154,11 @@ class ServiceOrderRepository:
             current = str(record[0])
             if target == current:
                 raise ValueError("Service order already has that status")
-            if target not in STATUS_TRANSITIONS.get(current, set()):
+            # The simplified job board permits any open job to be completed
+            # directly by a client workstation.
+            if target == "completed" and current in {"completed", "delivered", "cancelled"}:
+                raise ValueError("Closed service order cannot be completed")
+            if target != "completed" and target not in STATUS_TRANSITIONS.get(current, set()):
                 raise ValueError(f"Cannot change service order from {current} to {target}")
             now = _now()
             timestamps = ""
@@ -1163,13 +1169,21 @@ class ServiceOrderRepository:
             params = [target, now]
             if timestamps:
                 params.append(now)
-            params.append(int(order_id))
+            params.extend([int(order_id), current])
             approval_sql = ""
             if target == "waiting_approval":
                 approval_sql = ", approval_status = 'waiting_customer'"
             elif target == "ready_to_print":
                 approval_sql = ", approval_status = 'approved'"
-            cursor.execute(f"UPDATE service_orders SET status = ?, updated_at = ?{timestamps}{approval_sql} WHERE id = ?", tuple(params))
+            completed_sql = ", completed_by = ?" if target == "completed" else ""
+            if target == "completed":
+                params.insert(-2, actor)
+            cursor.execute(
+                f"UPDATE service_orders SET status = ?, updated_at = ?{timestamps}{approval_sql}{completed_sql} WHERE id = ? AND status = ?",
+                tuple(params),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Service order was already updated by another client")
             cursor.execute(
                 "INSERT INTO service_order_status_history (service_order_id, from_status, to_status, note, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (int(order_id), current, target, str(note or "").strip(), actor, now),
