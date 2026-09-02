@@ -98,6 +98,15 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
                 "item_type": "custom", "description": "Late fee", "qty": 1,
             })
 
+    def test_only_cancelled_orders_can_be_deleted(self):
+        order = self.repo.create({"job_title": "Abandoned repair"}, created_by="cashier")
+        with self.assertRaisesRegex(ValueError, "Only cancelled"):
+            self.repo.delete(order["id"])
+        self.repo.change_status(order["id"], "cancelled", changed_by="cashier")
+        self.repo.delete(order["id"])
+        with self.assertRaisesRegex(ValueError, "not found"):
+            self.repo.get(order["id"])
+
     def test_print_shop_workflow_syncs_approval_and_pickup_notification(self):
         order = self.repo.create({
             "job_title": "Business cards", "customer_name": "Aye", "customer_phone": "09123",

@@ -48,6 +48,10 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
             "/api/print-service-presets/{preset_id}",
         }.issubset(paths))
 
+    def test_delete_calls_repository(self):
+        self.assertEqual(api.delete_service_order(1, {}), {"status": "SUCCESS"})
+        self.repo.delete.assert_called_once_with(1)
+
     def test_create_uses_authenticated_username_for_audit(self):
         payload = api.ServiceOrderCreateRequest(customer_name="Aye", complaint="No power")
         result = api.create_service_order(payload, {"username": "cashier1", "role": "Cashier"})

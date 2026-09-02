@@ -232,6 +232,9 @@ class LiteApiClient:
             "PUT", f"/api/service-orders/{int(order_id)}", json=values,
         ).get("service_order") or {})
 
+    def delete_service_order(self, order_id: int) -> None:
+        self._request("DELETE", f"/api/service-orders/{int(order_id)}")
+
     def change_service_order_status(self, order_id: int, status: str, note: str = "") -> dict:
         return dict(self._request(
             "POST", f"/api/service-orders/{int(order_id)}/status",

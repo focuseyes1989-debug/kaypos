@@ -1410,6 +1410,18 @@ def update_service_order(
         raise _service_order_error(exc) from exc
 
 
+@app.delete("/api/service-orders/{order_id}")
+def delete_service_order(
+    order_id: int,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        ServiceOrderRepository().delete(order_id)
+        return {"status": "SUCCESS"}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
 @app.post("/api/service-orders/{order_id}/items", status_code=201)
 def add_service_order_item(
     order_id: int,

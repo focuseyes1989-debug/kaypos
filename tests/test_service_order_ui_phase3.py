@@ -127,6 +127,7 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         response.json.side_effect = [
             {"service_orders": [{"id": 1}]}, {"service_order": {"id": 1}},
             {"service_order": {"id": 2}}, {"service_order": {"id": 2}},
+            {"status": "SUCCESS"},
             {"service_order": {"id": 2, "status": "assigned"}},
             {"item": {"id": 5}}, {"item": {"id": 5}}, {"status": "SUCCESS"},
             {"service_order": {"id": 2, "deposit_amount": 5000}},
@@ -138,6 +139,7 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         client.service_order(1)
         client.create_service_order({"customer_name": "Aye"})
         client.update_service_order(2, {"priority": "urgent"})
+        client.delete_service_order(2)
         client.change_service_order_status(2, "assigned", "Assigned")
         client.add_service_order_item(2, {"description": "Repair"})
         client.update_service_order_item(2, 5, {"unit_price": 2000})
@@ -149,12 +151,13 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         self.assertEqual(calls[1].args[1], "https://server/api/service-orders/1")
         self.assertEqual(calls[2].args[:2], ("POST", "https://server/api/service-orders"))
         self.assertEqual(calls[3].args[:2], ("PUT", "https://server/api/service-orders/2"))
-        self.assertEqual(calls[4].args[1], "https://server/api/service-orders/2/status")
-        self.assertEqual(calls[5].args[:2], ("POST", "https://server/api/service-orders/2/items"))
-        self.assertEqual(calls[6].args[:2], ("PUT", "https://server/api/service-orders/2/items/5"))
-        self.assertEqual(calls[7].args[:2], ("DELETE", "https://server/api/service-orders/2/items/5"))
-        self.assertEqual(calls[8].args[1], "https://server/api/service-orders/2/deposit")
-        self.assertEqual(calls[9].args[1], "https://server/api/service-orders/2/checkout")
+        self.assertEqual(calls[4].args[:2], ("DELETE", "https://server/api/service-orders/2"))
+        self.assertEqual(calls[5].args[1], "https://server/api/service-orders/2/status")
+        self.assertEqual(calls[6].args[:2], ("POST", "https://server/api/service-orders/2/items"))
+        self.assertEqual(calls[7].args[:2], ("PUT", "https://server/api/service-orders/2/items/5"))
+        self.assertEqual(calls[8].args[:2], ("DELETE", "https://server/api/service-orders/2/items/5"))
+        self.assertEqual(calls[9].args[1], "https://server/api/service-orders/2/deposit")
+        self.assertEqual(calls[10].args[1], "https://server/api/service-orders/2/checkout")
         client.close()
 
 

@@ -1203,3 +1203,27 @@ class ServiceOrderRepository:
         finally:
             conn.close()
         return self.get(order_id)
+
+    def delete(self, order_id: int) -> None:
+        """Permanently remove a cancelled service order and its child records."""
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor()
+            self._prepare(conn, cursor)
+            if _is_sqlite_cursor(cursor):
+                cursor.execute(begin_transaction_sql(immediate=True))
+            cursor.execute("SELECT status FROM service_orders WHERE id = ?", (int(order_id),))
+            record = cursor.fetchone()
+            if not record:
+                raise ValueError("Service order not found")
+            if str(record[0]) != "cancelled":
+                raise ValueError("Only cancelled service orders can be deleted")
+            cursor.execute("DELETE FROM service_orders WHERE id = ? AND status = 'cancelled'", (int(order_id),))
+            if cursor.rowcount != 1:
+                raise ValueError("Service order was already updated by another client")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
