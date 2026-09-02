@@ -11,7 +11,7 @@ from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ReceiptDialog
+from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ProductGridTile, ReceiptDialog
 from server.cashier_service import expand_category_scope, order_categories_by_usage
 
 
@@ -227,18 +227,48 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(values["expense_date"], "2026-08-25")
         dialog.close()
 
+    def test_expense_dialog_prefills_existing_expense(self):
+        dialog = ExpenseDialog(["Transport", "Utilities"], expense={
+            "category": "Utilities", "description": "Internet", "amount": 25000,
+            "expense_date": "2026-09-02", "payment_method": "Bank Transfer",
+            "reference_no": "REF-1", "notes": "September bill",
+        })
+        self.assertEqual(dialog.windowTitle(), "Edit Expense")
+        self.assertEqual(dialog.category.currentText(), "Utilities")
+        self.assertEqual(dialog.description.text(), "Internet")
+        self.assertEqual(dialog.amount.value(), 25000)
+        self.assertEqual(dialog.date.date(), QDate(2026, 9, 2))
+        self.assertEqual(dialog.payment.currentText(), "Bank Transfer")
+        self.assertEqual(dialog.reference.text(), "REF-1")
+        self.assertEqual(dialog.notes.toPlainText(), "September bill")
+        dialog.close()
+
+    def test_expense_page_defaults_to_today_and_has_edit_action(self):
+        window = LiteWindow()
+        today = QDate.currentDate()
+        self.assertEqual(window.expense_from.date(), today)
+        self.assertEqual(window.expense_to.date(), today)
+        button_labels = [button.text() for button in window.expense_page.findChildren(QtPushButton)]
+        self.assertIn("Edit Expense", button_labels)
+        window.close()
+
     @patch("lite_pos.api.requests.Session.request")
-    def test_expense_api_lists_and_adds_expenses(self, request):
+    def test_expense_api_lists_adds_and_updates_expenses(self, request):
         list_response = unittest.mock.Mock(ok=True)
         list_response.json.return_value = {"expenses": [{"id": 1}], "total": 3500}
         add_response = unittest.mock.Mock(ok=True)
         add_response.json.return_value = {"expense": {"id": 2, "expense_no": "EXP-2"}}
-        request.side_effect = [list_response, add_response]
+        update_response = unittest.mock.Mock(ok=True)
+        update_response.json.return_value = {"expense": {"id": 2, "expense_no": "EXP-2", "amount": 2000}}
+        request.side_effect = [list_response, add_response, update_response]
         client = LiteApiClient("https://server:8000")
         client.token = "token"
         self.assertEqual(client.expenses(from_date="2026-08-01", to_date="2026-08-31")["total"], 3500)
         saved = client.add_expense({"category": "Transport", "amount": 1000})
         self.assertEqual(saved["expense_no"], "EXP-2")
+        updated = client.update_expense(2, {"category": "Transport", "amount": 2000})
+        self.assertEqual(updated["amount"], 2000)
+        self.assertEqual(request.call_args.args[:2], ("PUT", "https://server:8000/api/expenses/2"))
 
     @patch("lite_pos.api.requests.Session.request")
     def test_stock_in_sends_complete_audit_details(self, request):
@@ -468,6 +498,28 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(labels, ["All", "Drinks", "Snacks", "Household"])
         window.close()
 
+    def test_typed_product_search_temporarily_ignores_selected_category(self):
+        calls = []
+
+        class Api:
+            @staticmethod
+            def products(query, **params):
+                calls.append((query, params.get("category")))
+                return []
+
+        window = LiteWindow()
+        window.api = Api()
+        window._run_task = lambda operation, success, _failure: success(operation())
+        window.selected_category = "Services"
+        window.product_search.setText("Kit Kat")
+        window.search_timer.stop()
+        window.load_products()
+        window.product_search.clear()
+        window.search_timer.stop()
+        window.load_products()
+        self.assertEqual(calls, [("Kit Kat", ""), ("", "Services")])
+        window.close()
+
     def test_popular_categories_are_ordered_before_alphabetical_categories(self):
         categories = ["CCTV", "Services", "ရေခဲမှုန့်", "General"]
         ordered = order_categories_by_usage(categories, {"services": 3791, "ရေခဲမှုန့်": 1696, "cctv": 3})
@@ -655,6 +707,17 @@ class PosLitePhase1Tests(unittest.TestCase):
             LiteWindow._product_stock_status({"sold_by": "Service"}, 0),
             "normal",
         )
+
+    def test_product_grid_tile_marks_out_of_stock_products(self):
+        tile = ProductGridTile("Unavailable product")
+        tile.set_out_of_stock(True)
+        self.assertAlmostEqual(tile.image_opacity.opacity(), 0.28)
+        self.assertEqual(tile.out_of_stock_label.text(), "Out of Stock")
+        self.assertFalse(tile.out_of_stock_label.isHidden())
+        tile.set_out_of_stock(False)
+        self.assertEqual(tile.image_opacity.opacity(), 1.0)
+        self.assertTrue(tile.out_of_stock_label.isHidden())
+        tile.close()
 
     def test_product_management_page_and_variant_editor(self):
         window = LiteWindow()

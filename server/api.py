@@ -1356,6 +1356,27 @@ def add_expense(payload: ExpenseRequest, user: Dict[str, Any] = Depends(current_
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.put("/api/expenses/{expense_id}")
+def update_expense(
+    expense_id: int,
+    payload: ExpenseRequest,
+    _: Dict[str, Any] = Depends(current_user),
+):
+    try:
+        return {"expense": cashier_service.update_expense(
+            expense_id,
+            category=payload.category,
+            description=payload.description,
+            amount=payload.amount,
+            expense_date=payload.expense_date,
+            payment_method=payload.payment_method,
+            reference_no=payload.reference_no,
+            notes=payload.notes,
+        )}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/service-orders")
 def service_orders(
     status: str = Query(default="", max_length=40),

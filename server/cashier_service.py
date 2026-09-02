@@ -2909,6 +2909,63 @@ def add_expense(
         conn.close()
 
 
+def update_expense(
+    expense_id: int,
+    *,
+    category: str,
+    description: str,
+    amount: float,
+    expense_date: str,
+    payment_method: str = "Cash",
+    reference_no: str = "",
+    notes: str = "",
+) -> Dict[str, Any]:
+    """Update an existing expense while preserving its number and creator."""
+    category = category.strip()
+    if not category:
+        raise ValueError("Expense category is required")
+    amount = float(amount or 0)
+    if amount <= 0:
+        raise ValueError("Expense amount must be greater than zero")
+    if not expense_date:
+        expense_date = datetime.now().strftime("%Y-%m-%d")
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE expenses
+            SET category = ?, description = ?, amount = ?, expense_date = ?,
+                payment_method = ?, reference_no = ?, notes = ?
+            WHERE id = ?
+            """,
+            (
+                category, description.strip(), amount, expense_date,
+                payment_method or "Cash", reference_no.strip(), notes.strip(),
+                int(expense_id),
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("Expense not found")
+        cursor.execute(
+            """
+            SELECT id, expense_no, expense_date, category, description, amount,
+                   payment_method, reference_no, notes, created_by
+            FROM expenses WHERE id = ?
+            """,
+            (int(expense_id),),
+        )
+        expense = _dict_from_row(cursor, cursor.fetchone())
+        conn.commit()
+        return expense
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def _send_cash_drawer_pulse(printer_name: str) -> None:
     drawer_kick_command = b"\x1b\x70\x00\x19\xfa"
     winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)

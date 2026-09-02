@@ -172,6 +172,11 @@ class LiteApiClient:
     def add_expense(self, values: dict) -> dict:
         return dict(self._request("POST", "/api/expenses", json=values).get("expense") or {})
 
+    def update_expense(self, expense_id: int, values: dict) -> dict:
+        return dict(self._request(
+            "PUT", f"/api/expenses/{int(expense_id)}", json=values,
+        ).get("expense") or {})
+
     def checkout(
         self, items: list[dict], payment: float, payment_type: str = "Cash",
         customer_id: int | None = None, due_date: str = "", credit_notes: str = "",

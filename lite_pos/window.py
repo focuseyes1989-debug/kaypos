@@ -13,7 +13,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkReques
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
     QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
-    QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
+    QGraphicsOpacityEffect, QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter, QSystemTrayIcon,
     QListWidget, QListWidgetItem, QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
     QVBoxLayout, QWidget,
@@ -218,18 +218,28 @@ class ProductGridTile(QFrame):
         self.image_label = QLabel(self)
         self.image_label.setObjectName("productGridImage")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setText("▢")
+        self.image_label.setText("📦")
+        self.image_opacity = QGraphicsOpacityEffect(self.image_label)
+        self.image_opacity.setOpacity(1.0)
+        self.image_label.setGraphicsEffect(self.image_opacity)
         self.caption_label = QLabel(self.full_name, self)
         self.caption_label.setObjectName("productGridCaption")
         self.caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.caption_label.setWordWrap(False)
+        self.out_of_stock_label = QLabel("Out of Stock", self)
+        self.out_of_stock_label.setObjectName("productGridOutOfStock")
+        self.out_of_stock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.out_of_stock_label.hide()
         self.image_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.caption_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.out_of_stock_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setStyleSheet("""
-            QFrame#productGridTile { background: #7518a4; border: 1px solid #d9d9d9; }
-            QLabel#productGridImage { background: #7518a4; color: white; font-size: 17px; }
+            QFrame#productGridTile { background: #f3f4f6; border: 1px solid #d9d9d9; }
+            QLabel#productGridImage { background: #f3f4f6; color: #64748b; font-size: 24px; }
             QLabel#productGridCaption { background: rgba(55, 55, 55, 185); color: white;
                                         border: 0; padding: 3px 4px; font-size: 12px; }
+            QLabel#productGridOutOfStock { background: transparent; color: #111111;
+                                           border: 0; padding: 2px; font-size: 10px; font-weight: 700; }
         """)
 
     def resizeEvent(self, event) -> None:
@@ -238,7 +248,15 @@ class ProductGridTile(QFrame):
         caption_height = 38
         self.caption_label.setGeometry(0, max(0, self.height() - caption_height), self.width(), caption_height)
         self.caption_label.setText(self._short_caption(max(1, self.width() - 8)))
+        badge_width = min(max(72, self.width() - 16), 112)
+        self.out_of_stock_label.setGeometry(
+            max(0, (self.width() - badge_width) // 2),
+            max(0, (self.height() - 28) // 2),
+            badge_width,
+            28,
+        )
         self.caption_label.raise_()
+        self.out_of_stock_label.raise_()
         if self.source_pixmap is not None:
             self._render_product_image()
 
@@ -266,6 +284,12 @@ class ProductGridTile(QFrame):
         self.image_label.setText("")
         self.image_label.setStyleSheet("background: white;")
         self._render_product_image()
+
+    def set_out_of_stock(self, out_of_stock: bool) -> None:
+        self.image_opacity.setOpacity(0.28 if out_of_stock else 1.0)
+        self.out_of_stock_label.setVisible(bool(out_of_stock))
+        if out_of_stock:
+            self.out_of_stock_label.raise_()
 
 
 class LiteSaleDisplay(QWidget):
@@ -561,9 +585,10 @@ class CheckoutDialog(QDialog):
 
 
 class ExpenseDialog(QDialog):
-    def __init__(self, categories: list[str], parent=None):
+    def __init__(self, categories: list[str], parent=None, expense: dict | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Add Expense")
+        self.expense = dict(expense or {})
+        self.setWindowTitle("Edit Expense" if self.expense else "Add Expense")
         self.setMinimumWidth(430)
         form = QFormLayout(self)
         self.category = QComboBox()
@@ -582,6 +607,16 @@ class ExpenseDialog(QDialog):
         self.reference = QLineEdit()
         self.notes = QTextEdit()
         self.notes.setMaximumHeight(70)
+        if self.expense:
+            self.category.setCurrentText(str(self.expense.get("category") or ""))
+            self.description.setText(str(self.expense.get("description") or ""))
+            self.amount.setValue(float(self.expense.get("amount") or 0))
+            expense_date = QDate.fromString(str(self.expense.get("expense_date") or ""), "yyyy-MM-dd")
+            if expense_date.isValid():
+                self.date.setDate(expense_date)
+            self.payment.setCurrentText(str(self.expense.get("payment_method") or "Cash"))
+            self.reference.setText(str(self.expense.get("reference_no") or ""))
+            self.notes.setPlainText(str(self.expense.get("notes") or ""))
         form.addRow("Category", self.category)
         form.addRow("Description", self.description)
         form.addRow("Amount", self.amount)
@@ -1786,7 +1821,7 @@ class LiteWindow(QMainWindow):
         self.expense_search = QLineEdit()
         self.expense_search.setPlaceholderText("Search category, description or reference…")
         self.expense_search.returnPressed.connect(self.load_expenses)
-        self.expense_from = QDateEdit(QDate.currentDate().addMonths(-1))
+        self.expense_from = QDateEdit(QDate.currentDate())
         self.expense_to = QDateEdit(QDate.currentDate())
         for editor in (self.expense_from, self.expense_to):
             editor.setCalendarPopup(True)
@@ -1795,6 +1830,8 @@ class LiteWindow(QMainWindow):
         refresh.clicked.connect(self.load_expenses)
         add = QPushButton("Add Expense")
         add.clicked.connect(self.add_expense)
+        edit = QPushButton("Edit Expense")
+        edit.clicked.connect(self.edit_expense)
         top.addWidget(self.expense_search, 1)
         top.addWidget(QLabel("From"))
         top.addWidget(self.expense_from)
@@ -1802,6 +1839,7 @@ class LiteWindow(QMainWindow):
         top.addWidget(self.expense_to)
         top.addWidget(refresh)
         top.addWidget(add)
+        top.addWidget(edit)
         outer.addLayout(top)
         self.expense_table = QTableWidget(0, 7)
         self.expense_table.setHorizontalHeaderLabels([
@@ -1816,6 +1854,7 @@ class LiteWindow(QMainWindow):
         for column, width in {0:95,1:125,2:130,4:110,5:105,6:125}.items():
             self.expense_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.expense_table.setColumnWidth(column,width)
         self.expense_table.verticalScrollBar().valueChanged.connect(self._maybe_load_more_expenses)
+        self.expense_table.doubleClicked.connect(self.edit_expense)
         outer.addWidget(self.expense_table, 1)
         bottom = QHBoxLayout()
         self.expense_status = QLabel("", objectName="muted")
@@ -2378,7 +2417,11 @@ class LiteWindow(QMainWindow):
         load_token = getattr(self,"_product_load_token",None)
         if load_token is None: load_token=self._new_page_load("pos_products"); self._product_load_token=load_token
         query = self.product_search.text().strip()
-        category = self.selected_category
+        selected_category = self.selected_category
+        # A typed search is global so a previously selected category cannot
+        # hide valid name/SKU/barcode matches. Clearing the search restores the
+        # selected category automatically.
+        category = "" if query else selected_category
         offset = len(self.products)
         self.catalog_status.setText("Loading…" if offset == 0 else f"Loading more… {offset}")
 
@@ -2387,7 +2430,7 @@ class LiteWindow(QMainWindow):
             if not self._page_load_is_current("pos_products",load_token):
                 QTimer.singleShot(0, self.load_products)
                 return
-            if self.product_search.text().strip() != query or self.selected_category != category:
+            if self.product_search.text().strip() != query or self.selected_category != selected_category:
                 QTimer.singleShot(100, self.load_products)
                 return
             page = list(products)
@@ -2433,6 +2476,7 @@ class LiteWindow(QMainWindow):
                 self.product_grid.addItem(grid_item)
                 product_id = int(product.get("id") or 0)
                 tile = ProductGridTile(product.get("name") or "Product")
+                tile.set_out_of_stock(stock_status == "out")
                 tile.setToolTip(
                     f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {display_stock}"
                 )
@@ -2730,6 +2774,15 @@ class LiteWindow(QMainWindow):
             self.product_grid.addItem(grid_item)
             product_id = int(product.get("id") or 0)
             tile = ProductGridTile(product.get("name") or "Product")
+            scan_variants = product.get("variants") or []
+            scan_mode = sold_by_mode(product.get("sold_by"))
+            scan_stock = (
+                "Service" if scan_mode == "service"
+                else sum(int(variant.get("stock") or 0) for variant in scan_variants)
+                if scan_mode == "variants" and scan_variants
+                else int(product.get("stock") or 0)
+            )
+            tile.set_out_of_stock(self._product_stock_status(product, scan_stock) == "out")
             tile.setToolTip(
                 f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {int(product.get('stock') or 0)}"
             )
@@ -3184,6 +3237,53 @@ class LiteWindow(QMainWindow):
             lambda error: (
                 self.expense_status.setText("Could not save expense"),
                 QMessageBox.critical(self, "Expense", error),
+            ),
+        )
+
+    def _selected_expense(self) -> dict | None:
+        row = self.expense_table.currentRow()
+        if 0 <= row < len(self.expense_rows):
+            return self.expense_rows[row]
+        return None
+
+    def edit_expense(self, _index=None) -> None:
+        if not self.api:
+            return
+        expense = self._selected_expense()
+        if not expense:
+            QMessageBox.information(self, "Edit Expense", "Select an expense to edit.")
+            return
+        if not self.expense_categories_loaded:
+            self._run_task(
+                self.api.expense_categories,
+                lambda categories: (
+                    setattr(self, "expense_categories", list(categories)),
+                    setattr(self, "expense_categories_loaded", True),
+                    self._show_edit_expense_dialog(expense),
+                ),
+                lambda error: QMessageBox.critical(self, "Edit Expense", error),
+            )
+            return
+        self._show_edit_expense_dialog(expense)
+
+    def _show_edit_expense_dialog(self, expense: dict) -> None:
+        dialog = ExpenseDialog(self.expense_categories, self, expense=expense)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        expense_id = int(expense.get("id") or 0)
+        self.expense_status.setText("Updating expense…")
+
+        def saved(updated):
+            self.expense_status.setText(f"Updated · {updated.get('expense_no') or ''}")
+            QTimer.singleShot(100, self.load_expenses)
+            QTimer.singleShot(200, self.load_dashboard)
+
+        self._run_task(
+            lambda: self.api.update_expense(expense_id, values), saved,
+            lambda error: (
+                self.expense_status.setText("Could not update expense"),
+                QMessageBox.critical(self, "Edit Expense", error),
             ),
         )
 
