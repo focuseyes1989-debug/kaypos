@@ -30,6 +30,11 @@ class ServiceJobClientTests(unittest.TestCase):
         self.assertFalse(hasattr(window, "checkout_button"))
         window.close()
 
+    def test_no_console_windows_launcher_exists(self):
+        launcher = Path(__file__).resolve().parents[1] / "service_job_client_main.pyw"
+        self.assertTrue(launcher.is_file())
+        self.assertIn("from service_job_client_main import main", launcher.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

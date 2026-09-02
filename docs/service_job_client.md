@@ -4,6 +4,10 @@ Standalone client application for staff workstations. It contains no POS or chec
 
 ## Run from source
 
+On Windows, double-click `service_job_client_main.pyw` to start the client without a Command Prompt window.
+
+For troubleshooting with console output, run:
+
 ```powershell
 python service_job_client_main.py
 ```
