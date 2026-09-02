@@ -113,8 +113,13 @@ class HorizontalWheelScrollArea(QScrollArea):
 class ResponsiveProductGrid(QListWidget):
     """Distribute square product tiles across the full viewport width."""
 
-    preferred_tile_width = 128
-    tile_spacing = 3
+    # Keep cards compact enough for five columns in the roughly 450 px-wide
+    # catalogue area used by the default POS Lite window shown at 1366x768.
+    # Wider windows gain additional columns instead of stretching the images.
+    preferred_tile_width = 95
+    minimum_tile_width = 90
+    maximum_tile_width = 105
+    tile_spacing = 0
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -143,48 +148,66 @@ class ResponsiveProductGrid(QListWidget):
         self._refit_pending = False
         self._fit_columns()
 
+    def _fill_right_edge(self) -> None:
+        """Extend only full-row final cards across Qt's tiny layout gutter."""
+        viewport_width = self.viewport().width()
+        rects = [self.visualItemRect(self.item(index)) for index in range(self.count())]
+        for index, rect in enumerate(rects):
+            widget = self.itemWidget(self.item(index))
+            if widget is None or not rect.isValid():
+                continue
+            widget.setGeometry(rect)
+            ends_row = index + 1 == len(rects) or rects[index + 1].y() != rect.y()
+            right_gap = viewport_width - rect.right() - 1
+            if ends_row and 0 < right_gap <= 8:
+                widget.setGeometry(rect.x(), rect.y(), rect.width() + right_gap, rect.height())
+
     def _fit_columns(self) -> None:
-        # Always reserve the vertical scrollbar width. Measuring viewport()
-        # directly made the cards wider when the bar disappeared, which could
-        # make it reappear and cause a visible resize loop.
-        frame = self.frameWidth() * 2
-        scrollbar = self.style().pixelMetric(QStyle.PixelMetric.PM_ScrollBarExtent)
-        available = max(1, self.width() - frame - scrollbar - 2)
-        available_height = max(1, self.height() - frame - 2)
-        item_count = max(1, self.count())
-        max_columns = max(1, available // self.preferred_tile_width)
+        # Leave a tiny boundary allowance required by QListWidget's wrapping
+        # check; otherwise an exactly fitting final cell can move to row two.
+        available = max(1, self.viewport().width() - 2)
 
-        # On a large/full-screen display, use both dimensions so the catalogue
-        # does not collapse into a strip of tiny tiles along the top. Choose the
-        # square size that can show the current page while filling the viewport.
-        best_columns = 1
-        best_extent = 0
-        for candidate in range(1, item_count + 1):
-            rows = (item_count + candidate - 1) // candidate
-            width_extent = (available - self.tile_spacing * (candidate - 1)) // candidate
-            height_extent = (available_height - self.tile_spacing * (rows - 1)) // rows
-            extent = min(width_extent, height_extent)
-            if extent > best_extent:
-                best_columns, best_extent = candidate, extent
+        # Select a nearby compact tile width whose integer cells use the row as
+        # completely as possible. This keeps five columns in the normal window
+        # and avoids a one-card-wide gutter when maximized.
+        top_level = self.window()
+        if not (top_level.isMaximized() or top_level.isFullScreen()):
+            columns = min(5, max(1, available // self.minimum_tile_width))
+        else:
+            minimum_columns = max(1, (available + self.maximum_tile_width - 1) // self.maximum_tile_width)
+            maximum_columns = max(minimum_columns, available // self.minimum_tile_width)
+            columns = min(
+                range(minimum_columns, maximum_columns + 1),
+                key=lambda candidate: (
+                    available % candidate,
+                    abs((available // candidate) - self.preferred_tile_width),
+                ),
+            )
 
-        # Small windows remain scrollable and never squeeze products below the
-        # normal readable tile size. Larger windows grow the cards to consume
-        # otherwise empty width and height.
-        columns = best_columns if best_extent >= self.preferred_tile_width else max_columns
-        cell = max(72, (available - self.tile_spacing * (columns - 1)) // columns)
-        extent = max(68, cell - 2)
+        # Preserve the compact tile size at every window size. A maximized
+        # window receives more columns instead of enlarged product images.
+        # QListWidget's grid cell already includes the configured item spacing.
+        # Dividing the usable width directly prevents a second spacing deduction
+        # and lets the last card reach the catalogue's right edge.
+        cell = max(72, available // columns)
         new_grid_size = QSize(cell, cell)
-        if self.gridSize() == new_grid_size and self._tile_extent == extent:
+        if self.gridSize() == new_grid_size and self._tile_extent == cell:
+            # Newly appended item widgets still need their row-edge adjustment
+            # even when the surrounding window did not change size.
+            QTimer.singleShot(0, self._fill_right_edge)
+            QTimer.singleShot(50, self._fill_right_edge)
             return
-        self._tile_extent = extent
+        self._tile_extent = cell
         self.setGridSize(new_grid_size)
         for index in range(self.count()):
             self.fit_item(self.item(index))
         self.scheduleDelayedItemsLayout()
+        QTimer.singleShot(0, self._fill_right_edge)
+        QTimer.singleShot(50, self._fill_right_edge)
 
 
 class ProductGridTile(QFrame):
-    """Square, image-first POS tile with a caption overlay."""
+    """Responsive image-first POS tile with a caption overlay."""
 
     def __init__(self, name: str, parent=None):
         super().__init__(parent)
@@ -1314,6 +1337,7 @@ class LiteWindow(QMainWindow):
         self._threads: set[QThread] = set()
         self._workers: set[TaskWorker] = set()
         self._scan_in_progress = False
+        self._product_page_loading = False
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(350)
@@ -2138,6 +2162,9 @@ class LiteWindow(QMainWindow):
         self.product_grid.setMovement(QListWidget.Movement.Static)
         self.product_grid.setWrapping(True)
         self.product_grid.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Match List View with an always-visible vertical scrollbar so cashiers
+        # can drag through the catalogue as additional pages are appended.
+        self.product_grid.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.product_grid.setSpacing(ResponsiveProductGrid.tile_spacing)
         self.product_grid.setUniformItemSizes(True)
         self.product_grid.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -2341,8 +2368,9 @@ class LiteWindow(QMainWindow):
         )
 
     def _load_product_page(self) -> None:
-        if not self.api:
+        if not self.api or self._product_page_loading:
             return
+        self._product_page_loading = True
         load_token = getattr(self,"_product_load_token",None)
         if load_token is None: load_token=self._new_page_load("pos_products"); self._product_load_token=load_token
         query = self.product_search.text().strip()
@@ -2351,7 +2379,10 @@ class LiteWindow(QMainWindow):
         self.catalog_status.setText("Loading…" if offset == 0 else f"Loading more… {offset}")
 
         def loaded(products):
-            if not self._page_load_is_current("pos_products",load_token): return
+            self._product_page_loading = False
+            if not self._page_load_is_current("pos_products",load_token):
+                QTimer.singleShot(0, self.load_products)
+                return
             if self.product_search.text().strip() != query or self.selected_category != category:
                 QTimer.singleShot(100, self.load_products)
                 return
@@ -2414,8 +2445,10 @@ class LiteWindow(QMainWindow):
             self.product_grid.refit()
             self.statusBar().showMessage("Product list ready")
             QTimer.singleShot(0, self._load_visible_product_thumbnails)
+            QTimer.singleShot(0, self._ensure_product_scroll_fill)
 
         def failed(error):
+            self._product_page_loading = False
             self.catalog_status.setText("Could not load products")
             self.statusBar().showMessage(error)
 
@@ -2449,7 +2482,14 @@ class LiteWindow(QMainWindow):
         current = getattr(self, "product_view_stack", None)
         widget = current.currentWidget() if current is not None else self.product_table
         bar = widget.verticalScrollBar()
-        if self.product_has_more and value >= max(0, bar.maximum() - 2) and not self._threads:
+        if self.product_has_more and value >= max(0, bar.maximum() - 2) and not self._product_page_loading:
+            self._load_product_page()
+
+    def _ensure_product_scroll_fill(self) -> None:
+        """Load another page when the current one cannot yet be scrolled."""
+        current = getattr(self, "product_view_stack", None)
+        widget = current.currentWidget() if current is not None else self.product_table
+        if self.product_has_more and widget.verticalScrollBar().maximum() <= 0:
             self._load_product_page()
 
     def set_product_view(self, mode: str) -> None:
