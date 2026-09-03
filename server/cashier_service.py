@@ -23,6 +23,7 @@ from utils.db_compat import is_postgres_backend, quote_identifier, table_columns
 from utils.image_optimizer import ImageOptimizer
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.product_image_store import cached_product_image_path
+from utils.category_hierarchy import expand_category_scope
 from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
 
 
@@ -843,27 +844,6 @@ def list_products(
         return products
     finally:
         conn.close()
-
-
-def expand_category_scope(category: str, rows: Iterable[Any]) -> tuple[List[str], List[int]]:
-    """Return a selected category and every descendant in its hierarchy."""
-    selected = str(category or "").strip()
-    records = [
-        (int(row[0]), str(row[1] or "").strip(), int(row[2]) if row[2] is not None else None)
-        for row in rows if row and row[0] is not None and str(row[1] or "").strip()
-    ]
-    selected_ids = {record_id for record_id, name, _parent_id in records if name.casefold() == selected.casefold()}
-    descendant_ids = set(selected_ids)
-    changed = True
-    while changed:
-        changed = False
-        for record_id, _name, parent_id in records:
-            if parent_id in descendant_ids and record_id not in descendant_ids:
-                descendant_ids.add(record_id)
-                changed = True
-    names = {selected}
-    names.update(name for record_id, name, _parent_id in records if record_id in descendant_ids)
-    return sorted(names, key=str.casefold), sorted(descendant_ids)
 
 
 def scan_product(code: str) -> Optional[Dict[str, Any]]:

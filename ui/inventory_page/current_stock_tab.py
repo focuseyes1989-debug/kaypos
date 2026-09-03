@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 from models.database import connect_db
 from models.database.queries import reverse_stock_movement
 from utils.currency import format_money, get_currency_symbol
+from utils.category_hierarchy import product_category_filter
 from utils.translations import tr
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.modern_button import ModernButton
@@ -453,7 +454,7 @@ class CurrentStockTab(QWidget):
         search_text = self.search_widget.get_text().lower()
         category = self.category_filter.currentText()
         status_filter = self.status_filter.currentText()
-        use_category = category != "All Categories"
+        use_category = category not in {"All Categories", "အားလုံး"}
         
         if lang == "my":
             main_headers = [
@@ -509,8 +510,9 @@ class CurrentStockTab(QWidget):
         params = []
         
         if use_category:
-            base_query += " AND p.category = ?"
-            params.append(category)
+            category_sql, category_params = product_category_filter(cursor, category, "p")
+            base_query += f" AND {category_sql}"
+            params.extend(category_params)
         
         if search_text:
             like = f'%{search_text}%'

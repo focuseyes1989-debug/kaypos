@@ -4,6 +4,7 @@ from models.database import connect_db
 from PyQt6.QtWidgets import QMessageBox, QFileDialog
 from loguru import logger
 from utils.activity_logger import log_activity
+from utils.category_hierarchy import product_category_filter
 import csv
 
 
@@ -20,8 +21,9 @@ class ProductService:
         count_params = []
         count_where = []
         if use_category:
-            count_where.append("category = ?")
-            count_params.append(category)
+            category_sql, category_params = product_category_filter(cursor, category)
+            count_where.append(category_sql)
+            count_params.extend(category_params)
         if search_text:
             like = f'%{search_text}%'
             count_where.append("(LOWER(name) LIKE ? OR LOWER(sku) LIKE ? OR LOWER(barcode) LIKE ?)")
@@ -37,8 +39,8 @@ class ProductService:
         select_params = []
         where_clauses = []
         if use_category:
-            where_clauses.append("category = ?")
-            select_params.append(category)
+            where_clauses.append(category_sql)
+            select_params.extend(category_params)
         if search_text:
             like = f'%{search_text}%'
             where_clauses.append("(LOWER(name) LIKE ? OR LOWER(sku) LIKE ? OR LOWER(barcode) LIKE ?)")

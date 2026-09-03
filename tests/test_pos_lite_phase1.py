@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import QDate, QEventLoop, QSize, QTimer
+from PyQt6.QtCore import QDate, QDateTime, QEventLoop, QSize, QTime, QTimer
 from PyQt6.QtGui import QPalette, QPixmap
 from PyQt6.QtWidgets import QApplication, QDialog, QHeaderView, QMessageBox, QPushButton as QtPushButton, QTableWidgetItem
 
@@ -11,7 +11,7 @@ from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ProductGridTile, ReceiptDialog, normalize_barcode_digits
+from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ProductGridTile, ReceiptDialog, ServiceOrderDialog, normalize_barcode_digits, service_order_urgency
 from server.cashier_service import expand_category_scope, order_categories_by_usage
 
 
@@ -514,6 +514,24 @@ class PosLitePhase1Tests(unittest.TestCase):
     def test_myanmar_barcode_digits_are_normalized_before_scan(self):
         self.assertEqual(normalize_barcode_digits("၁၂၃၄၅၆7890"), "1234567890")
         self.assertEqual(normalize_barcode_digits("ABC-123"), "ABC-123")
+
+    def test_service_order_appointment_uses_date_and_time_pickers(self):
+        dialog = ServiceOrderDialog(order={"expected_at": "2026-09-05 14:30"})
+        self.assertTrue(dialog.has_appointment.isChecked())
+        self.assertTrue(dialog.appointment_date.calendarPopup())
+        self.assertEqual(dialog.appointment_date.date(), QDate(2026, 9, 5))
+        self.assertEqual(dialog.appointment_time.time(), QTime(14, 30))
+        self.assertEqual(dialog.values()["expected_at"], "2026-09-05 14:30")
+        dialog.has_appointment.setChecked(False)
+        self.assertEqual(dialog.values()["expected_at"], "")
+        dialog.close()
+
+    def test_service_order_urgency_colors_active_appointments(self):
+        now = QDateTime(QDate(2026, 9, 3), QTime(10, 0))
+        self.assertEqual(service_order_urgency("2026-09-03 09:00", "received", now)[2], "Appointment overdue")
+        self.assertIn("24 hours", service_order_urgency("2026-09-04 09:00", "received", now)[2])
+        self.assertIn("3 days", service_order_urgency("2026-09-05 10:00", "received", now)[2])
+        self.assertEqual(service_order_urgency("2026-09-03 09:00", "completed", now), ("", "", ""))
 
     def test_category_slider_preserves_server_popularity_order(self):
         window = LiteWindow()

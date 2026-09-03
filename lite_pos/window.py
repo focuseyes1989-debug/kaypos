@@ -7,7 +7,7 @@ import base64
 import html
 from collections.abc import Callable
 
-from PyQt6.QtCore import QDate, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QDate, QDateTime, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
     QGraphicsOpacityEffect, QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter, QSystemTrayIcon,
-    QListWidget, QListWidgetItem, QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
+    QListWidget, QListWidgetItem, QScrollArea, QSpinBox, QStatusBar, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit, QTimeEdit,
     QVBoxLayout, QWidget,
 )
 
@@ -32,6 +32,30 @@ _MYANMAR_DIGIT_TRANSLATION = str.maketrans("၀၁၂၃၄၅၆၇၈၉", "01
 def normalize_barcode_digits(value: str) -> str:
     """Make scanner input independent of the active EN/Myanmar keyboard layout."""
     return str(value or "").translate(_MYANMAR_DIGIT_TRANSLATION)
+
+
+def service_order_urgency(expected_at: str, status: str, now: QDateTime | None = None) -> tuple[str, str, str]:
+    """Return background, foreground and message for an active appointment."""
+    if str(status or "").strip().lower() in {"completed", "delivered", "cancelled"}:
+        return "", "", ""
+    text = str(expected_at or "").strip()
+    if not text:
+        return "", "", ""
+    appointment = QDateTime()
+    for date_format in ("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", Qt.DateFormat.ISODate):
+        appointment = QDateTime.fromString(text, date_format)
+        if appointment.isValid():
+            break
+    if not appointment.isValid():
+        return "", "", ""
+    seconds = (now or QDateTime.currentDateTime()).secsTo(appointment)
+    if seconds < 0:
+        return "#f8d7da", "#842029", "Appointment overdue"
+    if seconds <= 24 * 60 * 60:
+        return "#ffe0b2", "#8a3b00", "Appointment due within 24 hours"
+    if seconds <= 3 * 24 * 60 * 60:
+        return "#fff3cd", "#664d03", "Appointment due within 3 days"
+    return "", "", ""
 
 
 def open_local_cash_drawer(printer_name: str) -> None:
@@ -1306,11 +1330,35 @@ class ServiceOrderDialog(QDialog):
         self.job_title = QLineEdit(str(self.order.get("job_title") or ""))
         self.job_title.setPlaceholderText("Job name")
         self.complaint = QTextEdit(str(self.order.get("complaint") or "")); self.complaint.setMaximumHeight(110)
-        self.expected_at = QLineEdit(str(self.order.get("expected_at") or "")); self.expected_at.setPlaceholderText("YYYY-MM-DD HH:MM")
+        expected = str(self.order.get("expected_at") or "").strip()
+        expected_datetime = QDateTime()
+        for date_format in ("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", Qt.DateFormat.ISODate):
+            expected_datetime = QDateTime.fromString(expected, date_format)
+            if expected_datetime.isValid():
+                break
+        if not expected_datetime.isValid():
+            expected_datetime = QDateTime.currentDateTime().addDays(1)
+        self.has_appointment = QCheckBox("Set appointment")
+        self.has_appointment.setChecked(bool(expected))
+        self.appointment_date = QDateEdit(expected_datetime.date())
+        self.appointment_date.setDisplayFormat("dd MMM yyyy")
+        self.appointment_date.setCalendarPopup(True)
+        self.appointment_time = QTimeEdit(expected_datetime.time())
+        self.appointment_time.setDisplayFormat("hh:mm AP")
+        appointment_widget = QWidget()
+        appointment_layout = QHBoxLayout(appointment_widget)
+        appointment_layout.setContentsMargins(0, 0, 0, 0)
+        appointment_layout.addWidget(self.has_appointment)
+        appointment_layout.addWidget(self.appointment_date, 1)
+        appointment_layout.addWidget(self.appointment_time)
+        self.appointment_date.setEnabled(self.has_appointment.isChecked())
+        self.appointment_time.setEnabled(self.has_appointment.isChecked())
+        self.has_appointment.toggled.connect(self.appointment_date.setEnabled)
+        self.has_appointment.toggled.connect(self.appointment_time.setEnabled)
         self.internal_notes = QTextEdit(str(self.order.get("internal_notes") or "")); self.internal_notes.setMaximumHeight(90)
         for label, widget in (
             ("Date", self.job_date), ("Time", self.job_time), ("Job Name", self.job_title),
-            ("Details", self.complaint), ("Appointment", self.expected_at), ("Notes", self.internal_notes),
+            ("Details", self.complaint), ("Appointment", appointment_widget), ("Notes", self.internal_notes),
         ):
             form.addRow(label, widget)
         outer.addLayout(form)
@@ -1327,7 +1375,11 @@ class ServiceOrderDialog(QDialog):
     def values(self) -> dict:
         return {
             "received_at": f"{self.job_date.text().strip()} {self.job_time.text().strip()}".strip(),
-            "expected_at": self.expected_at.text().strip(),
+            "expected_at": (
+                f"{self.appointment_date.date().toString('yyyy-MM-dd')} "
+                f"{self.appointment_time.time().toString('HH:mm')}"
+                if self.has_appointment.isChecked() else ""
+            ),
             "job_title": self.job_title.text().strip(),
             "complaint": self.complaint.toPlainText().strip(),
             "internal_notes": self.internal_notes.toPlainText().strip(),
@@ -1991,6 +2043,8 @@ class LiteWindow(QMainWindow):
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.load_service_orders)
         filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
         outer.addLayout(filters)
+        urgency_legend = QLabel("Appointment urgency · Red: overdue · Orange: within 24 hours · Yellow: within 3 days", objectName="muted")
+        outer.addWidget(urgency_legend)
 
         body = QHBoxLayout()
         list_panel = QFrame(objectName="card"); list_layout = QVBoxLayout(list_panel); list_layout.setContentsMargins(8, 8, 8, 8)
@@ -3497,6 +3551,11 @@ class LiteWindow(QMainWindow):
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(str(value)); item.setData(Qt.ItemDataRole.UserRole, int(order.get("id") or 0))
+                    background, foreground, urgency = service_order_urgency(order.get("expected_at") or "", status)
+                    if background:
+                        item.setBackground(QColor(background))
+                        item.setForeground(QColor(foreground))
+                        item.setToolTip(urgency)
                     self.service_order_table.setItem(row, column, item)
             self.service_order_table.setUpdatesEnabled(True); self.service_order_table.blockSignals(False)
             self.service_order_list_status.setText(f"{len(orders)} job(s)")
