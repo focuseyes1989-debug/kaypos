@@ -1888,10 +1888,14 @@ class LiteWindow(QMainWindow):
         self.management_search = QLineEdit()
         self.management_search.setPlaceholderText("Search product, barcode or SKU…")
         self.management_search.returnPressed.connect(self.load_management)
+        self.inventory_category_filter = QComboBox()
+        self.inventory_category_filter.addItem("All Categories", "")
         refresh = QPushButton("Search / Refresh")
         refresh.clicked.connect(self.load_management)
+        self.inventory_category_filter.currentIndexChanged.connect(self.load_management)
         top.addStretch()
         top.addWidget(self.management_search, 1)
+        top.addWidget(self.inventory_category_filter)
         top.addWidget(refresh)
         outer.addLayout(top)
         stock_box = QFrame(objectName="card")
@@ -2063,9 +2067,10 @@ class LiteWindow(QMainWindow):
         page = QWidget(); outer = QVBoxLayout(page); outer.setContentsMargins(14,12,14,12); outer.setSpacing(8)
         top = QHBoxLayout(); top.addWidget(QLabel("Products", objectName="title")); top.addStretch()
         self.manage_product_search = QLineEdit(); self.manage_product_search.setPlaceholderText("Search name, SKU or barcode…"); self.manage_product_search.returnPressed.connect(self.load_product_management)
+        self.product_category_filter = QComboBox(); self.product_category_filter.addItem("All Categories", ""); self.product_category_filter.currentIndexChanged.connect(self.load_product_management)
         search = QPushButton("Search / Refresh"); categories = QPushButton("Manage Categories"); add = QPushButton("Add Product"); edit = QPushButton("Edit Product")
         search.clicked.connect(self.load_product_management); categories.clicked.connect(self.manage_categories); add.clicked.connect(self.add_managed_product); edit.clicked.connect(self.edit_managed_product)
-        top.addWidget(self.manage_product_search,1); top.addWidget(search); top.addWidget(categories); top.addWidget(add); top.addWidget(edit); outer.addLayout(top)
+        top.addWidget(self.manage_product_search,1); top.addWidget(self.product_category_filter); top.addWidget(search); top.addWidget(categories); top.addWidget(add); top.addWidget(edit); outer.addLayout(top)
         self.manage_product_table = QTableWidget(0,9)
         self.manage_product_table.setHorizontalHeaderLabels(["Image","Product","Category","SKU / Barcode","Sold By","Price","Cost","Stock","Low Stock"])
         self.manage_product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows); self.manage_product_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -3405,13 +3410,15 @@ class LiteWindow(QMainWindow):
             return
         load_token=self._new_page_load("inventory")
         query = self.management_search.text().strip()
+        category = str(self.inventory_category_filter.currentData() or "")
 
         def loaded(result):
             if not self._page_load_is_current("inventory",load_token): return
-            products, suppliers, locations = result
+            products, suppliers, locations, categories = result
             self.management_products = list(products)
             self.management_suppliers = list(suppliers)
             self.management_locations = list(locations)
+            self._populate_category_filter(self.inventory_category_filter, categories, category)
             self.management_product_rows={}; self.stock_table.setUpdatesEnabled(False); self.stock_table.blockSignals(True); self.stock_table.setRowCount(len(products))
             for row, product in enumerate(products):
                 values = (
@@ -3430,7 +3437,8 @@ class LiteWindow(QMainWindow):
 
         self._run_task(
             lambda: (
-                self.api.products(query, limit=100), self.api.suppliers(), self.api.stock_locations(),
+                self.api.products(query, limit=100, category=category), self.api.suppliers(),
+                self.api.stock_locations(), self.api.categories(),
             ),
             loaded, lambda error: self.statusBar().showMessage(error),
         )
@@ -4019,10 +4027,11 @@ class LiteWindow(QMainWindow):
     def load_product_management(self) -> None:
         if not self.api: return
         load_token=self._new_page_load("products")
-        query = self.manage_product_search.text().strip(); self.manage_product_status.setText("Loading…")
+        query = self.manage_product_search.text().strip(); category = str(self.product_category_filter.currentData() or ""); self.manage_product_status.setText("Loading…")
         def loaded(result):
             if not self._page_load_is_current("products",load_token): return
             products, categories = result; self.managed_products = list(products); self.managed_categories = list(categories)
+            self._populate_category_filter(self.product_category_filter, categories, category)
             self.managed_product_rows = {}
             self.manage_product_table.setUpdatesEnabled(False); self.manage_product_table.blockSignals(True); self.manage_product_table.setRowCount(len(products))
             for row, product in enumerate(products):
@@ -4038,7 +4047,20 @@ class LiteWindow(QMainWindow):
             self.manage_product_table.blockSignals(False); self.manage_product_table.setUpdatesEnabled(True); self.manage_product_table.viewport().update()
             self.manage_product_status.setText(f"{len(products)} product(s) loaded")
             QTimer.singleShot(0, self._load_visible_managed_product_thumbnails)
-        self._run_task(lambda:(self.api.products(query,limit=100),self.api.categories()),loaded,lambda error:(self.manage_product_status.setText("Could not load products"),QMessageBox.critical(self,"Products",error)))
+        self._run_task(lambda:(self.api.products(query,limit=100,category=category),self.api.categories()),loaded,lambda error:(self.manage_product_status.setText("Could not load products"),QMessageBox.critical(self,"Products",error)))
+
+    @staticmethod
+    def _populate_category_filter(combo: QComboBox, categories: list[str], selected: str = "") -> None:
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("All Categories", "")
+        for category in categories:
+            name = str(category or "").strip()
+            if name:
+                combo.addItem(name, name)
+        selected_index = combo.findData(selected)
+        combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+        combo.blockSignals(False)
 
     def manage_categories(self) -> None:
         if not self.api or self._threads: return

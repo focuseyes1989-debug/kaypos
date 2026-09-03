@@ -652,6 +652,18 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertTrue(hasattr(window, "product_management_thumbnail_timer"))
         window.close()
 
+    def test_products_and_inventory_pages_have_category_filters(self):
+        window = LiteWindow()
+        self.assertEqual(window.product_category_filter.currentText(), "All Categories")
+        self.assertEqual(window.inventory_category_filter.currentText(), "All Categories")
+
+        window._populate_category_filter(window.product_category_filter, ["Drinks", "Snacks"], "Snacks")
+        window._populate_category_filter(window.inventory_category_filter, ["Drinks", "Snacks"], "Drinks")
+
+        self.assertEqual(window.product_category_filter.currentData(), "Snacks")
+        self.assertEqual(window.inventory_category_filter.currentData(), "Drinks")
+        window.close()
+
     def test_product_page_exposes_parent_child_category_manager(self):
         window = LiteWindow()
         self.assertTrue(any(
