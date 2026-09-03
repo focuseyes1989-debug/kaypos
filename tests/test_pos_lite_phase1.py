@@ -11,7 +11,7 @@ from lite_pos.api import LiteApiClient, LiteApiError
 from lite_pos.application import apply_classic_style
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import DEFAULT_SERVER_URL, load_config, save_config
-from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ProductGridTile, ReceiptDialog
+from lite_pos.window import CategoryManagerDialog, CheckoutDialog, ExpenseDialog, LiteSaleDisplay, LiteWindow, ProductEditorDialog, ProductGridTile, ReceiptDialog, normalize_barcode_digits
 from server.cashier_service import expand_category_scope, order_categories_by_usage
 
 
@@ -77,6 +77,26 @@ class PosLitePhase1Tests(unittest.TestCase):
     def test_server_url_without_scheme_defaults_to_https(self):
         client = LiteApiClient("192.168.110.196:8000", insecure_tls=True)
         self.assertEqual(client.server_url, "https://192.168.110.196:8000")
+
+    @patch("lite_pos.api.requests.Session.request")
+    def test_receipts_api_sends_date_range(self, request):
+        response = unittest.mock.Mock(ok=True)
+        response.json.return_value = {"receipts": []}
+        request.return_value = response
+        client = LiteApiClient("https://server:8000")
+
+        client.receipts("cash", from_date="2026-09-01", to_date="2026-09-03")
+
+        self.assertEqual(request.call_args.kwargs["params"]["from_date"], "2026-09-01")
+        self.assertEqual(request.call_args.kwargs["params"]["to_date"], "2026-09-03")
+
+    def test_sales_history_date_range_defaults_to_today(self):
+        window = LiteWindow()
+        self.assertEqual(window.history_from_date.date(), QDate.currentDate())
+        self.assertEqual(window.history_to_date.date(), QDate.currentDate())
+        self.assertTrue(window.history_from_date.calendarPopup())
+        self.assertTrue(window.history_to_date.calendarPopup())
+        window.close()
 
     def test_background_task_finishes_and_releases_worker(self):
         window = LiteWindow()
@@ -480,7 +500,7 @@ class PosLitePhase1Tests(unittest.TestCase):
         window.api = Api()
         window._threads.add(object())  # Simulate an in-flight debounced catalogue load.
         window._run_task = lambda operation, success, _failure: success(operation())
-        window.product_search.setText("123456")
+        window.product_search.setText("၁၂၃၄၅၆")
         window.scan_or_search()
         self.app.processEvents()
 
@@ -490,6 +510,10 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertTrue(window.product_search.hasFocus())
         window._threads.clear()
         window.close()
+
+    def test_myanmar_barcode_digits_are_normalized_before_scan(self):
+        self.assertEqual(normalize_barcode_digits("၁၂၃၄၅၆7890"), "1234567890")
+        self.assertEqual(normalize_barcode_digits("ABC-123"), "ABC-123")
 
     def test_category_slider_preserves_server_popularity_order(self):
         window = LiteWindow()

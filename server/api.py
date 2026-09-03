@@ -1741,9 +1741,15 @@ def receipts(
     q: str = Query(default=""),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    from_date: str = Query(default=""),
+    to_date: str = Query(default=""),
     _: Dict[str, Any] = Depends(current_user),
 ):
-    return {"receipts": cashier_service.list_receipts(q.strip(), limit, offset)}
+    return {
+        "receipts": cashier_service.list_receipts(
+            q.strip(), limit, offset, from_date.strip(), to_date.strip(),
+        )
+    }
 
 
 @app.get("/api/settings/receipt")

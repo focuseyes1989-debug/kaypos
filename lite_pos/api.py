@@ -199,10 +199,16 @@ class LiteApiClient:
             raise LiteApiError("Server returned an incomplete receipt.")
         return dict(receipt)
 
-    def receipts(self, query: str = "", limit: int = 50, offset: int = 0) -> list[dict]:
+    def receipts(
+        self, query: str = "", limit: int = 50, offset: int = 0,
+        from_date: str = "", to_date: str = "",
+    ) -> list[dict]:
         payload = self._request(
             "GET", "/api/receipts",
-            params={"q": query.strip(), "limit": max(1, min(limit, 100)), "offset": max(0, offset)},
+            params={
+                "q": query.strip(), "limit": max(1, min(limit, 100)), "offset": max(0, offset),
+                "from_date": from_date.strip(), "to_date": to_date.strip(),
+            },
         )
         return list(payload.get("receipts") or [])
 

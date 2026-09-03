@@ -26,6 +26,14 @@ from lite_pos.theme import apply_lite_theme, normalize_theme
 from lite_pos.settings_center import LiteSettingsCenter
 
 
+_MYANMAR_DIGIT_TRANSLATION = str.maketrans("၀၁၂၃၄၅၆၇၈၉", "0123456789")
+
+
+def normalize_barcode_digits(value: str) -> str:
+    """Make scanner input independent of the active EN/Myanmar keyboard layout."""
+    return str(value or "").translate(_MYANMAR_DIGIT_TRANSLATION)
+
+
 def open_local_cash_drawer(printer_name: str) -> None:
     """Send the ESC/POS drawer pulse through a printer installed on this PC."""
     printer_name = str(printer_name or "").strip()
@@ -2083,6 +2091,17 @@ class LiteWindow(QMainWindow):
         top.addWidget(self.history_status)
         outer.addLayout(top)
         filters = QHBoxLayout()
+        today = QDate.currentDate()
+        self.history_from_date = QDateEdit(today)
+        self.history_from_date.setDisplayFormat("dd MMM yyyy")
+        self.history_from_date.setCalendarPopup(True)
+        self.history_from_date.setToolTip("First day included in the sales history")
+        self.history_to_date = QDateEdit(today)
+        self.history_to_date.setDisplayFormat("dd MMM yyyy")
+        self.history_to_date.setCalendarPopup(True)
+        self.history_to_date.setToolTip("Last day included in the sales history")
+        self.history_from_date.dateChanged.connect(self.search_history)
+        self.history_to_date.dateChanged.connect(self.search_history)
         self.history_search = QLineEdit()
         self.history_search.setPlaceholderText("Search invoice, customer or payment type…")
         self.history_search.returnPressed.connect(self.search_history)
@@ -2092,6 +2111,10 @@ class LiteWindow(QMainWindow):
         refresh.clicked.connect(self.load_history)
         filters.addWidget(self.history_search, 1)
         filters.addWidget(search_button)
+        filters.addWidget(QLabel("From"))
+        filters.addWidget(self.history_from_date)
+        filters.addWidget(QLabel("To"))
+        filters.addWidget(self.history_to_date)
         filters.addWidget(refresh)
         outer.addLayout(filters)
         self.history_table = QTableWidget(0, 7)
@@ -2734,7 +2757,7 @@ class LiteWindow(QMainWindow):
         if not self.api or self._scan_in_progress:
             self._focus_product_search(select_all=True)
             return
-        code = self.product_search.text().strip()
+        code = normalize_barcode_digits(self.product_search.text()).strip()
         if not code:
             self.load_products()
             self._focus_product_search()
@@ -4556,12 +4579,24 @@ class LiteWindow(QMainWindow):
             return
         load_token=self._new_page_load("history")
         query = self.history_search.text().strip()
+        from_date = self.history_from_date.date().toString("yyyy-MM-dd")
+        to_date = self.history_to_date.date().toString("yyyy-MM-dd")
+        if self.history_from_date.date() > self.history_to_date.date():
+            self.history_status.setText("From date cannot be after To date")
+            self.history_prev.setEnabled(False)
+            self.history_next.setEnabled(False)
+            return
         offset = self.history_offset
         self.history_status.setText("Loading…")
 
         def loaded(receipts):
             if not self._page_load_is_current("history",load_token): return
-            if query != self.history_search.text().strip() or offset != self.history_offset:
+            if (
+                query != self.history_search.text().strip()
+                or from_date != self.history_from_date.date().toString("yyyy-MM-dd")
+                or to_date != self.history_to_date.date().toString("yyyy-MM-dd")
+                or offset != self.history_offset
+            ):
                 QTimer.singleShot(100, self.load_history)
                 return
             self.receipts = list(receipts)
@@ -4585,7 +4620,9 @@ class LiteWindow(QMainWindow):
             self.history_next.setEnabled(len(self.receipts) == 50)
 
         self._run_task(
-            lambda: self.api.receipts(query, limit=50, offset=offset),
+            lambda: self.api.receipts(
+                query, limit=50, offset=offset, from_date=from_date, to_date=to_date,
+            ),
             loaded,
             lambda error: (self.history_status.setText("Could not load"), self.statusBar().showMessage(error)),
         )
