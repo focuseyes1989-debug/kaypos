@@ -1644,7 +1644,7 @@ class LiteWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         self.nav_buttons: dict[str, QPushButton] = {}
-        for text in ("Point of Sale", "Service Orders", "Dashboard", "Products", "Sales History", "Expenses", "Inventory", "Customers", "Setting Center"):
+        for text in ("Point of Sale", "Service Orders", "Dashboard", "Products", "Sales History", "Expenses", "Inventory", "Locations", "Customers", "Setting Center"):
             button = QPushButton(text)
             button.setProperty("leftAligned", True)
             button.setCheckable(True)
@@ -1749,6 +1749,7 @@ class LiteWindow(QMainWindow):
         self.history_page = self._build_history_page()
         self.expense_page = self._build_expense_page()
         self.management_page = self._build_management_page()
+        self.locations_page = self._build_locations_page()
         self.customer_page = self._build_customer_page()
         self.settings_page = LiteSettingsCenter(self)
         self.workspace_stack.addWidget(self.dashboard_page)
@@ -1758,6 +1759,7 @@ class LiteWindow(QMainWindow):
         self.workspace_stack.addWidget(self.history_page)
         self.workspace_stack.addWidget(self.expense_page)
         self.workspace_stack.addWidget(self.management_page)
+        self.workspace_stack.addWidget(self.locations_page)
         self.workspace_stack.addWidget(self.customer_page)
         self.workspace_stack.addWidget(self.settings_page)
         self.workspace_pages = {
@@ -1768,6 +1770,7 @@ class LiteWindow(QMainWindow):
             "Sales History": self.history_page,
             "Expenses": self.expense_page,
             "Inventory": self.management_page,
+            "Locations": self.locations_page,
             "Customers": self.customer_page,
             "Setting Center": self.settings_page,
         }
@@ -1846,6 +1849,8 @@ class LiteWindow(QMainWindow):
             self.load_expenses()
         elif name == "Inventory":
             self.load_management()
+        elif name == "Locations":
+            self.load_locations_page()
         elif name == "Customers":
             self.load_customers()
         elif name == "Setting Center":
@@ -1988,6 +1993,57 @@ class LiteWindow(QMainWindow):
         stock_actions.addStretch()
         stock_layout.addLayout(stock_actions)
         outer.addWidget(stock_box, 1)
+        return page
+
+    def _build_locations_page(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(14, 12, 14, 12)
+        outer.setSpacing(8)
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Locations", objectName="title"))
+        top.addStretch()
+        self.location_search = QLineEdit()
+        self.location_search.setPlaceholderText("Search warehouse / location…")
+        self.location_search.returnPressed.connect(self.load_locations_page)
+        refresh = QPushButton("Refresh")
+        add = QPushButton("Add Location", objectName="primary")
+        rename = QPushButton("Rename")
+        delete = QPushButton("Delete")
+        self.location_management_buttons = (add, rename, delete)
+        refresh.clicked.connect(self.load_locations_page)
+        add.clicked.connect(self.add_stock_location)
+        rename.clicked.connect(self.rename_selected_stock_location)
+        delete.clicked.connect(self.delete_selected_stock_location)
+        top.addWidget(self.location_search, 1)
+        top.addWidget(refresh)
+        top.addWidget(add)
+        top.addWidget(rename)
+        top.addWidget(delete)
+        outer.addLayout(top)
+        note = QLabel(
+            "Locations created here are immediately available in Inventory · Stock In, Stock Out, Adjustment and Transfer.",
+            objectName="muted",
+        )
+        note.setWordWrap(True)
+        outer.addWidget(note)
+        self.locations_table = QTableWidget(0, 5)
+        self.locations_table.setHorizontalHeaderLabels([
+            "Location", "Products", "Total Quantity", "Stock Value", "Last Stock Update",
+        ])
+        self.locations_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.locations_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.locations_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.locations_table.verticalHeader().setVisible(False)
+        self.locations_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column, width in {1:100, 2:120, 3:140, 4:170}.items():
+            self.locations_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+            self.locations_table.setColumnWidth(column, width)
+        self.locations_table.doubleClicked.connect(self.rename_selected_stock_location)
+        outer.addWidget(self.locations_table, 1)
+        self.locations_status = QLabel("", objectName="muted")
+        outer.addWidget(self.locations_status)
+        self.location_records: list[dict] = []
         return page
 
     def _build_customer_page(self) -> QWidget:
@@ -3458,6 +3514,99 @@ class LiteWindow(QMainWindow):
     def open_management(self) -> None:
         self.workspace_stack.setCurrentWidget(self.management_page)
         self.load_management()
+
+    def load_locations_page(self) -> None:
+        if not self.api:
+            return
+        token = self._new_page_load("locations")
+        query = self.location_search.text().strip()
+        self.locations_status.setText("Loading…")
+
+        def loaded(records):
+            if not self._page_load_is_current("locations", token):
+                return
+            self.location_records = list(records)
+            legacy_server = any(record.get("legacy_server") for record in records)
+            for button in self.location_management_buttons:
+                button.setEnabled(not legacy_server)
+            self.locations_table.setUpdatesEnabled(False)
+            self.locations_table.setRowCount(len(records))
+            for row, location in enumerate(records):
+                values = (
+                    location.get("name") or "",
+                    f"{int(location.get('product_count') or 0):,}",
+                    f"{int(location.get('quantity') or 0):,}",
+                    f"{float(location.get('stock_value') or 0):,.0f} Ks",
+                    location.get("last_updated") or "—",
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value))
+                    item.setData(Qt.ItemDataRole.UserRole, int(location.get("id") or 0))
+                    if column in (1, 2, 3):
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self.locations_table.setItem(row, column, item)
+            self.locations_table.setUpdatesEnabled(True)
+            self.locations_table.viewport().update()
+            self.locations_status.setText(
+                f"{len(records)} location(s) · Update/restart KAY POS Server to enable management"
+                if legacy_server else f"{len(records)} location(s)"
+            )
+
+        self._run_task(
+            lambda: self.api.managed_stock_locations(query), loaded,
+            lambda error: (self.locations_status.setText("Could not load locations"), QMessageBox.critical(self, "Locations", error)),
+        )
+
+    def _selected_stock_location(self) -> dict | None:
+        row = self.locations_table.currentRow()
+        return self.location_records[row] if 0 <= row < len(self.location_records) else None
+
+    def add_stock_location(self) -> None:
+        if not self.api or self._threads:
+            return
+        name, accepted = QInputDialog.getText(self, "Add Location", "Location name:")
+        if not accepted or not name.strip():
+            return
+        self._run_task(
+            lambda: self.api.create_stock_location(name),
+            lambda _result: (self.statusBar().showMessage("Location added"), self.load_locations_page()),
+            lambda error: QMessageBox.critical(self, "Add Location", error),
+        )
+
+    def rename_selected_stock_location(self) -> None:
+        location = self._selected_stock_location()
+        if not location or not self.api or self._threads:
+            if not location:
+                QMessageBox.warning(self, "Rename Location", "Select a location first.")
+            return
+        name, accepted = QInputDialog.getText(
+            self, "Rename Location", "New location name:", text=str(location.get("name") or ""),
+        )
+        if not accepted or not name.strip() or name.strip() == str(location.get("name") or ""):
+            return
+        self._run_task(
+            lambda: self.api.rename_stock_location(int(location.get("id") or 0), name),
+            lambda _result: (self.statusBar().showMessage("Location renamed across stock records"), self.load_locations_page()),
+            lambda error: QMessageBox.critical(self, "Rename Location", error),
+        )
+
+    def delete_selected_stock_location(self) -> None:
+        location = self._selected_stock_location()
+        if not location or not self.api or self._threads:
+            if not location:
+                QMessageBox.warning(self, "Delete Location", "Select a location first.")
+            return
+        if QMessageBox.question(
+            self, "Delete Location", f"Delete location '{location.get('name')}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self._run_task(
+            lambda: self.api.delete_stock_location(int(location.get("id") or 0)),
+            lambda _result: (self.statusBar().showMessage("Location deleted"), self.load_locations_page()),
+            lambda error: QMessageBox.critical(self, "Delete Location", error),
+        )
 
     def load_management(self) -> None:
         if not self.api:

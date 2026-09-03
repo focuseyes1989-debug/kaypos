@@ -79,6 +79,28 @@ class PosLitePhase1Tests(unittest.TestCase):
         self.assertEqual(client.server_url, "https://192.168.110.196:8000")
 
     @patch("lite_pos.api.requests.Session.request")
+    def test_location_management_falls_back_to_old_server_location_list(self, request):
+        not_found = unittest.mock.Mock(ok=False, status_code=404)
+        not_found.json.return_value = {"detail": "Not Found"}
+        old_locations = unittest.mock.Mock(ok=True)
+        old_locations.json.return_value = {"locations": ["Shop", "Warehouse A"]}
+        old_products = unittest.mock.Mock(ok=True)
+        old_products.json.return_value = {"products": [{
+            "id": 7, "name": "Camera", "cost": 250,
+            "locations": [{"location": "Warehouse A", "quantity": 4}],
+        }]}
+        request.side_effect = [not_found, old_locations, old_products]
+        client = LiteApiClient("https://server:8000")
+
+        records = client.managed_stock_locations("warehouse")
+
+        self.assertEqual([row["name"] for row in records], ["Warehouse A"])
+        self.assertTrue(records[0]["legacy_server"])
+        self.assertEqual(records[0]["product_count"], 1)
+        self.assertEqual(records[0]["quantity"], 4)
+        self.assertEqual(records[0]["stock_value"], 1000)
+
+    @patch("lite_pos.api.requests.Session.request")
     def test_receipts_api_sends_date_range(self, request):
         response = unittest.mock.Mock(ok=True)
         response.json.return_value = {"receipts": []}
@@ -465,6 +487,7 @@ class PosLitePhase1Tests(unittest.TestCase):
         window.workspace_stack.setCurrentWidget(window.pos_page)
         self.assertTrue(window.nav_buttons["Point of Sale"].isChecked())
         self.assertIn("Inventory", window.workspace_pages)
+        self.assertIn("Locations", window.workspace_pages)
         self.assertIn("Customers", window.workspace_pages)
         self.assertNotIn("Stock & Customers", window.workspace_pages)
         self.assertIsNot(window.workspace_pages["Inventory"], window.workspace_pages["Customers"])

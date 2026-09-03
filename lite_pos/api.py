@@ -333,6 +333,59 @@ class LiteApiClient:
     def stock_locations(self) -> list[str]:
         return [str(value) for value in self._request("GET", "/api/stock/locations").get("locations") or ["Shop"]]
 
+    def managed_stock_locations(self, query: str = "") -> list[dict]:
+        try:
+            return list(self._request("GET", "/api/stock/locations/manage", params={"q": query.strip()}).get("locations") or [])
+        except LiteApiError as exc:
+            if str(exc).strip().casefold() != "not found":
+                raise
+            search = query.strip().casefold()
+            records = {
+                name.casefold(): {
+                    "id": 0, "name": name, "product_count": 0, "quantity": 0,
+                    "stock_value": 0.0, "last_updated": "", "legacy_server": True,
+                    "_product_ids": set(),
+                }
+                for name in self.stock_locations()
+            }
+            offset = 0
+            while offset < 50000:
+                products = self.products("", limit=100, offset=offset)
+                for product in products:
+                    product_id = int(product.get("id") or 0)
+                    cost = float(product.get("cost") or 0)
+                    for location in product.get("locations") or []:
+                        name = str(location.get("location") or "").strip()
+                        if not name:
+                            continue
+                        record = records.setdefault(name.casefold(), {
+                            "id": 0, "name": name, "product_count": 0, "quantity": 0,
+                            "stock_value": 0.0, "last_updated": "", "legacy_server": True,
+                            "_product_ids": set(),
+                        })
+                        quantity = int(location.get("quantity") or 0)
+                        record["_product_ids"].add(product_id)
+                        record["quantity"] += quantity
+                        record["stock_value"] += quantity * cost
+                if len(products) < 100:
+                    break
+                offset += 100
+            result = []
+            for record in records.values():
+                record["product_count"] = len(record.pop("_product_ids"))
+                if not search or search in record["name"].casefold():
+                    result.append(record)
+            return sorted(result, key=lambda row: row["name"].casefold())
+
+    def create_stock_location(self, name: str) -> dict:
+        return dict(self._request("POST", "/api/stock/locations/manage", json={"name": name.strip()}).get("location") or {})
+
+    def rename_stock_location(self, location_id: int, name: str) -> dict:
+        return dict(self._request("PUT", f"/api/stock/locations/manage/{int(location_id)}", json={"name": name.strip()}).get("location") or {})
+
+    def delete_stock_location(self, location_id: int) -> None:
+        self._request("DELETE", f"/api/stock/locations/manage/{int(location_id)}")
+
     def dashboard_summary(
         self, from_date: str, to_date: str | None = None, trend_days: int = 0,
     ) -> dict:

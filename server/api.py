@@ -148,6 +148,10 @@ class PaymentTypeRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
 
 
+class StockLocationRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=160)
+
+
 class CategoryManageRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=160)
     description: str = Field(default="", max_length=1000)
@@ -1215,6 +1219,36 @@ def suppliers(_: Dict[str, Any] = Depends(current_user)):
 @app.get("/api/stock/locations")
 def stock_locations(_: Dict[str, Any] = Depends(current_user)):
     return {"locations": cashier_service.list_stock_locations()}
+
+
+@app.get("/api/stock/locations/manage")
+def managed_stock_locations(q: str = Query(default=""), _: Dict[str, Any] = Depends(current_user)):
+    return {"locations": cashier_service.list_location_records(q.strip())}
+
+
+@app.post("/api/stock/locations/manage")
+def create_stock_location(payload: StockLocationRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"location": cashier_service.create_stock_location(payload.name)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put("/api/stock/locations/manage/{location_id}")
+def rename_stock_location(location_id: int, payload: StockLocationRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        return {"location": cashier_service.rename_stock_location(location_id, payload.name)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/stock/locations/manage/{location_id}")
+def delete_stock_location(location_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.delete_stock_location(location_id)
+        return {"deleted": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/settings/cashier")

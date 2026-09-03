@@ -442,18 +442,123 @@ def list_stock_locations() -> List[str]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """
-            SELECT DISTINCT TRIM(location)
-            FROM product_locations
-            WHERE location IS NOT NULL AND TRIM(location) != ''
-            ORDER BY TRIM(location) COLLATE NOCASE
-            """
-        )
-        locations = [str(row[0]) for row in cursor.fetchall()]
+        names: Dict[str, str] = {}
+        for query in (
+            "SELECT TRIM(name) FROM locations WHERE TRIM(COALESCE(name, '')) != ''",
+            "SELECT DISTINCT TRIM(location) FROM product_locations WHERE TRIM(COALESCE(location, '')) != ''",
+            "SELECT DISTINCT TRIM(warehouse) FROM products WHERE TRIM(COALESCE(warehouse, '')) != ''",
+        ):
+            try:
+                cursor.execute(query)
+                for row in cursor.fetchall():
+                    if row and row[0]: names.setdefault(str(row[0]).casefold(), str(row[0]))
+            except Exception:
+                continue
+        locations = sorted(names.values(), key=str.casefold)
         return locations or ["Shop"]
     finally:
         conn.close()
+
+
+def list_location_records(search: str = "") -> List[Dict[str, Any]]:
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, name FROM locations")
+        existing = {str(row[1] or "").strip().casefold() for row in cursor.fetchall()}
+        discovered: Dict[str, str] = {}
+        for query in (
+            "SELECT DISTINCT TRIM(location) FROM product_locations WHERE TRIM(COALESCE(location, '')) != ''",
+            "SELECT DISTINCT TRIM(warehouse) FROM products WHERE TRIM(COALESCE(warehouse, '')) != ''",
+        ):
+            try:
+                cursor.execute(query)
+                for row in cursor.fetchall():
+                    if row and row[0]: discovered.setdefault(str(row[0]).casefold(), str(row[0]).strip())
+            except Exception:
+                continue
+        if not existing and not discovered:
+            discovered["shop"] = "Shop"
+        missing = [name for key, name in discovered.items() if key not in existing]
+        if missing:
+            _sync_postgres_id_sequences(cursor, ("locations",))
+            for name in missing:
+                _execute_dynamic_insert(cursor, "locations", {"name": name})
+            conn.commit()
+        pattern = f"%{str(search or '').strip()}%"
+        cursor.execute("""
+            SELECT l.id, l.name, COUNT(DISTINCT pl.product_id),
+                   COALESCE(SUM(pl.quantity), 0),
+                   COALESCE(SUM(pl.quantity * COALESCE(p.cost, 0)), 0),
+                   MAX(pl.last_updated)
+            FROM locations l
+            LEFT JOIN product_locations pl ON LOWER(TRIM(pl.location)) = LOWER(TRIM(l.name))
+            LEFT JOIN products p ON p.id = pl.product_id
+            WHERE LOWER(l.name) LIKE LOWER(?)
+            GROUP BY l.id, l.name
+            ORDER BY LOWER(l.name)
+        """, (pattern,))
+        return [{
+            "id": int(row[0]), "name": str(row[1] or ""),
+            "product_count": int(row[2] or 0), "quantity": int(row[3] or 0),
+            "stock_value": float(row[4] or 0), "last_updated": str(row[5] or ""),
+        } for row in cursor.fetchall()]
+    finally: conn.close()
+
+
+def create_stock_location(name: str) -> Dict[str, Any]:
+    name = str(name or "").strip()
+    if not name: raise ValueError("Location name is required")
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id FROM locations WHERE LOWER(TRIM(name)) = LOWER(?)", (name,))
+        if cursor.fetchone(): raise ValueError(f"Location already exists: {name}")
+        _sync_postgres_id_sequences(cursor, ("locations",))
+        location_id = _execute_dynamic_insert(cursor, "locations", {"name": name})
+        conn.commit()
+        return {"id": location_id, "name": name, "product_count": 0, "quantity": 0, "stock_value": 0}
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+
+
+def rename_stock_location(location_id: int, name: str) -> Dict[str, Any]:
+    location_id, name = int(location_id or 0), str(name or "").strip()
+    if not location_id or not name: raise ValueError("Location and new name are required")
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM locations WHERE id = ?", (location_id,)); row = cursor.fetchone()
+        if not row: raise ValueError("Location not found")
+        old_name = str(row[0])
+        cursor.execute("SELECT id FROM locations WHERE LOWER(TRIM(name)) = LOWER(?) AND id != ?", (name, location_id))
+        if cursor.fetchone(): raise ValueError(f"Location already exists: {name}")
+        cursor.execute("UPDATE locations SET name = ? WHERE id = ?", (name, location_id))
+        cursor.execute("UPDATE product_locations SET location = ? WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name, old_name))
+        cursor.execute("UPDATE stock_movements SET location = ? WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name, old_name))
+        cursor.execute("UPDATE products SET warehouse = ? WHERE LOWER(TRIM(warehouse)) = LOWER(TRIM(?))", (name, old_name))
+        conn.commit()
+        return {"id": location_id, "name": name}
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
+
+
+def delete_stock_location(location_id: int) -> None:
+    location_id = int(location_id or 0)
+    conn = connect_db(); cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT name FROM locations WHERE id = ?", (location_id,)); row = cursor.fetchone()
+        if not row: raise ValueError("Location not found")
+        name = str(row[0])
+        cursor.execute("SELECT COUNT(*) FROM product_locations WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name,))
+        if int(cursor.fetchone()[0] or 0) > 0:
+            raise ValueError("Move or remove all product stock records from this location first")
+        cursor.execute("UPDATE stock_movements SET location = '' WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name,))
+        cursor.execute("UPDATE products SET warehouse = '' WHERE LOWER(TRIM(warehouse)) = LOWER(TRIM(?))", (name,))
+        cursor.execute("DELETE FROM locations WHERE id = ?", (location_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback(); raise
+    finally: conn.close()
 
 
 def barcode_exists(barcode: str, exclude_product_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
