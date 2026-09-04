@@ -46,17 +46,17 @@ class PosLiteServiceJobTests(unittest.TestCase):
         job = self.repo.create({"job_title": "Print", "internal_notes": "Deposit 5000"}, created_by="server")
         window = self.window
         window.load_service_orders()
-        self.assertTrue(window.service_order_start_button.isEnabled())
+        self.assertFalse(hasattr(window, "service_order_start_button"))
         self.assertFalse(window.service_order_collect_button.isEnabled())
-        window.start_selected_service_order()
+        self.repo.change_status(job["id"], "in_progress", changed_by="tech")
+        window.load_service_orders()
         self.assertEqual(window.service_order_table.item(0, 7).text(), "tech")
-        self.assertFalse(window.service_order_start_button.isEnabled())
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            window.complete_selected_service_order()
+        self.assertFalse(hasattr(window, "service_order_start_button"))
+        self.repo.change_status(job["id"], "ready_for_pickup", changed_by="tech")
         self.filter("ready_for_pickup")
         self.assertEqual(window.service_order_table.rowCount(), 1)
         self.assertEqual(window.service_order_table.item(0, 5).text(), "Ready for Pickup")
-        self.assertFalse(window.service_order_change_button.isEnabled())
+        self.assertFalse(hasattr(window, "service_order_change_button"))
         self.assertTrue(window.service_order_collect_button.isEnabled())
         self.assertTrue(window.service_order_edit_button.isEnabled())
         window.user = {"username": "cashier"}
@@ -72,7 +72,7 @@ class PosLiteServiceJobTests(unittest.TestCase):
         self.assertIn("Work Completed By: tech", window.service_order_detail_summary.text())
         self.assertIn("Delivered By: cashier", window.service_order_detail_summary.text())
         self.assertFalse(window.service_order_collect_button.isEnabled())
-        self.assertFalse(window.service_order_change_button.isEnabled())
+        self.assertFalse(hasattr(window, "service_order_change_button"))
         self.assertEqual(self.repo.get(job["id"])["internal_notes"], "Deposit 5000")
 
     def test_external_status_change_refreshes_without_new_job_and_keeps_selection(self):
@@ -87,7 +87,7 @@ class PosLiteServiceJobTests(unittest.TestCase):
         window._poll_service_jobs()
         self.assertEqual(window.selected_service_order["id"], job["id"])
         self.assertIn("Working By: other-tech", window.service_order_detail_summary.text())
-        self.assertFalse(window.service_order_start_button.isEnabled())
+        self.assertFalse(hasattr(window, "service_order_start_button"))
 
     def test_filters_include_legacy_ready_jobs_and_exclude_them_from_pending(self):
         for status in ["completed", "ready_for_pickup", "in_progress"]:
@@ -101,13 +101,14 @@ class PosLiteServiceJobTests(unittest.TestCase):
         self.filter("in_progress")
         self.assertEqual(self.window.service_order_table.rowCount(), 1)
 
-    def test_failed_claim_refreshes_actual_owner(self):
+    def test_duplicate_collection_refreshes_actual_collector(self):
         job = self.repo.create({"job_title": "Shared"}, created_by="server")
+        self.repo.change_status(job["id"], "ready_for_pickup", changed_by="tech")
         self.window.load_service_orders()
-        self.repo.change_status(job["id"], "in_progress", changed_by="other-tech")
-        with patch.object(QMessageBox, "warning") as warning:
-            self.window.start_selected_service_order()
+        self.repo.change_status(job["id"], "delivered", changed_by="other-cashier")
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), patch.object(QMessageBox, "warning") as warning:
+            self.window.collect_selected_service_order()
         warning.assert_called_once()
         self.assertFalse(self.window._service_job_updating)
-        self.assertIn("other-tech", self.window.service_order_detail_summary.text())
-        self.assertFalse(self.window.service_order_start_button.isEnabled())
+        self.assertIn("Delivered By: other-cashier", self.window.service_order_detail_summary.text())
+        self.assertFalse(self.window.service_order_collect_button.isEnabled())

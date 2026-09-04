@@ -17,6 +17,7 @@ def main() -> None:
         "--name", APP_NAME,
         "--specpath", str(root / "build"),
         "--noconfirm", "--clean", "--windowed", "--onedir",
+        "--icon", str(root / "assets" / "icons" / "service_job.ico"),
         "--collect-submodules", "service_job_client",
         "--collect-submodules", "lite_pos",
     ])

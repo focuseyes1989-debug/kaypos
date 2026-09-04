@@ -5,7 +5,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QFormLayout, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -14,6 +14,13 @@ from PyQt6.QtWidgets import (
 from lite_pos.api import LiteApiClient
 from lite_pos.service_jobs import READY_FOR_PICKUP_STATUSES, job_status_style
 from service_job_client.config import load_config, save_config
+from utils.branded_icons import service_job_icon
+
+
+class LoginDialog(QDialog):
+    def reject(self) -> None:
+        if not self.property("busy"):
+            super().reject()
 
 
 class TaskWorker(QObject):
@@ -38,6 +45,7 @@ class ServiceJobClientWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("KAY Service Job Client")
+        self.setWindowIcon(service_job_icon())
         self.resize(1080, 680)
         self.setMinimumSize(820, 540)
         self.api: LiteApiClient | None = None
@@ -52,7 +60,8 @@ class ServiceJobClientWindow(QMainWindow):
         self._known_job_ids: set[int] | None = None
 
         self.pages = QStackedWidget()
-        self.login_page = self._build_login_page()
+        self.login_page = QWidget()
+        self.login_dialog = self._build_login_dialog()
         self.jobs_page = self._build_jobs_page()
         self.pages.addWidget(self.login_page)
         self.pages.addWidget(self.jobs_page)
@@ -62,31 +71,103 @@ class ServiceJobClientWindow(QMainWindow):
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(5000)
         self.refresh_timer.timeout.connect(self.refresh_jobs)
-        self.tray = QSystemTrayIcon(QApplication.instance().windowIcon(), self)
+        self.tray = QSystemTrayIcon(self.windowIcon(), self)
         self.tray.setToolTip("KAY Service Job Client")
         self.tray.show()
 
-    def _build_login_page(self) -> QWidget:
+    def _build_login_dialog(self) -> QDialog:
+        dialog = LoginDialog(self)
+        dialog.setWindowTitle("Sign in · KAY Service Job Client")
+        dialog.setWindowIcon(self.windowIcon())
+        dialog.setModal(True)
+        dialog.setFixedSize(470, 380)
+        dialog.rejected.connect(self.close)
+        body = QVBoxLayout(dialog)
+        body.setContentsMargins(30, 24, 30, 24)
+        body.setSpacing(10)
+        brand = QLabel("KAY SERVICE JOB CLIENT", objectName="brand")
+        title = QLabel("Welcome back", objectName="title")
+        subtitle = QLabel("Sign in to continue to your service jobs.", objectName="muted")
+        subtitle.setWordWrap(True)
+        for label in (brand, title, subtitle):
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            body.addWidget(label)
         config = load_config()
-        page = QWidget(); outer = QVBoxLayout(page); outer.addStretch()
-        card = QFrame(); card.setFrameShape(QFrame.Shape.StyledPanel); card.setMaximumWidth(480)
-        layout = QVBoxLayout(card)
-        title = QLabel("KAY Service Job Client"); title.setStyleSheet("font-size: 24px; font-weight: 700;")
-        subtitle = QLabel("Sign in to view and complete service jobs.")
         form = QFormLayout()
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(10)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.server_input = QLineEdit(config["server_url"])
+        self.server_input.setMinimumWidth(285)
+        self.server_input.setPlaceholderText("https://192.168.1.10:8000")
         self.username_input = QLineEdit(config["remember_username"])
-        self.password_input = QLineEdit(); self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.insecure_check = QCheckBox("Allow self-signed HTTPS certificate"); self.insecure_check.setChecked(config["insecure_tls"])
-        form.addRow("Server URL", self.server_input); form.addRow("Username", self.username_input); form.addRow("Password", self.password_input)
-        self.login_button = QPushButton("Sign In"); self.login_button.clicked.connect(self.login)
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.returnPressed.connect(self.login)
-        self.login_status = QLabel(""); self.login_status.setWordWrap(True)
-        layout.addWidget(title); layout.addWidget(subtitle); layout.addSpacing(12); layout.addLayout(form)
-        layout.addWidget(self.insecure_check); layout.addWidget(self.login_button); layout.addWidget(self.login_status)
-        row = QHBoxLayout(); row.addStretch(); row.addWidget(card); row.addStretch()
-        outer.addLayout(row); outer.addStretch()
-        return page
+        form.addRow("Server URL", self.server_input)
+        form.addRow("Username", self.username_input)
+        form.addRow("Password", self.password_input)
+        body.addLayout(form)
+        self.insecure_check = QCheckBox("Allow self-signed HTTPS certificate")
+        self.insecure_check.setChecked(config["insecure_tls"])
+        body.addWidget(self.insecure_check)
+        self.login_status = QLabel("", objectName="muted")
+        self.login_status.setWordWrap(True)
+        self.login_status.setMinimumHeight(34)
+        self.login_status.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        body.addWidget(self.login_status)
+        buttons = QHBoxLayout()
+        self.test_button = QPushButton("Test Connection")
+        self.test_button.setMinimumWidth(120)
+        self.test_button.clicked.connect(self.test_connection)
+        self.login_button = QPushButton("Sign In", objectName="primary")
+        self.login_button.setMinimumWidth(100)
+        self.login_button.clicked.connect(self.login)
+        buttons.addWidget(self.test_button)
+        buttons.addStretch()
+        buttons.addWidget(self.login_button)
+        body.addLayout(buttons)
+        return dialog
+
+    def show_login_dialog(self) -> None:
+        if self.api or self.login_dialog.isVisible():
+            return
+        self.login_dialog.show()
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            frame = self.login_dialog.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.login_dialog.move(frame.topLeft())
+        self.login_dialog.raise_()
+        self.login_dialog.activateWindow()
+        self.username_input.setFocus()
+
+    def _set_login_busy(self, busy: bool, message: str = "") -> None:
+        self.login_dialog.setProperty("busy", busy)
+        for widget in (self.server_input, self.username_input, self.password_input,
+                       self.insecure_check, self.test_button, self.login_button):
+            widget.setEnabled(not busy)
+        self.login_status.setText(message)
+
+    def test_connection(self) -> None:
+        if self.login_dialog.property("busy"):
+            return
+        self._set_login_busy(True, "Testing server connection…")
+        client = LiteApiClient(self.server_input.text(), self.insecure_check.isChecked())
+
+        def operation():
+            try:
+                return client.health()
+            finally:
+                client.close()
+
+        def connected(_data):
+            self.server_input.setText(client.server_url)
+            save_config({"server_url": client.server_url, "insecure_tls": self.insecure_check.isChecked(),
+                         "remember_username": self.username_input.text().strip()})
+            self._set_login_busy(False, "Server is connected and ready.")
+
+        self._run_task(operation, connected, lambda error: self._set_login_busy(False, error))
 
     def _build_jobs_page(self) -> QWidget:
         page = QWidget(); outer = QVBoxLayout(page)
@@ -144,21 +225,30 @@ class ServiceJobClientWindow(QMainWindow):
         thread.start()
 
     def login(self) -> None:
+        if self.login_dialog.property("busy"):
+            return
         username = self.username_input.text().strip(); password = self.password_input.text()
         if not username or not password:
             self.login_status.setText("Username and password are required."); return
-        self.login_button.setEnabled(False); self.login_status.setText("Signing in…")
+        self._set_login_busy(True, "Signing in…")
         client = LiteApiClient(self.server_input.text(), self.insecure_check.isChecked())
 
         def accepted(user):
-            self.api = client; self.user = dict(user); self.password_input.clear(); self.login_button.setEnabled(True); self.login_status.clear()
+            self.api = client; self.user = dict(user); self.password_input.clear(); self._set_login_busy(False)
             save_config({"server_url": client.server_url, "insecure_tls": self.insecure_check.isChecked(), "remember_username": username})
             name = self.user.get("full_name") or self.user.get("username") or "User"
             self.identity_label.setText(f"Signed in: {name}")
-            self.pages.setCurrentWidget(self.jobs_page); self._known_job_ids = None; self.refresh_timer.start(); self.refresh_jobs()
+            self.pages.setCurrentWidget(self.jobs_page); self.show(); self.login_dialog.accept(); self._known_job_ids = None; self.refresh_timer.start(); self.refresh_jobs()
 
-        self._run_task(lambda: (client.login(username, password), client.current_user())[1], accepted,
-                       lambda error: (self.login_button.setEnabled(True), self.login_status.setText(error)))
+        def authenticate():
+            try:
+                user = client.login(username, password)
+                return client.current_user() or user
+            except Exception:
+                client.close()
+                raise
+
+        self._run_task(authenticate, accepted, lambda error: self._set_login_busy(False, error))
 
     def logout(self) -> None:
         self.refresh_timer.stop(); self.api = None; self.user = {}; self.jobs = []; self.selected_job = {}; self._known_job_ids = None
@@ -166,7 +256,8 @@ class ServiceJobClientWindow(QMainWindow):
         self.detail_status.hide()
         self.start_button.setEnabled(False)
         self.collect_button.setEnabled(False)
-        self.pages.setCurrentWidget(self.login_page); self.password_input.setFocus()
+        self.pages.setCurrentWidget(self.login_page); self.password_input.clear(); self._set_login_busy(False)
+        self.show_login_dialog(); self.hide()
 
     def refresh_jobs(self) -> None:
         if not self.api or self._loading or self._updating:

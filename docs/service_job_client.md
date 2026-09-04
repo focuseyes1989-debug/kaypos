@@ -6,6 +6,8 @@ Standalone client application for staff workstations. It contains no POS or chec
 
 On Windows, double-click `service_job_client_main.pyw` to start the client without a Command Prompt window.
 
+Startup opens a compact sign-in dialog matching POS Lite. Use **Test Connection** to check the server before signing in. The job window opens after successful authentication; **Sign Out** returns to the sign-in dialog. The password is cleared after sign-in and is not saved.
+
 For troubleshooting with console output, run:
 
 ```powershell
@@ -22,7 +24,7 @@ When the customer arrives, select the job under **Ready for Pickup** and click *
 
 Older `completed` and `ready` jobs appear under **Ready for Pickup** and can be marked as collected without changing their existing work-completion records. Pending excludes jobs awaiting pickup; use the separate filters or All to see them.
 
-The **Service Jobs** page in POS Lite uses the same Start Job, Complete Job, and Mark as Collected workflow, status colors, filters, and staff/time columns. While the page is open, it refreshes changed jobs from other workstations every five seconds and keeps the selected job when it remains in the filter. Appointment urgency is highlighted in the Appointment column. Notes can still be edited while a job awaits pickup, including older completed jobs.
+Staff use **Start Job** and **Complete Job** in Service Job Client. The **Service Jobs** page in POS Lite creates and edits jobs, shows status colors, filters, and staff/time columns, and provides **Mark as Collected** for customer pickup. POS Lite does not offer Start Job or Complete Job controls. While the page is open, it refreshes changed jobs from other workstations every five seconds and keeps the selected job when it remains in the filter. Appointment urgency is highlighted in the Appointment column. Notes can still be edited while a job awaits pickup, including older completed jobs.
 
 Update and restart the POS Server as well as the clients for this feature (rebuild packaged executables). The server adds the tracking database columns automatically. Older records show a dash where no worker, time, or collection staff was recorded; historical collection is not inferred.
 

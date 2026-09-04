@@ -23,6 +23,62 @@ class ServiceJobClientTests(unittest.TestCase):
             self.assertEqual(config["remember_username"], "client-2")
             self.assertFalse(config["insecure_tls"])
 
+    def test_login_dialog_opens_workspace_and_returns_on_logout(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        self.addCleanup(window.login_dialog.hide)
+        window._run_task = lambda operation, success, failure: success(operation())
+        window.refresh_jobs = Mock()
+        window.show_login_dialog()
+        self.assertTrue(window.login_dialog.isVisible())
+        self.assertFalse(window.isVisible())
+        self.assertTrue(window.login_dialog.isModal())
+        self.assertEqual(window.login_dialog.width(), 470)
+        window.username_input.setText("tech1")
+        window.password_input.setText("test-password")
+        client = Mock(server_url="https://server:8000")
+        client.current_user.return_value = {"username": "tech1"}
+        with patch("service_job_client.window.LiteApiClient", return_value=client), patch("service_job_client.window.save_config"):
+            window.login()
+        self.assertTrue(window.isVisible())
+        self.assertFalse(window.login_dialog.isVisible())
+        self.assertEqual(window.password_input.text(), "")
+        self.assertTrue(window.refresh_timer.isActive())
+        window.logout()
+        self.assertTrue(window.login_dialog.isVisible())
+        self.assertFalse(window.isVisible())
+        self.assertFalse(window.refresh_timer.isActive())
+
+    def test_connection_test_and_failed_login_restore_controls(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        client = Mock(server_url="https://server:8000")
+        pending = []
+        window._run_task = lambda *args: pending.append(args)
+        with patch("service_job_client.window.LiteApiClient", return_value=client), patch("service_job_client.window.save_config"):
+            window.test_connection()
+            self.assertFalse(window.login_button.isEnabled())
+            window.test_connection()
+            self.assertEqual(len(pending), 1)
+            operation, success, failure = pending.pop()
+            success(operation())
+            client.health.assert_called_once()
+            client.close.assert_called_once()
+            self.assertTrue(window.test_button.isEnabled())
+            self.assertIn("connected", window.login_status.text())
+            window.username_input.setText("tech1")
+            window.password_input.setText("wrong-password")
+            client.login.side_effect = RuntimeError("Invalid credentials")
+            window.login()
+            operation, success, failure = pending.pop()
+            try:
+                operation()
+            except RuntimeError as exc:
+                failure(str(exc))
+            self.assertIsNone(window.api)
+            self.assertTrue(window.login_button.isEnabled())
+            self.assertEqual(window.login_status.text(), "Invalid credentials")
+
     def test_window_contains_only_job_workflow(self):
         window = ServiceJobClientWindow()
         self.assertEqual(window.windowTitle(), "KAY Service Job Client")

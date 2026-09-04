@@ -43,8 +43,8 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         })
         self.assertEqual(window.service_order_items_table.rowCount(), 1)
         self.assertEqual(window.service_order_history.count(), 1)
-        statuses = {window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())}
-        self.assertEqual(statuses, {"ready_for_pickup"})
+        self.assertFalse(window.service_order_collect_button.isEnabled())
+        self.assertFalse(hasattr(window, "service_order_next_status"))
         window.close()
 
     def test_print_shop_status_controls_follow_production_flow(self):
@@ -53,14 +53,12 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
             "id": 2, "order_no": "SO-2", "status": "ready_to_print",
             "job_title": "Color booklet", "items": [], "status_history": [],
         })
-        statuses = [window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())]
-        self.assertEqual(statuses, ["ready_for_pickup"])
+        self.assertFalse(window.service_order_collect_button.isEnabled())
         window._show_service_order_detail({
             "id": 2, "order_no": "SO-2", "status": "ready_for_pickup",
             "job_title": "Color booklet", "items": [], "status_history": [],
         })
-        statuses = [window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())]
-        self.assertEqual(statuses, ["delivered"])
+        self.assertTrue(window.service_order_collect_button.isEnabled())
         window.close()
 
     def test_order_item_dialog_filters_sold_by_mode_and_variants(self):

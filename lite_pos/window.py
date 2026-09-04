@@ -2168,17 +2168,13 @@ class LiteWindow(QMainWindow):
         self.service_order_edit_button = QPushButton("Edit"); self.service_order_edit_button.clicked.connect(self.edit_service_order)
         self.service_order_cancel_button = QPushButton("Cancel Job"); self.service_order_cancel_button.clicked.connect(self.cancel_selected_service_order)
         self.service_order_delete_button = QPushButton("Delete"); self.service_order_delete_button.clicked.connect(self.delete_selected_service_order)
-        self.service_order_next_status = QComboBox()
-        self.service_order_next_status.hide()
-        self.service_order_change_button = QPushButton("Complete Job", objectName="primary"); self.service_order_change_button.clicked.connect(self.complete_selected_service_order)
-        self.service_order_start_button = QPushButton("Start Job"); self.service_order_start_button.clicked.connect(self.start_selected_service_order)
         self.service_order_collect_button = QPushButton("Mark as Collected"); self.service_order_collect_button.clicked.connect(self.collect_selected_service_order)
         actions.addWidget(self.service_order_new_button); actions.addWidget(self.service_order_edit_button)
         actions.addWidget(self.service_order_cancel_button); actions.addWidget(self.service_order_delete_button)
         actions.addStretch()
         detail_layout.addLayout(actions)
         job_actions = QVBoxLayout()
-        job_actions.addWidget(self.service_order_start_button); job_actions.addWidget(self.service_order_change_button); job_actions.addWidget(self.service_order_collect_button)
+        job_actions.addWidget(self.service_order_collect_button)
         detail_layout.addLayout(job_actions)
         self._set_service_order_actions_enabled(False)
         body.addWidget(detail, 2); outer.addLayout(body, 1)
@@ -3809,18 +3805,13 @@ class LiteWindow(QMainWindow):
             self.service_order_history.addItem(
                 f"{visit.get('visited_at') or ''} · Return {str(visit.get('status') or 'open').title()} · {visit.get('reason') or ''}"
             )
-        self.service_order_next_status.clear()
-        if status in READY_FOR_PICKUP_STATUSES:
-            self.service_order_next_status.addItem("Delivered", "delivered")
-        elif status not in {"delivered", "cancelled"}:
-            self.service_order_next_status.addItem("Ready for Pickup", "ready_for_pickup")
         self._set_service_order_actions_enabled(True)
 
     def _clear_service_order_detail(self) -> None:
         self.selected_service_order = {}
         self.service_order_detail_title.setText("Select a job")
         self.service_order_detail_summary.clear(); self.service_order_items_table.setRowCount(0); self.service_order_history.clear()
-        self.service_order_next_status.clear(); self._set_service_order_actions_enabled(False)
+        self._set_service_order_actions_enabled(False)
 
     def _set_service_order_actions_enabled(self, enabled: bool) -> None:
         enabled = bool(enabled) and bool(self.selected_service_order) and not getattr(self, "_service_job_updating", False)
@@ -3832,27 +3823,7 @@ class LiteWindow(QMainWindow):
         self.service_order_add_item_button.setEnabled(bool(enabled) and not closed)
         self.service_order_edit_item_button.setEnabled(bool(enabled) and not closed)
         self.service_order_remove_item_button.setEnabled(bool(enabled) and not closed)
-        can_change = bool(enabled) and self.service_order_next_status.count() > 0
-        self.service_order_next_status.setEnabled(can_change)
-        self.service_order_change_button.setEnabled(enabled and status not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"})
         self.service_order_collect_button.setEnabled(enabled and status in READY_FOR_PICKUP_STATUSES)
-        owner = str(self.selected_service_order.get("started_by") or "")
-        self.service_order_start_button.setEnabled(enabled and status in {"received", "assigned", "on_hold", "waiting_parts"}
-                                                  and (not owner or owner == self.user.get("username")))
-
-    def complete_selected_service_order(self) -> None:
-        if not self.service_order_change_button.isEnabled():
-            return
-        order_id = self.selected_service_order.get("id")
-        if QMessageBox.question(self, "Complete Job", "Mark the work as finished and ready for customer pickup?") != QMessageBox.StandardButton.Yes:
-            return
-        if self.selected_service_order.get("id") != order_id or not self.service_order_change_button.isEnabled():
-            return
-        self._change_service_job_status("ready_for_pickup", "Work completed from POS Lite")
-
-    def start_selected_service_order(self) -> None:
-        if self.service_order_start_button.isEnabled():
-            self._change_service_job_status("in_progress", "Started from POS Lite")
 
     def collect_selected_service_order(self) -> None:
         if not self.service_order_collect_button.isEnabled():
@@ -4071,26 +4042,6 @@ class LiteWindow(QMainWindow):
         self._run_task(
             lambda: client.service_orders(status="", limit=200), loaded,
             lambda _error: setattr(self, "_service_job_polling", False),
-        )
-
-    def change_selected_service_order_status(self) -> None:
-        if not self.api or not self.selected_service_order or self.service_order_next_status.count() == 0:
-            return
-        target = str(self.service_order_next_status.currentData() or "")
-        note, accepted = QInputDialog.getMultiLineText(
-            self, "Change Service Order Status", f"Change to {target.replace('_', ' ').title()}\nOptional note:", "",
-        )
-        if not accepted:
-            return
-        order_id = int(self.selected_service_order.get("id") or 0)
-        self._set_service_order_actions_enabled(False)
-
-        def changed(order):
-            self.selected_service_order = dict(order); self._show_service_order_detail(order); self.load_service_orders()
-
-        self._run_task(
-            lambda: self.api.change_service_order_status(order_id, target, note), changed,
-            lambda error: (self._set_service_order_actions_enabled(True), QMessageBox.critical(self, "Service Order", error)),
         )
 
     def collect_service_order_deposit(self) -> None:
