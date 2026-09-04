@@ -24,6 +24,7 @@ from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
 from lite_pos.theme import apply_lite_theme, normalize_theme
 from lite_pos.settings_center import LiteSettingsCenter
+from lite_pos.service_jobs import READY_FOR_PICKUP_STATUSES, job_status_style
 
 
 _MYANMAR_DIGIT_TRANSLATION = str.maketrans("၀၁၂၃၄၅၆၇၈၉", "0123456789")
@@ -36,7 +37,7 @@ def normalize_barcode_digits(value: str) -> str:
 
 def service_order_urgency(expected_at: str, status: str, now: QDateTime | None = None) -> tuple[str, str, str]:
     """Return background, foreground and message for an active appointment."""
-    if str(status or "").strip().lower() in {"completed", "delivered", "cancelled"}:
+    if str(status or "").strip().lower() in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"}:
         return "", "", ""
     text = str(expected_at or "").strip()
     if not text:
@@ -1442,6 +1443,8 @@ class LiteWindow(QMainWindow):
         self.service_job_timer.timeout.connect(self._poll_service_jobs)
         self._known_service_job_ids: set[int] | None = None
         self._service_job_polling = False
+        self._service_job_updating = False
+        self._service_job_snapshot = None
         self.service_job_tray = QSystemTrayIcon(QApplication.instance().windowIcon(), self)
         self.service_job_tray.setToolTip("KAY POS Service Jobs")
         self.service_job_tray.show()
@@ -2092,27 +2095,29 @@ class LiteWindow(QMainWindow):
         self.service_order_search.returnPressed.connect(self.load_service_orders)
         self.service_order_status_filter = QComboBox()
         self.service_order_status_filter.addItem("All", "")
-        self.service_order_status_filter.addItem("Not Completed", "received")
-        self.service_order_status_filter.addItem("Completed", "completed")
+        self.service_order_status_filter.addItem("Pending", "pending")
+        self.service_order_status_filter.addItem("In Progress", "in_progress")
+        self.service_order_status_filter.addItem("Ready for Pickup", "ready_for_pickup")
+        self.service_order_status_filter.addItem("Delivered", "delivered")
         self.service_order_status_filter.addItem("Cancelled", "cancelled")
         self.service_order_status_filter.currentIndexChanged.connect(self.load_service_orders)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.load_service_orders)
         filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
         outer.addLayout(filters)
-        urgency_legend = QLabel("Appointment urgency · Red: overdue · Orange: within 24 hours · Yellow: within 3 days", objectName="muted")
+        urgency_legend = QLabel("Appointment column · Red: overdue · Orange: within 24 hours · Yellow: within 3 days", objectName="muted")
         outer.addWidget(urgency_legend)
 
         body = QHBoxLayout()
         list_panel = QFrame(objectName="card"); list_layout = QVBoxLayout(list_panel); list_layout.setContentsMargins(8, 8, 8, 8)
-        self.service_order_table = QTableWidget(0, 7)
-        self.service_order_table.setHorizontalHeaderLabels(["Date", "Time", "Job Name", "Details", "Appointment", "Status", "Completed By"])
+        self.service_order_table = QTableWidget(0, 12)
+        self.service_order_table.setHorizontalHeaderLabels(["Date", "Time", "Job Name", "Details", "Appointment", "Status", "Work Completed By", "Working By", "Started At", "Work Completed At", "Delivered By", "Delivered At"])
         self.service_order_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.service_order_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.service_order_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.service_order_table.verticalHeader().setVisible(False); self.service_order_table.verticalHeader().setDefaultSectionSize(29)
         self.service_order_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.service_order_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        for column, width in {0:95, 1:70, 4:135, 5:90, 6:110}.items():
+        for column, width in {0:95, 1:70, 4:135, 5:135, 6:145, 7:110, 8:150, 9:150, 10:110, 11:150}.items():
             self.service_order_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive); self.service_order_table.setColumnWidth(column, width)
         self.service_order_table.itemSelectionChanged.connect(self.load_selected_service_order)
         list_layout.addWidget(self.service_order_table, 1)
@@ -2123,6 +2128,7 @@ class LiteWindow(QMainWindow):
         detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(10, 10, 10, 10)
         self.service_order_detail_title = QLabel("Select a service order", objectName="title"); self.service_order_detail_title.setWordWrap(True)
         self.service_order_detail_summary = QLabel("", objectName="muted"); self.service_order_detail_summary.setWordWrap(True)
+        self.service_order_detail_summary.setTextFormat(Qt.TextFormat.PlainText)
         detail_layout.addWidget(self.service_order_detail_title); detail_layout.addWidget(self.service_order_detail_summary)
         detail_layout.addWidget(QLabel("Job Details"))
         self.service_order_items_table = QTableWidget(0, 4)
@@ -2162,13 +2168,18 @@ class LiteWindow(QMainWindow):
         self.service_order_edit_button = QPushButton("Edit"); self.service_order_edit_button.clicked.connect(self.edit_service_order)
         self.service_order_cancel_button = QPushButton("Cancel Job"); self.service_order_cancel_button.clicked.connect(self.cancel_selected_service_order)
         self.service_order_delete_button = QPushButton("Delete"); self.service_order_delete_button.clicked.connect(self.delete_selected_service_order)
-        self.service_order_next_status = QComboBox(); self.service_order_next_status.addItem("Completed", "completed")
+        self.service_order_next_status = QComboBox()
         self.service_order_next_status.hide()
-        self.service_order_change_button = QPushButton("Complete", objectName="primary"); self.service_order_change_button.clicked.connect(self.complete_selected_service_order)
+        self.service_order_change_button = QPushButton("Complete Job", objectName="primary"); self.service_order_change_button.clicked.connect(self.complete_selected_service_order)
+        self.service_order_start_button = QPushButton("Start Job"); self.service_order_start_button.clicked.connect(self.start_selected_service_order)
+        self.service_order_collect_button = QPushButton("Mark as Collected"); self.service_order_collect_button.clicked.connect(self.collect_selected_service_order)
         actions.addWidget(self.service_order_new_button); actions.addWidget(self.service_order_edit_button)
         actions.addWidget(self.service_order_cancel_button); actions.addWidget(self.service_order_delete_button)
-        actions.addStretch(); actions.addWidget(self.service_order_change_button)
+        actions.addStretch()
         detail_layout.addLayout(actions)
+        job_actions = QVBoxLayout()
+        job_actions.addWidget(self.service_order_start_button); job_actions.addWidget(self.service_order_change_button); job_actions.addWidget(self.service_order_collect_button)
+        detail_layout.addLayout(job_actions)
         self._set_service_order_actions_enabled(False)
         body.addWidget(detail, 2); outer.addLayout(body, 1)
         return page
@@ -2518,6 +2529,7 @@ class LiteWindow(QMainWindow):
             QTimer.singleShot(100, self.load_categories)
             QTimer.singleShot(120, self.load_receipt_settings)
             self._known_service_job_ids = None
+            self._service_job_snapshot = None
             self.service_job_timer.start()
             QTimer.singleShot(200, self._poll_service_jobs)
 
@@ -3675,17 +3687,20 @@ class LiteWindow(QMainWindow):
         )
 
     def load_service_orders(self) -> None:
-        if not self.api:
+        if not self.api or self._service_job_updating:
             return
+        client = self.api
         token = self._new_page_load("service_orders")
+        self._new_page_load("service_order_detail")
         query = self.service_order_search.text().strip()
         status = str(self.service_order_status_filter.currentData() or "")
         self.service_order_list_status.setText("Loading…")
         self._set_service_order_actions_enabled(False)
 
         def loaded(orders):
-            if not self._page_load_is_current("service_orders", token):
+            if self.api is not client or not self._page_load_is_current("service_orders", token):
                 return
+            selected_id = self.selected_service_order.get("id")
             self.service_orders_data = list(orders)
             self.selected_service_order = {}
             self.service_order_table.blockSignals(True); self.service_order_table.setUpdatesEnabled(False)
@@ -3695,31 +3710,46 @@ class LiteWindow(QMainWindow):
                 status = str(order.get("status") or "received")
                 values = (
                     received[:10], received[11:16], order.get("job_title") or "—", order.get("complaint") or "—",
-                    order.get("expected_at") or "—", status.replace("_", " ").title(),
+                    order.get("expected_at") or "—", job_status_style(status)[0],
                     order.get("completed_by") or "—",
+                    order.get("started_by") or "—", order.get("started_at") or "—",
+                    order.get("completed_at") or "—", order.get("delivered_by") or "—", order.get("delivered_at") or "—",
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(str(value)); item.setData(Qt.ItemDataRole.UserRole, int(order.get("id") or 0))
-                    background, foreground, urgency = service_order_urgency(order.get("expected_at") or "", status)
-                    if background:
-                        item.setBackground(QColor(background))
-                        item.setForeground(QColor(foreground))
-                        item.setToolTip(urgency)
+                    _, background, foreground = job_status_style(status)
+                    item.setBackground(QColor(background)); item.setForeground(QColor(foreground))
+                    if column == 4:
+                        background, foreground, urgency = service_order_urgency(order.get("expected_at") or "", status)
+                        if background:
+                            item.setBackground(QColor(background)); item.setForeground(QColor(foreground)); item.setToolTip(urgency)
                     self.service_order_table.setItem(row, column, item)
             self.service_order_table.setUpdatesEnabled(True); self.service_order_table.blockSignals(False)
             self.service_order_list_status.setText(f"{len(orders)} job(s)")
             self._clear_service_order_detail()
             if orders:
-                self.service_order_table.selectRow(0)
+                self.service_order_table.blockSignals(True)
+                self.service_order_table.selectRow(next((i for i, order in enumerate(orders) if order.get("id") == selected_id), 0))
+                self.service_order_table.blockSignals(False)
+                self.load_selected_service_order()
+
+        def operation():
+            orders = client.service_orders(query=query, status="" if status in {"pending", "ready_for_pickup"} else status, limit=200)
+            if status == "ready_for_pickup":
+                orders = [order for order in orders if order.get("status") in READY_FOR_PICKUP_STATUSES]
+            elif status == "pending":
+                orders = [order for order in orders if order.get("status") not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"}]
+            return orders
 
         self._run_task(
-            lambda: self.api.service_orders(query=query, status=status, limit=200), loaded,
+            operation, loaded,
             lambda error: (self.service_order_list_status.setText("Could not load service orders"), QMessageBox.critical(self, "Service Orders", error)),
         )
 
     def load_selected_service_order(self) -> None:
-        if not self.api:
+        if not self.api or self._service_job_updating:
             return
+        client = self.api
         row = self.service_order_table.currentRow()
         item = self.service_order_table.item(row, 0) if row >= 0 else None
         order_id = int(item.data(Qt.ItemDataRole.UserRole) or 0) if item else 0
@@ -3731,26 +3761,29 @@ class LiteWindow(QMainWindow):
         self._set_service_order_actions_enabled(False)
 
         def loaded(order):
-            if not self._page_load_is_current("service_order_detail", token):
+            if self.api is not client or not self._page_load_is_current("service_order_detail", token):
                 return
             self.selected_service_order = dict(order)
             self._show_service_order_detail(order)
 
         self._run_task(
-            lambda: self.api.service_order(order_id), loaded,
+            lambda: client.service_order(order_id), loaded,
             lambda error: (self._clear_service_order_detail(), QMessageBox.critical(self, "Service Order", error)),
         )
 
     def _show_service_order_detail(self, order: dict) -> None:
+        self.selected_service_order = dict(order)
         status = str(order.get("status") or "received")
-        self.service_order_detail_title.setText(f"{order.get('job_title') or 'Service Job'} · {status.replace('_', ' ').title()}")
+        self.service_order_detail_title.setText(f"{order.get('job_title') or 'Service Job'} · {job_status_style(status)[0]}")
         summary = (
             f"Date/Time: {order.get('received_at') or '—'}\n"
             f"Details: {order.get('complaint') or '—'}\n"
             f"Appointment: {order.get('expected_at') or '—'}\n"
             f"Notes: {order.get('internal_notes') or '—'}\n"
             f"Created By: {order.get('created_by') or '—'}\n"
-            f"Completed By: {order.get('completed_by') or '—'}"
+            f"Working By: {order.get('started_by') or '—'}\nStarted At: {order.get('started_at') or '—'}\n"
+            f"Work Completed By: {order.get('completed_by') or '—'}\nWork Completed At: {order.get('completed_at') or '—'}\n"
+            f"Delivered By: {order.get('delivered_by') or '—'}\nDelivered At: {order.get('delivered_at') or '—'}"
         )
         self.service_order_detail_summary.setText(summary)
         items = list(order.get("items") or [])
@@ -3777,8 +3810,10 @@ class LiteWindow(QMainWindow):
                 f"{visit.get('visited_at') or ''} · Return {str(visit.get('status') or 'open').title()} · {visit.get('reason') or ''}"
             )
         self.service_order_next_status.clear()
-        if status not in {"completed", "delivered", "cancelled"}:
-            self.service_order_next_status.addItem("Completed", "completed")
+        if status in READY_FOR_PICKUP_STATUSES:
+            self.service_order_next_status.addItem("Delivered", "delivered")
+        elif status not in {"delivered", "cancelled"}:
+            self.service_order_next_status.addItem("Ready for Pickup", "ready_for_pickup")
         self._set_service_order_actions_enabled(True)
 
     def _clear_service_order_detail(self) -> None:
@@ -3788,28 +3823,70 @@ class LiteWindow(QMainWindow):
         self.service_order_next_status.clear(); self._set_service_order_actions_enabled(False)
 
     def _set_service_order_actions_enabled(self, enabled: bool) -> None:
+        enabled = bool(enabled) and bool(self.selected_service_order) and not getattr(self, "_service_job_updating", False)
         status = str(self.selected_service_order.get("status") or "")
         closed = status in {"completed", "delivered", "cancelled"}
-        self.service_order_edit_button.setEnabled(bool(enabled) and not closed)
+        self.service_order_edit_button.setEnabled(bool(enabled) and status not in {"delivered", "cancelled"})
         self.service_order_cancel_button.setEnabled(bool(enabled) and not closed)
         self.service_order_delete_button.setEnabled(bool(enabled) and status == "cancelled")
         self.service_order_add_item_button.setEnabled(bool(enabled) and not closed)
         self.service_order_edit_item_button.setEnabled(bool(enabled) and not closed)
         self.service_order_remove_item_button.setEnabled(bool(enabled) and not closed)
         can_change = bool(enabled) and self.service_order_next_status.count() > 0
-        self.service_order_next_status.setEnabled(can_change); self.service_order_change_button.setEnabled(can_change)
+        self.service_order_next_status.setEnabled(can_change)
+        self.service_order_change_button.setEnabled(enabled and status not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"})
+        self.service_order_collect_button.setEnabled(enabled and status in READY_FOR_PICKUP_STATUSES)
+        owner = str(self.selected_service_order.get("started_by") or "")
+        self.service_order_start_button.setEnabled(enabled and status in {"received", "assigned", "on_hold", "waiting_parts"}
+                                                  and (not owner or owner == self.user.get("username")))
 
     def complete_selected_service_order(self) -> None:
-        if not self.api or not self.selected_service_order:
+        if not self.service_order_change_button.isEnabled():
             return
-        if QMessageBox.question(self, "Complete Job", "Mark this job as completed?") != QMessageBox.StandardButton.Yes:
+        order_id = self.selected_service_order.get("id")
+        if QMessageBox.question(self, "Complete Job", "Mark the work as finished and ready for customer pickup?") != QMessageBox.StandardButton.Yes:
             return
+        if self.selected_service_order.get("id") != order_id or not self.service_order_change_button.isEnabled():
+            return
+        self._change_service_job_status("ready_for_pickup", "Work completed from POS Lite")
+
+    def start_selected_service_order(self) -> None:
+        if self.service_order_start_button.isEnabled():
+            self._change_service_job_status("in_progress", "Started from POS Lite")
+
+    def collect_selected_service_order(self) -> None:
+        if not self.service_order_collect_button.isEnabled():
+            return
+        order_id = self.selected_service_order.get("id")
+        notes = str(self.selected_service_order.get("internal_notes") or "—")
+        if QMessageBox.question(self, "Customer Collection", f"Notes:\n{notes}\n\nHas the customer collected this job?") != QMessageBox.StandardButton.Yes:
+            return
+        if self.selected_service_order.get("id") != order_id or not self.service_order_collect_button.isEnabled():
+            return
+        self._change_service_job_status("delivered", "Customer collected job from POS Lite")
+
+    def _change_service_job_status(self, target: str, note: str) -> None:
+        if not self.api or not self.selected_service_order or self._service_job_updating:
+            return
+        client = self.api
         order_id = int(self.selected_service_order.get("id") or 0)
-        self.service_order_change_button.setEnabled(False)
+        self._service_job_updating = True
+        self._new_page_load("service_orders"); self._new_page_load("service_order_detail")
+        self._set_service_order_actions_enabled(False)
+
+        def finished(order=None, error=None):
+            self._service_job_updating = False
+            if self.api is not client:
+                return
+            if order:
+                self._show_service_order_detail(order)
+            self.load_service_orders()
+            if error:
+                QMessageBox.warning(self, "Service Job", error)
+
         self._run_task(
-            lambda: self.api.change_service_order_status(order_id, "completed", "Completed from client PC"),
-            lambda order: (setattr(self, "selected_service_order", dict(order)), self._show_service_order_detail(order), self.load_service_orders()),
-            lambda error: (self.service_order_change_button.setEnabled(True), QMessageBox.critical(self, "Complete Job", error)),
+            lambda: client.change_service_order_status(order_id, target, note), finished,
+            lambda error: finished(error=error),
         )
 
     def cancel_selected_service_order(self) -> None:
@@ -3967,14 +4044,18 @@ class LiteWindow(QMainWindow):
         """Notify this workstation when another user adds a shared job."""
         if not self.api or self._service_job_polling:
             return
+        client = self.api
         self._service_job_polling = True
 
         def loaded(orders):
             self._service_job_polling = False
+            if self.api is not client:
+                return
+            changed = orders != self._service_job_snapshot
+            self._service_job_snapshot = [dict(order) for order in orders]
             current_ids = {int(row.get("id") or 0) for row in orders}
             if self._known_service_job_ids is None:
                 self._known_service_job_ids = current_ids
-                return
             new_jobs = [row for row in orders if int(row.get("id") or 0) not in self._known_service_job_ids]
             self._known_service_job_ids |= current_ids
             username = str((self.user or {}).get("username") or "").casefold()
@@ -3984,11 +4065,11 @@ class LiteWindow(QMainWindow):
                 title = str(job.get("job_title") or "New Job")
                 details = str(job.get("complaint") or "")
                 self.service_job_tray.showMessage("New Service Job", f"{title}\n{details}", QSystemTrayIcon.MessageIcon.Information, 8000)
-            if new_jobs and self.workspace_stack.currentWidget() is self.service_orders_page:
+            if changed and self.workspace_stack.currentWidget() is self.service_orders_page:
                 self.load_service_orders()
 
         self._run_task(
-            lambda: self.api.service_orders(status="", limit=200), loaded,
+            lambda: client.service_orders(status="", limit=200), loaded,
             lambda _error: setattr(self, "_service_job_polling", False),
         )
 

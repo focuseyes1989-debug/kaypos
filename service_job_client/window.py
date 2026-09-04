@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -11,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from lite_pos.api import LiteApiClient
+from lite_pos.service_jobs import READY_FOR_PICKUP_STATUSES, job_status_style
 from service_job_client.config import load_config, save_config
 
 
@@ -45,6 +47,8 @@ class ServiceJobClientWindow(QMainWindow):
         self._threads: set[QThread] = set()
         self._workers: set[TaskWorker] = set()
         self._loading = False
+        self._updating = False
+        self._jobs_revision = 0
         self._known_job_ids: set[int] | None = None
 
         self.pages = QStackedWidget()
@@ -92,7 +96,9 @@ class ServiceJobClientWindow(QMainWindow):
         self.search_input = QLineEdit(); self.search_input.setPlaceholderText("Search job name or details…"); self.search_input.returnPressed.connect(self.refresh_jobs)
         self.status_filter = QComboBox()
         self.status_filter.addItem("Pending", "pending")
-        self.status_filter.addItem("Completed", "completed")
+        self.status_filter.addItem("In Progress", "in_progress")
+        self.status_filter.addItem("Ready for Pickup", "ready_for_pickup")
+        self.status_filter.addItem("Delivered", "delivered")
         self.status_filter.addItem("All", "all")
         self.status_filter.currentIndexChanged.connect(self.refresh_jobs)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.refresh_jobs)
@@ -101,15 +107,15 @@ class ServiceJobClientWindow(QMainWindow):
         top.addWidget(self.status_filter); top.addWidget(refresh); top.addWidget(logout); outer.addLayout(top)
 
         body = QHBoxLayout()
-        self.job_table = QTableWidget(0, 7)
-        self.job_table.setHorizontalHeaderLabels(["Date", "Time", "Job Name", "Details", "Appointment", "Status", "Completed By"])
+        self.job_table = QTableWidget(0, 12)
+        self.job_table.setHorizontalHeaderLabels(["Date", "Time", "Job Name", "Details", "Appointment", "Status", "Work Completed By", "Working By", "Started At", "Work Completed At", "Delivered By", "Delivered At"])
         self.job_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.job_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.job_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.job_table.verticalHeader().setVisible(False)
         self.job_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.job_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        for column, width in {0:90, 1:65, 4:135, 5:105, 6:110}.items():
+        for column, width in {0:90, 1:65, 4:135, 5:135, 6:145, 7:110, 8:150, 9:150, 10:110, 11:150}.items():
             self.job_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             self.job_table.setColumnWidth(column, width)
         self.job_table.itemSelectionChanged.connect(self.load_selected_job)
@@ -118,9 +124,12 @@ class ServiceJobClientWindow(QMainWindow):
         detail = QFrame(); detail.setFrameShape(QFrame.Shape.StyledPanel); detail.setMinimumWidth(300); detail.setMaximumWidth(420)
         detail_layout = QVBoxLayout(detail)
         self.detail_title = QLabel("Select a job"); self.detail_title.setWordWrap(True); self.detail_title.setStyleSheet("font-size: 18px; font-weight: 700;")
+        self.detail_status = QLabel(); self.detail_status.hide()
         self.detail_text = QTextEdit(); self.detail_text.setReadOnly(True)
+        self.start_button = QPushButton("Start Job"); self.start_button.setEnabled(False); self.start_button.clicked.connect(self.start_job)
         self.complete_button = QPushButton("Complete Job"); self.complete_button.setEnabled(False); self.complete_button.clicked.connect(self.complete_job)
-        detail_layout.addWidget(self.detail_title); detail_layout.addWidget(self.detail_text, 1); detail_layout.addWidget(self.complete_button)
+        self.collect_button = QPushButton("Mark as Collected"); self.collect_button.setEnabled(False); self.collect_button.clicked.connect(self.collect_job)
+        detail_layout.addWidget(self.detail_title); detail_layout.addWidget(self.detail_status); detail_layout.addWidget(self.detail_text, 1); detail_layout.addWidget(self.start_button); detail_layout.addWidget(self.complete_button); detail_layout.addWidget(self.collect_button)
         body.addWidget(detail, 1); outer.addLayout(body, 1)
         self.jobs_status = QLabel(""); outer.addWidget(self.jobs_status)
         return page
@@ -154,29 +163,42 @@ class ServiceJobClientWindow(QMainWindow):
     def logout(self) -> None:
         self.refresh_timer.stop(); self.api = None; self.user = {}; self.jobs = []; self.selected_job = {}; self._known_job_ids = None
         self.job_table.setRowCount(0); self.detail_title.setText("Select a job"); self.detail_text.clear(); self.complete_button.setEnabled(False)
+        self.detail_status.hide()
+        self.start_button.setEnabled(False)
+        self.collect_button.setEnabled(False)
         self.pages.setCurrentWidget(self.login_page); self.password_input.setFocus()
 
     def refresh_jobs(self) -> None:
-        if not self.api or self._loading:
+        if not self.api or self._loading or self._updating:
             return
+        client = self.api
+        revision = self._jobs_revision
         self._loading = True; query = self.search_input.text().strip(); mode = str(self.status_filter.currentData() or "pending")
 
         def operation():
             # Always fetch the shared board so notifications are independent of
             # the operator's current search or status filter.
-            all_rows = self.api.service_orders(query="", status="", limit=200)
+            all_rows = client.service_orders(query="", status="", limit=200)
             rows = list(all_rows)
             needle = query.casefold()
             if needle:
                 rows = [row for row in rows if needle in " ".join(str(row.get(key) or "") for key in ("job_title", "complaint", "internal_notes")).casefold()]
-            if mode == "completed":
-                rows = [row for row in rows if str(row.get("status") or "") == "completed"]
+            if mode == "ready_for_pickup":
+                rows = [row for row in rows if str(row.get("status") or "") in READY_FOR_PICKUP_STATUSES]
+            elif mode in {"delivered", "in_progress"}:
+                rows = [row for row in rows if str(row.get("status") or "") == mode]
             elif mode != "all":
-                rows = [row for row in rows if str(row.get("status") or "") not in {"completed", "delivered", "cancelled"}]
+                rows = [row for row in rows if str(row.get("status") or "") not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"}]
             return all_rows, rows
 
         def loaded(result):
             self._loading = False; all_jobs, jobs = result; jobs = list(jobs); current_ids = {int(job.get("id") or 0) for job in all_jobs}
+            if self.api is not client:
+                return
+            if revision != self._jobs_revision:
+                self.refresh_jobs()
+                return
+            selected_id = self.selected_job.get("id")
             if self._known_job_ids is not None:
                 username = str(self.user.get("username") or "").casefold()
                 for job in reversed([job for job in all_jobs if int(job.get("id") or 0) not in self._known_job_ids]):
@@ -186,13 +208,21 @@ class ServiceJobClientWindow(QMainWindow):
             self.jobs = jobs; self.job_table.blockSignals(True); self.job_table.setRowCount(len(jobs))
             for row, job in enumerate(jobs):
                 received = str(job.get("received_at") or ""); status = str(job.get("status") or "received")
+                status_label, background, foreground = job_status_style(status)
                 values = (received[:10], received[11:16], job.get("job_title") or "—", job.get("complaint") or "—",
-                          job.get("expected_at") or "—", "Completed" if status == "completed" else "Pending", job.get("completed_by") or "—")
+                          job.get("expected_at") or "—", status_label, job.get("completed_by") or "—",
+                          job.get("started_by") or "—", job.get("started_at") or "—",
+                          job.get("completed_at") or "—", job.get("delivered_by") or "—", job.get("delivered_at") or "—")
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(str(value)); item.setData(Qt.ItemDataRole.UserRole, int(job.get("id") or 0)); self.job_table.setItem(row, column, item)
+                    item.setBackground(QColor(background)); item.setForeground(QColor(foreground))
+                    if column == 5:
+                        font = item.font(); font.setBold(True); item.setFont(font)
             self.job_table.blockSignals(False); self.jobs_status.setText(f"{len(jobs)} job(s)")
-            if jobs: self.job_table.selectRow(0)
-            else: self.selected_job = {}; self.detail_title.setText("Select a job"); self.detail_text.clear(); self.complete_button.setEnabled(False)
+            if jobs:
+                selected_row = next((index for index, job in enumerate(jobs) if job.get("id") == selected_id), 0)
+                self.job_table.selectRow(selected_row)
+            self.load_selected_job()
 
         self._run_task(operation, loaded, lambda error: (setattr(self, "_loading", False), self.statusBar().showMessage(error)))
 
@@ -201,23 +231,72 @@ class ServiceJobClientWindow(QMainWindow):
         job_id = int(item.data(Qt.ItemDataRole.UserRole) or 0) if item else 0
         job = next((entry for entry in self.jobs if int(entry.get("id") or 0) == job_id), {})
         self.selected_job = dict(job)
+        self.start_button.setEnabled(False)
+        self.collect_button.setEnabled(False)
         if not job:
-            self.detail_title.setText("Select a job"); self.detail_text.clear(); self.complete_button.setEnabled(False); return
+            self.detail_title.setText("Select a job"); self.detail_text.clear(); self.detail_status.hide(); self.complete_button.setEnabled(False); return
         status = str(job.get("status") or "received")
+        status_label, background, foreground = job_status_style(status)
+        self.detail_status.setText(status_label)
+        self.detail_status.setStyleSheet(f"background-color: {background}; color: {foreground}; padding: 6px 10px; border-radius: 6px; font-weight: 700;")
+        self.detail_status.show()
         self.detail_title.setText(str(job.get("job_title") or "Service Job"))
         self.detail_text.setPlainText(
             f"Date/Time: {job.get('received_at') or '—'}\n\nDetails:\n{job.get('complaint') or '—'}\n\n"
             f"Appointment: {job.get('expected_at') or '—'}\n\nNotes:\n{job.get('internal_notes') or '—'}\n\n"
-            f"Created By: {job.get('created_by') or '—'}\nCompleted By: {job.get('completed_by') or '—'}"
+            f"Working By: {job.get('started_by') or '—'}\nStarted At: {job.get('started_at') or '—'}\n\n"
+            f"Created By: {job.get('created_by') or '—'}\nWork Completed By: {job.get('completed_by') or '—'}\n"
+            f"Work Completed At: {job.get('completed_at') or '—'}\n\n"
+            f"Delivered By: {job.get('delivered_by') or '—'}\nDelivered At: {job.get('delivered_at') or '—'}"
         )
-        self.complete_button.setEnabled(status not in {"completed", "delivered", "cancelled"})
+        owner = str(job.get("started_by") or "")
+        self.start_button.setEnabled(not self._updating and status in {"received", "assigned", "on_hold", "waiting_parts"}
+                                     and (not owner or owner == self.user.get("username")))
+        self.complete_button.setEnabled(not self._updating and status not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"})
+        self.collect_button.setEnabled(not self._updating and status in READY_FOR_PICKUP_STATUSES)
+
+    def start_job(self) -> None:
+        if not self.api or not self.selected_job or self._updating:
+            return
+        self._change_job_status("in_progress", "Started from Service Job Client")
+
+    def _change_job_status(self, status: str, note: str) -> None:
+        client = self.api
+        job_id = int(self.selected_job["id"])
+        self._updating = True
+        self._jobs_revision += 1
+        self.start_button.setEnabled(False); self.complete_button.setEnabled(False)
+        self.collect_button.setEnabled(False)
+
+        def finished(job=None, error=None):
+            self._updating = False
+            if self.api is not client:
+                return
+            if job:
+                self.jobs = [dict(job) if entry.get("id") == job_id else entry for entry in self.jobs]
+            self.load_selected_job()
+            self.refresh_jobs()
+            if error:
+                QMessageBox.warning(self, "Service Job", error)
+
+        self._run_task(lambda: client.change_service_order_status(job_id, status, note),
+                       finished, lambda error: finished(error=error))
 
     def complete_job(self) -> None:
-        if not self.api or not self.selected_job:
+        if not self.api or not self.selected_job or self._updating:
             return
-        if QMessageBox.question(self, "Complete Job", "Mark this job as completed?") != QMessageBox.StandardButton.Yes:
+        if str(self.selected_job.get("status")) in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"}:
             return
-        job_id = int(self.selected_job.get("id") or 0); self.complete_button.setEnabled(False)
-        self._run_task(lambda: self.api.change_service_order_status(job_id, "completed", "Completed from Service Job Client"),
-                       lambda _job: self.refresh_jobs(),
-                       lambda error: (self.complete_button.setEnabled(True), QMessageBox.critical(self, "Complete Job", error)))
+        if QMessageBox.question(self, "Complete Job", "Mark the work as finished and ready for customer pickup?") != QMessageBox.StandardButton.Yes:
+            return
+        self._change_job_status("ready_for_pickup", "Work completed from Service Job Client")
+
+    def collect_job(self) -> None:
+        if not self.api or not self.selected_job or self._updating:
+            return
+        if str(self.selected_job.get("status")) not in READY_FOR_PICKUP_STATUSES:
+            return
+        notes = str(self.selected_job.get("internal_notes") or "—")
+        if QMessageBox.question(self, "Customer Collection", f"Notes:\n{notes}\n\nHas the customer collected this job?") != QMessageBox.StandardButton.Yes:
+            return
+        self._change_job_status("delivered", "Customer collected job from Service Job Client")

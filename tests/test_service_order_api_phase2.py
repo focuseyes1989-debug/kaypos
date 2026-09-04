@@ -104,6 +104,13 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             api.ServiceOrderItemRequest(description="Print", pricing_unit="per_meter")
 
+    def test_finish_and_collect_take_actor_from_authenticated_user(self):
+        for status, actor in [("ready_for_pickup", "tech"), ("delivered", "cashier")]:
+            with self.subTest(status=status):
+                self.repo.change_status.reset_mock()
+                api.change_service_order_status(1, api.ServiceOrderStatusRequest(status=status), {"username": actor})
+                self.repo.change_status.assert_called_once_with(1, status, changed_by=actor, note="")
+
     def test_repository_not_found_becomes_http_404(self):
         self.repo.get.side_effect = ValueError("Service order not found")
         with self.assertRaises(HTTPException) as caught:

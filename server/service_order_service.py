@@ -187,6 +187,9 @@ def ensure_service_order_schema(cursor) -> None:
     _ensure_column(cursor, "service_orders", "checkout_started_at", "TIMESTAMP")
     _ensure_column(cursor, "service_orders", "sale_refunded_at", "TIMESTAMP")
     _ensure_column(cursor, "service_orders", "completed_by", "TEXT")
+    _ensure_column(cursor, "service_orders", "started_by", "TEXT")
+    _ensure_column(cursor, "service_orders", "started_at", "TIMESTAMP")
+    _ensure_column(cursor, "service_orders", "delivered_by", "TEXT")
     _ensure_column(cursor, "service_orders", "job_title", "TEXT")
     _ensure_column(cursor, "service_orders", "file_source", "TEXT")
     _ensure_column(cursor, "service_orders", "file_reference", "TEXT")
@@ -1146,40 +1149,47 @@ class ServiceOrderRepository:
             cursor = conn.cursor()
             self._prepare(conn, cursor)
             if _is_sqlite_cursor(cursor):
-                cursor.execute(begin_transaction_sql(immediate=True))
-            cursor.execute("SELECT status FROM service_orders WHERE id = ?", (int(order_id),))
+                cursor.execute("BEGIN IMMEDIATE")
+            lock = "" if _is_sqlite_cursor(cursor) else " FOR UPDATE"
+            cursor.execute("SELECT status, started_by FROM service_orders WHERE id = ?" + lock, (int(order_id),))
             record = cursor.fetchone()
             if not record:
                 raise ValueError("Service order not found")
             current = str(record[0])
+            owner = str(record[1] or "")
+            if target == "in_progress" and owner and owner != actor:
+                raise ValueError(f"This job is already being worked on by {owner}")
             if target == current:
                 raise ValueError("Service order already has that status")
-            # The simplified job board permits any open job to be completed
-            # directly by a client workstation.
+            # The job client finishes work separately from customer collection.
+            ready_states = {"ready", "ready_for_pickup", "completed"}
+            can_finish_work = target == "ready_for_pickup" and current not in ready_states | {"delivered", "cancelled"}
             if target == "completed" and current in {"completed", "delivered", "cancelled"}:
                 raise ValueError("Closed service order cannot be completed")
-            if target != "completed" and target not in STATUS_TRANSITIONS.get(current, set()):
+            if target != "completed" and not can_finish_work and target not in STATUS_TRANSITIONS.get(current, set()):
                 raise ValueError(f"Cannot change service order from {current} to {target}")
             now = _now()
-            timestamps = ""
-            if target == "completed":
-                timestamps = ", completed_at = ?"
-            elif target == "delivered":
-                timestamps = ", delivered_at = ?"
+            changes = ["status = ?", "updated_at = ?"]
             params = [target, now]
-            if timestamps:
-                params.append(now)
-            params.extend([int(order_id), current])
-            approval_sql = ""
+            if target in ready_states:
+                if current in ready_states:
+                    changes.extend(["completed_at = COALESCE(completed_at, ?)", "completed_by = COALESCE(completed_by, ?)"])
+                else:
+                    changes.extend(["completed_at = ?", "completed_by = ?"])
+                params.extend([now, actor])
+            elif target == "delivered":
+                changes.extend(["delivered_at = ?", "delivered_by = ?"])
+                params.extend([now, actor])
             if target == "waiting_approval":
-                approval_sql = ", approval_status = 'waiting_customer'"
+                changes.append("approval_status = 'waiting_customer'")
             elif target == "ready_to_print":
-                approval_sql = ", approval_status = 'approved'"
-            completed_sql = ", completed_by = ?" if target == "completed" else ""
-            if target == "completed":
-                params.insert(-2, actor)
+                changes.append("approval_status = 'approved'")
+            if target == "in_progress":
+                changes.extend(["started_by = ?", "started_at = COALESCE(started_at, ?)"])
+                params.extend([actor, now])
+            params.extend([int(order_id), current])
             cursor.execute(
-                f"UPDATE service_orders SET status = ?, updated_at = ?{timestamps}{approval_sql}{completed_sql} WHERE id = ? AND status = ?",
+                f"UPDATE service_orders SET {', '.join(changes)} WHERE id = ? AND status = ?",
                 tuple(params),
             )
             if cursor.rowcount != 1:

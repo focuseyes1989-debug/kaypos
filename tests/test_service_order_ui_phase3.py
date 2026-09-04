@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from lite_pos.api import LiteApiClient
 from lite_pos.window import LiteWindow, ServiceOrderDialog, ServiceOrderItemDialog
@@ -19,26 +19,18 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         window = LiteWindow()
         self.assertIn("Service Orders", window.nav_buttons)
         self.assertIs(window.workspace_pages["Service Orders"], window.service_orders_page)
-        self.assertEqual(window.service_order_table.columnCount(), 6)
+        self.assertEqual(window.service_order_table.columnCount(), 12)
         window.close()
 
-    def test_dialog_maps_customer_and_order_values(self):
-        dialog = ServiceOrderDialog(customers=[{"id": 4, "name": "Aye", "phone": "09123"}])
-        dialog.customer.setCurrentIndex(1)
+    def test_dialog_maps_job_details_and_payment_notes(self):
+        dialog = ServiceOrderDialog()
         dialog.job_title.setText("A4 color print")
-        dialog.file_source.setCurrentText("Telegram")
-        dialog.file_reference.setText("design.pdf")
-        dialog.item_name.setText("Laptop")
         dialog.complaint.setPlainText("No power")
-        dialog.deposit.setValue(5000)
+        dialog.internal_notes.setPlainText("Deposit 5000; balance unpaid")
         values = dialog.values()
-        self.assertEqual(values["customer_id"], 4)
-        self.assertEqual(values["customer_name"], "Aye")
         self.assertEqual(values["job_title"], "A4 color print")
-        self.assertEqual(values["file_source"], "Telegram")
-        self.assertEqual(values["file_reference"], "design.pdf")
-        self.assertEqual(values["item_name"], "Laptop")
-        self.assertEqual(values["deposit_amount"], 5000)
+        self.assertEqual(values["complaint"], "No power")
+        self.assertEqual(values["internal_notes"], "Deposit 5000; balance unpaid")
         dialog.close()
 
     def test_detail_renders_items_history_and_valid_transitions(self):
@@ -52,7 +44,7 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
         self.assertEqual(window.service_order_items_table.rowCount(), 1)
         self.assertEqual(window.service_order_history.count(), 1)
         statuses = {window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())}
-        self.assertEqual(statuses, {"waiting_parts", "on_hold", "ready", "completed", "cancelled"})
+        self.assertEqual(statuses, {"ready_for_pickup"})
         window.close()
 
     def test_print_shop_status_controls_follow_production_flow(self):
@@ -62,13 +54,13 @@ class ServiceOrderUiPhase3Tests(unittest.TestCase):
             "job_title": "Color booklet", "items": [], "status_history": [],
         })
         statuses = [window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())]
-        self.assertEqual(statuses, ["printing", "on_hold", "cancelled"])
+        self.assertEqual(statuses, ["ready_for_pickup"])
         window._show_service_order_detail({
             "id": 2, "order_no": "SO-2", "status": "ready_for_pickup",
             "job_title": "Color booklet", "items": [], "status_history": [],
         })
         statuses = [window.service_order_next_status.itemData(i) for i in range(window.service_order_next_status.count())]
-        self.assertEqual(statuses, ["printing", "completed", "delivered", "cancelled"])
+        self.assertEqual(statuses, ["delivered"])
         window.close()
 
     def test_order_item_dialog_filters_sold_by_mode_and_variants(self):
