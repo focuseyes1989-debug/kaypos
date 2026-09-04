@@ -1692,6 +1692,36 @@ def open_cashdrawer(_: Dict[str, Any] = Depends(current_user)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+from server.native_sales import install_routes as _install_native_sales_routes
+_install_native_sales_routes(app, current_user, SaleRequest)
+from server.native_catalog import install_routes as _install_native_catalog_routes
+_install_native_catalog_routes(app, current_user)
+from server.native_business import install_routes as _install_native_business_routes
+_install_native_business_routes(app, current_user)
+from server.native_reports import install_routes as _install_native_report_routes
+_install_native_report_routes(app, current_user)
+from server.native_admin import install_routes as _install_native_admin_routes
+_install_native_admin_routes(app, current_user)
+from server.native_operations import install_routes as _install_native_operations_routes
+_install_native_operations_routes(app, current_user)
+from server.native_backup import install_routes as _install_native_backup_routes
+_install_native_backup_routes(app, current_user)
+from server.native_assistant import install_routes as _install_native_assistant_routes
+_install_native_assistant_routes(app, current_user)
+from server.native_integrations import install_routes as _install_native_integration_routes
+_install_native_integration_routes(app, current_user)
+from server.native_files import install_routes as _install_native_file_routes
+_install_native_file_routes(app, current_user)
+from server.native_printing import install_routes as _install_native_printing_routes
+_install_native_printing_routes(app, current_user)
+from server.native_database import install_routes as _install_native_database_routes
+_install_native_database_routes(app, current_user)
+from server.native_telegram import install_routes as _install_native_telegram_routes
+_install_native_telegram_routes(app, current_user)
+from server.native_cloud_config import install_routes as _install_native_cloud_config_routes
+_install_native_cloud_config_routes(app, current_user)
+
+
 @app.post("/api/sales")
 def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_user)):
     try:

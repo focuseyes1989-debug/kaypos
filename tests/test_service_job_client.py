@@ -14,6 +14,31 @@ class ServiceJobClientTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_old_server_completion_rejection_explains_update_without_fallback(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        self.addCleanup(window.login_dialog.hide)
+        window.api = Mock()
+        window.selected_job = {"id": 12, "status": "in_progress"}
+        window.load_selected_job = Mock()
+        window.refresh_jobs = Mock()
+        error = "Cannot change service order from in_progress to ready_for_pickup"
+        window.api.change_service_order_status.side_effect = ValueError(error)
+        def run(operation, success, failure):
+            try:
+                result = operation()
+            except ValueError as exc:
+                failure(str(exc))
+            else:
+                success(result)
+        window._run_task = run
+        with patch("service_job_client.window.QMessageBox.warning") as warning:
+            window._change_job_status("ready_for_pickup", "Work completed")
+        window.api.change_service_order_status.assert_called_once_with(12, "ready_for_pickup", "Work completed")
+        self.assertIn("Update the POS Server code", warning.call_args.args[2])
+        self.assertFalse(window._updating)
+        window.refresh_jobs.assert_called_once()
+
     def test_separate_config_round_trip(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "config.json"

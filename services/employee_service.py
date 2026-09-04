@@ -3,11 +3,16 @@
 from datetime import date, datetime
 from typing import Any, Dict, Iterable, Optional
 
-from models.database import connect_db
+from models.database import connect_db as _connect_db
+from services.employee_transaction import connect as _employee_connect
 from utils.db_compat import ensure_column, is_postgres_backend
 
 
 EMPLOYEE_TABLES = ("payrolls", "attendance", "employee_shifts", "shifts", "employees")
+
+
+def connect_db():
+    return _employee_connect(_connect_db)
 
 
 def _rows(cursor) -> list[Dict[str, Any]]:
@@ -15,7 +20,7 @@ def _rows(cursor) -> list[Dict[str, Any]]:
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
-def ensure_employee_schema() -> None:
+def ensure_employee_schema(grant_permissions: bool = True) -> None:
     conn = connect_db()
     cur = conn.cursor()
     pk = "SERIAL PRIMARY KEY" if is_postgres_backend() else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -124,7 +129,13 @@ def ensure_employee_schema() -> None:
             cur.execute("INSERT OR IGNORE INTO shifts(name,start_time,end_time) VALUES(?,?,?)", (name, start, end))
     # One-time upgrade of the original Morning default. Custom schedules are
     # preserved because only the exact legacy 08:00-17:00 value is changed.
-    cur.execute("UPDATE shifts SET end_time='20:00' WHERE name='Morning' AND start_time='08:00' AND end_time='17:00'")
+    if grant_permissions:
+        cur.execute("UPDATE shifts SET end_time='20:00' WHERE name='Morning' AND start_time='08:00' AND end_time='17:00'")
+    # Native requests must never expand a role's permissions as a side effect.
+    if not grant_permissions:
+        conn.commit()
+        conn.close()
+        return
     # Existing installations receive employee permissions without replacing custom roles.
     cur.execute("SELECT name, permissions FROM user_roles WHERE name IN ('Admin','Manager')")
     for role, permissions in cur.fetchall():
@@ -326,6 +337,9 @@ def pay_payroll(payroll_id: int, paid_date: str, method: str, username: str) -> 
     expense_no=f"SAL-{payroll_no}"
     cur.execute("""INSERT INTO expenses(expense_no,category,description,amount,expense_date,payment_method,created_by,notes) VALUES(?,?,?,?,?,?,?,?)""",(expense_no,"Salaries",f"Salary - {employee} ({period})",amount,paid_date,method,username,payroll_no))
     expense_id=cur.lastrowid
+    if expense_id is None:
+        cur.execute("SELECT id FROM expenses WHERE expense_no=?", (expense_no,))
+        expense_id=cur.fetchone()[0]
     cur.execute("UPDATE payrolls SET status='Paid',paid_date=?,payment_method=?,expense_id=? WHERE id=?",(paid_date,method,expense_id,payroll_id)); conn.commit(); conn.close()
 
 

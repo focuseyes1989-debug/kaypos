@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 import sys
 from typing import Any, Callable, Dict
 
-from models.database import connect_db
+from models.database import connect_db as _connect_db
+from services.employee_transaction import connect as _employee_connect, active as _transaction_active
 from services.employee_service import ensure_employee_schema, recalculate_attendance_categories
 from utils.db_compat import is_postgres_backend
 
@@ -18,8 +19,12 @@ DEFAULT_DEVICE = {
 }
 
 
+def connect_db():
+    return _employee_connect(_connect_db)
+
+
 def ensure_zkteco_schema() -> None:
-    ensure_employee_schema()
+    ensure_employee_schema(grant_permissions=not _transaction_active())
     conn=connect_db(); cur=conn.cursor(); pk="SERIAL PRIMARY KEY" if is_postgres_backend() else "INTEGER PRIMARY KEY AUTOINCREMENT"
     cur.execute(f"""CREATE TABLE IF NOT EXISTS zkteco_devices (
         id {pk}, device_no INTEGER UNIQUE NOT NULL, name TEXT, ip_address TEXT NOT NULL,
@@ -72,16 +77,25 @@ def _connect(ip:str,port:int,key:int):
     return ZK(ip,port=port,timeout=10,password=key,force_udp=False,ommit_ping=True).connect()
 
 
-def sync_employee(device_no:int,ip:str,port:int,comm_key:int,device_user_id:str,employee_no:str) -> Dict[str,Any]:
-    ensure_zkteco_schema(); device=None
+def read_device_data(ip: str, port: int, comm_key: int) -> Dict[str, Any]:
+    """Read once without opening a database transaction or changing the device."""
+    device = None
     try:
         device=_connect(ip,port,comm_key); serial=str(device.get_serialnumber() or ""); device_time=device.get_time(); users={str(u.user_id):u for u in device.get_users()}
-        if str(device_user_id) not in users: raise ValueError(f"Device User ID {device_user_id} was not found")
-        all_logs=[x for x in device.get_attendance() if str(x.user_id)==str(device_user_id)]
+        return dict(serial=serial, time=device_time, users=users, logs=device.get_attendance())
     finally:
         if device:
             try:device.disconnect()
             except Exception:pass
+
+
+def sync_employee(device_no:int,ip:str,port:int,comm_key:int,device_user_id:str,employee_no:str,
+                  *, snapshot=None, initialize_schema=True) -> Dict[str,Any]:
+    if initialize_schema: ensure_zkteco_schema()
+    snapshot = snapshot if snapshot is not None else read_device_data(ip, port, comm_key)
+    serial, device_time, users = snapshot['serial'], snapshot['time'], snapshot['users']
+    if str(device_user_id) not in users: raise ValueError(f"Device User ID {device_user_id} was not found")
+    all_logs = [x for x in snapshot['logs'] if str(x.user_id) == str(device_user_id)]
     conn=connect_db();cur=conn.cursor()
     cur.execute("SELECT id FROM zkteco_devices WHERE device_no=?",(device_no,));row=cur.fetchone()
     if row:

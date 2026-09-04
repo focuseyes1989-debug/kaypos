@@ -113,39 +113,12 @@ def load_telegram_config() -> TelegramConfig:
 
 def save_telegram_config(config: TelegramConfig) -> Path:
     """Save Telegram settings to the ignored local .env file."""
-    env_path = get_env_path()
-    env_path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing_lines = []
-    if env_path.exists():
-        try:
-            existing_lines = env_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            existing_lines = []
-
-    preserved = []
-    for line in existing_lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            preserved.append(line)
-            continue
-        key = stripped.split("=", 1)[0].strip()
-        if key not in TELEGRAM_ENV_KEYS:
-            preserved.append(line)
-
-    if preserved and preserved[-1].strip():
-        preserved.append("")
-
-    preserved.extend(
-        [
-            f"TELEGRAM_ENABLED={'1' if config.enabled else '0'}",
-            f"TELEGRAM_LISTENER_ENABLED={'1' if config.listener_enabled else '0'}",
-            f"TELEGRAM_BOT_TOKEN={config.bot_token.strip()}",
-            f"TELEGRAM_CHAT_ID={config.chat_id.strip()}",
-        ]
-    )
-
-    env_path.write_text("\n".join(preserved) + "\n", encoding="utf-8")
+    from utils.telegram_config_store import save_legacy
+    env_path = save_legacy(get_env_path(), {
+        'TELEGRAM_ENABLED': '1' if config.enabled else '0',
+        'TELEGRAM_LISTENER_ENABLED': '1' if config.listener_enabled else '0',
+        'TELEGRAM_BOT_TOKEN': config.bot_token.strip(), 'TELEGRAM_CHAT_ID': config.chat_id.strip(),
+    })
     logger.info(f"Telegram settings saved to {env_path}")
     return env_path
 

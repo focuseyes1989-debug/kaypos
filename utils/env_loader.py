@@ -59,26 +59,9 @@ def project_env_path(path=None):
 
 def save_project_env_values(values, path=None):
     """Update selected .env values while preserving unrelated lines and comments."""
+    from utils.telegram_config_store import save_legacy
     env_path = project_env_path(path)
-    env_path.parent.mkdir(parents=True, exist_ok=True)
-    lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines() if env_path.exists() else []
-    pending = {str(key): str(value) for key, value in values.items()}
-    output = []
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in line:
-            output.append(line)
-            continue
-        key = line.split("=", 1)[0].strip()
-        if key in pending:
-            output.append(f"{key}={pending.pop(key)}")
-        else:
-            output.append(line)
-
-    if pending and output and output[-1].strip():
-        output.append("")
-    output.extend(f"{key}={value}" for key, value in pending.items())
-    env_path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
-    os.environ.update({str(key): str(value) for key, value in values.items()})
+    normalized = {str(key): str(value) for key, value in values.items()}
+    save_legacy(env_path, normalized, tuple(normalized))
+    os.environ.update(normalized)
     return env_path

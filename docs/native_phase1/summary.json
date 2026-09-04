@@ -1,0 +1,31 @@
+{
+  "baseline_commit": "52a2d7e04a605467b53ac1c978cf746608fbefa0",
+  "scope": [
+    "ui",
+    "app",
+    "core",
+    "models",
+    "services",
+    "utils",
+    "server",
+    "lite_pos",
+    "service_job_client",
+    "car_client"
+  ],
+  "source": "current working tree; static evidence, not runtime coverage",
+  "files": 411,
+  "ui_files": 297,
+  "ui_lines": 121498,
+  "ui_files_with_stylesheet_calls": 178,
+  "ui_stylesheet_calls_textual": 1620,
+  "ui_files_with_database_imports": 142,
+  "ui_dialog_candidates": 79,
+  "ui_paint_event_definitions_textual": 14,
+  "parse_errors": [],
+  "limitations": [
+    "Textual counts can include comments and are not executed-call counts.",
+    "Dialog candidates are class-name/base heuristics, not unique reachable dialogs.",
+    "Imports include conditional/lazy imports, not proof of runtime reachability.",
+    "Root entry points and launcher were reviewed manually; runtime data and static web assets excluded."
+  ]
+}

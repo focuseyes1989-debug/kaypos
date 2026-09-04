@@ -1,53 +1,20 @@
-# ui/ai_pages/__init__.py
-"""
-AI Pages Module
-"""
+"""Lazy AI exports: parser imports must not initialize UI or a database."""
+from importlib import import_module
 
-from ui.ai_pages.ai_pages_page import AIPagesPage
-from ui.ai_pages.ai_chat_room import AIChatRoom
-from ui.ai_pages.ai_chat_worker import QueryWorker
-from ui.ai_pages.ai_chat_widgets import CopyableMessageFrame
-from ui.ai_pages.ai_query_handlers import QueryHandlers
-from ui.ai_pages.ai_cache import QueryCache, _query_cache, get_cache_stats, clear_cache
-
-# Phase 1
-from ui.ai_pages.ai_nlp_processor import NLProcessor
-from ui.ai_pages.ai_response_templates import ResponseTemplates
-from ui.ai_pages.ai_error_handler import AIErrorHandler
-from ui.ai_pages.ai_analytics import AIAnalytics
-from ui.ai_pages.ai_enhanced_worker import EnhancedQueryWorker
-from ui.ai_pages.ai_product_search import AIProductSearch
-from ui.ai_pages.ai_troubleshooter import AITroubleshooter
-from ui.ai_pages.ai_settings_assistant import AISettingsAssistant
-
-# 🆕 Phase 2 - AI Analytics & Dashboard
-from ui.ai_pages.ai_dashboard import AIDashboard
-from ui.ai_pages.ai_dashboard.dashboard_data import get_dashboard_data_sync
+_EXPORTS = {
+    'AIPagesPage': 'ai_pages_page', 'AIChatRoom': 'ai_chat_room', 'QueryWorker': 'ai_chat_worker',
+    'CopyableMessageFrame': 'ai_chat_widgets', 'QueryHandlers': 'ai_query_handlers',
+    'QueryCache': 'ai_cache', '_query_cache': 'ai_cache', 'get_cache_stats': 'ai_cache', 'clear_cache': 'ai_cache',
+    'NLProcessor': 'ai_nlp_processor', 'ResponseTemplates': 'ai_response_templates',
+    'AIErrorHandler': 'ai_error_handler', 'AIAnalytics': 'ai_analytics', 'EnhancedQueryWorker': 'ai_enhanced_worker',
+    'AIProductSearch': 'ai_product_search', 'AITroubleshooter': 'ai_troubleshooter', 'AISettingsAssistant': 'ai_settings_assistant',
+    'AIDashboard': 'ai_dashboard', 'get_dashboard_data_sync': 'ai_dashboard.dashboard_data',
+}
+__all__ = list(_EXPORTS)
 
 
-__all__ = [
-    # Core
-    'AIPagesPage',
-    'AIChatRoom',
-    'QueryWorker',
-    'CopyableMessageFrame',
-    'QueryHandlers',
-    'QueryCache',
-    '_query_cache',
-    'get_cache_stats',
-    'clear_cache',
-    
-    # Phase 1
-    'NLProcessor',
-    'ResponseTemplates',
-    'AIErrorHandler',
-    'AIAnalytics',
-    'EnhancedQueryWorker',
-    'AIProductSearch',
-    'AITroubleshooter',
-    'AISettingsAssistant',
-    
-    # 🆕 Phase 2
-    'AIDashboard',
-    'get_dashboard_data_sync',
-]
+def __getattr__(name):
+    if name not in _EXPORTS: raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    value = getattr(import_module('.' + _EXPORTS[name], __name__), name)
+    globals()[name] = value
+    return value

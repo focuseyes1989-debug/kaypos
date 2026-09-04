@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
+import math
 import os
 import ctypes
 import mimetypes
@@ -335,11 +337,22 @@ def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
         if input_hash != stored_hash:
             return None
 
+        # Additive metadata for Native navigation; existing Lite fields stay intact.
+        cursor.execute("SELECT permissions FROM users WHERE id = ?", (user_id,))
+        user_permissions = cursor.fetchone()
+        cursor.execute("SELECT permissions FROM user_roles WHERE name = ?", (role,))
+        role_permissions = cursor.fetchone()
+        permissions = set()
+        for record in (user_permissions, role_permissions):
+            if record and record[0]:
+                permissions.update(value.strip() for value in str(record[0]).split(',') if value.strip())
+
         return {
             "id": user_id,
             "username": db_username,
             "role": role,
             "full_name": full_name or db_username,
+            "permissions": sorted(permissions),
         }
     finally:
         conn.close()
@@ -1277,7 +1290,7 @@ def _cashier_settings_from_cursor(cursor) -> Dict[str, Any]:
     }
 
 
-def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, created_by: str) -> List[Dict[str, Any]]:
+def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, created_by: str, preview_only: bool = False) -> List[Dict[str, Any]]:
     cursor.execute("SELECT name, stock FROM products WHERE id = ?", (product_id,))
     product = cursor.fetchone()
     if not product:
@@ -1313,14 +1326,15 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
         if take <= 0:
             continue
 
-        cursor.execute(
-            "UPDATE product_locations SET quantity = quantity - ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-            (take, loc_id),
-        )
-        cursor.execute("SELECT quantity FROM product_locations WHERE id = ?", (loc_id,))
-        updated_qty = int(cursor.fetchone()[0] or 0)
-        if updated_qty <= 0:
-            cursor.execute("DELETE FROM product_locations WHERE id = ?", (loc_id,))
+        if not preview_only:
+            cursor.execute(
+                "UPDATE product_locations SET quantity = quantity - ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                (take, loc_id),
+            )
+            cursor.execute("SELECT quantity FROM product_locations WHERE id = ?", (loc_id,))
+            updated_qty = int(cursor.fetchone()[0] or 0)
+            if updated_qty <= 0:
+                cursor.execute("DELETE FROM product_locations WHERE id = ?", (loc_id,))
 
         allocations.append(
             {
@@ -1348,6 +1362,9 @@ def _allocate_stock(cursor, product_id: int, qty_needed: int, invoice_no: str, c
                 "expire_date": "",
             }
         )
+
+    if preview_only:
+        return allocations
 
     stock_before = available_stock
     for allocation in allocations:
@@ -1388,6 +1405,13 @@ def create_sale(
     credit_notes: str = "",
     allow_credit_over_limit: bool = False,
     created_by: str = "Browser Cashier",
+    preview_only: bool = False,
+    expected_total: Optional[float] = None,
+    request_id: str = "",
+    discount_percent: float = 0,
+    _connection=None,
+    _price_adjustments=None,
+    _item_labels=None,
 ) -> Dict[str, Any]:
     normalized_items = []
     for item in items:
@@ -1405,18 +1429,58 @@ def create_sale(
     if not normalized_items:
         raise ValueError("Cart is empty")
 
+    if not math.isfinite(float(discount_percent)) or not 0 <= float(discount_percent) <= 100:
+        raise ValueError("Discount percentage must be between 0 and 100")
+    for value in [payment, discount_amount, *[i['manual_price'] for i in normalized_items if i['manual_price'] is not None]]:
+        if not math.isfinite(float(value)) or float(value) < 0:
+            raise ValueError("Amounts must be finite and non-negative")
+    request_hash = hashlib.sha256(json.dumps(
+        [normalized_items, payment, payment_type, sale_mode, discount_amount, points_used,
+         customer_id, due_date, credit_notes, allow_credit_over_limit, expected_total, discount_percent],
+        sort_keys=True, allow_nan=False).encode()).hexdigest()
+
     payment_type = payment_type or "Cash"
     sale_mode = sale_mode or "Cash"
     is_credit = sale_mode.lower() == "credit" or payment_type.lower() == "credit"
 
-    conn = connect_db()
+    if _connection is not None and request_id:
+        raise ValueError('An outer transaction owns its recovery request')
+    adjustments = list(_price_adjustments or [0] * len(normalized_items))
+    labels = list(_item_labels or [None] * len(normalized_items))
+    if len(labels) != len(normalized_items): raise ValueError('Invalid restaurant item labels')
+    if len(adjustments) != len(normalized_items) or any(not math.isfinite(float(v)) for v in adjustments):
+        raise ValueError('Invalid restaurant price adjustments')
+    conn = _connection if _connection is not None else connect_db()
     cursor = conn.cursor()
     invoice_no = datetime.now().strftime("WEB%Y%m%d%H%M%S%f")[:-3]
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        if not is_postgres_backend():
+        if request_id:
+            # The request claim and receipt commit in the same transaction as stock.
+            cursor.execute("""CREATE TABLE IF NOT EXISTS native_sale_requests (
+                request_id TEXT PRIMARY KEY, actor TEXT NOT NULL,
+                payload_hash TEXT NOT NULL, receipt_json TEXT NOT NULL DEFAULT '')""")
+            conn.commit()
+        if not is_postgres_backend() and _connection is None:
             cursor.execute("BEGIN IMMEDIATE")
+        if request_id:
+            cursor.execute("""INSERT INTO native_sale_requests (request_id, actor, payload_hash)
+                VALUES (?, ?, ?) ON CONFLICT (request_id) DO NOTHING""",
+                (request_id, created_by, request_hash))
+            cursor.execute("SELECT actor, payload_hash, receipt_json FROM native_sale_requests WHERE request_id=?", (request_id,))
+            actor, previous_hash, saved = cursor.fetchone()
+            if actor != created_by or previous_hash != request_hash:
+                raise ValueError("Checkout request belongs to a different sale or account")
+            if saved:
+                conn.rollback()
+                return json.loads(saved)
+        if is_postgres_backend():
+            # Lock in a stable order before reading prices or allocating stock.
+            for product_id in sorted({item['product_id'] for item in normalized_items}):
+                cursor.execute("SELECT id FROM products WHERE id=? FOR UPDATE", (product_id,))
+            if customer_id:
+                cursor.execute("SELECT id FROM customers WHERE id=? FOR UPDATE", (customer_id,))
         _sync_postgres_id_sequences(
             cursor,
             (
@@ -1425,13 +1489,15 @@ def create_sale(
                 "stock_movements",
                 "credit_sales",
                 "customer_points_log",
-            ),
+            ) if not preview_only and not request_id and _connection is None else (),
         )
 
         sale_items: List[Dict[str, Any]] = []
         subtotal = 0.0
         cogs = 0.0
-        for item in normalized_items:
+        for item, adjustment, label_override in zip(normalized_items, adjustments, labels):
+            wholesale_regular_price = wholesale_savings = 0.0
+            wholesale_min_qty = None; wholesale_unit_label = ''
             cursor.execute(
                 "SELECT id, name, price, cost, stock, sold_by FROM products WHERE id = ?",
                 (item["product_id"],),
@@ -1444,7 +1510,7 @@ def create_sale(
             qty = item["qty"]
             price = float(price or 0)
             cost = float(cost or 0)
-            is_service = _sold_by_mode(sold_by) == "service"
+            is_service = _sold_by_mode(sold_by) == "service" or (_connection is not None and _sold_by_mode(sold_by) == 'restaurant')
             if item.get("variant_id") and not is_service:
                 cursor.execute(
                     """
@@ -1461,25 +1527,26 @@ def create_sale(
                 available_stock = int(variant_stock or 0)
                 if available_stock < qty:
                     raise ValueError(f"Only {available_stock} left for selected variant: {name}")
-                cursor.execute(
-                    """
-                    UPDATE product_variants
-                    SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ? AND product_id = ? AND stock >= ?
-                    """,
-                    (qty, variant_id, product_id, qty),
-                )
-                if cursor.rowcount != 1:
-                    raise ValueError(f"Variant stock changed. Please refresh: {name}")
-                cursor.execute(
-                    """
-                    UPDATE products
-                    SET stock = CASE WHEN stock >= ? THEN stock - ? ELSE 0 END,
-                        last_updated = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (qty, qty, product_id),
-                )
+                if not preview_only:
+                    cursor.execute(
+                        """
+                        UPDATE product_variants
+                        SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ? AND product_id = ? AND stock >= ?
+                        """,
+                        (qty, variant_id, product_id, qty),
+                    )
+                    if cursor.rowcount != 1:
+                        raise ValueError(f"Variant stock changed. Please refresh: {name}")
+                    cursor.execute(
+                        """
+                        UPDATE products
+                        SET stock = CASE WHEN stock >= ? THEN stock - ? ELSE 0 END,
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (qty, qty, product_id),
+                    )
                 price = float(variant_price or price or 0)
                 cost = float(variant_cost or cost or 0)
                 label = " / ".join(part for part in (str(color or ""), str(size or "")) if part)
@@ -1489,17 +1556,18 @@ def create_sale(
                     "qty": qty, "variant_id": int(variant_id), "location_id": None,
                     "location": "Variant", "batch_no": "", "expire_date": "",
                 }]
-                _execute_dynamic_insert(
-                    cursor,
-                    "stock_movements",
-                    {
-                        "product_id": int(product_id), "variant_id": int(variant_id),
-                        "type": "sale", "quantity": qty, "old_stock": available_stock,
-                        "new_stock": available_stock - qty, "reason": "Sale",
-                        "reference": invoice_no, "created_by": created_by,
-                        "location": "Variant", "notes": f"Lite POS variant sale: {label or variant_id}",
-                    },
-                )
+                if not preview_only:
+                    _execute_dynamic_insert(
+                        cursor,
+                        "stock_movements",
+                        {
+                            "product_id": int(product_id), "variant_id": int(variant_id),
+                            "type": "sale", "quantity": qty, "old_stock": available_stock,
+                            "new_stock": available_stock - qty, "reason": "Sale",
+                            "reference": invoice_no, "created_by": created_by,
+                            "location": "Variant", "notes": f"Lite POS variant sale: {label or variant_id}",
+                        },
+                    )
             elif is_service:
                 if item.get("manual_price") is not None:
                     price = max(0.0, float(item.get("manual_price") or 0))
@@ -1509,13 +1577,20 @@ def create_sale(
                 price, _discount_percent = _effective_price(price, discount)
                 tier = get_best_price_tier(cursor, int(product_id), qty)
                 if tier and float(tier.get("unit_price") or 0) > 0:
+                    wholesale_regular_price = price
+                    wholesale_savings = max(0.0, price - float(tier['unit_price']))
+                    wholesale_min_qty = tier.get('min_qty'); wholesale_unit_label = tier.get('unit_label') or ''
                     price = float(tier["unit_price"])
                     name = f"{name} (Wholesale {tier.get('min_qty')}+)"
                 available_stock = _effective_stock(cursor, int(product_id))
                 if available_stock < qty:
                     raise ValueError(f"Only {available_stock} left: {name}")
-                allocations = _allocate_stock(cursor, int(product_id), qty, invoice_no, created_by)
+                allocations = _allocate_stock(cursor, int(product_id), qty, invoice_no, created_by, preview_only=preview_only)
 
+            price += float(adjustment)
+            if label_override is not None: name = str(label_override)
+            if price < 0 or not math.isfinite(price):
+                raise ValueError('Invalid restaurant price')
             for allocation in allocations:
                 allocation_qty = int(allocation["qty"])
                 sale_items.append(
@@ -1527,6 +1602,10 @@ def create_sale(
                         "price": price,
                         "total": price * allocation_qty,
                         "cost": cost,
+                        "wholesale_regular_price": wholesale_regular_price,
+                        "wholesale_savings": wholesale_savings * allocation_qty,
+                        "wholesale_tier_min_qty": wholesale_min_qty,
+                        "wholesale_unit_label": wholesale_unit_label,
                         "location_id": allocation.get("location_id"),
                         "location": allocation.get("location") or "",
                         "batch_no": allocation.get("batch_no") or "",
@@ -1537,6 +1616,8 @@ def create_sale(
             cogs += cost * qty
 
         discount_amount = max(0.0, float(discount_amount or 0))
+        if preview_only or request_id or _connection is not None:
+            discount_amount = round(min(subtotal, discount_amount + subtotal * float(discount_percent) / 100), 2)
         settings = _cashier_settings_from_cursor(cursor)
         points_used = max(0, int(points_used or 0))
         points_discount = 0.0
@@ -1552,6 +1633,17 @@ def create_sale(
         after_discount = max(0.0, subtotal - discount_amount - points_discount)
         tax_amount = after_discount * (float(settings.get("tax_rate") or 0) / 100.0) if settings.get("tax_enabled") else 0.0
         total = max(0.0, after_discount + tax_amount)
+        if preview_only or request_id or _connection is not None:
+            tax_amount = round(tax_amount, 2)
+            total = round(max(0.0, after_discount + tax_amount), 2)
+            if not math.isfinite(total):
+                raise ValueError("Invalid server price or tax setting")
+        if preview_only:
+            if _connection is None: conn.rollback()
+            return dict(items=sale_items, subtotal=subtotal, discount_amount=discount_amount + points_discount,
+                        tax_amount=tax_amount, total=total)
+        if expected_total is not None and (not math.isfinite(float(expected_total)) or abs(total - float(expected_total)) > 0.005):
+            raise ValueError("Prices or tax changed. Review the sale again before paying.")
         payment = float(payment or 0)
         if is_credit and (payment < 0 or payment > total):
             raise ValueError("Credit paid amount must be between zero and the sale total")
@@ -1671,14 +1763,18 @@ def create_sale(
         receipt = _get_receipt_from_cursor(cursor, sale_id)
         if is_credit:
             receipt.update({"due_date": due_date, "paid_amount": payment, "balance_amount": credit_balance, "credit_notes": str(credit_notes or "").strip()})
-        conn.commit()
+        if request_id:
+            receipt.update(subtotal=subtotal, tax_amount=tax_amount)
+            cursor.execute("UPDATE native_sale_requests SET receipt_json=? WHERE request_id=?",
+                           (json.dumps(receipt, default=str), request_id))
+        if _connection is None: conn.commit()
         logger.info(f"Browser cashier sale created: {invoice_no} ({sale_id})")
         return receipt
     except Exception:
-        conn.rollback()
+        if _connection is None: conn.rollback()
         raise
     finally:
-        conn.close()
+        if _connection is None: conn.close()
 
 
 def get_receipt(sale_id: int) -> Dict[str, Any]:
@@ -2293,6 +2389,9 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
         (sale_id,),
     )
     sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
+    receipt_keys = ('shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name')
+    cursor.execute('SELECT key,value FROM settings WHERE key IN (' + ','.join('?' for _ in receipt_keys) + ')', receipt_keys)
+    sale['receipt_settings'] = dict(cursor.fetchall())
     return sale
 
 

@@ -368,6 +368,14 @@ class ServiceJobClientWindow(QMainWindow):
             self.load_selected_job()
             self.refresh_jobs()
             if error:
+                if (status == "ready_for_pickup"
+                        and str(error).startswith("Cannot change service order from ")
+                        and str(error).endswith(" to ready_for_pickup")):
+                    error = (f"{error}\n\n"
+                             "The POS Server may be running an older service-job workflow. "
+                             "Update the POS Server code and restart the process serving this client's server address, "
+                             "then refresh and try Complete Job again. Updating only this client is not enough.\n\n"
+                             "No alternative completion or collection request was sent.")
                 QMessageBox.warning(self, "Service Job", error)
 
         self._run_task(lambda: client.change_service_order_status(job_id, status, note),

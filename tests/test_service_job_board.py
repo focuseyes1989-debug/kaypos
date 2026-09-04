@@ -90,6 +90,19 @@ class ServiceJobBoardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.change_status(job["id"], "ready_for_pickup", changed_by="tech")
 
+    def test_legacy_in_progress_without_worker_can_finish_before_collection(self):
+        job = self.repo.create({"job_title": "Legacy active job", "internal_notes": "Deposit 5000"}, created_by="server")
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE service_orders SET status = 'in_progress', started_by = NULL, started_at = NULL WHERE id = ?", (job["id"],))
+        conn.close()
+        finished = self.repo.change_status(job["id"], "ready_for_pickup", changed_by="tech")
+        self.assertEqual(finished["status"], "ready_for_pickup")
+        self.assertEqual(finished["completed_by"], "tech")
+        self.assertTrue(finished["completed_at"])
+        self.assertIsNone(finished["started_by"])
+        self.assertIsNone(finished["delivered_at"])
+        self.assertEqual(finished["internal_notes"], "Deposit 5000")
+
     def test_simultaneous_collection_has_one_winner(self):
         job = self.repo.create({"job_title": "Shared"}, created_by="server")
         self.repo.change_status(job["id"], "ready_for_pickup", changed_by="tech")

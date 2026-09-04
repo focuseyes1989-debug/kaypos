@@ -1,0 +1,56 @@
+﻿path,line,expression
+ui/cashier_window/cashier_ui.py,936,"self._add_shortcut('F2', self.product_grid.focus_search)"
+ui/cashier_window/cashier_ui.py,937,"self._add_shortcut('Ctrl+F', self.product_grid.focus_search)"
+ui/cashier_window/cashier_ui.py,938,"self._add_shortcut('F3', self.focus_customer)"
+ui/cashier_window/cashier_ui.py,939,"self._add_shortcut('F4', self.focus_payment_amount)"
+ui/cashier_window/cashier_ui.py,940,"self._add_shortcut('F6', self.focus_payment_type)"
+ui/cashier_window/cashier_ui.py,941,"self._add_shortcut('F7', self.toggle_discount)"
+ui/cashier_window/cashier_ui.py,942,"self._add_shortcut('F8', self.focus_discount)"
+ui/cashier_window/cashier_ui.py,943,"self._add_shortcut('F9', self.set_cash_sale)"
+ui/cashier_window/cashier_ui.py,944,"self._add_shortcut('F10', self.set_credit_sale)"
+ui/cashier_window/cashier_ui.py,945,"self._add_shortcut('F12', self._checkout)"
+ui/cashier_window/cashier_ui.py,946,"self._add_shortcut('Ctrl+H', self._hold_sale)"
+ui/cashier_window/cashier_ui.py,947,"self._add_shortcut('Ctrl+Shift+H', self._resume_sale)"
+ui/cashier_window/cashier_ui.py,948,"self._add_shortcut('Ctrl+Backspace', self._clear_cart)"
+ui/cashier_window/cashier_ui.py,949,"self._add_shortcut('Ctrl+Delete', self.remove_last_cart_item)"
+ui/cashier_window/cashier_ui.py,950,"self._add_shortcut('Ctrl+D', self._toggle_customer_display)"
+ui/cashier_window/cashier_ui.py,951,"self._add_shortcut('Ctrl+Shift+D', self._open_cashdrawer)"
+ui/cashier_window/cashier_ui.py,952,"self._add_shortcut('Ctrl+E', self._open_expense_dialog)"
+ui/cashier_window/cashier_ui.py,956,"QShortcut(QKeySequence(sequence), self)"
+ui/cashier_window/cashier_ui.py,956,QKeySequence(sequence)
+ui/main_window/main_window_handlers.py,106,"QShortcut(QKeySequence('F5'), parent_widget)"
+ui/main_window/main_window_handlers.py,108,"QShortcut(QKeySequence('Ctrl+R'), parent_widget)"
+ui/main_window/main_window_handlers.py,106,QKeySequence('F5')
+ui/main_window/main_window_handlers.py,108,QKeySequence('Ctrl+R')
+ui/main_window/main_window_menus.py,277,self.refresh_action.setShortcut(QKeySequence('F5'))
+ui/main_window/main_window_menus.py,286,self.cashier_mode_action.setShortcut(QKeySequence('Ctrl+Shift+C'))
+ui/main_window/main_window_menus.py,294,self.customer_display_action.setShortcut(QKeySequence('Ctrl+D'))
+ui/main_window/main_window_menus.py,302,self.open_cash_drawer_action.setShortcut(QKeySequence('Ctrl+Shift+D'))
+ui/main_window/main_window_menus.py,277,QKeySequence('F5')
+ui/main_window/main_window_menus.py,286,QKeySequence('Ctrl+Shift+C')
+ui/main_window/main_window_menus.py,294,QKeySequence('Ctrl+D')
+ui/main_window/main_window_menus.py,302,QKeySequence('Ctrl+Shift+D')
+ui/sales_page/sales_page.py,524,"self._add_shortcut('F2', self.product_grid.focus_search)"
+ui/sales_page/sales_page.py,525,"self._add_shortcut('Ctrl+F', self.product_grid.focus_search)"
+ui/sales_page/sales_page.py,526,"self._add_shortcut('F3', self.focus_customer)"
+ui/sales_page/sales_page.py,527,"self._add_shortcut('F4', self.focus_payment_amount)"
+ui/sales_page/sales_page.py,528,"self._add_shortcut('F6', self.focus_payment_type)"
+ui/sales_page/sales_page.py,529,"self._add_shortcut('F7', self.toggle_discount)"
+ui/sales_page/sales_page.py,530,"self._add_shortcut('F8', self.focus_discount)"
+ui/sales_page/sales_page.py,531,"self._add_shortcut('F9', self.set_cash_sale)"
+ui/sales_page/sales_page.py,532,"self._add_shortcut('F10', self.set_credit_sale)"
+ui/sales_page/sales_page.py,533,"self._add_shortcut('Ctrl+E', self.open_expense_dialog)"
+ui/sales_page/sales_page.py,534,"self._add_shortcut('F12', self.checkout_handler.checkout)"
+ui/sales_page/sales_page.py,535,"self._add_shortcut('Ctrl+Backspace', self.checkout_handler.clear_cart)"
+ui/sales_page/sales_page.py,536,"self._add_shortcut('Ctrl+Delete', self.remove_selected_cart_item)"
+ui/sales_page/sales_page.py,540,"QShortcut(QKeySequence(sequence), self)"
+ui/sales_page/sales_page.py,540,QKeySequence(sequence)
+lite_pos/window.py,1470,"self._add_shortcut('F11', self.toggle_full_screen)"
+lite_pos/window.py,1471,"self._add_shortcut('Esc', self.exit_full_screen)"
+lite_pos/window.py,1472,"self._add_shortcut('F2', lambda: self._focus_product_search(select_all=True))"
+lite_pos/window.py,1473,"self._add_shortcut('F4', self.open_checkout)"
+lite_pos/window.py,1474,"self._add_shortcut('Ctrl+P', self.print_last_receipt)"
+lite_pos/window.py,1475,"self._add_shortcut('Ctrl+Shift+D', self.open_cash_drawer)"
+lite_pos/window.py,1476,"self._add_shortcut('Ctrl+Shift+P', self.open_printer_settings)"
+lite_pos/window.py,1504,"QShortcut(QKeySequence(sequence), self)"
+lite_pos/window.py,1504,QKeySequence(sequence)

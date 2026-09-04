@@ -28,6 +28,10 @@ Staff use **Start Job** and **Complete Job** in Service Job Client. The **Servic
 
 Update and restart the POS Server as well as the clients for this feature (rebuild packaged executables). The server adds the tracking database columns automatically. Older records show a dash where no worker, time, or collection staff was recorded; historical collection is not inferred.
 
+## Troubleshooting work completion
+
+If Complete Job reports `Cannot change service order from in_progress to ready_for_pickup`, the running server may predate the separate work-completion workflow. Current repository code permits this transition, including older active jobs without a recorded worker. On the Server PC, update its checkout to include commit `9da15eb` or later, then restart the POS Server process serving the client's configured address. Updating/restarting the client alone does not reload server code. Refresh the client and retry after the server restart. Existing missing worker/start-time history is not invented; completion records the current signed-in staff member. Do not use customer collection as a workaround.
+
 ## Build the Windows app
 
 ```powershell

@@ -28,6 +28,7 @@ UPDATE_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json
 
 INSTANCE_MUTEXES = {
     "pos": r"Global\KAY_POS_Main_SingleInstance_v1",
+    "native": r"Global\KAY_POS_Native_SingleInstance_v1",
     "car": r"Global\KAY_Car_Management_SingleInstance_v1",
     "server": r"Global\KAY_POS_Server_Manager_SingleInstance_v1",
     "printer": r"Global\KAY_Printer_Agent_SingleInstance_v1",
@@ -36,6 +37,7 @@ MULTI_INSTANCE_APPLICATIONS = {"lite"}
 
 
 class LauncherMode:
+    NATIVE = "native"
     MAIN = "main"
     CASHIER = "cashier"
     CAR = "car"
@@ -63,6 +65,7 @@ APPLICATIONS = (
     AppDefinition("server", "Server Manager", "Services & Database", "ဘရောက်ဇာဝန်ဆောင်မှုများ စတင်ခြင်း၊ PostgreSQL စောင့်ကြည့်ခြင်းနှင့် ဆာဗာချိတ်ဆက်မှုကို စီမံပါ။", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
     AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "ကွန်ရက်ပရင်တာများ၊ စာရွက်စာတမ်းပရင့်ထုတ်ခြင်းနှင့် လုံခြုံသောပရင့်အလုပ်များကို စီမံပါ။", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
     AppDefinition("lite", "KAY POS Lite", "Low-End Point of Sale", "စက်အင်အားနည်းသော PC များအတွက် မြန်ဆန်ပေါ့ပါးသည့် အရောင်းနှင့် စတော့စီမံခန့်ခွဲမှု။", ("kay_pos_lite.py",), ("KAY_POS_Lite.exe",), "#5365df", "L", "pos-system.png"),
+    AppDefinition("native", "KAY POS Native", "Phase 2 Preview", "Standard Qt widgets, separate appearance settings and a read-only practice workspace.", ("kay_pos_native.pyw", "kay_pos_native.py"), ("KAY_POS_Native.exe",), "#398078", "N", "pos-system.png"),
 )
 
 STYLE = """
@@ -114,6 +117,8 @@ def _search_roots(app_dir: Optional[str]) -> list[Path]:
 
 
 def _definition_for_mode(mode: str) -> AppDefinition:
+    if mode == LauncherMode.NATIVE:
+        return next(item for item in APPLICATIONS if item.key == "native")
     if mode == LauncherMode.CASHIER:
         return AppDefinition("cashier", "Cashier", "Cashier Mode", "Cashier mode", ("cashier_main.py",), ("ZAY_POS_Cashier.exe", "cashier_main.exe"), "#6675f5", "C", "pos-system.png")
     if mode == LauncherMode.CAR:

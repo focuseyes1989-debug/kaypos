@@ -137,12 +137,19 @@ def resolve_receipt_image_path(image_type, restore_missing=True):
         return ""
 
     path = settings.get(config["path_key"], "") or ""
+    image_bytes, mime_type = _data_url_to_bytes(settings.get(config["data_key"], ""))
     if path and os.path.exists(path):
-        return path
+        if not image_bytes or not restore_missing:
+            return path
+        try:
+            with open(path, 'rb') as image_file:
+                if image_file.read(len(image_bytes) + 1) == image_bytes:
+                    return path
+        except OSError:
+            pass
     if not restore_missing:
         return ""
 
-    image_bytes, mime_type = _data_url_to_bytes(settings.get(config["data_key"], ""))
     if not image_bytes:
         return ""
 
