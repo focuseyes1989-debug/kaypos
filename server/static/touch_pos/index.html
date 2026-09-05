@@ -49,7 +49,7 @@
       <section class="catalog panel">
         <div class="panel-heading">
           <div><strong>Products</strong><small>Tap a category or search the live catalog</small></div>
-          <div class="catalog-actions"><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled>↻</button></div>
+          <div class="catalog-actions"><button id="openCart" class="mobile-cart-control" type="button" aria-controls="saleCart" aria-expanded="false">Cart (<span id="mobileCartCount">0</span>)</button><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled>↻</button></div>
         </div>
         <div id="productGrid" class="product-grid" aria-live="polite">
           <div class="empty-state">
@@ -60,8 +60,8 @@
         </div>
       </section>
 
-      <aside class="cart panel">
-        <div class="panel-heading"><div><strong>Current sale</strong><small id="cartHint">Tap products to add</small></div><span id="cartCount" class="count">0</span></div>
+      <aside id="saleCart" class="cart panel" aria-label="Current sale">
+        <div class="panel-heading"><div><strong>Current sale</strong><small id="cartHint">Tap products to add</small></div><span id="cartCount" class="count">0</span><button id="closeCart" class="mobile-cart-control" type="button">Back to products</button></div>
         <div id="cartItems" class="cart-items" aria-live="polite">
           <div class="cart-empty"><span>🛒</span><strong>Cart is empty</strong><small>Tap a product to add it to this sale.</small></div>
         </div>

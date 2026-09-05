@@ -10,3 +10,32 @@
 .restore-held{min-height:42px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#174ba7;font-weight:750}.restore-held:disabled{opacity:.5}
 .print-receipt{display:none}.receipt-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 16px}.receipt-actions button{min-height:48px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);font-weight:750}.receipt-actions .sign-in{margin:0;border:0;color:#fff;background:var(--blue)}
 @media print{body>*:not(#receiptModal){display:none!important}html,body{height:auto;overflow:visible;background:#fff;color:#000;font:12px/1.35 "Segoe UI","Myanmar Text",sans-serif}#receiptModal{position:static!important;display:block!important;padding:0;background:#fff}.receipt-modal{width:72mm;margin:0;box-shadow:none;border-radius:0}.receipt-head button,.receipt-body,.receipt-actions{display:none!important}.print-receipt{display:block;padding:4mm;white-space:pre-wrap}.receipt-head{border:0;padding:0}.receipt-head div{display:none}}
+
+/* Keep the sale visible on tablets; provide an explicit cart view on phones. */
+.app-shell{min-height:0}
+.mobile-cart-control{display:none}
+@media screen and (min-width:761px) and (max-width:1099px){
+  .workspace{grid-template-columns:110px minmax(0,1fr) 310px;gap:8px;padding:8px}
+  .cart{position:static;width:auto;transform:none;transition:none}
+  .categories nav{padding:8px}
+  .category{padding:8px}
+  .topbar{gap:8px;padding-inline:8px;grid-template-columns:auto minmax(0,1fr) auto}
+}
+@media screen and (min-width:761px){
+  .cart{grid-template-rows:auto minmax(120px,1fr) auto;overflow-y:auto}
+}
+@media screen and (max-width:760px){
+  .app-shell{min-height:0;grid-template-rows:auto minmax(0,1fr) 26px}
+  .workspace{grid-template-rows:auto minmax(0,1fr)}
+  .topbar{grid-template-columns:minmax(0,1fr) auto;gap:8px}
+  .brand strong{font-size:14px}
+  .brand img{width:30px;height:30px}
+  .connection{padding-inline:6px;min-height:32px}
+  .top-actions{gap:4px}
+  .catalog .panel-heading{flex-wrap:wrap}
+  .mobile-cart-control{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#edf3ff;color:var(--ink);font-weight:700}
+  .catalog-actions .mobile-cart-control{width:auto;font-size:14px;padding-inline:12px}
+  .cart{inset:8px;width:auto;z-index:21;visibility:hidden;grid-template-rows:auto minmax(150px,1fr) auto;overflow-y:auto;transform:none;transition:none}
+  .cart.open{visibility:visible}
+  .cart>.panel-heading{position:sticky;top:0;z-index:1;background:var(--panel)}
+}

@@ -97,6 +97,7 @@
     const {items, count, subtotal, discount, total} = cartTotals();
     const root = document.querySelector('#cartItems');
     document.querySelector('#cartCount').textContent = String(count);
+    document.querySelector('#mobileCartCount').textContent = String(count);
     document.querySelector('#cartItemCount').textContent = String(count);
     document.querySelector('#cartSubtotal').textContent = `${money(subtotal)} Ks`;
     document.querySelector('#cartDiscount').textContent = `${money(discount)} Ks`;
@@ -290,6 +291,20 @@
       token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = ''; loginStatus.textContent = error.message; loginStatus.className = 'login-status'; password.focus();
     } finally { signIn.disabled = false; }
   });
+  const saleCart = document.querySelector('#saleCart'), openCart = document.querySelector('#openCart');
+  const mobileCartMedia = window.matchMedia('(max-width: 760px)');
+  function setCartOpen(open, restoreFocus = false) {
+    saleCart.classList.toggle('open', open);
+    saleCart.inert = mobileCartMedia.matches && !open;
+    openCart.setAttribute('aria-expanded', String(open));
+    if (open) document.querySelector('#closeCart').focus();
+    else if (restoreFocus) openCart.focus();
+  }
+  openCart.addEventListener('click', () => setCartOpen(true));
+  document.querySelector('#closeCart').addEventListener('click', () => setCartOpen(false, true));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && mobileCartMedia.matches && saleCart.classList.contains('open')) setCartOpen(false, true); });
+  mobileCartMedia.addEventListener('change', () => setCartOpen(false));
+  setCartOpen(false);
   userButton.addEventListener('click', () => { userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden)); });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
