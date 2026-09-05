@@ -55,6 +55,11 @@ class PrinterSettingsDialog(QDialog):
         self.dpi.setCurrentIndex(self.dpi.findData(self.values['receipt_dpi'])); form.addRow('Print quality', self.dpi)
         self.drawer = QComboBox(); self.drawer.addItem('POS Server printer', 'server'); self.drawer.addItem('Selected Windows printer on this PC', 'local')
         self.drawer.setCurrentIndex(self.drawer.findData(self.values['drawer_target'])); form.addRow('Cash drawer target', self.drawer)
+        self.after_sale = QComboBox()
+        self.after_sale.addItem('Show receipt', 'show_receipt')
+        self.after_sale.addItem('Show receipt, then ask to open drawer', 'show_receipt_ask_drawer')
+        self.after_sale.addItem('Stay on Sales', 'stay_sales')
+        self.after_sale.setCurrentIndex(self.after_sale.findData(self.values['after_sale'])); form.addRow('After sale', self.after_sale)
         refresh = QPushButton('Refresh printers'); refresh.clicked.connect(lambda: self.refresh(self.printer.currentData())); form.addRow(refresh)
         note = QLabel('58mm and 80mm use 297mm page lengths with 3mm margins; long receipts continue on another page. Driver-supported paper sizes and printable margins may differ.'); note.setWordWrap(True); body.addWidget(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -70,7 +75,7 @@ class PrinterSettingsDialog(QDialog):
 
     def save(self):
         if not self.host.session or not self.host.session.can('edit_settings'): return
-        values = dict(receipt_printer=self.printer.currentData(), receipt_paper=self.paper.currentText(), receipt_dpi=self.dpi.currentData(), drawer_target=self.drawer.currentData())
+        values = dict(receipt_printer=self.printer.currentData(), receipt_paper=self.paper.currentText(), receipt_dpi=self.dpi.currentData(), drawer_target=self.drawer.currentData(), after_sale=self.after_sale.currentData())
         try: saved = save_config(values, self.host.settings_path)
         except OSError as exc:
             QMessageBox.warning(self, 'Printer settings', 'Settings could not be saved: ' + str(exc)); return

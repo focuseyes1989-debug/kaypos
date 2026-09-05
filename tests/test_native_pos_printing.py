@@ -3,7 +3,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtPrintSupport import QPrinter
@@ -41,6 +41,26 @@ class PrintingTests(unittest.TestCase):
             path = Path(folder) / 'config.json'; path.write_text('{"receipt_paper":"bad","receipt_dpi":-1}')
             values = load_config(path)
             self.assertEqual((values['receipt_paper'], values['receipt_dpi']), ('A4', 300))
+
+    def test_after_sale_preference_roundtrip_and_invalid_default(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'config.json'
+            save_config({'after_sale': 'show_receipt_ask_drawer'}, path)
+            self.assertEqual(load_config(path)['after_sale'], 'show_receipt_ask_drawer')
+            path.write_text('{"after_sale":"automatic-unconfirmed-drawer"}', encoding='utf-8')
+            self.assertEqual(load_config(path)['after_sale'], 'show_receipt')
+
+    def test_after_sale_actions_never_open_drawer_without_selected_prompt_mode(self):
+        from native_pos.sales import SalesPage
+        page = types.SimpleNamespace()
+        with tempfile.TemporaryDirectory() as folder:
+            page.host = types.SimpleNamespace(settings_path=Path(folder) / 'config.json', closing=False)
+            page.show_receipt = Mock(); page.open_drawer = Mock()
+            for action, receipt_calls, drawer_calls in [('stay_sales', 0, 0), ('show_receipt', 1, 0), ('show_receipt_ask_drawer', 2, 1)]:
+                save_config({'after_sale': action}, page.host.settings_path)
+                SalesPage.after_sale(page)
+                self.assertEqual(page.show_receipt.call_count, receipt_calls)
+                self.assertEqual(page.open_drawer.call_count, drawer_calls)
 
     def test_receipt_pdf_paper_sizes(self):
         with tempfile.TemporaryDirectory() as folder:

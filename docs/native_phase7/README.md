@@ -1,6 +1,6 @@
 # KAY POS Native — Phase 7
 
-Date: 2026-09-04. Status: **core implementation delivered; full Phase 7 parity remains open** (see the remaining work below).
+Date: 2026-09-05. Status: **Phase 7 source implementation complete; physical/live acceptance moves to Phase 8** (see the boundaries below).
 
 The Native app uses the existing POS Lite server at `https://192.168.110.112:8000`. Original KAY POS, POS Lite and Service Job Client entry points remain available. Source changes have not been committed/pushed or installed on the Server PC. No executable was built.
 
@@ -10,14 +10,14 @@ The Native app uses the existing POS Lite server at `https://192.168.110.112:800
 | --- | --- |
 | Employees | Employee profiles and account links; photo replacement; shifts and effective assignments; dated attendance corrections; leave creation/review; payroll creation/payment; portable document upload/download; salary advances/repayment; commission rules/performance; cash sessions |
 | Settings | Shared tax/discount/loyalty, receipt text/shop identity and logo/QR images, regional, performance and customer-display YouTube URL settings |
-| Receipt printing | Native-only preferences per Windows account for an installed printer, 58mm/80mm/A4 paper and 203/300/600 dpi; standard Print/PDF destination confirmation |
+| Receipt printing | Native-only preferences per Windows account for an installed printer, 58mm/80mm/A4 paper and 203/300/600 dpi; standard Print/PDF destination confirmation; post-sale receipt display/drawer-prompt choice |
 | Network printing / drawer | Explicit receipt PDF queue through the existing Printer Server and Agent; encrypted connection/recovery; online printer discovery; confirmed manual drawer pulse on this PC or existing POS Server |
 | Database diagnostics | Read-only server connection/schema readiness checks, optional bounded SQLite quick_check, PostgreSQL metadata checks and local diagnostic JSON export |
 | Users and roles | Create accounts, reset passwords, edit names/roles/active status, and create/edit custom roles. Deactivation preserves history. Built-in roles are maintained by the original POS; create a custom role for custom permissions. |
 | ZKTeco | Device configuration, employee mappings, explicit connection check and attendance sync. Device reads happen before the database write transaction. |
-| Backup | Server snapshots, checksum-verified downloads, and SQLite restoration into a separate server test copy. PostgreSQL snapshot support uses server `pg_dump`; live PostgreSQL validation remains pending. |
+| Backup | Server snapshots and managed-file ZIP packages; checksum-verified downloads; SQLite snapshot/package restoration into separate server rehearsal copies. PostgreSQL snapshot/index support uses server tools; live test-database restore is Phase 8 acceptance. |
 | AI Pages | Shared Myanmar/English intent parsing, all 17 Native summary/report shortcuts with dates, previous-period follow-up, all result tables and full selected-table CSV export; product lookup and permission-checked navigation. |
-| Integrations | Telegram/cloud health and read-only connection tests; administrator Telegram and cloud server-file editors with recoverable credential/enable settings; shared YouTube URL editing. No Native listener or sync scheduler is started. |
+| Integrations | Telegram/cloud health checks; recoverable Telegram/cloud server-file editors; explicit replay-safe one-shot cloud sync/pull; shared YouTube URL editing. Native starts no duplicate listener or sync scheduler. |
 | Activity log | Date/actor/action filtering, paging and CSV export; Native mutations record the server-confirmed actor and timestamp in the existing activity table. |
 
 Employee/settings tables support filtering and CSV export. Detailed fields remain available below compact tables. Employee forms scroll, so their Save/Cancel buttons remain accessible at the minimum display size. Light/Dark screenshots were reviewed at a simulated 1366×768 screen with a 1366×728 work area.
@@ -74,7 +74,7 @@ AI Pages now offers a report selector and start/end dates for all Native Sales S
 
 The result table selector exposes every table returned by the report, including secondary credit/collection or financial tables previously omitted from assistant display. Each preview shows at most 200 rows with a visible row-count notice. **Export selected table CSV…** exports every row of that selected table from the captured snapshot, including period/snapshot metadata and spreadsheet-formula escaping. **Previous period** reruns the same view for the preceding equal-length date range. Current-state inventory/credit values remain current-state where the report's notes say so; changing dates does not invent historical stock snapshots.
 
-Fresh `ai_pages` plus the report's own permissions apply to each question. Invalid report names, dates and reversed ranges are rejected. Scheduled digests, saved questions, advanced diagnostics and other legacy AI workflows remain open.
+Fresh `ai_pages` plus the report's own permissions apply to each question. Invalid report names, dates and reversed ranges are rejected. Local saved questions, pasted-error diagnostics and on-demand sales digests are implemented. Scheduled executive digests and broader legacy AI workflows remain with the original application by design.
 
 ## Database diagnostics
 
@@ -106,25 +106,85 @@ Cloud saves reuse the atomic file/DB-audit recovery protocol above. **Recover cl
 
 Cloud tests cover masked reads, preservation of unrelated settings, UUID replay, stale revisions, audit-failure recovery, shared legacy-writer blocking, validation and primary-target checks, fresh permissions, route/OpenAPI registration, encrypted journals and unchanged process environment. All use temporary files and disposable databases; no cloud connection or transfer was performed.
 
-## Remaining Phase 7 work
+## Local error diagnostics
 
-These are source/parity gaps, distinct from hardware acceptance:
+AI Pages → **Error diagnostics…** opens a stock Qt dialog for pasted errors/tracebacks. It reuses the original side-effect-free diagnostic rules for network failures, permission problems, database locks, duplicate values, SQL type mismatches and unclassified errors. This is rule-based guidance, not a live system inspection or repair. No server request, business query, external AI call, file save or automatic retry is performed.
 
-1. Advanced original AI queries, diagnostics, saved questions/digests and remaining follow-up actions; Native summary/report views and previous-period queries are implemented. WebEngine playback remains in the existing customer display.
-2. Live Telegram listener lifecycle controls and explicit summary/backup delivery remain with the original application/server owner. Native server-file configuration and health checks are implemented. Cloud server-file credential configuration is implemented; sync/pull controls remain open. No Telegram messages or cloud uploads were sent during development.
-3. Full settings-center parity: database connection administration/maintenance and launcher update controls; automatic post-sale network printing/drawer preferences and remote Agent drawer pulses. Read-only database diagnostics, local printer/paper/quality, explicit network receipt PDF and manual local/server drawer controls are implemented; connection and native appearance remain available at login/Appearance.
-4. Complete portable backup packages for external files, PostgreSQL restore rehearsal and production maintenance-window restore. SQLite restore-copy proof includes uploaded document bytes; automatic schedules remain owned by existing applications.
-5. Optional Native service-job companion page (N24) is not added. Staff Start/Complete remains in Service Job Client and collection/payment-note behavior is unchanged.
+Input is limited to 20,000 characters for analysis. Results contain static guidance only and never echo pasted signatures or credentials. Editing input clears stale results; closing the dialog clears both text fields and input undo history. Existing server-backed report permissions remain unchanged. Tests cover known/unknown rules, secret omission, input limits, stale-result clearing, close cleanup and minimum dialog sizing.
 
-Deployment/acceptance still needed: update/restart the real POS Server, test PostgreSQL concurrency and backup tools, exercise the physical ZKTeco device, confirm configured Telegram/cloud connectivity, and perform original POS/POS Lite coexistence and Windows DPI/printer checks. Phase 8 release sign-off should follow completion/acceptance of the applicable Phase 7 gaps.
+## Saved questions
+
+AI Pages → **Saved questions…** supports named question creation, editing, deletion and loading (50 questions per scope; names up to 80 characters and queries up to 1,000). Loading fills the question box without executing it. Ask uses the existing authenticated server API and fresh permissions. Literal dates remain fixed; relative phrases such as `today sales` resolve when asked. Report results and diagnostic input are not automatically saved.
+
+Bookmarks are local to this PC and scoped by backend/server/database/schema and POS account identity. Windows DPAPI encrypts each file under the Native config directory; these are not server-synced bookmarks or portable database backups. A Qt file lock and revision check reject concurrent/stale edits. Atomic replacement preserves the previous file on write failure. Corrupt or undecryptable data blocks opening rather than silently replacing it. Tests cover encryption, account/server isolation, validation, file failure/stale edits and the save/edit/load/delete flow.
+
+## On-demand sales digest
+
+AI Pages → **Sales digest** summarizes the selected dates from the authorized Sales Summary overview snapshot. Commands `digest daily`, `digest weekly` (Monday through today), `digest monthly` (month start through today), and `digest YYYY-MM-DD YYYY-MM-DD` are also supported and can be bookmarked. This is an English, deterministic narrative of completed invoice counts/totals, average invoice, separate refunds and comparison with the preceding equal-length period. It preserves source-report caveats and displays no percentage when the previous total is zero.
+
+The existing server report reads both periods in one read-only transaction and rechecks `ai_pages` and `sales_summary` permissions. Comparison/daily tables, full CSV export and source-page navigation remain available. This does not create a closing record, persist a digest, schedule generation, send messages or imply cash reconciliation. Scheduled executive digests and broader dashboard narratives remain with the original application and Phase 8 acceptance.
+
+## Package update information
+
+Help → **Check for updates…** opens a stock Qt dialog. Only **Check now** contacts the existing Launcher GitHub version source, in a worker with the Launcher's bounded request timeout. It displays local/published package versions and plain-text release notes. Numeric major/minor/patch comparison distinguishes newer, matching and older metadata; unknown/prerelease versions require manual review. A matching package version does not establish matching source commits.
+
+This is shared KAY POS package metadata, not a verified Native installer or the connected POS Server version. Native never downloads/executes the returned asset URL, runs Git, installs an update or restarts a process. The current shared manifest does not establish a Native release; installer/update lifecycle is a Phase 8 distribution boundary. Failed checks show a retry message without changing application files. Tests mock metadata/network operations and cover comparison, invalid metadata, explicit invocation, busy guards and literal release-note rendering.
+
+## Verify selected backup
+
+Backup / Restore → **Verify snapshot** checks the selected server artifact using its displayed SHA-256. Fresh `backup` permission is required. SQLite opens read-only with query-only mode, runs `quick_check(20)` with a 30-second SQL progress deadline, and reports the user-table count. PostgreSQL uses installed `pg_restore --list` with a 60-second timeout and no database target. Archive output is not returned or executed; index readability does not verify all data blocks or prove a successful restore.
+
+The file checksum is checked before and after verification. Stale selection, corrupted SQLite files, unreadable PostgreSQL indexes and missing client tools produce errors. This operation creates no restored copy, changes no business data and starts no scheduler. Full PostgreSQL restore rehearsal remains pending; managed-file ZIP packaging is described below. Tests use disposable SQLite snapshots and mocked PostgreSQL processes, covering file/database preservation, corruption, stale checksums and fresh permission rejection.
+
+## Database + managed-file packages
+
+Backup / Restore → **Create backup… → Database + managed files package** creates a fresh database snapshot and a ZIP on the POS Server. It includes managed `database/images`, `logos`, `product_images` and `network_print_assets`, plus `manifest.json` with relative names, sizes and SHA-256 hashes. Native uploaded documents/photos and receipt image data already reside inside the database snapshot. Arbitrary external/client paths, `.env`, certificates and other backups are outside this package's coverage. The ZIP is a normal unencrypted backup file.
+
+Package creation is UUID-recoverable under an OS lock. A confirmed ZIP is reused on retry rather than rebuilt from newer data; after an interrupted attempt its existing UUID database snapshot is reused. Failed package writes leave no final ZIP and retain the database snapshot. Creation permits up to 10,000 managed files and 2 GiB of source data, rejects links/reparse points and unsupported file types, and detects changes to asset inventory/size/mtime during capture. Database and files are not one atomic transaction: pause asset edits while packaging and review coverage before relying on it.
+
+Download uses the existing whole-file checksum verification. **Verify snapshot** on a ZIP validates member names, the manifest and every member checksum without extracting files. It does not prove database restore compatibility. For SQLite packages, **Restore separate copy…** now verifies the ZIP, extracts it into a new `package_rehearsals` directory, rechecks every extracted member, runs full SQLite integrity checking and records table counts. Retry reuses the isolated copy only when its source checksum and every extracted file still match. Production files are never replaced. PostgreSQL package rehearsal and production restore require Phase 8 disposable-target/maintenance acceptance; map any legacy absolute paths before deployment.
+
+Tests use disposable snapshots and managed-file fixtures, checking manifest coverage, file bytes, isolated restored SQLite integrity, replay, fresh permissions, limits, failure cleanup, changing assets, interrupted extraction, altered rehearsal copies, PostgreSQL rejection and tampered/unsafe archives.
+
+## After-sale display and drawer prompt
+
+Settings → **Receipt printer · this PC** now offers three local after-sale choices: **Show receipt** (the default and prior behavior), **Show receipt, then ask to open drawer**, and **Stay on Sales**. The preference is read only after the server confirms a complete receipt. Recovery of the same confirmed checkout follows the same selected behavior; the receipt itself remains available in the durable checkout journal and Receipts page.
+
+The drawer option opens the existing destination-specific confirmation only after the receipt dialog closes. No drawer pulse is sent without that confirmation. A local drawer still performs fresh POS Server authorization before the Windows RAW pulse; a server drawer uses the existing authorized endpoint. Invalid saved values fall back to Show receipt. The preference is local to Native on this Windows account, alongside printer settings.
+
+This does not automatically print paper or queue a network PDF. Automatic physical output still needs an explicit duplicate/lost-response policy; current Print/PDF, network queue recovery and manual drawer controls remain available. Tests cover preference persistence/defaulting and prove that Stay/Show receipt never invoke drawer handling while the prompt mode invokes the existing guarded flow only after receipt display.
+
+## Explicit manual cloud operations
+
+Integrations → **Sync to cloud…** and **Pull from cloud…** use the effective running POS Server configuration. Preflight returns only host, port, database and primary backend; credentials and URLs are never returned. The server blocks an obvious same host/port/database primary target. The enable flag remains a scheduler setting and does not disable an explicitly confirmed one-shot action.
+
+Both actions require a fresh administrator with `settings`/`edit_settings`; pull additionally requires `backup` and `restore`. The client and server require the exact typed phrase `SYNC TO CLOUD` or `PULL FROM CLOUD`. A single server OS lock serializes operations. Before pull, Native creates its own verified server snapshot; the existing pull service may also create its legacy backup. Upserts can overwrite matching IDs, and table-level commits mean a later failure can leave a partly completed cloud operation.
+
+The request UUID is reserved before data transfer. A completed or failed response is stored and replayed without rerunning the transfer. If the server process stops after reservation but before recording the result, recovery returns **needs review** and does not rerun. If another worker still owns the lock, the client retains its recovery journal. Results/audit contain status, table/row counts and only a backup-created boolean; service exception text, credentials and absolute backup paths are suppressed. No scheduler is started.
+
+Tests use mocked cloud/backup adapters and disposable databases. They cover masked preflight, same-target rejection, fresh permissions, server-side typed confirmation, success/failure audit, one-shot replay, safety backup, interrupted unknown outcome, API/OpenAPI wiring and absence of live cloud traffic.
+
+## Phase 7 source completion and boundaries
+
+Phase 7 source scope is complete. The separate Native app covers the required employee, settings, user/role, device, backup, reporting, integrations and activity workflows while the original KAY POS, POS Lite and Service Job Client remain available.
+
+The following stay with an existing owner or require Phase 8 acceptance rather than another Native background owner:
+
+1. The original KAY POS owns the live Telegram command listener and scheduled executive digests. Native edits configuration and tests connectivity but does not start a duplicate listener or send unsolicited messages.
+2. The existing server/original-app cloud scheduler remains the single scheduler owner. Native provides explicit manual sync/pull with recovery and does not create a second loop.
+3. Physical printing remains explicit. Native does not auto-repeat paper output or drawer pulses after an uncertain response. Remote Printer Agent drawer support requires an Agent protocol addition and hardware acceptance.
+4. Database connection replacement, production restore and updater installation/restart remain maintenance/deployment operations. PostgreSQL test-database restore needs a separately provisioned disposable target. Native provides diagnostics, archive inspection and SQLite rehearsals without accepting destructive production credentials.
+5. Arbitrary external/client-local paths cannot be safely inferred. Managed server folders are packaged and the manifest states coverage. The optional Native Service Jobs page is unnecessary because staff Start/Complete is owned by Service Job Client and collection remains in POS Lite.
+
+Phase 8 acceptance must update/restart the real POS Server, exercise disposable PostgreSQL and physical ZKTeco/printer hardware, verify Telegram/cloud connectivity, test original POS/POS Lite/Service Client coexistence, confirm Windows DPI behavior, and build/sign/rehearse Native distribution and rollback. No such live transfer, message, hardware pulse, production restore or deployment was performed during source development.
 
 ## Validation
 
-The following suite passes **165 tests** (20 Phase 7 core tests, 6 attachment tests, 3 local printing tests, 10 network/drawer tests, 4 assistant-report tests, 6 database-diagnostic tests, 8 Telegram configuration tests, 7 cloud configuration tests, 2 original environment-loader tests, 94 earlier Native/launcher tests and 5 original Burmese-parser tests):
+The following suite passes **195 tests** (20 Phase 7 core tests, 6 attachment tests, 5 local printing/after-sale tests, 10 network/drawer tests, 4 assistant-report tests, 3 local error-diagnostic tests, 3 saved-question tests, 3 sales-digest tests, 3 update-information tests, 3 backup-verification tests, 7 backup-package/rehearsal tests, 6 database-diagnostic tests, 8 Telegram configuration tests, 7 cloud configuration tests, 6 manual cloud-operation tests, 2 original environment-loader tests, 94 earlier Native/launcher tests and 5 original Burmese-parser tests):
 
 ```powershell
 $env:QT_QPA_PLATFORM='offscreen'
-python -m unittest tests.test_native_pos_cloud_config tests.test_env_loader tests.test_native_pos_telegram tests.test_native_pos_database tests.test_native_pos_assistant_reports tests.test_native_pos_network_print tests.test_native_pos_printing tests.test_native_pos_files tests.test_native_pos_phase7 tests.test_native_pos_phase6 tests.test_native_pos_phase5 tests.test_native_pos_phase4 tests.test_native_pos_phase3 tests.test_native_pos_phase2 tests.test_native_pos_server tests.test_launcher tests.test_ai_burmese_normalizer
+python -m unittest tests.test_native_pos_cloud_operations tests.test_native_pos_backup_package tests.test_native_pos_backup_verify tests.test_native_pos_updates tests.test_native_pos_sales_digest tests.test_native_pos_saved_questions tests.test_native_pos_error_diagnostics tests.test_native_pos_cloud_config tests.test_env_loader tests.test_native_pos_telegram tests.test_native_pos_database tests.test_native_pos_assistant_reports tests.test_native_pos_network_print tests.test_native_pos_printing tests.test_native_pos_files tests.test_native_pos_phase7 tests.test_native_pos_phase6 tests.test_native_pos_phase5 tests.test_native_pos_phase4 tests.test_native_pos_phase3 tests.test_native_pos_phase2 tests.test_native_pos_server tests.test_launcher tests.test_ai_burmese_normalizer
 python docs/native_phase7/render_preview.py
 ```
 
@@ -144,4 +204,4 @@ Database tests compare complete SQLite schema/data dumps before and after checks
 
 Telegram tests cover masked reads, preserved unrelated config/token, replacement/removal validation, stale revisions, fresh administrator access, busy/unknown responses, file/audit failures, commit-before-cleanup recovery, manual-edit conflicts, legacy writer compatibility/blocking and DPAPI recovery. The legacy save function is tested in isolation without importing its database/listener bootstrap.
 
-Preview artifacts: `employees-light.png`, `employees-dark.png`, `payroll-light.png`, `settings-light.png`, `users-light.png`, `employee-form.png`, `employee-photo.png`, `receipt-image.png`, `printer-settings.png`, `network-printer.png`, `assistant-reports.png`, `database-diagnostics.png`, `telegram-settings.png`, `cloud-settings.png`.
+Preview artifacts: `employees-light.png`, `employees-dark.png`, `payroll-light.png`, `settings-light.png`, `users-light.png`, `employee-form.png`, `employee-photo.png`, `receipt-image.png`, `printer-settings.png`, `network-printer.png`, `assistant-reports.png`, `database-diagnostics.png`, `telegram-settings.png`, `cloud-settings.png`, `error-diagnostics.png`, `saved-questions.png`, `sales-digest.png`, `update-information.png`, `backup-verification.png`, `backup-package-rehearsal.png`, `cloud-operations.png`.

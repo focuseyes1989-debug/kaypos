@@ -16,6 +16,8 @@ class AssistantPage(QWidget):
         self.query.setPlaceholderText('ဒီနေ့ရောင်းအား / today sales')
         self.send = QPushButton('Ask'); self.send.clicked.connect(self.ask); self.query.returnPressed.connect(self.ask)
         row.addWidget(self.query, 1); row.addWidget(self.send); body.addLayout(row)
+        self.saved_button = QPushButton('Saved questions…'); self.saved_button.clicked.connect(self.open_saved); row.addWidget(self.saved_button)
+        self.digest_button = QPushButton('Sales digest'); self.digest_button.setToolTip('Summarize the selected dates and compare with the preceding equal-length period.'); self.digest_button.clicked.connect(self.ask_digest); row.addWidget(self.digest_button)
         reports = QHBoxLayout(); self.report_choice = QComboBox()
         for label, section, view in REPORT_CHOICES: self.report_choice.addItem(label, section + '/' + view)
         self.start = QDateEdit(QDate.currentDate()); self.end = QDateEdit(QDate.currentDate())
@@ -30,15 +32,37 @@ class AssistantPage(QWidget):
         actions = QHBoxLayout(); self.previous = QPushButton('Previous period'); self.previous.clicked.connect(self.previous_period)
         self.export_button = QPushButton('Export selected table CSV…'); self.export_button.clicked.connect(self.export)
         actions.addWidget(self.previous); actions.addWidget(self.export_button); body.addLayout(actions)
+        self.diagnostics_button = QPushButton('Error diagnostics…'); self.diagnostics_button.clicked.connect(self.open_diagnostics); actions.addWidget(self.diagnostics_button)
         self.open_button = QPushButton('Open related page'); self.open_button.clicked.connect(self.open_page); body.addWidget(self.open_button); self.open_button.setEnabled(False)
         host.runner.idle.connect(self.update_enabled); self.update_enabled()
 
+    def open_saved(self):
+        from native_pos.saved_questions import SavedQuestionsDialog, store_for
+        try: dialog = SavedQuestionsDialog(store_for(self.host), self.query.text(), self)
+        except (ValueError, OSError) as exc: QMessageBox.warning(self, 'Saved questions', str(exc)); return
+        if dialog.exec() and dialog.chosen is not None: self.query.setText(dialog.chosen)
+        dialog.deleteLater()
+
+    def open_diagnostics(self):
+        from native_pos.error_diagnostics import ErrorDiagnosticsDialog
+        dialog = ErrorDiagnosticsDialog(self)
+        dialog.exec()
+        dialog.deleteLater()
+
     def update_enabled(self):
         idle = not self.host.runner.busy
+        self.digest_button.setEnabled(idle)
         self.send.setEnabled(idle); self.run_report.setEnabled(idle)
         report = self.result.get('report') or {}
         self.previous.setEnabled(idle and bool(report))
         self.export_button.setEnabled(idle and bool(report.get('tables')))
+
+    def ask_digest(self):
+        if self.host.runner.busy: return
+        if self.start.date() > self.end.date():
+            QMessageBox.information(self, 'Report period', 'Start date must not be after end date.'); return
+        self.query.setText(f"digest {self.start.date().toString('yyyy-MM-dd')} {self.end.date().toString('yyyy-MM-dd')}")
+        self.ask()
 
     def ask_report(self):
         if self.start.date() > self.end.date():

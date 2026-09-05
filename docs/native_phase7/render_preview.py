@@ -87,8 +87,48 @@ def main():
             cloud_data = CloudConfigRepository(types.SimpleNamespace(**fixture.scope), Path(folder) / 'fixture-server.env', {}).read(fixture.user)
             cloud_dialog = CloudSettingsDialog(cloud_data, window)
             cloud_dialog.show(); app.processEvents(); cloud_dialog.grab().save(str(output / 'cloud-settings.png')); cloud_dialog.close()
+            integrations = window.route_pages[18]
+            integrations.received({'records': [
+                dict(service='Telegram', configured=True, enabled=True, detail='Fixture configuration; no live request.'),
+                dict(service='Cloud sync', configured=True, enabled=False, detail='Manual sync/pull uses explicit confirmation.'),
+                dict(service='YouTube', configured=True, enabled=True, detail='Playback stays in the original customer display.'),
+            ]})
+            integrations.cloud_operations.message = 'Effective destination fixture.cloud.invalid:5432 / pos; no operation was run.'
+            integrations.update_enabled(); window.navigate(18); app.processEvents(); window.grab().save(str(output / 'cloud-operations.png'))
             from server.native_assistant import AssistantRepository
+            from server.native_backup import BackupRepository
+            from uuid import uuid4
+            import json
+            asset_root = Path(folder) / 'managed-assets'; (asset_root / 'images').mkdir(parents=True)
+            (asset_root / 'images' / 'fixture.txt').write_text('Disposable preview asset', encoding='utf-8')
+            backup_repo = BackupRepository(types.SimpleNamespace(**fixture.scope), Path(folder) / 'backups', asset_root)
+            snapshot = backup_repo.create(fixture.user, str(uuid4()))
+            backup_page = window.route_pages[17]
+            backup_page.received(backup_repo.read(fixture.user)); backup_page.table.selectRow(0)
+            backup_page.details.setPlainText(json.dumps(backup_repo.verify(fixture.user, snapshot['name'], snapshot['sha256']), indent=2))
+            window.navigate(17); app.processEvents(); window.grab().save(str(output / 'backup-verification.png'))
+            package = backup_repo.package(fixture.user, str(uuid4()))
+            backup_page.received(backup_repo.read(fixture.user))
+            package_index = next(i for i, record in enumerate(backup_page.records) if record['name'] == package['name'])
+            backup_page.table.selectRow(package_index)
+            backup_page.details.setPlainText(json.dumps(backup_repo.rehearse(fixture.user, package['name'], package['sha256']), indent=2))
+            app.processEvents(); window.grab().save(str(output / 'backup-package-rehearsal.png'))
+            from native_pos.updates import UpdateCheckDialog
+            update_dialog = UpdateCheckDialog(window)
+            update_dialog.received(dict(local='1.0.0', published='1.1.0', status='Fixture: a newer package version is published.', source='Preview fixture; no network request', notes='Example package release notes.'))
+            update_dialog.show(); app.processEvents(); update_dialog.grab().save(str(output / 'update-information.png')); update_dialog.close()
+            from native_pos.saved_questions import QuestionStore, SavedQuestionsDialog
+            questions = SavedQuestionsDialog(QuestionStore(Path(folder) / 'questions', 'preview'), 'today sales', window)
+            questions.name.setText('Today sales'); questions.save(); questions.show(); app.processEvents()
+            questions.grab().save(str(output / 'saved-questions.png')); questions.close()
+            from native_pos.error_diagnostics import ErrorDiagnosticsDialog
+            error_dialog = ErrorDiagnosticsDialog(window)
+            error_dialog.input.setPlainText('OperationalError: database is locked')
+            error_dialog.analyze(); error_dialog.show(); app.processEvents()
+            error_dialog.grab().save(str(output / 'error-diagnostics.png')); error_dialog.close()
             assistant = window.route_pages[8]
+            assistant.received(AssistantRepository(types.SimpleNamespace(**fixture.scope), fixture.employee).ask(fixture.user, 'digest 2026-09-01 2026-09-04'))
+            window.navigate(8); app.processEvents(); window.grab().save(str(output / 'sales-digest.png'))
             assistant.received(AssistantRepository(types.SimpleNamespace(**fixture.scope), fixture.employee).ask(fixture.user, 'report reports/credit 2026-09-01 2026-09-04'))
             window.navigate(8); app.processEvents(); window.grab().save(str(output / 'assistant-reports.png')); window.navigate(11)
             window.config.update(style='Fusion', palette='Dark'); window.theme.apply(window.config)

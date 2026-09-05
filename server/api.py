@@ -964,6 +964,21 @@ def cashier_home():
     return FileResponse(STATIC_DIR / "cashier.html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/touch-pos", response_class=HTMLResponse)
+@app.get("/touch-pos/", response_class=HTMLResponse)
+def touch_pos_home():
+    return FileResponse(STATIC_DIR / "touch_pos" / "index.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/touch-pos/service-worker.js")
+def touch_pos_service_worker():
+    return FileResponse(
+        STATIC_DIR / "touch_pos" / "service-worker.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/touch-pos/"},
+    )
+
+
 @app.get("/receipts", response_class=HTMLResponse)
 def receipts_home():
     return FileResponse(STATIC_DIR / "receipts.html", headers={"Cache-Control": "no-store"})
@@ -1720,6 +1735,8 @@ from server.native_telegram import install_routes as _install_native_telegram_ro
 _install_native_telegram_routes(app, current_user)
 from server.native_cloud_config import install_routes as _install_native_cloud_config_routes
 _install_native_cloud_config_routes(app, current_user)
+from server.native_cloud_operations import install_routes as _install_native_cloud_operations_routes
+_install_native_cloud_operations_routes(app, current_user)
 
 
 @app.post("/api/sales")

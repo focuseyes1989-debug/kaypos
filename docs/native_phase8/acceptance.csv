@@ -1,0 +1,13 @@
+id,area,status,evidence_or_requirement
+P8-01,Source startup smoke,pass,"Offscreen login UI opened with temporary config; no DB/server/network access"
+P8-02,Packaged Windows build,pass,"dist/KAY_POS_Native; manifest SHA-256 01f3379b3c4ce2a94e9bcc39e466159a4230d0f01553584271122ba5e5729028"
+P8-03,Release identity and icon,pass,"KAY POS Native 0.8.0; separate executable name and Windows version resource"
+P8-04,Minimum display baseline,pass,"1366x768 source layout evidence from Phase 7; deployment DPI checks remain P8-10"
+P8-05,Original app coexistence,pending,"Install/copy preview beside original KAY POS and confirm all entry points on deployment PC"
+P8-06,POS Server compatibility,pending,"Update/restart controlled POS Server then authenticate against configured HTTPS server"
+P8-07,PostgreSQL restore rehearsal,pending,"Requires disposable PostgreSQL database/schema; never target production"
+P8-08,ZKTeco device acceptance,pending,"Requires the configured physical attendance device and test employee"
+P8-09,Receipt printer and cash drawer,pending,"Requires physical printer/drawer; run one explicit test at a time"
+P8-10,Telegram and cloud acceptance,pending,"Requires explicit live credentials and controlled one-shot operation"
+P8-11,Windows DPI and workstation matrix,pending,"Test 100/125/150 percent scaling and 1366x768 minimum on deployment PCs"
+

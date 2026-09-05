@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QDialog, QPlainTextEdit, QMessageBox, QFileDialog, QLineEdit)
+    QComboBox, QDialog, QPlainTextEdit, QMessageBox, QFileDialog, QLineEdit, QInputDialog)
 
 from native_pos.catalog import CatalogSession
 from native_pos.business_dialogs import FormDialog
@@ -42,8 +42,9 @@ class OperationsPage(QWidget):
             button('Sync attendance…', lambda: self.device_action('device.sync'), 'manage_attendance', True)
             button('Delete mapping…', lambda: self.device_action('mapping.delete'), 'edit_settings', True)
         else:
-            button('Create server snapshot…', self.backup, 'backup')
+            button('Create backup…', self.backup, 'backup')
             button('Download…', self.download, 'backup', True)
+            button('Verify snapshot', self.verify_backup, 'backup', True)
             button('Restore separate copy…', self.rehearse, 'restore', True)
         self.recover = QPushButton('Recover pending operation'); self.recover.clicked.connect(self.channel.recover); actions.addWidget(self.recover)
         layout.addLayout(actions)
@@ -123,18 +124,31 @@ class OperationsPage(QWidget):
         if QMessageBox.question(self, 'Confirm device operation', message) == QMessageBox.StandardButton.Yes: self.channel.submit(operation, record)
 
     def backup(self):
-        if QMessageBox.question(self, 'Create backup', 'Create a database snapshot on the POS Server? External image/document files require a separate file backup.') == QMessageBox.StandardButton.Yes:
-            self.channel.submit('backup.create', {})
+        kind, accepted = QInputDialog.getItem(self, 'Create server backup', 'Backup type', ['Database snapshot only', 'Database + managed files package'], 0, False)
+        if not accepted: return
+        package = kind == 'Database + managed files package'
+        message = ('Create a database snapshot plus managed server images, logos, product_images and network_print_assets? Pause asset edits during packaging. Arbitrary external/client paths and server .env are not included. Review manifest coverage before restoring.' if package else 'Create a database snapshot on the POS Server? External files are not included.')
+        if QMessageBox.question(self, 'Create backup', message) == QMessageBox.StandardButton.Yes:
+            self.channel.submit('backup.package' if package else 'backup.create', {})
 
     def rehearse(self):
         record = self.selected()
-        if record and QMessageBox.question(self, 'Restore rehearsal', 'Verify this backup and restore it into a separate server test copy?') == QMessageBox.StandardButton.Yes:
+        message = ('Verify this package, extract it into a separate server rehearsal folder and integrity-check its SQLite snapshot? Production database and managed files will not be changed.' if record and record['name'].endswith('.zip') else 'Verify this backup and restore it into a separate server test copy?')
+        if record and QMessageBox.question(self, 'Restore rehearsal', message) == QMessageBox.StandardButton.Yes:
             self.channel.submit('backup.rehearse', record)
+
+    def verify_backup(self):
+        record = self.selected()
+        if not record or self.host.runner.busy: return
+        def received(result):
+            import json
+            self.details.setPlainText(json.dumps(result, ensure_ascii=False, indent=2))
+        self.channel.run(lambda: self.channel.api._request('GET', '/api/native/backups/verify/' + quote(record['name'], safe=''), params={'sha256': record['sha256']}), received, 'Verifying selected server snapshot…')
 
     def download(self):
         record = self.selected()
         if not record: return
-        path, _ = QFileDialog.getSaveFileName(self, 'Download server snapshot', record['name'], 'Database backups (*.db *.dump)')
+        path, _ = QFileDialog.getSaveFileName(self, 'Download server backup', record['name'], 'Backups (*.db *.dump *.zip)')
         if not path: return
         self.channel.run(lambda: download_backup(self.channel.api, record, path), lambda _: self.details.setPlainText('Backup downloaded and SHA-256 verified: ' + path), 'Downloading backup…')
 

@@ -19,7 +19,7 @@ class IntegrationAdapter:
             dict(service='Telegram', configured=bool(telegram.bot_token and telegram.chat_id), enabled=telegram.enabled,
                  detail='Listener configured: ' + str(telegram.listener_enabled) + '. Running-process state is not monitored. Administrators can edit the server file with Telegram server settings; environment overrides may take precedence.'),
             dict(service='Cloud sync', configured=bool(cloud_database_url()), enabled=cloud_sync_enabled(),
-                 detail='The existing server/original application owns cloud sync. Administrators can edit its server file with Cloud server settings. Native starts no scheduler and does not run cloud pull.'),
+                 detail='The existing server/original application owns the scheduler. Administrators can edit its server file and run explicitly confirmed one-shot sync/pull. Native starts no scheduler.'),
             dict(service='YouTube', configured=youtube_configured, enabled=youtube_enabled,
                  detail='Shared customer-display URL is editable under Settings → YouTube. Playback remains with the existing customer display; Native has no WebEngine.'),
         ]

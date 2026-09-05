@@ -116,7 +116,7 @@ class NativeWindow(QMainWindow):
         self.config = load_config(settings_path)
         self.theme = theme
         self.theme.apply(self.config)
-        self.setWindowTitle('KAY POS Native · Phase 7')
+        self.setWindowTitle('KAY POS Native')
         self.setWindowIcon(app_icon())
         self._fit_display()
         self.session = self.store = self.pending_store = None
@@ -141,6 +141,11 @@ class NativeWindow(QMainWindow):
         self.setMinimumSize(min(1366,width),min(768,height))
         self.resize(min(self.config['width'],width),min(self.config['height'],height))
 
+    def check_updates(self):
+        from native_pos.updates import UpdateCheckDialog
+        dialog = UpdateCheckDialog(self)
+        dialog.exec(); dialog.deleteLater()
+
     def _build_shell(self):
         file_menu = self.menuBar().addMenu('&File')
         self.logout_action = QAction('Sign Out',self); self.logout_action.triggered.connect(self.logout); file_menu.addAction(self.logout_action)
@@ -149,8 +154,9 @@ class NativeWindow(QMainWindow):
         settings = self.menuBar().addMenu('&Appearance')
         appearance = QAction('Style, palette and font…',self); appearance.triggered.connect(self.appearance); settings.addAction(appearance)
         help_menu = self.menuBar().addMenu('&Help')
+        updates = QAction('Check for updates…', self); updates.triggered.connect(self.check_updates); help_menu.addAction(updates)
         info = QAction('Phase 7 status',self)
-        info.triggered.connect(lambda: QMessageBox.information(self,'KAY POS Native','Phase 7: Employees, Settings, Users, Devices, Backup, Native Assistant and Telegram/cloud server-file editing.\nUpdate/restart the POS Server for these features.\nAdvanced AI diagnostics, cloud sync/pull, PostgreSQL restore and live device checks are pending.'))
+        info.triggered.connect(lambda: QMessageBox.information(self,'KAY POS Native','Phase 7 source implementation complete: Employees, Settings, Users, Devices, Backup, Native Assistant and explicit cloud operations.\nUpdate/restart the POS Server for these features.\nLive PostgreSQL, Telegram/cloud, ZKTeco, printer/DPI and distribution acceptance belongs to Phase 8.'))
         help_menu.addAction(info)
         toolbar = QToolBar('Workspace',self); toolbar.setMovable(False); self.addToolBar(toolbar)
         self.refresh_action = QAction('Refresh access',self); self.refresh_action.setShortcut('F5'); self.refresh_action.triggered.connect(self.refresh_access)
@@ -160,7 +166,7 @@ class NativeWindow(QMainWindow):
         self.cashier_action.toggled.connect(self.cashier_mode); toolbar.addAction(self.cashier_action)
         root = QWidget(); layout = QVBoxLayout(root)
         self.identity = QLabel(); self.identity.setTextFormat(Qt.TextFormat.PlainText); layout.addWidget(self.identity)
-        self.banner = QLabel('Phase 7 · Employees, Settings and Server Operations · Standard Qt widgets'); layout.addWidget(self.banner)
+        self.banner = QLabel('Native Qt desktop · Server-backed workflows · Standard PyQt6 widgets'); layout.addWidget(self.banner)
         split = QSplitter()
         self.navigation = QListWidget(); self.navigation.setMinimumWidth(165)
         self.pages = QStackedWidget()
@@ -260,7 +266,7 @@ class NativeWindow(QMainWindow):
         self.business_session = None
         if getattr(self, 'admin_session', None): self.admin_session.deleteLater()
         self.admin_session = None
-        for attribute in ('operations_session', 'backups_session', 'files_session', 'telegram_session', 'cloud_config_session'):
+        for attribute in ('operations_session', 'backups_session', 'files_session', 'telegram_session', 'cloud_config_session', 'cloud_operations_session'):
             if getattr(self, attribute, None): getattr(self, attribute).deleteLater()
             setattr(self, attribute, None)
         for route in ROUTES:

@@ -65,7 +65,7 @@ APPLICATIONS = (
     AppDefinition("server", "Server Manager", "Services & Database", "ဘရောက်ဇာဝန်ဆောင်မှုများ စတင်ခြင်း၊ PostgreSQL စောင့်ကြည့်ခြင်းနှင့် ဆာဗာချိတ်ဆက်မှုကို စီမံပါ။", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
     AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "ကွန်ရက်ပရင်တာများ၊ စာရွက်စာတမ်းပရင့်ထုတ်ခြင်းနှင့် လုံခြုံသောပရင့်အလုပ်များကို စီမံပါ။", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
     AppDefinition("lite", "KAY POS Lite", "Low-End Point of Sale", "စက်အင်အားနည်းသော PC များအတွက် မြန်ဆန်ပေါ့ပါးသည့် အရောင်းနှင့် စတော့စီမံခန့်ခွဲမှု။", ("kay_pos_lite.py",), ("KAY_POS_Lite.exe",), "#5365df", "L", "pos-system.png"),
-    AppDefinition("native", "KAY POS Native", "Phase 2 Preview", "Standard Qt widgets, separate appearance settings and a read-only practice workspace.", ("kay_pos_native.pyw", "kay_pos_native.py"), ("KAY_POS_Native.exe",), "#398078", "N", "pos-system.png"),
+    AppDefinition("native", "KAY POS Native", "Native Qt Desktop", "Standard PyQt6 widgets with server-backed POS workflows and separate local appearance/printing preferences.", ("kay_pos_native.pyw", "kay_pos_native.py"), ("KAY_POS_Native.exe",), "#398078", "N", "pos-system.png"),
 )
 
 STYLE = """

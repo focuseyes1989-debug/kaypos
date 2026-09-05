@@ -9,6 +9,7 @@ import re
 from server.native_admin import AdminRepository
 from server.native_reports import ReportRepository, VIEWS
 from native_pos.assistant_queries import REPORT_CHOICES
+from native_pos.sales_digest import digest_period, digest_message
 from native_pos.routes import ROUTES
 from native_pos.admin_schema import EMPLOYEE_SECTIONS
 from ui.ai_pages.ai_burmese_normalizer import AIBurmeseNormalizer
@@ -22,6 +23,12 @@ class AssistantRepository(AdminRepository):
         conn = self.connect()
         try: self.authorize(conn.cursor(), user, ['ai_pages'])
         finally: conn.rollback(); conn.close()
+        period = digest_period(query)
+        if period:
+            result = self.report_answer(user, 'summary', 'overview', *period)
+            result['message'] = digest_message(result['report'])
+            result['digest'] = True
+            return result
         query = AIBurmeseNormalizer.normalize(query); navigation = AINavigationRequest.parse(query)
         explicit = re.fullmatch(r'report\s+(summary|reports)/([a-z]+)(?:\s+(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2}))?', query.strip(), re.I)
         if explicit:
@@ -83,7 +90,7 @@ class AssistantRepository(AdminRepository):
                     ('%' + identifier.lower() + '%', identifier, identifier))
                 return dict(message='Matching products (maximum 100). Open Products for stock and variant details.', records=records, route_id=2)
             finally: conn.rollback(); conn.close()
-        return dict(message='Native assistant supports: today sales, yesterday sales, weekly sales, monthly sales, top products, stock summary, expense today/monthly, profit, debt summary, product name/barcode, and "open attendance/payroll/products".\nUse the report selector for all 17 Native summary/report views, or ask "hourly sales", "payment types", "stock movements" or "report summary/hourly YYYY-MM-DD YYYY-MM-DD".\nAdd YYYY-MM-DD or a pair of dates for a report period. Advanced diagnostics and scheduled digests remain in the original KAY POS AI.', records=[])
+        return dict(message='Native assistant supports: today sales, yesterday sales, weekly sales, monthly sales, top products, stock summary, expense today/monthly, profit, debt summary, product name/barcode, and "open attendance/payroll/products".\nUse the report selector for all 17 Native summary/report views, or ask "hourly sales", "payment types", "stock movements" or "report summary/hourly YYYY-MM-DD YYYY-MM-DD".\nAdd YYYY-MM-DD or a pair of dates for a report period. Use Error diagnostics for local pasted-error guidance. Scheduled digests remain in the original KAY POS AI.', records=[])
 
     def report_answer(self, user, section, view, start, end):
         report = ReportRepository(self.service).read(user, section, view, start, end)

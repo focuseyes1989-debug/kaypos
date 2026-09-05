@@ -373,7 +373,15 @@ class SalesPage(QWidget):
         self.last_receipt = receipt; self.pending = None; self.cart.clear()
         self.discount.setValue(0); self.payment.setValue(0); self.notes.clear(); self.customer.setCurrentIndex(0)
         self.render_cart(); self.set_message('Sale saved: ' + str(receipt.get('invoice_no', receipt['id'])))
-        if not self.host.closing: self.show_receipt()
+        if not self.host.closing: self.after_sale()
+
+    def after_sale(self):
+        from native_pos.config import load_config
+        action = load_config(self.host.settings_path)['after_sale']
+        if action == 'stay_sales': return
+        self.show_receipt()
+        if action == 'show_receipt_ask_drawer' and not self.host.closing:
+            self.open_drawer()
 
     def show_receipt(self):
         if self.last_receipt:

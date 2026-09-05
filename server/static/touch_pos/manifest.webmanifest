@@ -1,0 +1,15 @@
+{
+  "name": "KAY POS Touch",
+  "short_name": "KAY POS",
+  "description": "Touch sales workspace for KAY POS",
+  "id": "/touch-pos/",
+  "start_url": "/touch-pos/",
+  "scope": "/touch-pos/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#eef2f7",
+  "theme_color": "#14213d",
+  "icons": [
+    {"src": "/assets/kay/kay_128x128.png", "sizes": "128x128", "type": "image/png", "purpose": "any"}
+  ]
+}

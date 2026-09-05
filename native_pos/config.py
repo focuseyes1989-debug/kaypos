@@ -8,6 +8,7 @@ DEFAULTS = dict(style='System', palette='System', font_family='', font_size=10,
                 server_url='https://192.168.110.112:8000', insecure_tls=True,
                 username='', width=1366, height=768,
                 receipt_printer='', receipt_paper='A4', receipt_dpi=300, drawer_target='server',
+                after_sale='show_receipt',
                 print_server_url='', print_agent='', print_remote_name='', print_verify_tls=True, print_key_protected='')
 
 def config_path():
@@ -28,6 +29,7 @@ def load_config(path=None):
         result['backend'] = 'Server'
     result['insecure_tls'] = bool(result['insecure_tls'])
     if result['drawer_target'] not in ('server', 'local'): result['drawer_target'] = 'server'
+    if result['after_sale'] not in ('show_receipt', 'show_receipt_ask_drawer', 'stay_sales'): result['after_sale'] = 'show_receipt'
     if result['receipt_paper'] not in ('58mm', '80mm', 'A4'): result['receipt_paper'] = 'A4'
     if result['receipt_dpi'] not in (203, 300, 600): result['receipt_dpi'] = 300
     for key, minimum, maximum in (('font_size',8,20),('width',1366,3840),('height',768,2160)):

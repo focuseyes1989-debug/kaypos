@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14213d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="/assets/kay/kay_128x128.png">
+  <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css">
+  <title>KAY POS Touch</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/assets/kay/kay_128x128.png" alt="">
+        <div><strong>KAY POS Touch</strong><span>Touch sales workspace</span></div>
+      </div>
+      <label class="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search product or scan barcode" disabled></label>
+      <div class="top-actions">
+        <span id="connection" class="connection checking" role="status"><i></i><span>Checking server…</span></span>
+        <button id="install" class="secondary" type="button" hidden>Install App</button>
+        <button id="fullscreen" class="secondary" type="button">Full Screen</button>
+        <button class="avatar" type="button" disabled aria-label="Signed out">—</button>
+      </div>
+    </header>
+
+    <main class="workspace" aria-label="KAY POS Touch foundation preview">
+      <aside class="categories panel">
+        <div class="panel-heading"><strong>Categories</strong><span>W3</span></div>
+        <nav aria-label="Product categories">
+          <button class="category active" type="button" disabled>All products</button>
+          <button class="category" type="button" disabled>Popular</button>
+          <button class="category" type="button" disabled>Recent</button>
+        </nav>
+      </aside>
+
+      <section class="catalog panel">
+        <div class="panel-heading">
+          <div><strong>Products</strong><small>Categories and products connect in W3</small></div>
+          <span class="count">0 items</span>
+        </div>
+        <div class="product-grid" aria-live="polite">
+          <div class="empty-state">
+            <div class="empty-icon">▦</div>
+            <strong>Touch workspace is ready</strong>
+            <p>Staff login and live product data will be connected in the next phases.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="cart panel">
+        <div class="panel-heading"><div><strong>Current sale</strong><small>No customer selected</small></div><span class="count">0</span></div>
+        <div class="cart-empty"><span>🛒</span><strong>Cart is empty</strong><small>Products selected in W3 will appear here.</small></div>
+        <div class="totals">
+          <div><span>Subtotal</span><strong>0 Ks</strong></div>
+          <div><span>Discount</span><strong>0 Ks</strong></div>
+          <div class="grand"><span>Total</span><strong>0 Ks</strong></div>
+          <button class="pay" type="button" disabled>Payment</button>
+        </div>
+      </aside>
+    </main>
+
+    <footer><span>Phase W1 · Foundation preview</span><span id="clock"></span></footer>
+  </div>
+  <noscript>KAY POS Touch requires JavaScript.</noscript>
+  <script src="/static/touch_pos/touch-pos.js" defer></script>
+</body>
+</html>

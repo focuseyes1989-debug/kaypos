@@ -2,6 +2,7 @@
 .env.telegram.*
 .venv/
 .venv-1/
+.venv-native-build/
 build/
 dist/
 update_build/

@@ -1,0 +1,7 @@
+{
+  "product": "KAY POS Native",
+  "version": "0.8.0",
+  "release_channel": "phase8-preview",
+  "minimum_display": "1366x768",
+  "server_api": "native-v1"
+}
