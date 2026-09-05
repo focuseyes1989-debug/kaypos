@@ -3,6 +3,8 @@
 Date: 2026-09-05  
 Status: Foundation implemented
 
+Continued in [Phase W2](phase_w2.md).
+
 Open the preview from the existing POS Server at:
 
 ```text
@@ -22,4 +24,3 @@ The service worker caches only the static application shell. API and health requ
 - Interactive controls have a 48 px minimum target in compact layouts.
 - Page-level scrolling is disabled; future product/cart lists own their scrolling.
 - Existing dashboard, cashier, POS Lite, Service Job Client and Native entry points are unchanged.
-

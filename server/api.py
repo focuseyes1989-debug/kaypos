@@ -947,11 +947,43 @@ class ProductManageRequest(BaseModel):
     variants: List[ProductVariantRequest] = Field(default_factory=list)
 
 
-def current_user(authorization: str = Header(default="")) -> Dict[str, Any]:
+def _current_token(authorization: str) -> str:
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token or token not in _TOKENS:
         raise HTTPException(status_code=401, detail="Login required")
+    return token
+
+
+def current_user(authorization: str = Header(default="")) -> Dict[str, Any]:
+    token = _current_token(authorization)
     return _TOKENS[token]
+
+
+def _touch_pos_user(user: Dict[str, Any]) -> Dict[str, Any]:
+    permissions = {str(value).strip().casefold() for value in user.get("permissions", [])}
+    role = str(user.get("role") or "").strip()
+    can_sell = role.casefold() == "admin" or "create_sale" in permissions
+    return {"user": user, "can_sell": can_sell, "required_permission": "create_sale"}
+
+
+def _require_touch_pos(user: Dict[str, Any]) -> None:
+    if not _touch_pos_user(user)["can_sell"]:
+        raise HTTPException(status_code=403, detail="This account does not have permission to create sales")
+
+
+def _touch_product(product: Dict[str, Any]) -> Dict[str, Any]:
+    fields = (
+        "id", "name", "category", "price", "original_price", "discount_percent",
+        "sku", "barcode", "stock", "sold_by", "unit", "is_service",
+        "is_out_of_stock", "is_low_stock", "thumbnail_url",
+    )
+    result = {field: product.get(field) for field in fields}
+    variant_fields = ("variant_id", "size", "color", "sku", "barcode", "price", "stock", "low_stock")
+    result["variants"] = [
+        {field: variant.get(field) for field in variant_fields}
+        for variant in product.get("variants", []) if isinstance(variant, dict)
+    ]
+    return result
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -1007,6 +1039,38 @@ def login(payload: LoginRequest):
 @app.get("/api/me")
 def me(user: Dict[str, Any] = Depends(current_user)):
     return {"user": user}
+
+
+@app.get("/api/touch-pos/session")
+def touch_pos_session(user: Dict[str, Any] = Depends(current_user)):
+    access = _touch_pos_user(user)
+    if not access["can_sell"]:
+        raise HTTPException(status_code=403, detail="This account does not have permission to create sales")
+    return access
+
+
+@app.post("/api/touch-pos/logout")
+def touch_pos_logout(authorization: str = Header(default="")):
+    token = _current_token(authorization)
+    _TOKENS.pop(token, None)
+    return {"ok": True}
+
+
+@app.get("/api/touch-pos/categories")
+def touch_pos_categories(user: Dict[str, Any] = Depends(current_user)):
+    _require_touch_pos(user)
+    return {"categories": cashier_service.list_categories()}
+
+
+@app.get("/api/touch-pos/products")
+def touch_pos_products(
+    q: str = Query(default=""), category: str = Query(default=""),
+    limit: int = Query(default=200, ge=1, le=300), offset: int = Query(default=0, ge=0),
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_touch_pos(user)
+    rows = cashier_service.list_products(q.strip(), category.strip(), limit, offset)
+    return {"products": [_touch_product(product) for product in rows]}
 
 
 @app.get("/api/dashboard/summary")

@@ -11,37 +11,47 @@
   <title>KAY POS Touch</title>
 </head>
 <body>
-  <div class="app-shell">
+  <section id="loginView" class="login-view">
+    <form id="loginForm" class="login-card" autocomplete="on">
+      <div class="login-brand"><img src="/assets/kay/kay_128x128.png" alt=""><div><h1>KAY POS Touch</h1><p>Sign in with your staff account</p></div></div>
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button id="signIn" class="sign-in" type="submit">Sign In</button>
+      <div id="loginStatus" class="login-status" role="status" aria-live="polite"></div>
+      <div class="login-foot"><span id="loginConnection" class="connection checking"><i></i><span>Checking server…</span></span><small>Phase W2 · Staff access</small></div>
+    </form>
+  </section>
+
+  <div id="app" class="app-shell" hidden>
     <header class="topbar">
       <div class="brand">
         <img src="/assets/kay/kay_128x128.png" alt="">
         <div><strong>KAY POS Touch</strong><span>Touch sales workspace</span></div>
       </div>
-      <label class="search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search product or scan barcode" disabled></label>
+      <label class="search"><span aria-hidden="true">⌕</span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
       <div class="top-actions">
         <span id="connection" class="connection checking" role="status"><i></i><span>Checking server…</span></span>
         <button id="install" class="secondary" type="button" hidden>Install App</button>
         <button id="fullscreen" class="secondary" type="button">Full Screen</button>
-        <button class="avatar" type="button" disabled aria-label="Signed out">—</button>
+        <button id="userButton" class="user-button" type="button" aria-expanded="false"><span id="userInitials">—</span><span class="user-copy"><strong id="userName">Signed out</strong><small id="userRole"></small></span></button>
+        <div id="userMenu" class="user-menu" hidden><div><strong id="menuUserName"></strong><small id="menuUserRole"></small></div><button id="signOut" type="button">Sign Out</button></div>
       </div>
     </header>
 
     <main class="workspace" aria-label="KAY POS Touch foundation preview">
       <aside class="categories panel">
-        <div class="panel-heading"><strong>Categories</strong><span>W3</span></div>
-        <nav aria-label="Product categories">
-          <button class="category active" type="button" disabled>All products</button>
-          <button class="category" type="button" disabled>Popular</button>
-          <button class="category" type="button" disabled>Recent</button>
-        </nav>
+        <div class="panel-heading"><strong>Categories</strong><span id="categoryCount">0</span></div>
+        <nav id="categoryList" aria-label="Product categories"><div class="category-loading">Sign in to load</div></nav>
       </aside>
 
       <section class="catalog panel">
         <div class="panel-heading">
-          <div><strong>Products</strong><small>Categories and products connect in W3</small></div>
-          <span class="count">0 items</span>
+          <div><strong>Products</strong><small>Tap a category or search the live catalog</small></div>
+          <div class="catalog-actions"><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled>↻</button></div>
         </div>
-        <div class="product-grid" aria-live="polite">
+        <div id="productGrid" class="product-grid" aria-live="polite">
           <div class="empty-state">
             <div class="empty-icon">▦</div>
             <strong>Touch workspace is ready</strong>
@@ -62,8 +72,9 @@
       </aside>
     </main>
 
-    <footer><span>Phase W1 · Foundation preview</span><span id="clock"></span></footer>
+    <footer><span id="workspaceStatus">Phase W3 · Product catalog</span><span id="clock"></span></footer>
   </div>
+  <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-pos.js" defer></script>
 </body>

@@ -49,7 +49,6 @@ class TouchPosPhaseW1Tests(unittest.TestCase):
         script = (STATIC / 'touch-pos.js').read_text(encoding='utf-8')
         self.assertIn("fetch('/health'", script)
         self.assertIn("register('/touch-pos/service-worker.js', {scope: '/touch-pos/'})", script)
-        self.assertNotIn('/api/login', script)
         self.assertNotIn('/api/sales', script)
 
     def test_service_worker_never_intercepts_api_or_health(self):
