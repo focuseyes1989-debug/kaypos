@@ -178,6 +178,7 @@
       font-weight: 400;
     }
     .top-link:hover { background: #334155; }
+    .sale-jump { display: none; }
     .topbar .top-link:hover { background: var(--brand-soft); border-color: rgba(50,103,232,.25); }
     .workspace {
       grid-column: 2;
@@ -688,7 +689,7 @@
       display: grid;
       gap: 5px;
     }
-    @media (max-width: 1400px) and (min-width: 981px) {
+    @media (max-width: 1400px) and (min-width: 1181px) {
       .app { grid-template-columns: 210px minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) 24px; }
       .cashier-side { padding: 20px 16px; }
       .cashier-side .brand-row { margin-bottom: 28px; }
@@ -710,17 +711,24 @@
       .cart-item-thumb { flex-basis: 42px; width: 42px; height: 42px; }
       .cart-item-total { min-width: 76px; }
     }
-    @media (max-width: 980px) {
+    @media (max-width: 1180px) {
       body { overflow: auto; }
-      .app { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: 56px auto 28px; }
+      .app { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
       .cashier-side { display: none; }
-      .topbar { grid-column: 1; grid-row: 1; padding: 0 12px; }
-      .workspace { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; padding: 0 10px 10px; }
-      .statusbar { grid-column: 1; grid-row: 3; }
+      .topbar { grid-column: 1; grid-row: 1; padding: 10px 12px; flex-wrap: wrap; }
+      .top-actions { flex-wrap: wrap; white-space: normal; }
+      .sale-jump { display: inline-flex; }
+      .workspace { grid-column: 1; grid-row: 2; grid-template-columns: minmax(0, 1fr); padding: 0 10px 10px; }
+      .catalog { height: 60vh; min-height: 360px; max-height: 600px; }
+      .statusbar { grid-column: 1; grid-row: 3; flex-wrap: wrap; padding: 6px 10px; }
       .toolbar, .customer-row, .payment-row, .quick-cash-row, .details-grid, .helper-row { grid-template-columns: 1fr; }
       .section-head { align-items: flex-start; flex-direction: column; }
       .metric-row { justify-content: flex-start; }
-      .sale-panel { min-height: 640px; }
+      .sale-panel { grid-template-rows: auto auto auto minmax(180px, 1fr) auto; min-height: 640px; scroll-margin-top: 10px; }
+      .cart-items { max-height: 360px; }
+      .customer-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .customer-row select { grid-column: 1 / -1; }
+      .quick-cash-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .receipt-layout { grid-template-columns: 1fr; }
       .receipt-list { border-right: 0; border-bottom: 1px solid var(--line); max-height: 320px; }
     }
@@ -767,6 +775,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <a class="top-link sale-jump" href="#currentSale">Current Sale</a>
         <span id="userLabel">Cashier</span>
         <span id="clock"></span>
         <button id="logoutBtn" class="secondary" type="button">Logout</button>
@@ -794,7 +803,7 @@
         <div id="products" class="products"></div>
       </section>
 
-      <aside class="panel sale-panel">
+      <aside id="currentSale" class="panel sale-panel">
         <div class="section-head">
           <div>
             <div class="section-title">Current Sale</div>
