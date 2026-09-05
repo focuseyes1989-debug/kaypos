@@ -1,4 +1,4 @@
-const CACHE = 'kay-pos-touch-w7-v2';
+const CACHE = 'kay-pos-touch-w7-v3';
 const SHELL = [
   '/touch-pos/',
   '/static/touch_pos/touch-pos.css',

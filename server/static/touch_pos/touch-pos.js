@@ -291,19 +291,17 @@
       token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = ''; loginStatus.textContent = error.message; loginStatus.className = 'login-status'; password.focus();
     } finally { signIn.disabled = false; }
   });
-  const saleCart = document.querySelector('#saleCart'), openCart = document.querySelector('#openCart');
-  const mobileCartMedia = window.matchMedia('(max-width: 760px)');
+  const saleCart = document.querySelector('#saleCart'), openCart = document.querySelector('#openCart'), closeCart = document.querySelector('#closeCart');
   function setCartOpen(open, restoreFocus = false) {
     saleCart.classList.toggle('open', open);
-    saleCart.inert = mobileCartMedia.matches && !open;
+    saleCart.inert = !open;
     openCart.setAttribute('aria-expanded', String(open));
-    if (open) document.querySelector('#closeCart').focus();
+    if (open) closeCart.focus();
     else if (restoreFocus) openCart.focus();
   }
   openCart.addEventListener('click', () => setCartOpen(true));
-  document.querySelector('#closeCart').addEventListener('click', () => setCartOpen(false, true));
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && mobileCartMedia.matches && saleCart.classList.contains('open')) setCartOpen(false, true); });
-  mobileCartMedia.addEventListener('change', () => setCartOpen(false));
+  closeCart.addEventListener('click', () => setCartOpen(false, true));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && saleCart.classList.contains('open')) setCartOpen(false, true); });
   setCartOpen(false);
   userButton.addEventListener('click', () => { userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden)); });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
