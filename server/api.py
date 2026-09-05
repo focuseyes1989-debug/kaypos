@@ -1073,6 +1073,31 @@ def touch_pos_products(
     return {"products": [_touch_product(product) for product in rows]}
 
 
+@app.post("/api/touch-pos/sales")
+def touch_pos_create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_touch_pos(user)
+    try:
+        receipt = cashier_service.create_sale(
+            items=[item.model_dump() for item in payload.items],
+            payment=payload.payment,
+            payment_type=payload.payment_type or "Cash",
+            sale_mode=payload.sale_mode or "Cash",
+            discount_amount=payload.discount_amount,
+            points_used=payload.points_used,
+            customer_id=payload.customer_id,
+            due_date=payload.due_date,
+            credit_notes=payload.credit_notes,
+            allow_credit_over_limit=payload.allow_credit_over_limit,
+            created_by=user.get("username", "Touch POS"),
+        )
+        return {"receipt": receipt}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Touch POS checkout failed")
+        raise HTTPException(status_code=500, detail=f"Checkout failed: {exc}") from exc
+
+
 @app.get("/api/dashboard/summary")
 def dashboard_summary(
     from_date: str = Query(default=""),
@@ -1807,7 +1832,7 @@ _install_native_cloud_operations_routes(app, current_user)
 def create_sale(payload: SaleRequest, user: Dict[str, Any] = Depends(current_user)):
     try:
         receipt = cashier_service.create_sale(
-            items=[item.dict() for item in payload.items],
+            items=[item.model_dump() for item in payload.items],
             payment=payload.payment,
             payment_type=payload.payment_type,
             sale_mode=payload.sale_mode,

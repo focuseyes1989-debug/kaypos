@@ -34,7 +34,9 @@ class TouchPosPhaseW1Tests(unittest.TestCase):
         html = (STATIC / 'index.html').read_text(encoding='utf-8')
         for marker in ('categories panel', 'catalog panel', 'cart panel', 'id="connection"', 'id="fullscreen"'):
             self.assertIn(marker, html)
-        self.assertIn('class="pay" type="button" disabled', html)
+        self.assertIn('class="pay"', html)
+        self.assertIn('id="paymentButton"', html)
+        self.assertIn('disabled>Complete Cash Sale</button>', html)
         self.assertNotIn('/api/sales', html)
 
     def test_layout_targets_desktop_and_tablet_without_page_scroll(self):

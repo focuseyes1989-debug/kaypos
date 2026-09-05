@@ -14,4 +14,4 @@ W3 connects the authenticated Touch POS workspace to the existing POS Lite produ
 - Product tiles show image, name, category or SKU, price, and stock status. Out-of-stock stock items are disabled.
 - Changing account state, sign out, or session expiry clears visible catalog data and aborts any pending product request.
 
-Cart creation, quantity edits, discounts, and sale submission remain for W4 and later. W3 does not mutate sales, stock, or payments.
+Cart creation continues in [Phase W4](phase_w4.md). W3 does not mutate sales, stock, or payments.

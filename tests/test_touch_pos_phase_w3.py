@@ -80,7 +80,7 @@ class TouchPosPhaseW3Tests(unittest.TestCase):
         self.assertIn("escapeHtml(product.name)", script)
         self.assertIn("disabled", script)
         self.assertNotIn("/api/sales", script)
-        self.assertIn("Cart starts in W4", script)
+        self.assertIn("addToCart(product)", script)
 
 
 if __name__ == "__main__":
