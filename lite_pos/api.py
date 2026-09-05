@@ -11,6 +11,12 @@ import requests
 
 
 class LiteApiError(RuntimeError):
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class LiteAuthError(LiteApiError):
     pass
 
 
@@ -54,7 +60,10 @@ class LiteApiClient:
             payload = {}
         if not response.ok:
             detail = payload.get("detail") if isinstance(payload, dict) else ""
-            raise LiteApiError(str(detail or f"Server request failed ({response.status_code})"))
+            message = str(detail or f"Server request failed ({response.status_code})")
+            if response.status_code == 401:
+                raise LiteAuthError(message, response.status_code)
+            raise LiteApiError(message, response.status_code)
         return payload if isinstance(payload, dict) else {}
 
     def health(self) -> dict:

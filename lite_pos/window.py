@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from lite_pos.api import LiteApiClient
+from lite_pos.api import LiteApiClient, LiteAuthError
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
 from lite_pos.theme import apply_lite_theme, normalize_theme
@@ -403,7 +403,7 @@ class LiteSaleDisplay(QWidget):
 
 class TaskWorker(QObject):
     succeeded = pyqtSignal(object)
-    failed = pyqtSignal(str)
+    failed = pyqtSignal(object)
     finished = pyqtSignal()
 
     def __init__(self, operation: Callable):
@@ -414,7 +414,7 @@ class TaskWorker(QObject):
         try:
             self.succeeded.emit(self.operation())
         except Exception as exc:
-            self.failed.emit(str(exc))
+            self.failed.emit(exc)
         finally:
             self.finished.emit()
 
@@ -1445,6 +1445,7 @@ class LiteWindow(QMainWindow):
         self._service_job_polling = False
         self._service_job_updating = False
         self._service_job_snapshot = None
+        self._session_expired_handled = False
         self.service_job_tray = QSystemTrayIcon(QApplication.instance().windowIcon(), self)
         self.service_job_tray.setToolTip("KAY POS Service Jobs")
         self.service_job_tray.show()
@@ -2443,7 +2444,7 @@ class LiteWindow(QMainWindow):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.succeeded.connect(success)
-        worker.failed.connect(failure)
+        worker.failed.connect(lambda error: self._handle_task_failure(error, failure))
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(lambda: self._workers.discard(worker))
@@ -2454,6 +2455,23 @@ class LiteWindow(QMainWindow):
         # its finished signal fires or it may be collected before run() starts.
         self._workers.add(worker)
         thread.start()
+
+    def _handle_task_failure(self, error: object, failure: Callable[[str], None]) -> None:
+        if isinstance(error, LiteAuthError) and self.api:
+            self._handle_session_expired()
+            return
+        failure(str(error))
+
+    def _handle_session_expired(self) -> None:
+        if self._session_expired_handled:
+            return
+        self._session_expired_handled = True
+        QMessageBox.warning(
+            self,
+            "Login Required",
+            "Server session expired or the POS Server was restarted. Please login again.",
+        )
+        self.logout("Please login again.")
 
     def _new_page_load(self, page: str) -> int:
         """Return a generation token so pages can load independently and discard stale replies."""
@@ -2499,6 +2517,7 @@ class LiteWindow(QMainWindow):
         def accepted(user):
             self.api = client
             self.user = dict(user)
+            self._session_expired_handled = False
             save_config({
                 "server_url": client.server_url,
                 "insecure_tls": self.insecure_check.isChecked(),
@@ -4957,7 +4976,11 @@ class LiteWindow(QMainWindow):
             lambda error: (self.history_status.setText("Refund failed"), QMessageBox.critical(self, "Refund", error)),
         )
 
-    def logout(self) -> None:
+    def logout(self, message: str = "Signed out.") -> None:
+        self.service_job_timer.stop()
+        self._service_job_polling = False
+        self._service_job_updating = False
+        self._page_load_tokens = {}
         if self.sale_display:
             self.sale_display.close()
         close_api = getattr(self.api, "close", None)
@@ -4976,7 +4999,7 @@ class LiteWindow(QMainWindow):
         self.render_cart()
         self.password_input.clear()
         self.pages.setCurrentWidget(self.login_page)
-        self.login_status.setText("Signed out.")
+        self.login_status.setText(message)
         self.statusBar().showMessage("Ready")
         self.hide()
         QTimer.singleShot(0, self.show_login_dialog)
