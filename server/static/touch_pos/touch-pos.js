@@ -8,7 +8,6 @@
   const username = document.querySelector('#username'), userButton = document.querySelector('#userButton');
   const userMenu = document.querySelector('#userMenu'), TOKEN_KEY = 'kay_touch_pos_token';
   const CART_KEY = 'kay_touch_pos_cart';
-  const HELD_CART_KEY = 'kay_touch_pos_held_cart';
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], selectedCategory = '';
   let cart = new Map();
   let searchTimer = null, productsController = null, toastTimer = null;
@@ -55,13 +54,6 @@
   function saveCart() {
     sessionStorage.setItem(CART_KEY, JSON.stringify([...cart.values()]));
   }
-  function savedHeldCart() {
-    try { return JSON.parse(sessionStorage.getItem(HELD_CART_KEY) || '{}'); }
-    catch (_) { sessionStorage.removeItem(HELD_CART_KEY); return {}; }
-  }
-  function clearHeldCart() {
-    sessionStorage.removeItem(HELD_CART_KEY);
-  }
   function cartTotals() {
     const items = [...cart.values()], count = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
     const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
@@ -77,39 +69,19 @@
   }
   function clearCart() {
     cart.clear(); sessionStorage.removeItem(CART_KEY);
-    document.querySelector('#paymentAmount').value = '';
     renderCart();
   }
-  function holdCart() {
-    const {items, count, total} = cartTotals();
-    if (!count) return toast('Cart is empty.');
-    sessionStorage.setItem(HELD_CART_KEY, JSON.stringify({items, total, held_at: new Date().toISOString()}));
-    clearCart(); toast('Sale held on this tablet.');
-  }
-  function restoreHeldCart() {
-    const held = savedHeldCart();
-    if (!Array.isArray(held.items) || !held.items.length) return toast('No held sale found.');
-    if (cartTotals().count) return toast('Clear the current cart before restoring.');
-    cart = new Map(held.items.map(item => [item.key, item]));
-    sessionStorage.removeItem(HELD_CART_KEY); saveCart(); renderCart(); toast('Held sale restored.');
-  }
   function renderCart() {
-    const {items, count, subtotal, discount, total} = cartTotals();
+    const {items, count, subtotal, total} = cartTotals();
     const root = document.querySelector('#cartItems');
     document.querySelector('#cartCount').textContent = String(count);
     document.querySelector('#mobileCartCount').textContent = String(count);
     document.querySelector('#cartItemCount').textContent = String(count);
     document.querySelector('#cartSubtotal').textContent = `${money(subtotal)} Ks`;
-    document.querySelector('#cartDiscount').textContent = `${money(discount)} Ks`;
     document.querySelector('#cartTotal').textContent = `${money(total)} Ks`;
     document.querySelector('#clearCart').disabled = count === 0;
-    document.querySelector('#holdCart').disabled = count === 0;
-    document.querySelector('#restoreHeldCart').disabled = !(savedHeldCart().items || []).length;
     document.querySelector('#paymentButton').disabled = count === 0;
-    document.querySelector('#paymentAmount').disabled = count === 0;
-    document.querySelectorAll('[data-cash]').forEach(button => { button.disabled = count === 0; });
     document.querySelector('#cartHint').textContent = count ? `${items.length} line${items.length === 1 ? '' : 's'} in cart` : 'Tap products to add';
-    updatePayment();
     if (!items.length) {
       root.innerHTML = '<div class="cart-empty"><span>🛒</span><strong>Cart is empty</strong><small>Tap a product to add it to this sale.</small></div>';
       return;
@@ -141,17 +113,6 @@
     if (item.qty <= 0) cart.delete(key);
     saveCart(); renderCart();
   }
-  function updatePayment() {
-    const total = cartTotals().total, payment = Number(document.querySelector('#paymentAmount').value || 0);
-    document.querySelector('#changeDue').textContent = `${money(Math.max(0, payment - total))} Ks`;
-    document.querySelector('#paymentButton').disabled = total <= 0 || payment < total;
-  }
-  function setQuickCash(action) {
-    const input = document.querySelector('#paymentAmount'), total = cartTotals().total;
-    if (action === 'exact') input.value = total ? String(Math.ceil(total)) : '';
-    else input.value = String(Number(input.value || 0) + Number(action || 0));
-    updatePayment(); input.focus(); input.select();
-  }
   function receiptLines(receipt, paid) {
     const total = Number(receipt.total || 0), items = Array.isArray(receipt.items) ? receipt.items : [];
     const lines = ['KAY POS', receipt.invoice_no || 'Receipt', receipt.created_at || new Date().toLocaleString(), ''];
@@ -179,9 +140,8 @@
     modal.hidden = false;
   }
   async function checkoutCashSale() {
-    const {items, total} = cartTotals(), payment = Number(document.querySelector('#paymentAmount').value || 0);
+    const {items, total} = cartTotals(), payment = total;
     if (!items.length) return toast('Cart is empty.');
-    if (payment < total) return toast('Insufficient payment.');
     const button = document.querySelector('#paymentButton'); button.disabled = true; button.textContent = 'Saving...';
     try {
       const data = await api('/api/touch-pos/sales', {
@@ -192,12 +152,12 @@
         }),
       });
       const receipt = data.receipt || {};
-      clearCart(); document.querySelector('#paymentAmount').value = ''; renderCart(); await loadProducts(); showReceipt(receipt, payment);
+      clearCart(); renderCart(); await loadProducts(); showReceipt(receipt, payment);
       toast(`Saved ${receipt.invoice_no || 'sale'}.`);
     } catch (error) {
       toast(error.message);
     } finally {
-      button.textContent = 'Complete Cash Sale'; updatePayment();
+      button.textContent = 'Checkout'; renderCart();
     }
   }
   function clearCatalog() {
@@ -213,7 +173,6 @@
   function showLogin(message = '') {
     clearCatalog();
     clearCart();
-    clearHeldCart();
     token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = '';
     loginStatus.textContent = message; loginStatus.className = 'login-status';
     userMenu.hidden = true; appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
@@ -292,24 +251,32 @@
     } finally { signIn.disabled = false; }
   });
   const saleCart = document.querySelector('#saleCart'), openCart = document.querySelector('#openCart'), closeCart = document.querySelector('#closeCart');
+  const compactCart = window.matchMedia('(max-width: 760px)');
   function setCartOpen(open, restoreFocus = false) {
+    if (!compactCart.matches) {
+      saleCart.classList.remove('open');
+      saleCart.inert = false;
+      openCart.setAttribute('aria-expanded', 'false');
+      return;
+    }
     saleCart.classList.toggle('open', open);
     saleCart.inert = !open;
     openCart.setAttribute('aria-expanded', String(open));
     if (open) closeCart.focus();
     else if (restoreFocus) openCart.focus();
   }
+  function syncCartMode() {
+    if (compactCart.matches) setCartOpen(saleCart.classList.contains('open'));
+    else setCartOpen(false);
+  }
   openCart.addEventListener('click', () => setCartOpen(true));
   closeCart.addEventListener('click', () => setCartOpen(false, true));
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && saleCart.classList.contains('open')) setCartOpen(false, true); });
-  setCartOpen(false);
+  compactCart.addEventListener('change', syncCartMode);
+  syncCartMode();
   userButton.addEventListener('click', () => { userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden)); });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
-  document.querySelector('#holdCart').addEventListener('click', holdCart);
-  document.querySelector('#restoreHeldCart').addEventListener('click', restoreHeldCart);
-  document.querySelector('#paymentAmount').addEventListener('input', updatePayment);
-  document.querySelectorAll('[data-cash]').forEach(button => button.addEventListener('click', () => setQuickCash(button.dataset.cash)));
   document.querySelector('#paymentButton').addEventListener('click', checkoutCashSale);
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#printReceiptButton').addEventListener('click', () => window.print());
