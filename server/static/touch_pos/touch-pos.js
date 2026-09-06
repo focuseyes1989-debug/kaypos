@@ -117,12 +117,16 @@
     document.querySelector('#choiceTitle').textContent = product.name || 'Service';
     document.querySelector('#choiceSubtitle').textContent = 'Enter service price';
     document.querySelector('#confirmChoice').textContent = 'Add';
-    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="numeric" value="${Number(product.price || 0)}"></label>`;
+    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${Number(product.price || 0)}"></label>`;
     document.querySelector('#productChoiceModal').hidden = false;
-    setTimeout(() => {
+    const focusPriceInput = () => {
       const input = document.querySelector('#servicePriceInput');
-      input.focus(); input.select();
-    }, 0);
+      if (!input) return;
+      input.focus({preventScroll: true}); input.select();
+    };
+    focusPriceInput();
+    requestAnimationFrame(focusPriceInput);
+    setTimeout(focusPriceInput, 120);
   }
   function openVariantChoice(product) {
     const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
