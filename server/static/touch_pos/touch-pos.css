@@ -125,7 +125,7 @@
 /* Constrain the category list so mouse wheel and touch dragging can scroll it. */
 .categories{
   display:grid;
-  grid-template-rows:auto minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr);
 }
 .categories nav{
   min-height:0;
@@ -135,9 +135,38 @@
   touch-action:pan-y;
   -webkit-overflow-scrolling:touch;
 }
+.category-search{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin:7px 8px 0;
+  height:34px;
+  padding:0 8px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#fff;
+  color:var(--muted);
+}
+.category-search span{
+  font-size:16px;
+  line-height:1;
+}
+.category-search input{
+  width:100%;
+  min-width:0;
+  height:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:var(--ink);
+  font-size:11px;
+}
 @media screen and (max-width:760px){
   .categories{
     display:block;
+  }
+  .category-search{
+    margin:0 0 6px;
   }
   .categories nav{
     overflow-x:auto;

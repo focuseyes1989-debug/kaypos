@@ -8,7 +8,7 @@
   const username = document.querySelector('#username'), userButton = document.querySelector('#userButton');
   const userMenu = document.querySelector('#userMenu'), TOKEN_KEY = 'kay_touch_pos_token';
   const CART_KEY = 'kay_touch_pos_cart';
-  let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], selectedCategory = '';
+  let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
   let cart = new Map();
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
@@ -318,8 +318,8 @@
   function clearCatalog() {
     clearTimeout(searchTimer); searchTimer = null;
     if (productsController) { productsController.abort(); productsController = null; }
-    products = []; selectedCategory = ''; document.querySelector('#productSearch').value = '';
-    document.querySelector('#productSearch').disabled = true; document.querySelector('#refreshProducts').disabled = true;
+    products = []; categories = []; selectedCategory = ''; document.querySelector('#productSearch').value = ''; document.querySelector('#categorySearch').value = '';
+    document.querySelector('#productSearch').disabled = true; document.querySelector('#categorySearch').disabled = true; document.querySelector('#refreshProducts').disabled = true;
     document.querySelector('#categoryCount').textContent = '0'; document.querySelector('#productCount').textContent = '0 items';
     document.querySelector('#categoryList').innerHTML = '<div class="category-loading">Sign in to load</div>';
     document.querySelector('#productGrid').classList.add('loaded');
@@ -339,14 +339,22 @@
     document.querySelector('#menuUserRole').textContent = `${user.role || 'Staff'} · Sales access`;
     loginView.hidden = true; appView.hidden = false; password.value = ''; loginStatus.textContent = '';
   }
-  function renderCategories(categories) {
+  function renderCategories() {
     const root = document.querySelector('#categoryList'); root.replaceChildren();
-    for (const name of ['', ...categories]) {
+    const query = document.querySelector('#categorySearch').value.trim().toLowerCase();
+    const visibleCategories = query ? categories.filter(name => String(name || '').toLowerCase().includes(query)) : categories;
+    if (query && selectedCategory && !visibleCategories.includes(selectedCategory)) selectedCategory = '';
+    for (const name of ['', ...visibleCategories]) {
       const button = document.createElement('button'); button.type = 'button'; button.className = `category${name === selectedCategory ? ' active' : ''}`;
       button.textContent = name || 'All products'; button.setAttribute('aria-pressed', String(name === selectedCategory));
-      button.addEventListener('click', () => { selectedCategory = name; renderCategories(categories); loadProducts(); }); root.appendChild(button);
+      button.addEventListener('click', () => { selectedCategory = name; renderCategories(); loadProducts(); }); root.appendChild(button);
     }
-    document.querySelector('#categoryCount').textContent = String(categories.length);
+    document.querySelector('#categoryCount').textContent = query ? `${visibleCategories.length}/${categories.length}` : String(categories.length);
+  }
+  function filterCategories() {
+    const previousCategory = selectedCategory;
+    renderCategories();
+    if (previousCategory !== selectedCategory) loadProducts();
   }
   function renderProducts() {
     const root = document.querySelector('#productGrid'); root.classList.add('loaded');
@@ -386,8 +394,10 @@
   async function loadCatalog() {
     document.querySelector('#productSearch').disabled = false; document.querySelector('#refreshProducts').disabled = false;
     try {
-      const result = await api('/api/touch-pos/categories'), categories = Array.isArray(result.categories) ? result.categories : [];
-      renderCategories(categories); await loadProducts(); document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
+      const result = await api('/api/touch-pos/categories');
+      categories = Array.isArray(result.categories) ? result.categories : [];
+      document.querySelector('#categorySearch').disabled = false;
+      renderCategories(); await loadProducts(); document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
     } catch (error) {
       document.querySelector('#categoryList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
       document.querySelector('#workspaceStatus').textContent = 'Catalog unavailable · Retry when server reconnects';
@@ -455,6 +465,7 @@
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });
   document.querySelector('#productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadProducts, 250); });
   document.querySelector('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); loadProducts(); } });
+  document.querySelector('#categorySearch').addEventListener('input', filterCategories);
   document.querySelector('#refreshProducts').addEventListener('click', loadCatalog);
   async function checkServer() {
     try { const response = await fetch('/health', {cache: 'no-store'}), value = await response.json(); setConnection(response.ok && value.ok === true); }
