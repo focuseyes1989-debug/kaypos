@@ -110,20 +110,22 @@
   }
   function closeChoice() {
     document.querySelector('#productChoiceModal').hidden = true;
+    document.querySelector('#productChoiceModal').classList.remove('service-price-open');
     choiceState = null;
   }
   function openServicePrice(product) {
     choiceState = {type: 'service', product};
+    document.querySelector('#productChoiceModal').classList.add('service-price-open');
     document.querySelector('#choiceTitle').textContent = product.name || 'Service';
     document.querySelector('#choiceSubtitle').textContent = 'Enter service price';
     document.querySelector('#confirmChoice').textContent = 'Add';
-    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${Number(product.price || 0)}"></label><div class="service-keypad" aria-label="Service price keypad">${['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(value => `<button type="button" data-keypad="${value}">${value}</button>`).join('')}<button type="button" data-keypad="clear">Clear</button></div>`;
+    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="text" inputmode="none" enterkeyhint="done" autocomplete="off" readonly value=""></label><div class="service-keypad" aria-label="Service price keypad">${['1','2','3','4','5','6','7','8','9','00','0','⌫'].map(value => `<button type="button" data-keypad="${value}">${value}</button>`).join('')}<button type="button" data-keypad="clear">Clear</button></div>`;
     document.querySelector('#productChoiceModal').hidden = false;
     document.querySelectorAll('[data-keypad]').forEach(button => button.addEventListener('click', () => pressServiceKey(button.dataset.keypad)));
     const focusPriceInput = () => {
       const input = document.querySelector('#servicePriceInput');
       if (!input) return;
-      input.focus({preventScroll: true}); input.select();
+      input.focus({preventScroll: true});
     };
     focusPriceInput();
     requestAnimationFrame(focusPriceInput);
@@ -132,8 +134,8 @@
   function pressServiceKey(key) {
     const input = document.querySelector('#servicePriceInput');
     if (!input) return;
-    if (key === 'clear') input.value = '0';
-    else if (key === '⌫') input.value = String(input.value || '').slice(0, -1) || '0';
+    if (key === 'clear') input.value = '';
+    else if (key === '⌫') input.value = String(input.value || '').slice(0, -1);
     else input.value = `${String(input.value || '').replace(/^0+(?=\d)/, '')}${key}`;
     input.focus({preventScroll: true});
   }
@@ -141,6 +143,7 @@
     const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
     if (!variants.length) return toast(`${product.name} has no variants.`);
     choiceState = {type: 'variant', product};
+    document.querySelector('#productChoiceModal').classList.remove('service-price-open');
     document.querySelector('#choiceTitle').textContent = product.name || 'Choose variant';
     document.querySelector('#choiceSubtitle').textContent = 'Choose one variant';
     document.querySelector('#confirmChoice').textContent = 'Add';

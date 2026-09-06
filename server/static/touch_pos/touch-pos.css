@@ -223,6 +223,9 @@
   background:#fff;
   box-shadow:0 24px 80px rgba(0,0,0,.28);
 }
+.service-price-open .choice-modal{
+  width:min(320px,92vw);
+}
 .choice-body{
   display:grid;
   gap:10px;
@@ -938,4 +941,7 @@
   .checkout-modal{
     max-height:calc(100dvh - 20px);
   }
+}
+.service-price-open .choice-modal{
+  width:min(320px,92vw)!important;
 }
