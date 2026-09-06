@@ -701,3 +701,15 @@
     padding:0 12px 12px;
   }
 }
+
+/* Checkout should clearly turn primary when a cart is ready to pay. */
+.cart-actions .pay:not(:disabled){
+  border-color:var(--blue)!important;
+  background:var(--blue)!important;
+  color:#fff!important;
+}
+.cart-actions .pay:disabled{
+  border-color:#cfd6e2!important;
+  background:#d7dde8!important;
+  color:#7d8797!important;
+}
