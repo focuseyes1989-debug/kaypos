@@ -447,6 +447,96 @@
     padding:0 12px 12px;
   }
 }
+
+/* Small cashier displays use an avatar-only profile button so the topbar stays clean. */
+@media screen and (min-width:761px){
+  .top-actions{
+    flex-shrink:0;
+  }
+  .user-copy{
+    display:none!important;
+  }
+  .user-button{
+    width:38px!important;
+    min-width:38px!important;
+    max-width:38px!important;
+    min-height:36px!important;
+    justify-content:center;
+    gap:0;
+    padding:0!important;
+  }
+  .user-button>span:first-child{
+    width:26px;
+    height:26px;
+    flex:0 0 26px;
+  }
+}
+
+/* Compact login form to match the smaller Touch POS workspace. */
+.login-view{
+  min-height:0;
+  padding:14px;
+}
+.login-card{
+  width:min(360px,100%);
+  padding:20px;
+  border-radius:14px;
+}
+.login-brand{
+  gap:10px;
+  margin-bottom:16px;
+}
+.login-brand img{
+  width:42px;
+  height:42px;
+}
+.login-brand h1{
+  font-size:18px;
+}
+.login-brand p{
+  font-size:12px;
+}
+.login-card>label{
+  margin:10px 0 5px;
+  font-size:12px;
+}
+.login-card>input{
+  height:40px;
+  padding:0 10px;
+  border-radius:9px;
+  font-size:13px;
+}
+.sign-in{
+  min-height:42px;
+  margin-top:14px;
+  border-radius:9px;
+  font-size:13px;
+}
+.login-status{
+  min-height:30px;
+  padding-top:8px;
+  font-size:11px;
+}
+.login-foot{
+  gap:8px;
+  padding-top:9px;
+  font-size:10px;
+}
+.login-foot .connection{
+  min-height:30px;
+  padding:0 8px;
+  border-radius:8px;
+  font-size:10px;
+}
+@media screen and (max-width:760px){
+  .login-view{
+    padding:10px;
+  }
+  .login-card{
+    width:min(330px,100%);
+    padding:16px;
+  }
+}
 @media screen and (min-width:761px) and (max-width:1099px){
   body{
     font-size:12px;
