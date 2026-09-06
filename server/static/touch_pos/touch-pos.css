@@ -864,3 +864,27 @@
     font-size:10px;
   }
 }
+
+/* Keep dialogs near the top so on-screen keypads do not cover inputs. */
+.modal-backdrop{
+  align-items:start!important;
+  justify-items:center!important;
+  place-items:start center!important;
+  padding-top:max(18px,env(safe-area-inset-top))!important;
+  padding-bottom:max(12px,env(safe-area-inset-bottom))!important;
+}
+.receipt-modal,
+.choice-modal,
+.checkout-modal{
+  max-height:calc(100dvh - 30px);
+}
+@media screen and (max-width:760px){
+  .modal-backdrop{
+    padding-top:max(10px,env(safe-area-inset-top))!important;
+  }
+  .receipt-modal,
+  .choice-modal,
+  .checkout-modal{
+    max-height:calc(100dvh - 20px);
+  }
+}
