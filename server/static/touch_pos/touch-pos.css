@@ -130,6 +130,7 @@
 .categories nav{
   min-height:0;
   max-height:100%;
+  align-content:start;
   overflow-y:auto;
   overscroll-behavior:contain;
   touch-action:pan-y;
