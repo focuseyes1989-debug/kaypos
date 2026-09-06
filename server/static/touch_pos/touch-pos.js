@@ -76,7 +76,6 @@
     const root = document.querySelector('#cartItems');
     document.querySelector('#cartCount').textContent = String(count);
     document.querySelector('#mobileCartCount').textContent = String(count);
-    document.querySelector('#cartItemCount').textContent = String(count);
     document.querySelector('#cartSubtotal').textContent = `${money(subtotal)} Ks`;
     document.querySelector('#cartTotal').textContent = `${money(total)} Ks`;
     document.querySelector('#clearCart').disabled = count === 0;
