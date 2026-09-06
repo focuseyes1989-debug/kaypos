@@ -145,3 +145,17 @@
     touch-action:pan-x;
   }
 }
+
+/* Tablet landscape needs a wider category rail for Myanmar and long English labels. */
+@media screen and (min-width:761px) and (max-width:1099px){
+  .workspace{
+    grid-template-columns:150px minmax(0,1fr) 300px;
+  }
+  .category{
+    min-height:54px;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    line-height:1.25;
+    padding:8px 10px;
+  }
+}
