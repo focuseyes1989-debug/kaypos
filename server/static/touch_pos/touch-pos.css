@@ -152,10 +152,19 @@
     grid-template-columns:150px minmax(0,1fr) 300px;
   }
   .category{
-    min-height:54px;
+    min-height:58px;
     white-space:normal;
-    overflow-wrap:anywhere;
-    line-height:1.25;
-    padding:8px 10px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    overflow-wrap:break-word;
+    line-height:1.55;
+    padding:7px 10px;
+    font-size:12px;
+    display:-webkit-box;
+    -webkit-box-orient:vertical;
+    -webkit-line-clamp:2;
+  }
+  .cart-actions{
+    gap:4px;
   }
 }
