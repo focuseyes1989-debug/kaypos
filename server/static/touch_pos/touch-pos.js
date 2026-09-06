@@ -58,10 +58,11 @@
   }
   function checkoutTotals() {
     const {items, count, subtotal} = cartTotals();
-    const discount = Math.min(subtotal, Math.max(0, Number(document.querySelector('#checkoutDiscount')?.value || 0)));
+    const rawDiscount = Math.max(0, Number(document.querySelector('#checkoutDiscount')?.value || 0));
+    const discount = Math.min(subtotal, rawDiscount);
     const total = Math.max(0, subtotal - discount);
     const received = Math.max(0, Number(document.querySelector('#checkoutReceived')?.value || 0));
-    return {items, count, subtotal, discount, total, received, change: Math.max(0, received - total), balance: Math.max(0, total - received)};
+    return {items, count, subtotal, rawDiscount, discount, total, received, change: Math.max(0, received - total), balance: Math.max(0, total - received)};
   }
   function restoreCart() {
     try {
@@ -245,19 +246,29 @@
     const mode = document.querySelector('#checkoutSaleMode').value;
     const totals = checkoutTotals();
     const customerInfo = document.querySelector('#checkoutCustomerInfo');
+    const messages = [];
     if (customer) {
       const balance = Number(customer.current_balance || 0), limit = Number(customer.credit_limit || 0);
       customerInfo.textContent = `Points ${money(customer.points || 0)} · Balance ${money(balance)} Ks · Credit limit ${money(limit)} Ks · Available ${money(Math.max(0, limit - balance))} Ks`;
     } else {
       customerInfo.textContent = mode === 'Credit' ? 'Select a customer for credit sale.' : 'Walk-in customer';
     }
+    if (!totals.items.length) messages.push('Cart is empty.');
+    if (mode === 'Credit' && !customer) messages.push('Select a customer for credit sale.');
+    if (mode === 'Cash' && totals.received < totals.total) messages.push('Received amount is less than total.');
+    if (mode === 'Credit' && totals.received > totals.total) messages.push('Credit received amount cannot exceed total.');
+    if (totals.rawDiscount > totals.subtotal) messages.push('Discount cannot exceed subtotal.');
     document.querySelector('#checkoutSummary').innerHTML = [
+      ['Items', String(totals.count)],
       ['Subtotal', `${money(totals.subtotal)} Ks`],
       ['Discount', `${money(totals.discount)} Ks`],
       ['Total', `${money(totals.total)} Ks`, 'checkout-total'],
       ['Received', `${money(totals.received)} Ks`],
       [mode === 'Credit' ? 'Credit Balance' : 'Change', `${money(mode === 'Credit' ? totals.balance : totals.change)} Ks`],
     ].map(row => `<div class="${row[2] || ''}"><span>${escapeHtml(row[0])}</span><strong>${escapeHtml(row[1])}</strong></div>`).join('');
+    document.querySelector('#checkoutValidation').textContent = messages[0] || 'Ready to save.';
+    document.querySelector('#checkoutValidation').classList.toggle('ok', messages.length === 0);
+    document.querySelector('#saveCheckout').disabled = messages.length > 0;
   }
   async function openCheckoutDetails() {
     const {items, total} = cartTotals();

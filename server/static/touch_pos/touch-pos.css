@@ -282,7 +282,7 @@
   background:var(--blue);
 }
 .checkout-modal{
-  width:min(430px,100%);
+  width:min(760px,96vw);
   max-height:min(660px,92dvh);
   overflow:hidden;
   border-radius:15px;
@@ -291,10 +291,16 @@
 }
 .checkout-body{
   display:grid;
-  gap:9px;
+  grid-template-columns:minmax(230px,.9fr) minmax(260px,1fr);
+  align-items:start;
+  gap:14px;
   max-height:480px;
   overflow:auto;
   padding:14px 16px;
+}
+.checkout-form{
+  display:grid;
+  gap:9px;
 }
 .checkout-field{
   display:grid;
@@ -304,6 +310,11 @@
 .checkout-note{
   color:var(--muted);
   font-size:12px;
+}
+.checkout-note,
+.checkout-validation{
+  min-height:18px;
+  line-height:1.4;
 }
 .checkout-field input,
 .checkout-field select{
@@ -320,18 +331,34 @@
 }
 .checkout-summary{
   display:grid;
-  gap:7px;
-  padding-top:6px;
-  border-top:1px dashed var(--line);
+  gap:0;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
 }
 .checkout-summary>div{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr auto;
   align-items:center;
-  justify-content:space-between;
   gap:12px;
+  min-height:36px;
+  padding:0 10px;
+  border-bottom:1px solid var(--line);
+}
+.checkout-summary>div:last-child{
+  border-bottom:0;
 }
 .checkout-summary .checkout-total{
   font-size:16px;
+  background:#f8fafc;
+}
+.checkout-validation{
+  color:var(--bad);
+  font-size:12px;
+}
+.checkout-validation.ok{
+  color:var(--good);
 }
 .checkout-actions{
   display:grid;
@@ -352,6 +379,10 @@
   border:0;
   color:#fff;
   background:var(--blue);
+}
+.checkout-actions .sign-in:disabled{
+  background:#d7dde8;
+  color:#7d8797;
 }
 
 /* Compact density for cashier PCs and tablets with small touch-style displays. */
@@ -509,7 +540,7 @@
   .choice-modal,
   .receipt-modal,
   .checkout-modal{
-    width:min(400px,96vw);
+    width:min(680px,96vw);
   }
   .choice-body,
   .receipt-body,
@@ -610,6 +641,9 @@
   .login-card{
     width:min(330px,100%);
     padding:16px;
+  }
+  .checkout-body{
+    grid-template-columns:1fr;
   }
 }
 @media screen and (min-width:761px) and (max-width:1099px){
@@ -766,7 +800,7 @@
   .choice-modal,
   .receipt-modal,
   .checkout-modal{
-    width:min(400px,96vw);
+    width:min(680px,96vw);
   }
   .choice-body,
   .receipt-body,

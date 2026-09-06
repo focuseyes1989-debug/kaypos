@@ -94,12 +94,15 @@
     <section class="checkout-modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
       <div class="receipt-head"><div><strong id="checkoutTitle">Checkout</strong><small id="checkoutSubtitle">Review payment before saving</small></div><button id="closeCheckout" type="button" aria-label="Close checkout">×</button></div>
       <div class="checkout-body">
-        <label class="checkout-field"><span>Customer</span><select id="checkoutCustomer"></select></label>
-        <div id="checkoutCustomerInfo" class="checkout-note">Walk-in customer</div>
-        <label class="checkout-field"><span>Sale type</span><select id="checkoutSaleMode"><option value="Cash">Cash</option><option value="Credit">Credit</option></select></label>
-        <label class="checkout-field"><span>Discount</span><input id="checkoutDiscount" type="number" min="0" step="100" inputmode="numeric" value="0"></label>
-        <label class="checkout-field"><span>Received</span><input id="checkoutReceived" type="number" min="0" step="100" inputmode="numeric" value="0"></label>
-        <div id="checkoutSummary" class="checkout-summary"></div>
+        <div id="checkoutSummary" class="checkout-summary" aria-live="polite"></div>
+        <div class="checkout-form">
+          <label class="checkout-field"><span>Customer</span><select id="checkoutCustomer"></select></label>
+          <div id="checkoutCustomerInfo" class="checkout-note">Walk-in customer</div>
+          <label class="checkout-field"><span>Sale type</span><select id="checkoutSaleMode"><option value="Cash">Cash</option><option value="Credit">Credit</option></select></label>
+          <label class="checkout-field"><span>Discount</span><input id="checkoutDiscount" type="number" min="0" step="100" inputmode="numeric" value="0"></label>
+          <label class="checkout-field"><span>Received</span><input id="checkoutReceived" type="number" min="0" step="100" inputmode="numeric" value="0"></label>
+          <div id="checkoutValidation" class="checkout-validation"></div>
+        </div>
       </div>
       <div class="checkout-actions"><button id="cancelCheckout" type="button">Cancel</button><button id="saveCheckout" class="sign-in" type="button">Save Sale</button></div>
     </section>
