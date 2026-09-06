@@ -281,6 +281,78 @@
   color:#fff;
   background:var(--blue);
 }
+.checkout-modal{
+  width:min(430px,100%);
+  max-height:min(660px,92dvh);
+  overflow:hidden;
+  border-radius:15px;
+  background:#fff;
+  box-shadow:0 24px 80px rgba(0,0,0,.28);
+}
+.checkout-body{
+  display:grid;
+  gap:9px;
+  max-height:480px;
+  overflow:auto;
+  padding:14px 16px;
+}
+.checkout-field{
+  display:grid;
+  gap:5px;
+}
+.checkout-field span,
+.checkout-note{
+  color:var(--muted);
+  font-size:12px;
+}
+.checkout-field input,
+.checkout-field select{
+  width:100%;
+  min-height:40px;
+  padding:0 10px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:#fff;
+  color:var(--ink);
+}
+.checkout-field input{
+  text-align:right;
+}
+.checkout-summary{
+  display:grid;
+  gap:7px;
+  padding-top:6px;
+  border-top:1px dashed var(--line);
+}
+.checkout-summary>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.checkout-summary .checkout-total{
+  font-size:16px;
+}
+.checkout-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  padding:0 16px 16px;
+}
+.checkout-actions button{
+  min-height:44px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font-weight:400;
+}
+.checkout-actions .sign-in{
+  margin:0;
+  border:0;
+  color:#fff;
+  background:var(--blue);
+}
 
 /* Compact density for cashier PCs and tablets with small touch-style displays. */
 @media screen and (min-width:1100px){
@@ -435,15 +507,18 @@
     font-size:10px;
   }
   .choice-modal,
-  .receipt-modal{
+  .receipt-modal,
+  .checkout-modal{
     width:min(400px,96vw);
   }
   .choice-body,
-  .receipt-body{
+  .receipt-body,
+  .checkout-body{
     padding:10px 12px;
   }
   .choice-actions,
-  .receipt-actions{
+  .receipt-actions,
+  .checkout-actions{
     padding:0 12px 12px;
   }
 }
@@ -689,15 +764,18 @@
     font-size:10px;
   }
   .choice-modal,
-  .receipt-modal{
+  .receipt-modal,
+  .checkout-modal{
     width:min(400px,96vw);
   }
   .choice-body,
-  .receipt-body{
+  .receipt-body,
+  .checkout-body{
     padding:10px 12px;
   }
   .choice-actions,
-  .receipt-actions{
+  .receipt-actions,
+  .checkout-actions{
     padding:0 12px 12px;
   }
 }

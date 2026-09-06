@@ -8,7 +8,7 @@
   const username = document.querySelector('#username'), userButton = document.querySelector('#userButton');
   const userMenu = document.querySelector('#userMenu'), TOKEN_KEY = 'kay_touch_pos_token';
   const CART_KEY = 'kay_touch_pos_cart';
-  let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], selectedCategory = '';
+  let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], selectedCategory = '';
   let cart = new Map();
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
@@ -55,6 +55,13 @@
     const items = [...cart.values()], count = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
     const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
     return {items, count, subtotal, discount: 0, total: subtotal};
+  }
+  function checkoutTotals() {
+    const {items, count, subtotal} = cartTotals();
+    const discount = Math.min(subtotal, Math.max(0, Number(document.querySelector('#checkoutDiscount')?.value || 0)));
+    const total = Math.max(0, subtotal - discount);
+    const received = Math.max(0, Number(document.querySelector('#checkoutReceived')?.value || 0));
+    return {items, count, subtotal, discount, total, received, change: Math.max(0, received - total), balance: Math.max(0, total - received)};
   }
   function restoreCart() {
     try {
@@ -209,6 +216,94 @@
       button.textContent = 'Checkout'; renderCart();
     }
   }
+  function customerLabel(customer) {
+    return `${customer.name || 'Customer'}${customer.phone ? ` · ${customer.phone}` : ''}`;
+  }
+  function selectedCheckoutCustomer() {
+    const id = Number(document.querySelector('#checkoutCustomer')?.value || 0);
+    return customers.find(customer => Number(customer.id) === id) || null;
+  }
+  function renderCheckoutCustomers() {
+    const select = document.querySelector('#checkoutCustomer');
+    select.innerHTML = `<option value="">Walk-in Customer</option>${customers.map(customer => `<option value="${Number(customer.id)}">${escapeHtml(customerLabel(customer))}</option>`).join('')}`;
+  }
+  async function loadCheckoutCustomers() {
+    const select = document.querySelector('#checkoutCustomer');
+    select.innerHTML = '<option value="">Loading customers...</option>';
+    try {
+      const result = await api('/api/customers?limit=200');
+      customers = Array.isArray(result.customers) ? result.customers : [];
+      renderCheckoutCustomers();
+    } catch (error) {
+      customers = [];
+      select.innerHTML = '<option value="">Walk-in Customer</option>';
+      toast(error.message);
+    }
+  }
+  function renderCheckoutSummary() {
+    const customer = selectedCheckoutCustomer();
+    const mode = document.querySelector('#checkoutSaleMode').value;
+    const totals = checkoutTotals();
+    const customerInfo = document.querySelector('#checkoutCustomerInfo');
+    if (customer) {
+      const balance = Number(customer.current_balance || 0), limit = Number(customer.credit_limit || 0);
+      customerInfo.textContent = `Points ${money(customer.points || 0)} · Balance ${money(balance)} Ks · Credit limit ${money(limit)} Ks · Available ${money(Math.max(0, limit - balance))} Ks`;
+    } else {
+      customerInfo.textContent = mode === 'Credit' ? 'Select a customer for credit sale.' : 'Walk-in customer';
+    }
+    document.querySelector('#checkoutSummary').innerHTML = [
+      ['Subtotal', `${money(totals.subtotal)} Ks`],
+      ['Discount', `${money(totals.discount)} Ks`],
+      ['Total', `${money(totals.total)} Ks`, 'checkout-total'],
+      ['Received', `${money(totals.received)} Ks`],
+      [mode === 'Credit' ? 'Credit Balance' : 'Change', `${money(mode === 'Credit' ? totals.balance : totals.change)} Ks`],
+    ].map(row => `<div class="${row[2] || ''}"><span>${escapeHtml(row[0])}</span><strong>${escapeHtml(row[1])}</strong></div>`).join('');
+  }
+  async function openCheckoutDetails() {
+    const {items, total} = cartTotals();
+    if (!items.length) return toast('Cart is empty.');
+    const modal = document.querySelector('#checkoutModal');
+    document.querySelector('#checkoutDiscount').value = '0';
+    document.querySelector('#checkoutReceived').value = String(Math.round(total));
+    document.querySelector('#checkoutSaleMode').value = 'Cash';
+    modal.hidden = false;
+    await loadCheckoutCustomers();
+    renderCheckoutSummary();
+    setTimeout(() => document.querySelector('#checkoutReceived').select(), 0);
+  }
+  function closeCheckout() {
+    document.querySelector('#checkoutModal').hidden = true;
+    document.querySelector('#saveCheckout').disabled = false;
+    document.querySelector('#saveCheckout').textContent = 'Save Sale';
+  }
+  async function submitCheckoutSale() {
+    const mode = document.querySelector('#checkoutSaleMode').value;
+    const customer = selectedCheckoutCustomer();
+    const totals = checkoutTotals();
+    if (!totals.items.length) return toast('Cart is empty.');
+    if (mode === 'Credit' && !customer) return toast('Select a customer for credit sale.');
+    if (mode === 'Cash' && totals.received < totals.total) return toast('Received amount is less than total.');
+    if (mode === 'Credit' && totals.received > totals.total) return toast('Credit received amount cannot exceed total.');
+    const button = document.querySelector('#saveCheckout');
+    button.disabled = true; button.textContent = 'Saving...';
+    try {
+      const data = await api('/api/touch-pos/sales', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: totals.items.map(item => ({product_id: item.product_id, variant_id: item.variant_id, qty: item.qty, manual_price: item.is_service ? Number(item.price || 0) : null})),
+          payment: totals.received, payment_type: mode, sale_mode: mode, discount_amount: totals.discount, points_used: 0,
+          customer_id: customer ? Number(customer.id) : null,
+        }),
+      });
+      const receipt = data.receipt || {};
+      closeCheckout(); clearCart(); renderCart(); await loadProducts(); showReceipt(receipt, totals.received);
+      toast(`Saved ${receipt.invoice_no || 'sale'}.`);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false; button.textContent = 'Save Sale'; renderCheckoutSummary();
+    }
+  }
   function clearCatalog() {
     clearTimeout(searchTimer); searchTimer = null;
     if (productsController) { productsController.abort(); productsController = null; }
@@ -329,7 +424,15 @@
   userButton.addEventListener('click', () => { userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden)); });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
-  document.querySelector('#paymentButton').addEventListener('click', checkoutCashSale);
+  document.querySelector('#paymentButton').addEventListener('click', openCheckoutDetails);
+  document.querySelector('#closeCheckout').addEventListener('click', closeCheckout);
+  document.querySelector('#cancelCheckout').addEventListener('click', closeCheckout);
+  document.querySelector('#saveCheckout').addEventListener('click', submitCheckoutSale);
+  document.querySelector('#checkoutCustomer').addEventListener('change', renderCheckoutSummary);
+  document.querySelector('#checkoutSaleMode').addEventListener('change', renderCheckoutSummary);
+  document.querySelector('#checkoutDiscount').addEventListener('input', renderCheckoutSummary);
+  document.querySelector('#checkoutReceived').addEventListener('input', renderCheckoutSummary);
+  document.querySelector('#checkoutModal').addEventListener('click', event => { if (event.target.id === 'checkoutModal') closeCheckout(); });
   document.querySelector('#closeChoice').addEventListener('click', closeChoice);
   document.querySelector('#cancelChoice').addEventListener('click', closeChoice);
   document.querySelector('#confirmChoice').addEventListener('click', confirmChoice);
