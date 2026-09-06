@@ -139,6 +139,21 @@
     else input.value = `${String(input.value || '').replace(/^0+(?=\d)/, '')}${key}`;
     input.focus({preventScroll: true});
   }
+  function handleServiceKeydown(event) {
+    if (!choiceState || choiceState.type !== 'service' || document.querySelector('#productChoiceModal').hidden) return;
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault(); pressServiceKey(event.key); return;
+    }
+    if (event.key === 'Backspace') {
+      event.preventDefault(); pressServiceKey('⌫'); return;
+    }
+    if (event.key === 'Delete') {
+      event.preventDefault(); pressServiceKey('clear'); return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault(); confirmChoice();
+    }
+  }
   function openVariantChoice(product) {
     const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
     if (!variants.length) return toast(`${product.name} has no variants.`);
@@ -476,6 +491,7 @@
   document.querySelector('#confirmChoice').addEventListener('click', confirmChoice);
   document.querySelector('#productChoiceModal').addEventListener('click', event => { if (event.target.id === 'productChoiceModal') closeChoice(); });
   document.querySelector('#productChoiceModal').addEventListener('keydown', event => { if (event.key === 'Enter') confirmChoice(); });
+  document.addEventListener('keydown', handleServiceKeydown);
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#printReceiptButton').addEventListener('click', () => window.print());
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });
