@@ -10,7 +10,7 @@
   const CART_KEY = 'kay_touch_pos_cart';
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], selectedCategory = '';
   let cart = new Map();
-  let searchTimer = null, productsController = null, toastTimer = null;
+  let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
   function setConnection(ok) {
     for (const item of [connection, document.querySelector('#loginConnection')]) {
@@ -45,11 +45,8 @@
   function variantLabel(variant) { return [variant?.color, variant?.size].filter(Boolean).join(' / '); }
   function stockFor(product, variant = null) { return Number((variant || product).stock || 0); }
   function isService(product) { return soldByMode(product.sold_by) === 'service' || Boolean(product.is_service); }
-  function saleProduct(product) {
-    if (soldByMode(product.sold_by) !== 'variants') return {product, variant: null};
-    const variants = Array.isArray(product.variants) ? product.variants : [];
-    const variant = variants.find(item => Number(item.stock || 0) > 0) || variants[0] || null;
-    return {product, variant};
+  function variantName(variant, index = 0) {
+    return variantLabel(variant) || variant?.sku || variant?.barcode || `Variant ${index + 1}`;
   }
   function saveCart() {
     sessionStorage.setItem(CART_KEY, JSON.stringify([...cart.values()]));
@@ -88,18 +85,71 @@
     root.innerHTML = items.map(item => `<div class="cart-row" data-cart-key="${escapeHtml(item.key)}"><div class="cart-row-main"><span class="cart-row-title">${escapeHtml(item.name)}</span><span class="cart-row-meta">${escapeHtml(item.variant_label || item.sku || 'Standard')} · ${money(item.price)} Ks each</span></div><div class="cart-row-total">${money(Number(item.price || 0) * Number(item.qty || 0))} Ks</div><div class="qty-controls"><button type="button" data-cart-action="minus">−</button><output>${Number(item.qty || 0)}</output><button type="button" data-cart-action="plus">+</button><button class="remove" type="button" data-cart-action="remove">×</button></div></div>`).join('');
     root.querySelectorAll('[data-cart-action]').forEach(button => button.addEventListener('click', () => changeCart(button.closest('[data-cart-key]').dataset.cartKey, button.dataset.cartAction)));
   }
-  function addToCart(sourceProduct) {
+  function addToCart(sourceProduct, selectedVariant = null, manualPrice = null) {
     if (!sourceProduct) return;
-    const {product, variant} = saleProduct(sourceProduct), service = isService(product), stock = stockFor(product, variant);
+    const product = sourceProduct, variant = selectedVariant, service = isService(product), stock = stockFor(product, variant);
     if (!service && stock <= 0) return toast(`${product.name} is out of stock.`);
-    const key = service ? `${cartKey(product, variant)}:service:${Number((variant || product).price || 0).toFixed(2)}` : cartKey(product, variant);
+    const price = Number(manualPrice ?? (variant || product).price ?? 0);
+    if (service && price < 0) return toast('Enter a valid service price.');
+    const key = service ? `${cartKey(product, variant)}:service:${price.toFixed(2)}` : cartKey(product, variant);
     const item = cart.get(key) || {
       key, product_id: Number(product.id), variant_id: Number(variant?.variant_id || 0) || null,
       name: product.name, sku: variant?.sku || product.sku || product.barcode || '', variant_label: variantLabel(variant),
-      price: Number((variant || product).price || 0), stock, qty: 0, is_service: service,
+      price, stock, qty: 0, is_service: service,
     };
     if (!service && item.qty + 1 > stock) return toast(`Only ${stock} left: ${item.name}`);
     item.qty += 1; cart.set(key, item); saveCart(); renderCart(); toast(`${item.name} added to cart.`);
+  }
+  function closeChoice() {
+    document.querySelector('#productChoiceModal').hidden = true;
+    choiceState = null;
+  }
+  function openServicePrice(product) {
+    choiceState = {type: 'service', product};
+    document.querySelector('#choiceTitle').textContent = product.name || 'Service';
+    document.querySelector('#choiceSubtitle').textContent = 'Enter service price';
+    document.querySelector('#confirmChoice').textContent = 'Add';
+    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="numeric" value="${Number(product.price || 0)}"></label>`;
+    document.querySelector('#productChoiceModal').hidden = false;
+    setTimeout(() => {
+      const input = document.querySelector('#servicePriceInput');
+      input.focus(); input.select();
+    }, 0);
+  }
+  function openVariantChoice(product) {
+    const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
+    if (!variants.length) return toast(`${product.name} has no variants.`);
+    choiceState = {type: 'variant', product};
+    document.querySelector('#choiceTitle').textContent = product.name || 'Choose variant';
+    document.querySelector('#choiceSubtitle').textContent = 'Choose one variant';
+    document.querySelector('#confirmChoice').textContent = 'Add';
+    document.querySelector('#choiceBody').innerHTML = `<div class="variant-list">${variants.map((variant, index) => {
+      const stock = stockFor(product, variant), disabled = stock <= 0;
+      return `<label class="variant-choice ${disabled ? 'disabled' : ''}"><input type="radio" name="variantChoice" value="${index}" ${disabled ? 'disabled' : ''}><span><strong>${escapeHtml(variantName(variant, index))}</strong><small>${escapeHtml(variant.sku || variant.barcode || '')}</small></span><em>${money(variant.price || product.price)} Ks · Stock ${money(stock)}</em></label>`;
+    }).join('')}</div>`;
+    const firstAvailable = [...document.querySelectorAll('input[name="variantChoice"]:not(:disabled)')][0];
+    if (firstAvailable) firstAvailable.checked = true;
+    document.querySelector('#productChoiceModal').hidden = false;
+  }
+  function chooseProduct(product) {
+    if (!product) return;
+    if (isService(product)) return openServicePrice(product);
+    if (soldByMode(product.sold_by) === 'variants') return openVariantChoice(product);
+    addToCart(product);
+  }
+  function confirmChoice() {
+    if (!choiceState) return closeChoice();
+    if (choiceState.type === 'service') {
+      const price = Number(document.querySelector('#servicePriceInput')?.value || 0);
+      if (!Number.isFinite(price) || price < 0) return toast('Enter a valid service price.');
+      addToCart(choiceState.product, null, price); closeChoice(); return;
+    }
+    if (choiceState.type === 'variant') {
+      const selected = document.querySelector('input[name="variantChoice"]:checked');
+      if (!selected) return toast('Choose a variant.');
+      const variants = Array.isArray(choiceState.product.variants) ? choiceState.product.variants : [];
+      addToCart(choiceState.product, variants[Number(selected.value)] || null); closeChoice();
+    }
   }
   function changeCart(key, action) {
     const item = cart.get(key); if (!item) return;
@@ -197,15 +247,18 @@
     document.querySelector('#productCount').textContent = `${products.length} item${products.length === 1 ? '' : 's'}`;
     if (!products.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another category or search.</div>'; return; }
     root.innerHTML = products.map(product => {
-      const service = Boolean(product.is_service), out = Boolean(product.is_out_of_stock) || (!service && Number(product.stock || 0) <= 0);
+      const service = isService(product), variants = soldByMode(product.sold_by) === 'variants';
+      const variantRows = Array.isArray(product.variants) ? product.variants : [];
+      const variantOut = variants && (!variantRows.length || variantRows.every(item => Number(item.stock || 0) <= 0));
+      const out = Boolean(product.is_out_of_stock) || (!service && (variants ? variantOut : Number(product.stock || 0) <= 0));
       const low = Boolean(product.is_low_stock), image = String(product.thumbnail_url || '').trim();
-      const badge = out ? '<span class="product-badge out">Out of stock</span>' : (low ? '<span class="product-badge">Low stock</span>' : (service ? '<span class="product-badge">Service</span>' : ''));
+      const badge = out ? '<span class="product-badge out">Out of stock</span>' : (low ? '<span class="product-badge">Low stock</span>' : (service ? '<span class="product-badge">Service</span>' : (variants ? '<span class="product-badge">Variants</span>' : '')));
       return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-meta">${escapeHtml(product.category || product.sku || 'Uncategorized')}</span><span class="product-price">${money(product.price)} Ks</span></span></button>`;
     }).join('');
     root.querySelectorAll('.product-image img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-product-id]').forEach(button => button.addEventListener('click', () => {
       const product = products.find(item => Number(item.id) === Number(button.dataset.productId));
-      if (product) addToCart(product);
+      if (product) chooseProduct(product);
     }));
   }
   async function loadProducts() {
@@ -277,6 +330,11 @@
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
   document.querySelector('#paymentButton').addEventListener('click', checkoutCashSale);
+  document.querySelector('#closeChoice').addEventListener('click', closeChoice);
+  document.querySelector('#cancelChoice').addEventListener('click', closeChoice);
+  document.querySelector('#confirmChoice').addEventListener('click', confirmChoice);
+  document.querySelector('#productChoiceModal').addEventListener('click', event => { if (event.target.id === 'productChoiceModal') closeChoice(); });
+  document.querySelector('#productChoiceModal').addEventListener('keydown', event => { if (event.key === 'Enter') confirmChoice(); });
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#printReceiptButton').addEventListener('click', () => window.print());
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });
