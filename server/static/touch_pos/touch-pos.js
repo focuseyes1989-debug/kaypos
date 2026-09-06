@@ -117,8 +117,9 @@
     document.querySelector('#choiceTitle').textContent = product.name || 'Service';
     document.querySelector('#choiceSubtitle').textContent = 'Enter service price';
     document.querySelector('#confirmChoice').textContent = 'Add';
-    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${Number(product.price || 0)}"></label>`;
+    document.querySelector('#choiceBody').innerHTML = `<label class="choice-field"><span>Price</span><input id="servicePriceInput" type="number" min="0" step="100" inputmode="decimal" enterkeyhint="done" autocomplete="off" value="${Number(product.price || 0)}"></label><div class="service-keypad" aria-label="Service price keypad">${['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(value => `<button type="button" data-keypad="${value}">${value}</button>`).join('')}<button type="button" data-keypad="clear">Clear</button></div>`;
     document.querySelector('#productChoiceModal').hidden = false;
+    document.querySelectorAll('[data-keypad]').forEach(button => button.addEventListener('click', () => pressServiceKey(button.dataset.keypad)));
     const focusPriceInput = () => {
       const input = document.querySelector('#servicePriceInput');
       if (!input) return;
@@ -127,6 +128,14 @@
     focusPriceInput();
     requestAnimationFrame(focusPriceInput);
     setTimeout(focusPriceInput, 120);
+  }
+  function pressServiceKey(key) {
+    const input = document.querySelector('#servicePriceInput');
+    if (!input) return;
+    if (key === 'clear') input.value = '0';
+    else if (key === '⌫') input.value = String(input.value || '').slice(0, -1) || '0';
+    else input.value = `${String(input.value || '').replace(/^0+(?=\d)/, '')}${key}`;
+    input.focus({preventScroll: true});
   }
   function openVariantChoice(product) {
     const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
