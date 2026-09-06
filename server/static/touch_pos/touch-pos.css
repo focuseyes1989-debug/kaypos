@@ -342,7 +342,7 @@
   grid-template-columns:1fr auto;
   align-items:center;
   gap:12px;
-  min-height:36px;
+  min-height:52px;
   padding:0 10px;
   border-bottom:1px solid var(--line);
 }
@@ -824,4 +824,17 @@
   border-color:#cfd6e2!important;
   background:#d7dde8!important;
   color:#7d8797!important;
+}
+
+/* Myanmar product names need a little extra vertical room on compact cards. */
+@media screen and (min-width:761px){
+  .product-info{
+    padding-top:8px!important;
+    padding-bottom:7px!important;
+  }
+  .product-name{
+    line-height:1.55!important;
+    min-height:1.55em;
+    padding-block:1px;
+  }
 }
