@@ -838,3 +838,29 @@
     padding-block:1px;
   }
 }
+
+.product-stock{
+  position:absolute;
+  right:6px;
+  bottom:6px;
+  min-width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  padding:0 5px;
+  border:1px solid #cfd6e2;
+  border-radius:7px;
+  background:#fff;
+  color:var(--ink);
+  font-size:11px;
+  line-height:1;
+}
+@media screen and (min-width:761px){
+  .product-stock{
+    right:5px;
+    bottom:5px;
+    min-width:20px;
+    height:20px;
+    font-size:10px;
+  }
+}
