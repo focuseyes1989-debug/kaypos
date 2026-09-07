@@ -1,4 +1,4 @@
-const CACHE = 'kay-pos-touch-w7-v4';
+const CACHE = 'kay-pos-touch-w7-v5';
 const SHELL = [
   '/touch-pos/',
   '/static/touch_pos/touch-pos.css',
@@ -6,9 +6,10 @@ const SHELL = [
   '/static/touch_pos/manifest.webmanifest',
   '/assets/kay/kay_128x128.png'
 ];
-self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL))));
+self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(
   caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('kay-pos-touch-') && key !== CACHE).map(key => caches.delete(key))))
+    .then(() => self.clients.claim())
 ));
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);

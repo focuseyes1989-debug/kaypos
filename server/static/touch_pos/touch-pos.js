@@ -474,6 +474,7 @@
     else setCartOpen(false);
   }
   function setSideMenuOpen(open, restoreFocus = false) {
+    if (open) sideMenu.hidden = false;
     sideMenu.classList.toggle('open', open);
     sideMenuOverlay.hidden = !open;
     sideMenu.setAttribute('aria-hidden', String(!open));
@@ -483,6 +484,7 @@
     } else if (restoreFocus) {
       sideMenuButton.focus();
     }
+    if (!open) sideMenu.hidden = true;
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
