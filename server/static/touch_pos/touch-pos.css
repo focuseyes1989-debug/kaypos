@@ -1270,6 +1270,8 @@ footer{
     min-width:34px!important;
     max-width:34px!important;
     min-height:34px!important;
+    display:grid!important;
+    place-items:center!important;
     border-radius:8px!important;
     padding:0!important;
   }
@@ -1279,6 +1281,9 @@ footer{
   .user-button>span:first-child{
     width:28px;
     height:28px;
+    margin:0!important;
+    flex:0 0 28px;
+    place-self:center;
     font-size:12px;
   }
   .search{
@@ -1302,8 +1307,8 @@ footer{
     align-items:stretch;
   }
   .category{
-    min-width:106px;
-    max-width:132px;
+    min-width:122px;
+    max-width:152px;
     min-height:66px;
     display:grid;
     place-items:center;
@@ -1333,7 +1338,11 @@ footer{
     min-width:0;
     width:100%!important;
     min-height:44px;
+    display:grid!important;
+    place-items:center!important;
+    align-items:center!important;
     justify-content:center;
+    line-height:1!important;
     border-radius:11px!important;
     font-size:15px!important;
   }
