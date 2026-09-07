@@ -945,3 +945,128 @@
 .service-price-open .choice-modal{
   width:min(320px,92vw)!important;
 }
+
+/* Header side menu: opens from the top-left beside the KAY logo. */
+.side-menu-button{
+  width:42px;
+  height:42px;
+  display:grid;
+  align-content:center;
+  gap:5px;
+  flex:0 0 auto;
+  border:1px solid #526078;
+  border-radius:10px;
+  background:#263550;
+  padding:0 10px;
+}
+.side-menu-button span{
+  display:block;
+  height:2px;
+  border-radius:999px;
+  background:#fff;
+}
+.side-menu-button:active{
+  transform:translateY(1px);
+}
+.side-menu-overlay{
+  position:fixed;
+  z-index:70;
+  inset:0;
+  background:rgba(15,23,42,.44);
+}
+.side-menu{
+  position:fixed;
+  z-index:71;
+  top:0;
+  left:0;
+  width:min(300px,86vw);
+  max-height:calc(100dvh - 16px);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  gap:12px;
+  margin:8px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  color:var(--ink);
+  box-shadow:0 24px 80px rgba(15,23,42,.32);
+  transform:translate(-110%,-8px);
+  opacity:0;
+  pointer-events:none;
+  transition:transform .18s ease,opacity .18s ease;
+}
+.side-menu.open{
+  transform:translate(0,0);
+  opacity:1;
+  pointer-events:auto;
+}
+.side-menu-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--line);
+}
+.side-menu-head div{
+  display:grid;
+  min-width:0;
+}
+.side-menu-head strong{
+  font-size:16px;
+}
+.side-menu-head small{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:var(--muted);
+  font-size:11px;
+}
+.side-menu-head button{
+  width:38px;
+  height:38px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font-size:18px;
+}
+.side-menu-nav{
+  display:grid;
+  align-content:start;
+  gap:8px;
+}
+.side-menu-nav button,
+.side-menu-signout{
+  min-height:46px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#f8fafc;
+  color:var(--ink);
+  text-align:left;
+  padding:0 12px;
+}
+.side-menu-nav button:active,
+.side-menu-signout:active{
+  transform:translateY(1px);
+}
+.side-menu-signout{
+  background:#fee2e2;
+  color:#a51d26;
+  border-color:#fecaca;
+}
+@media screen and (min-width:1100px){
+  .side-menu-button{
+    width:36px;
+    height:36px;
+    border-radius:8px;
+    padding:0 9px;
+  }
+}
+@media screen and (max-width:760px){
+  .side-menu-button{
+    width:38px;
+    height:38px;
+  }
+}

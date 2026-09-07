@@ -27,6 +27,7 @@
   <div id="app" class="app-shell" hidden>
     <header class="topbar">
       <div class="brand">
+        <button id="sideMenuButton" class="side-menu-button" type="button" aria-label="Open side menu" aria-controls="sideMenu" aria-expanded="false"><span></span><span></span><span></span></button>
         <img src="/assets/kay/kay_128x128.png" alt="">
         <div><strong>KAY POS Touch</strong><span>Touch sales workspace</span></div>
       </div>
@@ -39,6 +40,20 @@
         <div id="userMenu" class="user-menu" hidden><div><strong id="menuUserName"></strong><small id="menuUserRole"></small></div><button id="signOut" type="button">Sign Out</button></div>
       </div>
     </header>
+    <div id="sideMenuOverlay" class="side-menu-overlay" hidden></div>
+    <aside id="sideMenu" class="side-menu" aria-label="Side menu" aria-hidden="true">
+      <div class="side-menu-head">
+        <div><strong>KAY POS Touch</strong><small id="sideMenuUser">Signed out</small></div>
+        <button id="closeSideMenu" type="button" aria-label="Close side menu">x</button>
+      </div>
+      <nav class="side-menu-nav">
+        <button type="button" data-side-action="products">Products</button>
+        <button type="button" data-side-action="categories">Categories</button>
+        <button type="button" data-side-action="cart">Cart</button>
+        <button type="button" data-side-action="fullscreen">Full Screen</button>
+      </nav>
+      <button id="sideSignOut" class="side-menu-signout" type="button">Sign Out</button>
+    </aside>
 
     <main class="workspace" aria-label="KAY POS Touch foundation preview">
       <aside class="categories panel">

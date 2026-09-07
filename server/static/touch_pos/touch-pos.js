@@ -7,6 +7,8 @@
   const signIn = document.querySelector('#signIn'), password = document.querySelector('#password');
   const username = document.querySelector('#username'), userButton = document.querySelector('#userButton');
   const userMenu = document.querySelector('#userMenu'), TOKEN_KEY = 'kay_touch_pos_token';
+  const sideMenuButton = document.querySelector('#sideMenuButton'), sideMenu = document.querySelector('#sideMenu');
+  const sideMenuOverlay = document.querySelector('#sideMenuOverlay'), closeSideMenuButton = document.querySelector('#closeSideMenu');
   const CART_KEY = 'kay_touch_pos_cart';
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
   let cart = new Map();
@@ -359,6 +361,7 @@
   function showLogin(message = '') {
     clearCatalog();
     clearCart();
+    setSideMenuOpen(false);
     token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = '';
     loginStatus.textContent = message; loginStatus.className = 'login-status';
     userMenu.hidden = true; appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
@@ -368,6 +371,7 @@
     document.querySelector('#userInitials').textContent = initials(user); document.querySelector('#userName').textContent = name;
     document.querySelector('#userRole').textContent = user.role || 'Staff'; document.querySelector('#menuUserName').textContent = name;
     document.querySelector('#menuUserRole').textContent = `${user.role || 'Staff'} · Sales access`;
+    document.querySelector('#sideMenuUser').textContent = `${name} · ${user.role || 'Staff'}`;
     loginView.hidden = true; appView.hidden = false; password.value = ''; loginStatus.textContent = '';
   }
   function renderCategories() {
@@ -469,12 +473,41 @@
     if (compactCart.matches) setCartOpen(saleCart.classList.contains('open'));
     else setCartOpen(false);
   }
+  function setSideMenuOpen(open, restoreFocus = false) {
+    sideMenu.classList.toggle('open', open);
+    sideMenuOverlay.hidden = !open;
+    sideMenu.setAttribute('aria-hidden', String(!open));
+    sideMenuButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+      userMenu.hidden = true; userButton.setAttribute('aria-expanded', 'false'); closeSideMenuButton.focus();
+    } else if (restoreFocus) {
+      sideMenuButton.focus();
+    }
+  }
+  function runSideMenuAction(action) {
+    setSideMenuOpen(false, true);
+    if (action === 'products') document.querySelector('#productSearch').focus();
+    else if (action === 'categories') document.querySelector('#categorySearch').focus();
+    else if (action === 'cart') setCartOpen(true);
+    else if (action === 'fullscreen') fullscreen.click();
+  }
   openCart.addEventListener('click', () => setCartOpen(true));
   closeCart.addEventListener('click', () => setCartOpen(false, true));
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && saleCart.classList.contains('open')) setCartOpen(false, true); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && sideMenu.classList.contains('open')) setSideMenuOpen(false, true);
+    else if (event.key === 'Escape' && saleCart.classList.contains('open')) setCartOpen(false, true);
+  });
   compactCart.addEventListener('change', syncCartMode);
   syncCartMode();
-  userButton.addEventListener('click', () => { userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden)); });
+  sideMenuButton.addEventListener('click', () => setSideMenuOpen(!sideMenu.classList.contains('open')));
+  closeSideMenuButton.addEventListener('click', () => setSideMenuOpen(false, true));
+  sideMenuOverlay.addEventListener('click', () => setSideMenuOpen(false, true));
+  document.querySelectorAll('[data-side-action]').forEach(button => button.addEventListener('click', () => runSideMenuAction(button.dataset.sideAction)));
+  document.querySelector('#sideSignOut').addEventListener('click', () => document.querySelector('#signOut').click());
+  userButton.addEventListener('click', () => {
+    setSideMenuOpen(false);
+    userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden));
+  });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
   document.querySelector('#paymentButton').addEventListener('click', openCheckoutDetails);
