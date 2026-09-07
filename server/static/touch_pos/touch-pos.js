@@ -11,6 +11,7 @@
   const sideMenuOverlay = document.querySelector('#sideMenuOverlay'), closeSideMenuButton = document.querySelector('#closeSideMenu');
   const CART_KEY = 'kay_touch_pos_cart';
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
+  let managedProducts = [], managedCategories = [], editingProduct = null, editingCategory = null, barcodeProduct = null, managerSearchTimer = null;
   let cart = new Map(), avatarUrl = '';
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
@@ -33,6 +34,7 @@
   function initials(user) { return String(user.full_name || user.username || '?').trim().split(/\s+/).slice(0, 2).map(value => value[0]).join('').toUpperCase(); }
   function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, character => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[character])); }
   function money(value) { return Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0}); }
+  const code128Patterns = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","2331112"];
   function soldByMode(value) {
     const mode = String(value || 'each').trim().toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ');
     if (mode === 'service' || mode === 'services' || mode.endsWith(' service')) return 'service';
@@ -384,6 +386,168 @@
       button.disabled = false; button.textContent = 'Save Sale'; renderCheckoutSummary();
     }
   }
+  function showSalesView() {
+    document.querySelector('.workspace').hidden = false;
+    document.querySelector('#productManager').hidden = true;
+    document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
+  }
+  async function showProductManager() {
+    document.querySelector('.workspace').hidden = true;
+    document.querySelector('#productManager').hidden = false;
+    document.querySelector('#workspaceStatus').textContent = 'Product page · Manage catalog';
+    await loadProductManager();
+  }
+  async function loadProductManager() {
+    if (!token) return;
+    const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), limit: '300'});
+    document.querySelector('#managerProductList').innerHTML = '<div class="category-loading">Loading products...</div>';
+    document.querySelector('#managerCategoryList').innerHTML = '<div class="category-loading">Loading categories...</div>';
+    try {
+      const [productResult, categoryResult] = await Promise.all([api(`/api/products?${query}`), api('/api/categories/manage')]);
+      managedProducts = Array.isArray(productResult.products) ? productResult.products : [];
+      managedCategories = Array.isArray(categoryResult.categories) ? categoryResult.categories : [];
+      renderManagerProducts(); renderManagedCategories(); populateCategoryOptions();
+    } catch (error) {
+      toast(error.message);
+      document.querySelector('#managerProductList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
+      document.querySelector('#managerCategoryList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
+    }
+  }
+  function populateCategoryOptions() {
+    const options = ['<option value="">No category</option>', ...managedCategories.filter(item => String(item.status || 'active') === 'active').map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.parent_name ? `${item.parent_name} / ${item.name}` : item.name)}</option>`)];
+    document.querySelector('#itemCategory').innerHTML = options.join('');
+    const parentOptions = ['<option value="">No parent</option>', ...managedCategories.filter(item => !editingCategory || Number(item.id) !== Number(editingCategory.id)).map(item => `<option value="${Number(item.id)}">${escapeHtml(item.parent_name ? `${item.parent_name} / ${item.name}` : item.name)}</option>`)];
+    document.querySelector('#categoryParent').innerHTML = parentOptions.join('');
+  }
+  function renderManagerProducts() {
+    const root = document.querySelector('#managerProductList');
+    document.querySelector('#managerProductCount').textContent = String(managedProducts.length);
+    if (!managedProducts.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Add an item to start.</div>'; return; }
+    root.innerHTML = managedProducts.map(product => {
+      const barcode = product.barcode || product.sku || '';
+      return `<div class="manager-row"><div class="manager-row-main"><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.category || 'No category')} · ${money(product.price)} Ks · Stock ${money(product.stock)}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}">Edit</button><button type="button" title="Print barcode" data-manager-barcode="${Number(product.id)}">Print</button></div></div>`;
+    }).join('');
+    root.querySelectorAll('[data-manager-edit]').forEach(button => button.addEventListener('click', () => openItemModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerEdit)))));
+    root.querySelectorAll('[data-manager-barcode]').forEach(button => button.addEventListener('click', () => openBarcodeModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerBarcode)))));
+  }
+  function renderManagedCategories() {
+    const root = document.querySelector('#managerCategoryList');
+    if (!managedCategories.length) { root.innerHTML = '<div class="catalog-message"><strong>No categories</strong>Add parent and child categories here.</div>'; return; }
+    const childrenByParent = new Map();
+    managedCategories.forEach(item => childrenByParent.set(Number(item.parent_id || 0), [...(childrenByParent.get(Number(item.parent_id || 0)) || []), item]));
+    const rows = [];
+    const renderRows = (parentId, child) => (childrenByParent.get(parentId) || []).forEach(item => {
+      rows.push(`<div class="${child ? 'category-child' : ''}"><div class="manager-row"><div class="manager-row-main"><strong>${child ? '- ' : ''}${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button></div></div></div>`);
+      renderRows(Number(item.id), true);
+    });
+    renderRows(0, false);
+    root.innerHTML = rows.join('');
+    root.querySelectorAll('[data-category-edit]').forEach(button => button.addEventListener('click', () => openCategoryModal(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryEdit)))));
+  }
+  function openItemModal(product = null) {
+    editingProduct = product || null; populateCategoryOptions();
+    const soldBy = soldByMode(product?.sold_by) === 'service' ? 'Service' : (soldByMode(product?.sold_by) === 'variants' ? 'Variants' : 'Each');
+    document.querySelector('#itemModalTitle').textContent = product ? 'Edit Item' : 'Add Item';
+    document.querySelector('#itemModalSubtitle').textContent = product ? product.name : 'Product details';
+    document.querySelector('#itemName').value = product?.name || ''; document.querySelector('#itemCategory').value = product?.category || '';
+    document.querySelector('#itemSoldBy').value = soldBy; document.querySelector('#itemPrice').value = product?.original_price ?? product?.price ?? 0;
+    document.querySelector('#itemCost').value = product?.cost ?? 0; document.querySelector('#itemStock').value = product?.stock ?? 0;
+    document.querySelector('#itemLowStock').value = product?.low_stock ?? 0; document.querySelector('#itemUnit').value = product?.unit || 'pcs';
+    document.querySelector('#itemSku').value = product?.sku || ''; document.querySelector('#itemBarcode').value = product?.barcode || '';
+    document.querySelector('#itemDescription').value = product?.description || ''; document.querySelector('#itemModal').hidden = false;
+    setTimeout(() => document.querySelector('#itemName').focus(), 0);
+  }
+  function closeItemModal() { document.querySelector('#itemModal').hidden = true; editingProduct = null; }
+  function itemPayload() {
+    const soldBy = document.querySelector('#itemSoldBy').value;
+    const variants = soldByMode(soldBy) === 'variants' && Array.isArray(editingProduct?.variants) ? editingProduct.variants.map(variant => ({
+      color: variant.color || '', size: variant.size || '', sku: variant.sku || '', barcode: variant.barcode || '',
+      price: Number(variant.price || 0), cost: Number(variant.cost || 0), stock: Number(variant.stock || 0),
+      low_stock: Number(variant.low_stock || 0), active: true,
+    })) : [];
+    return {
+      name: document.querySelector('#itemName').value.trim(), category: document.querySelector('#itemCategory').value,
+      description: document.querySelector('#itemDescription').value.trim(), sold_by: soldBy,
+      price: Number(document.querySelector('#itemPrice').value || 0), cost: Number(document.querySelector('#itemCost').value || 0),
+      sku: document.querySelector('#itemSku').value.trim(), barcode: document.querySelector('#itemBarcode').value.trim(),
+      stock: Number(document.querySelector('#itemStock').value || 0), low_stock: Number(document.querySelector('#itemLowStock').value || 0),
+      unit: document.querySelector('#itemUnit').value.trim() || 'pcs', base_unit: document.querySelector('#itemUnit').value.trim() || 'pcs',
+      pack_unit: '', pack_size: 1, variants,
+    };
+  }
+  async function saveItemForm(event) {
+    event.preventDefault();
+    const payload = itemPayload(); if (!payload.name) return toast('Product name is required.');
+    const button = document.querySelector('#saveItem'); button.disabled = true; button.textContent = 'Saving...';
+    try {
+      const path = editingProduct ? `/api/products/manage/${Number(editingProduct.id)}` : '/api/products/manage';
+      await api(path, {method: editingProduct ? 'PUT' : 'POST', body: JSON.stringify(payload)});
+      closeItemModal(); await loadCatalog(); await loadProductManager(); toast('Item saved.');
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; button.textContent = 'Save Item'; }
+  }
+  function openCategoryModal(category = null) {
+    editingCategory = category || null; populateCategoryOptions();
+    document.querySelector('#categoryModalTitle').textContent = category ? 'Edit Category' : 'Add Category';
+    document.querySelector('#categoryName').value = category?.name || ''; document.querySelector('#categoryParent').value = category?.parent_id || '';
+    document.querySelector('#categorySort').value = category?.sort_order ?? 0; document.querySelector('#categoryStatus').value = category?.status || 'active';
+    document.querySelector('#categoryDescription').value = category?.description || ''; document.querySelector('#categoryModal').hidden = false;
+    setTimeout(() => document.querySelector('#categoryName').focus(), 0);
+  }
+  function closeCategoryModal() { document.querySelector('#categoryModal').hidden = true; editingCategory = null; }
+  async function saveCategoryForm(event) {
+    event.preventDefault();
+    const payload = {
+      name: document.querySelector('#categoryName').value.trim(), description: document.querySelector('#categoryDescription').value.trim(),
+      parent_id: Number(document.querySelector('#categoryParent').value || 0) || null,
+      sort_order: Number(document.querySelector('#categorySort').value || 0), status: document.querySelector('#categoryStatus').value || 'active',
+    };
+    if (!payload.name) return toast('Category name is required.');
+    const button = document.querySelector('#saveCategory'); button.disabled = true; button.textContent = 'Saving...';
+    try {
+      const path = editingCategory ? `/api/categories/manage/${Number(editingCategory.id)}` : '/api/categories/manage';
+      await api(path, {method: editingCategory ? 'PUT' : 'POST', body: JSON.stringify(payload)});
+      closeCategoryModal(); await loadCatalog(); await loadProductManager(); toast('Category saved.');
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; button.textContent = 'Save Category'; }
+  }
+  function code128Svg(value) {
+    const text = String(value || '').trim();
+    if (!/^[\x20-\x7E]+$/.test(text)) throw new Error('Code128 supports printable ASCII only.');
+    const values = [104, ...[...text].map(character => character.charCodeAt(0) - 32)];
+    let checksum = 104; for (let index = 1; index < values.length; index += 1) checksum += values[index] * index;
+    values.push(checksum % 103, 106);
+    let x = 0, rects = '';
+    for (const code of values) {
+      const pattern = code128Patterns[code];
+      for (let index = 0; index < pattern.length; index += 1) {
+        const width = Number(pattern[index]);
+        if (index % 2 === 0) rects += `<rect x="${x}" y="0" width="${width}" height="48"></rect>`;
+        x += width;
+      }
+    }
+    return `<svg viewBox="0 0 ${x} 48" role="img" aria-label="Barcode ${escapeHtml(text)}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+  }
+  function barcodeLabel(product) {
+    const code = product?.barcode || product?.sku || '';
+    return `<div class="barcode-label">${code128Svg(code)}<div class="barcode-name">${escapeHtml(product?.name || 'Product')}</div><div class="barcode-number">${escapeHtml(code)}</div></div>`;
+  }
+  function refreshBarcodePrintArea() {
+    if (!barcodeProduct) return;
+    const qty = Math.max(1, Math.min(200, Number(document.querySelector('#barcodeQty').value || 1)));
+    document.querySelector('#barcodePrintArea').innerHTML = Array.from({length: qty}, () => barcodeLabel(barcodeProduct)).join('');
+  }
+  function openBarcodeModal(product) {
+    const code = product?.barcode || product?.sku || '';
+    if (!code) return toast('This product has no barcode or SKU.');
+    barcodeProduct = product; document.querySelector('#barcodeModalSubtitle').textContent = product.name || '';
+    document.querySelector('#barcodeQty').value = '1';
+    try {
+      document.querySelector('#barcodePreview').innerHTML = barcodeLabel(product);
+      refreshBarcodePrintArea(); document.querySelector('#barcodeModal').hidden = false;
+    } catch (error) { toast(error.message); barcodeProduct = null; }
+  }
+  function closeBarcodeModal() { document.querySelector('#barcodeModal').hidden = true; barcodeProduct = null; }
   function clearCatalog() {
     clearTimeout(searchTimer); searchTimer = null;
     if (productsController) { productsController.abort(); productsController = null; }
@@ -394,6 +558,8 @@
     document.querySelector('#categoryList').innerHTML = '<div class="category-loading">Sign in to load</div>';
     document.querySelector('#productGrid').classList.add('loaded');
     document.querySelector('#productGrid').innerHTML = '<div class="catalog-message">Sign in to view products.</div>';
+    document.querySelector('#productManager').hidden = true;
+    document.querySelector('.workspace').hidden = false;
   }
   function showLogin(message = '') {
     clearCatalog();
@@ -536,6 +702,7 @@
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
     if (action === 'products') document.querySelector('#productSearch').focus();
+    else if (action === 'product-page') showProductManager();
     else if (action === 'categories') document.querySelector('#categorySearch').focus();
     else if (action === 'search') document.querySelector('#productSearch').focus();
     else if (action === 'cart') setCartOpen(true);
@@ -584,6 +751,23 @@
   document.querySelector('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); loadProducts(); } });
   document.querySelector('#categorySearch').addEventListener('input', filterCategories);
   document.querySelector('#refreshProducts').addEventListener('click', loadCatalog);
+  document.querySelector('#backToSales').addEventListener('click', showSalesView);
+  document.querySelector('#managerRefresh').addEventListener('click', loadProductManager);
+  document.querySelector('#managerAddItem').addEventListener('click', () => openItemModal());
+  document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
+  document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
+  document.querySelector('#itemForm').addEventListener('submit', saveItemForm);
+  document.querySelector('#closeItemModal').addEventListener('click', closeItemModal);
+  document.querySelector('#cancelItemModal').addEventListener('click', closeItemModal);
+  document.querySelector('#itemModal').addEventListener('click', event => { if (event.target.id === 'itemModal') closeItemModal(); });
+  document.querySelector('#categoryForm').addEventListener('submit', saveCategoryForm);
+  document.querySelector('#closeCategoryModal').addEventListener('click', closeCategoryModal);
+  document.querySelector('#cancelCategoryModal').addEventListener('click', closeCategoryModal);
+  document.querySelector('#categoryModal').addEventListener('click', event => { if (event.target.id === 'categoryModal') closeCategoryModal(); });
+  document.querySelector('#closeBarcodeModal').addEventListener('click', closeBarcodeModal);
+  document.querySelector('#cancelBarcodeModal').addEventListener('click', closeBarcodeModal);
+  document.querySelector('#barcodeQty').addEventListener('input', refreshBarcodePrintArea);
+  document.querySelector('#printBarcodeButton').addEventListener('click', () => { refreshBarcodePrintArea(); window.print(); });
   async function checkServer() {
     try { const response = await fetch('/health', {cache: 'no-store'}), value = await response.json(); setConnection(response.ok && value.ok === true); }
     catch (_) { setConnection(false); }
