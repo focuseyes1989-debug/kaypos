@@ -1218,3 +1218,12 @@ footer{
     font-size:15px;
   }
 }
+.product-info{
+  grid-template-rows:auto auto;
+  align-content:start;
+}
+@media screen and (min-width:761px){
+  .product-card{
+    min-height:132px;
+  }
+}

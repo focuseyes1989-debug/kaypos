@@ -47,6 +47,12 @@
   function variantLabel(variant) { return [variant?.color, variant?.size].filter(Boolean).join(' / '); }
   function stockFor(product, variant = null) { return Number((variant || product).stock || 0); }
   function isService(product) { return soldByMode(product.sold_by) === 'service' || Boolean(product.is_service); }
+  function productOutOfStock(product) {
+    const service = isService(product), variants = soldByMode(product.sold_by) === 'variants';
+    const variantRows = Array.isArray(product.variants) ? product.variants : [];
+    const variantOut = variants && (!variantRows.length || variantRows.every(item => Number(item.stock || 0) <= 0));
+    return Boolean(product.is_out_of_stock) || (!service && (variants ? variantOut : Number(product.stock || 0) <= 0));
+  }
   function variantName(variant, index = 0) {
     return variantLabel(variant) || variant?.sku || variant?.barcode || `Variant ${index + 1}`;
   }
@@ -398,15 +404,18 @@
     document.querySelector('#productCount').textContent = `${products.length} item${products.length === 1 ? '' : 's'}`;
     document.querySelector('#sideProductBadge').textContent = String(products.length);
     if (!products.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another category or search.</div>'; return; }
-    root.innerHTML = products.map(product => {
+    const displayProducts = products.map((product, index) => ({product, index})).sort((left, right) => {
+      const leftOut = productOutOfStock(left.product), rightOut = productOutOfStock(right.product);
+      return Number(leftOut) - Number(rightOut) || left.index - right.index;
+    }).map(entry => entry.product);
+    root.innerHTML = displayProducts.map(product => {
       const service = isService(product), variants = soldByMode(product.sold_by) === 'variants';
       const variantRows = Array.isArray(product.variants) ? product.variants : [];
-      const variantOut = variants && (!variantRows.length || variantRows.every(item => Number(item.stock || 0) <= 0));
-      const out = Boolean(product.is_out_of_stock) || (!service && (variants ? variantOut : Number(product.stock || 0) <= 0));
+      const out = productOutOfStock(product);
       const low = Boolean(product.is_low_stock), image = String(product.thumbnail_url || '').trim();
       const badge = out ? '<span class="product-badge out">Out of stock</span>' : (low ? '<span class="product-badge">Low stock</span>' : (service ? '<span class="product-badge">Service</span>' : (variants ? '<span class="product-badge">Variants</span>' : '')));
       const stockBadge = service ? '' : `<span class="product-stock">${money(variants ? variantRows.reduce((sum, item) => sum + Number(item.stock || 0), 0) : product.stock)}</span>`;
-      return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-meta">${escapeHtml(product.category || product.sku || 'Uncategorized')}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
+      return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
     }).join('');
     root.querySelectorAll('.product-image img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-product-id]').forEach(button => button.addEventListener('click', () => {
