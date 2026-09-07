@@ -83,6 +83,7 @@
     const root = document.querySelector('#cartItems');
     document.querySelector('#cartCount').textContent = String(count);
     document.querySelector('#mobileCartCount').textContent = String(count);
+    document.querySelector('#sideCartBadge').textContent = String(count);
     document.querySelector('#cartSubtotal').textContent = `${money(subtotal)} Ks`;
     document.querySelector('#cartTotal').textContent = `${money(total)} Ks`;
     document.querySelector('#clearCart').disabled = count === 0;
@@ -354,6 +355,7 @@
     products = []; categories = []; selectedCategory = ''; document.querySelector('#productSearch').value = ''; document.querySelector('#categorySearch').value = '';
     document.querySelector('#productSearch').disabled = true; document.querySelector('#categorySearch').disabled = true; document.querySelector('#refreshProducts').disabled = true;
     document.querySelector('#categoryCount').textContent = '0'; document.querySelector('#productCount').textContent = '0 items';
+    document.querySelector('#sideProductBadge').textContent = '0';
     document.querySelector('#categoryList').innerHTML = '<div class="category-loading">Sign in to load</div>';
     document.querySelector('#productGrid').classList.add('loaded');
     document.querySelector('#productGrid').innerHTML = '<div class="catalog-message">Sign in to view products.</div>';
@@ -394,6 +396,7 @@
   function renderProducts() {
     const root = document.querySelector('#productGrid'); root.classList.add('loaded');
     document.querySelector('#productCount').textContent = `${products.length} item${products.length === 1 ? '' : 's'}`;
+    document.querySelector('#sideProductBadge').textContent = String(products.length);
     if (!products.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another category or search.</div>'; return; }
     root.innerHTML = products.map(product => {
       const service = isService(product), variants = soldByMode(product.sold_by) === 'variants';
@@ -421,7 +424,7 @@
       products = Array.isArray(result.products) ? result.products : []; renderProducts();
     } catch (error) {
       if (error.name === 'AbortError' || controller !== productsController) return;
-      products = []; document.querySelector('#productCount').textContent = 'Unavailable';
+      products = []; document.querySelector('#productCount').textContent = 'Unavailable'; document.querySelector('#sideProductBadge').textContent = '0';
       root.innerHTML = `<div class="catalog-message"><strong>Could not load products</strong>${escapeHtml(error.message)}<br><button id="retryProducts" type="button">Retry</button></div>`;
       document.querySelector('#retryProducts').addEventListener('click', loadProducts);
     } finally { if (controller === productsController) productsController = null; }
@@ -490,8 +493,11 @@
     setSideMenuOpen(false, true);
     if (action === 'products') document.querySelector('#productSearch').focus();
     else if (action === 'categories') document.querySelector('#categorySearch').focus();
+    else if (action === 'search') document.querySelector('#productSearch').focus();
     else if (action === 'cart') setCartOpen(true);
     else if (action === 'fullscreen') fullscreen.click();
+    else if (action === 'profile') userButton.click();
+    else if (action === 'refresh') loadCatalog();
   }
   openCart.addEventListener('click', () => setCartOpen(true));
   closeCart.addEventListener('click', () => setCartOpen(false, true));

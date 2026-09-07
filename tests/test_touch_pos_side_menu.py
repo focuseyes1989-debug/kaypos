@@ -21,7 +21,9 @@ class TouchPosSideMenuTests(unittest.TestCase):
         self.assertIn(".side-menu{", css)
         self.assertIn("top:0;", css)
         self.assertIn("left:0;", css)
-        self.assertIn("transform:translate(-110%,-8px)", css)
+        self.assertIn("transform:translate(-110%,0)", css)
+        self.assertIn(".side-menu-section", css)
+        self.assertIn("background:#ff5a2c", css)
         self.assertIn(".side-menu.open", css)
 
     def test_side_menu_is_interactive(self):
