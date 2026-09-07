@@ -1218,6 +1218,157 @@ footer{
     font-size:15px;
   }
 }
+
+/* Phone portrait polish: keep the header, category strip and catalog actions tidy. */
+@media screen and (max-width:760px) and (orientation:portrait){
+  .app-shell{
+    grid-template-rows:auto minmax(0,1fr) 24px;
+  }
+  .topbar{
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
+    padding:8px 10px 10px;
+  }
+  .brand{
+    gap:7px;
+    min-width:0;
+  }
+  .side-menu-button{
+    width:34px;
+    height:34px;
+    border-radius:8px;
+    padding:0 8px;
+  }
+  .brand img{
+    width:28px;
+    height:28px;
+  }
+  .brand strong{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:14px;
+  }
+  .top-actions{
+    gap:5px;
+  }
+  .connection{
+    width:28px;
+    min-width:28px;
+    min-height:34px;
+    justify-content:center;
+    padding:0;
+    border-radius:8px;
+  }
+  .connection i{
+    width:10px;
+    height:10px;
+  }
+  .secondary,
+  .user-button{
+    width:34px!important;
+    min-width:34px!important;
+    max-width:34px!important;
+    min-height:34px!important;
+    border-radius:8px!important;
+    padding:0!important;
+  }
+  .secondary:after{
+    font-size:17px;
+  }
+  .user-button>span:first-child{
+    width:28px;
+    height:28px;
+    font-size:12px;
+  }
+  .search{
+    grid-column:1/-1;
+    height:48px;
+    border-radius:12px;
+    padding:0 14px;
+  }
+  .workspace{
+    gap:8px;
+    padding:8px 10px;
+  }
+  .category-search{
+    height:38px;
+    margin:0 0 8px;
+    border-radius:10px;
+  }
+  .categories nav{
+    gap:8px;
+    padding:0 0 4px;
+    align-items:stretch;
+  }
+  .category{
+    min-width:106px;
+    max-width:132px;
+    min-height:66px;
+    display:grid;
+    place-items:center;
+    padding:8px 10px;
+    border-radius:12px;
+    text-align:center;
+    line-height:1.35;
+    white-space:normal;
+  }
+  .catalog{
+    border-radius:14px;
+  }
+  .catalog .panel-heading{
+    min-height:auto;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    padding:14px 16px 12px;
+  }
+  .catalog-actions{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto 44px;
+    gap:8px;
+    width:100%;
+  }
+  .catalog-actions .checkout-open{
+    min-width:0;
+    width:100%!important;
+    min-height:44px;
+    justify-content:center;
+    border-radius:11px!important;
+    font-size:15px!important;
+  }
+  .catalog-actions .count{
+    min-height:44px;
+    display:grid;
+    place-items:center;
+    padding:0 12px;
+    white-space:nowrap;
+    border-radius:11px;
+    font-size:13px;
+  }
+  .catalog-actions #refreshProducts{
+    width:44px;
+    min-height:44px;
+    border-radius:11px;
+    font-size:18px;
+  }
+  .product-grid{
+    padding:10px;
+  }
+  .product-grid.loaded{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .product-card{
+    min-height:178px;
+    grid-template-rows:96px minmax(0,1fr);
+    border-radius:12px;
+  }
+  footer{
+    padding:0 10px;
+    font-size:12px;
+  }
+}
 .product-info{
   grid-template-rows:auto auto;
   align-content:start;
