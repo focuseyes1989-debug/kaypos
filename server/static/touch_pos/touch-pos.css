@@ -1330,18 +1330,18 @@ footer{
   }
   .catalog-actions{
     display:grid!important;
-    grid-template-columns:minmax(0,1fr) auto 44px;
+    grid-template-columns:minmax(138px,1fr) auto 44px;
     gap:8px;
     width:100%;
   }
   .catalog-actions .checkout-open{
-    min-width:0;
+    min-width:138px;
     width:100%!important;
     min-height:44px;
-    display:grid!important;
-    place-items:center!important;
+    display:flex!important;
     align-items:center!important;
-    justify-content:center;
+    justify-content:center!important;
+    white-space:nowrap!important;
     line-height:1!important;
     border-radius:11px!important;
     font-size:15px!important;
@@ -1350,7 +1350,7 @@ footer{
     min-height:44px;
     display:grid;
     place-items:center;
-    padding:0 12px;
+    padding:0 10px;
     white-space:nowrap;
     border-radius:11px;
     font-size:13px;
