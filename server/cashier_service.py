@@ -358,6 +358,32 @@ def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
+def get_user_avatar_blob(user_id: int) -> Optional[Dict[str, Any]]:
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT photo_data
+            FROM employees
+            WHERE user_id = ? AND photo_data IS NOT NULL
+            LIMIT 1
+            """,
+            (int(user_id),),
+        )
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            return None
+        photo_data = row[0]
+        if isinstance(photo_data, memoryview):
+            photo_data = photo_data.tobytes()
+        elif not isinstance(photo_data, bytes):
+            photo_data = bytes(photo_data)
+        return {"data": photo_data, "mime": "image/png"}
+    finally:
+        conn.close()
+
+
 def order_categories_by_usage(names: Iterable[str], usage: Dict[str, float]) -> List[str]:
     """Put frequently sold categories first, with deterministic alphabetical ties."""
     normalized_usage = {str(name).strip().casefold(): float(value or 0) for name, value in usage.items()}

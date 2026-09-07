@@ -11,7 +11,7 @@
   const sideMenuOverlay = document.querySelector('#sideMenuOverlay'), closeSideMenuButton = document.querySelector('#closeSideMenu');
   const CART_KEY = 'kay_touch_pos_cart';
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
-  let cart = new Map();
+  let cart = new Map(), avatarUrl = '';
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
   function setConnection(ok) {
@@ -83,6 +83,35 @@
   function clearCart() {
     cart.clear(); sessionStorage.removeItem(CART_KEY);
     renderCart();
+  }
+  function clearAvatar() {
+    if (avatarUrl) URL.revokeObjectURL(avatarUrl);
+    avatarUrl = '';
+    for (const image of [document.querySelector('#userAvatar'), document.querySelector('#sideMenuAvatar')]) {
+      image.hidden = true;
+      image.removeAttribute('src');
+    }
+    document.querySelector('#userInitials').hidden = false;
+    document.querySelector('#sideMenuInitials').hidden = false;
+  }
+  async function loadAvatar() {
+    clearAvatar();
+    try {
+      const response = await fetch('/api/user/avatar', {
+        headers: token ? {Authorization: `Bearer ${token}`} : {},
+        cache: 'no-store',
+      });
+      if (!response.ok) return;
+      avatarUrl = URL.createObjectURL(await response.blob());
+      for (const image of [document.querySelector('#userAvatar'), document.querySelector('#sideMenuAvatar')]) {
+        image.src = avatarUrl;
+        image.hidden = false;
+      }
+      document.querySelector('#userInitials').hidden = true;
+      document.querySelector('#sideMenuInitials').hidden = true;
+    } catch (_) {
+      clearAvatar();
+    }
   }
   function renderCart() {
     const {items, count, subtotal, total} = cartTotals();
@@ -369,6 +398,7 @@
   function showLogin(message = '') {
     clearCatalog();
     clearCart();
+    clearAvatar();
     setSideMenuOpen(false);
     token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = '';
     loginStatus.textContent = message; loginStatus.className = 'login-status';
@@ -377,9 +407,11 @@
   function showApp(user) {
     const name = user.full_name || user.username;
     document.querySelector('#userInitials').textContent = initials(user); document.querySelector('#userName').textContent = name;
+    document.querySelector('#sideMenuInitials').textContent = initials(user);
     document.querySelector('#userRole').textContent = user.role || 'Staff'; document.querySelector('#menuUserName').textContent = name;
     document.querySelector('#menuUserRole').textContent = `${user.role || 'Staff'} · Sales access`;
     document.querySelector('#sideMenuUser').textContent = `${name} · ${user.role || 'Staff'}`;
+    loadAvatar();
     loginView.hidden = true; appView.hidden = false; password.value = ''; loginStatus.textContent = '';
   }
   function renderCategories() {

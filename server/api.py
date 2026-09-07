@@ -1041,6 +1041,18 @@ def me(user: Dict[str, Any] = Depends(current_user)):
     return {"user": user}
 
 
+@app.get("/api/user/avatar")
+def user_avatar(user: Dict[str, Any] = Depends(current_user)):
+    avatar = cashier_service.get_user_avatar_blob(int(user.get("id") or 0))
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Profile photo not found")
+    return Response(
+        content=avatar["data"],
+        media_type=avatar["mime"],
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/api/touch-pos/session")
 def touch_pos_session(user: Dict[str, Any] = Depends(current_user)):
     access = _touch_pos_user(user)

@@ -33,6 +33,18 @@ class TouchPosSideMenuTests(unittest.TestCase):
         self.assertIn("sideMenuOverlay.addEventListener('click'", script)
         self.assertIn("data-side-action", script)
 
+    def test_account_avatar_is_rendered_with_initials_fallback(self):
+        html = (STATIC / "index.html").read_text(encoding="utf-8")
+        css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")
+        script = (STATIC / "touch-pos.js").read_text(encoding="utf-8")
+        self.assertIn('id="userAvatar"', html)
+        self.assertIn('id="sideMenuAvatar"', html)
+        self.assertIn('id="sideMenuInitials"', html)
+        self.assertIn(".avatar-frame", css)
+        self.assertIn(".side-menu-avatar", css)
+        self.assertIn("async function loadAvatar", script)
+        self.assertIn("'/api/user/avatar'", script)
+
 
 if __name__ == "__main__":
     unittest.main()
