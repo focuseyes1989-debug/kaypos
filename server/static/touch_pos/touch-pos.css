@@ -1125,3 +1125,96 @@
     max-height:calc(100dvh - 20px);
   }
 }
+
+/* Slightly larger type across Touch POS for better readability. */
+body{
+  font-size:15px;
+}
+.brand strong,
+.empty-state strong{
+  font-size:18px;
+}
+.brand span,
+.panel-heading small,
+.cart-empty small,
+.side-menu-head small{
+  font-size:12px;
+}
+.connection,
+.category-loading,
+.cart-row-meta,
+.checkout-field span,
+.checkout-note,
+.checkout-validation,
+.variant-choice em,
+footer{
+  font-size:13px;
+}
+.panel-heading strong,
+.checkout-open,
+.catalog-actions .mobile-cart-control,
+.side-menu-head strong{
+  font-size:16px!important;
+}
+.product-name,
+.cart-row-title,
+.cart-row-total,
+.side-menu-nav button,
+.side-menu-signout{
+  font-size:14px;
+}
+.product-meta,
+.product-stock,
+.count,
+.panel-heading>span{
+  font-size:12px;
+}
+.product-price{
+  font-size:13px;
+}
+.product-badge,
+.side-menu-nav em{
+  font-size:11px;
+}
+.side-menu-label{
+  font-size:10px;
+}
+.totals>div,
+.totals .grand,
+.cart-actions button,
+.cart-actions .pay{
+  font-size:14px;
+}
+@media screen and (min-width:761px){
+  body{
+    font-size:13px;
+  }
+  .brand strong{
+    font-size:15px;
+  }
+  .product-name{
+    font-size:13px!important;
+  }
+  .product-meta,
+  .cart-row-meta,
+  .product-stock,
+  .count,
+  .panel-heading>span{
+    font-size:11px;
+  }
+  .category,
+  .cart-actions button,
+  .cart-actions .pay,
+  .totals>div,
+  .totals .grand{
+    font-size:13px;
+  }
+}
+@media screen and (max-width:760px){
+  body{
+    font-size:15px;
+  }
+  .brand strong{
+    font-size:15px;
+  }
+}
