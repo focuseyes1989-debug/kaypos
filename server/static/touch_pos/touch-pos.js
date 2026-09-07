@@ -421,7 +421,10 @@
     if (query && selectedCategory && !visibleCategories.includes(selectedCategory)) selectedCategory = '';
     for (const name of ['', ...visibleCategories]) {
       const button = document.createElement('button'); button.type = 'button'; button.className = `category${name === selectedCategory ? ' active' : ''}`;
-      button.textContent = name || 'All products'; button.setAttribute('aria-pressed', String(name === selectedCategory));
+      const label = name || 'All products';
+      button.title = label;
+      button.innerHTML = `<span class="category-name">${escapeHtml(label)}</span>`;
+      button.setAttribute('aria-pressed', String(name === selectedCategory));
       button.addEventListener('click', () => { selectedCategory = name; renderCategories(); loadProducts(); }); root.appendChild(button);
     }
     document.querySelector('#categoryCount').textContent = query ? `${visibleCategories.length}/${categories.length}` : String(categories.length);

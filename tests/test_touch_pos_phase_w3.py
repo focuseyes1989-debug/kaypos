@@ -78,9 +78,17 @@ class TouchPosPhaseW3Tests(unittest.TestCase):
         self.assertIn("new AbortController", script)
         self.assertIn("setTimeout(loadProducts, 250)", script)
         self.assertIn("escapeHtml(product.name)", script)
+        self.assertIn('class="category-name"', script)
+        self.assertIn("button.title = label", script)
         self.assertIn("disabled", script)
         self.assertNotIn("/api/sales", script)
         self.assertIn("addToCart(product)", script)
+
+    def test_category_names_are_clamped_to_two_lines(self):
+        css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")
+        self.assertIn(".category-name", css)
+        self.assertIn("-webkit-line-clamp:2", css)
+        self.assertIn("text-overflow:ellipsis", css)
 
 
 if __name__ == "__main__":
