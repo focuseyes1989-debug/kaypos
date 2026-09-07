@@ -7,6 +7,7 @@ import base64
 import html
 from collections.abc import Callable
 
+from PyQt6 import sip
 from PyQt6.QtCore import QDate, QDateTime, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
@@ -33,6 +34,11 @@ _MYANMAR_DIGIT_TRANSLATION = str.maketrans("၀၁၂၃၄၅၆၇၈၉", "01
 def normalize_barcode_digits(value: str) -> str:
     """Make scanner input independent of the active EN/Myanmar keyboard layout."""
     return str(value or "").translate(_MYANMAR_DIGIT_TRANSLATION)
+
+
+def qt_alive(widget: QObject | None) -> bool:
+    """Return False after Qt has destroyed the wrapped C++ object."""
+    return widget is not None and not sip.isdeleted(widget)
 
 
 def service_order_urgency(expected_at: str, status: str, now: QDateTime | None = None) -> tuple[str, str, str]:
@@ -4310,16 +4316,21 @@ class LiteWindow(QMainWindow):
 
     @staticmethod
     def _populate_category_filter(combo: QComboBox, categories: list[str], selected: str = "") -> None:
+        if not qt_alive(combo):
+            return
         combo.blockSignals(True)
-        combo.clear()
-        combo.addItem("All Categories", "")
-        for category in categories:
-            name = str(category or "").strip()
-            if name:
-                combo.addItem(name, name)
-        selected_index = combo.findData(selected)
-        combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
-        combo.blockSignals(False)
+        try:
+            combo.clear()
+            combo.addItem("All Categories", "")
+            for category in categories:
+                name = str(category or "").strip()
+                if name:
+                    combo.addItem(name, name)
+            selected_index = combo.findData(selected)
+            combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+        finally:
+            if qt_alive(combo):
+                combo.blockSignals(False)
 
     def manage_categories(self) -> None:
         if not self.api or self._threads: return
@@ -4825,6 +4836,22 @@ class LiteWindow(QMainWindow):
             return
         selected_variant = variant_combo.currentData() if variant_combo else None
         adjustment = direction * quantity.value()
+        values = {
+            "product_id": int(product.get("id") or 0),
+            "adjustment": adjustment,
+            "variant_id": int((selected_variant or {}).get("variant_id") or 0) or None,
+            "reason": reason.text() if direction > 0 else out_reason.currentText(),
+            "location": location.currentData() or location.currentText(),
+            "supplier_id": supplier.currentData() if direction > 0 else None,
+            "unit_cost": unit_cost.value() if direction > 0 else 0,
+            "batch_no": batch_no.text() if direction > 0 else "",
+            "received_by": received_by.text() if direction > 0 else "",
+            "notes": notes.toPlainText(),
+            "customer_id": customer.currentData() if direction < 0 else None,
+            "reference": out_reference.text() if direction < 0 else "",
+            "issued_by": issued_by.text() if direction < 0 else "",
+            "transaction_date": out_date.date().toString("yyyy-MM-dd") if direction < 0 else "",
+        }
         self.statusBar().showMessage("Updating stock…")
 
         def completed(_product):
@@ -4834,19 +4861,19 @@ class LiteWindow(QMainWindow):
 
         self._run_task(
             lambda: self.api.adjust_stock(
-                int(product.get("id") or 0), adjustment,
-                variant_id=int((selected_variant or {}).get("variant_id") or 0) or None,
-                reason=reason.text() if direction > 0 else out_reason.currentText(),
-                location=location.currentData() or location.currentText(),
-                supplier_id=supplier.currentData() if direction > 0 else None,
-                unit_cost=unit_cost.value() if direction > 0 else 0,
-                batch_no=batch_no.text() if direction > 0 else "",
-                received_by=received_by.text() if direction > 0 else "",
-                notes=notes.toPlainText(),
-                customer_id=customer.currentData() if direction < 0 else None,
-                reference=out_reference.text() if direction < 0 else "",
-                issued_by=issued_by.text() if direction < 0 else "",
-                transaction_date=out_date.date().toString("yyyy-MM-dd") if direction < 0 else "",
+                values["product_id"], values["adjustment"],
+                variant_id=values["variant_id"],
+                reason=values["reason"],
+                location=values["location"],
+                supplier_id=values["supplier_id"],
+                unit_cost=values["unit_cost"],
+                batch_no=values["batch_no"],
+                received_by=values["received_by"],
+                notes=values["notes"],
+                customer_id=values["customer_id"],
+                reference=values["reference"],
+                issued_by=values["issued_by"],
+                transaction_date=values["transaction_date"],
             ),
             completed, lambda error: QMessageBox.critical(self, "Stock", error),
         )
