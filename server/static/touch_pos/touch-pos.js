@@ -498,7 +498,7 @@
   const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Price / stock unit', 0.01], ['note', 'Note']];
   function addItemRow(kind, values = {}) {
     const row = document.createElement('div'); row.className = 'item-detail-row';
-    const fields = kind === 'variants' ? variantFields : tierFields;
+    const fields = kind === 'variants' ? variantFields.filter(([key]) => editingProduct || !['cost', 'stock'].includes(key)) : tierFields;
     row.innerHTML = fields.map(([key, label, min, step]) => `<label><span>${label}</span><input data-field="${key}" ${min === undefined ? 'maxlength="160"' : `type="number" min="${min}" step="${step || 'any'}" required`} value="${escapeHtml(String(values[key] ?? (min === undefined ? '' : min)))}"></label>`).join('') + '<button type="button" class="remove-item-row">Remove</button>';
     row.querySelector('button').addEventListener('click', () => row.remove());
     document.querySelector(kind === 'variants' ? '#itemVariants' : '#itemTiers').appendChild(row);
@@ -518,6 +518,11 @@
     ['itemPrice', 'itemCost'].forEach(id => {
       const input = document.getElementById(id); input.closest('label').hidden = mode === 'variants'; input.disabled = mode === 'variants';
     });
+    if (!editingProduct) {
+      ['itemCost', 'itemStock'].forEach(id => {
+        const input = document.getElementById(id); input.closest('label').hidden = true; input.disabled = true;
+      });
+    }
   }
   function previewItemImage() {
     const fileInput = document.querySelector('#itemImage'), file = fileInput.files[0];
@@ -556,12 +561,13 @@
   function itemPayload() {
     const soldBy = document.querySelector('#itemSoldBy').value;
     const variants = soldByMode(soldBy) === 'variants' ? readItemRows('#itemVariants') : [];
+    if (!editingProduct) variants.forEach(variant => { variant.cost = 0; variant.stock = 0; });
     return {
       name: document.querySelector('#itemName').value.trim(), category: document.querySelector('#itemCategory').value,
       description: document.querySelector('#itemDescription').value.trim(), sold_by: soldBy,
-      price: Number(document.querySelector('#itemPrice').value || 0), cost: Number(document.querySelector('#itemCost').value || 0),
+      price: Number(document.querySelector('#itemPrice').value || 0), cost: editingProduct ? Number(document.querySelector('#itemCost').value || 0) : 0,
       sku: document.querySelector('#itemSku').value.trim(), barcode: document.querySelector('#itemBarcode').value.trim(),
-      stock: soldByMode(soldBy) === 'service' ? 0 : Number(document.querySelector('#itemStock').value || 0), low_stock: soldByMode(soldBy) === 'each' ? Number(document.querySelector('#itemLowStock').value || 0) : 0,
+      stock: !editingProduct || soldByMode(soldBy) === 'service' ? 0 : Number(document.querySelector('#itemStock').value || 0), low_stock: soldByMode(soldBy) === 'each' ? Number(document.querySelector('#itemLowStock').value || 0) : 0,
       unit: document.querySelector('#itemUnit').value.trim() || 'pcs', base_unit: document.querySelector('#itemUnit').value.trim() || 'pcs',
       pack_unit: document.querySelector('#itemPackUnit').value.trim(), pack_size: Number(document.querySelector('#itemPackSize').value || 1), variants,
       wholesale_tiers: soldByMode(soldBy) === 'each' ? readItemRows('#itemTiers') : [],
