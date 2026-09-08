@@ -426,11 +426,26 @@
     root.innerHTML = managedProducts.map(product => {
       const barcode = product.barcode || product.sku || '';
       const image = String(product.thumbnail_url || '').trim();
-      return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.category || 'No category')} · ${money(product.price)} Ks · Stock ${money(product.stock)}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}">Edit</button><button type="button" title="Print barcode" data-manager-barcode="${Number(product.id)}">Print</button></div></div>`;
+      return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.category || 'No category')} · ${money(product.price)} Ks · Stock ${money(product.stock)}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}">Edit</button><button type="button" title="Delete item" class="manager-delete" data-manager-delete="${Number(product.id)}">Delete</button></div></div>`;
     }).join('');
     root.querySelectorAll('.manager-thumb img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-manager-edit]').forEach(button => button.addEventListener('click', () => openItemModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerEdit)))));
-    root.querySelectorAll('[data-manager-barcode]').forEach(button => button.addEventListener('click', () => openBarcodeModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerBarcode)))));
+    root.querySelectorAll('[data-manager-delete]').forEach(button => button.addEventListener('click', () => deleteManagedItem(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerDelete)), button)));
+  }
+  async function deleteManagedItem(product, button) {
+    if (!product || !window.confirm(`Delete "${product.name}"?\n\nThis cannot be undone. Products with stock or transaction history cannot be deleted.`)) return;
+    button.disabled = true; button.textContent = 'Deleting...';
+    try {
+      const current = await api(`/api/native/catalog?section=products&product_id=${Number(product.id)}`);
+      const result = await api('/api/native/catalog/commands', {method: 'POST', body: JSON.stringify({
+        request_id: crypto.randomUUID(), operation: 'product.delete', values: {id: Number(product.id), revision: current.revision},
+      })});
+      if (result.rejected) throw new Error(result.rejected);
+      for (const [key, item] of cart) if (Number(item.product_id) === Number(product.id)) cart.delete(key);
+      saveCart(); renderCart();
+      await loadCatalog(); await loadProductManager(); toast('Item deleted.');
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; button.textContent = 'Delete'; }
   }
   function renderManagedCategories() {
     const root = document.querySelector('#managerCategoryList');
