@@ -452,14 +452,33 @@
     if (!managedCategories.length) { root.innerHTML = '<div class="catalog-message"><strong>No categories</strong>Add parent and child categories here.</div>'; return; }
     const childrenByParent = new Map();
     managedCategories.forEach(item => childrenByParent.set(Number(item.parent_id || 0), [...(childrenByParent.get(Number(item.parent_id || 0)) || []), item]));
-    const rows = [];
-    const renderRows = (parentId, child) => (childrenByParent.get(parentId) || []).forEach(item => {
-      rows.push(`<div class="${child ? 'category-child' : ''}"><div class="manager-row"><div class="manager-row-main"><strong>${child ? '- ' : ''}${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button></div></div></div>`);
-      renderRows(Number(item.id), true);
+    const rows = [], visited = new Set();
+    const renderRows = (parentId, depth) => (childrenByParent.get(parentId) || []).forEach(item => {
+      if (visited.has(Number(item.id))) return;
+      visited.add(Number(item.id));
+      const level = depth === 0 ? 'Parent' : depth === 1 ? 'Child' : depth === 2 ? 'Sub Child' : `Level ${depth + 1}`;
+      rows.push(`<div class="category-tree-row${depth ? ' category-descendant' : ''}" style="--category-depth:${depth}"><div class="manager-row"><div class="manager-row-main"><span class="category-level">${level}</span><strong title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button><button type="button" class="manager-delete" data-category-delete="${Number(item.id)}">Delete</button></div></div></div>`);
+      renderRows(Number(item.id), depth + 1);
     });
-    renderRows(0, false);
+    renderRows(0, 0);
     root.innerHTML = rows.join('');
     root.querySelectorAll('[data-category-edit]').forEach(button => button.addEventListener('click', () => openCategoryModal(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryEdit)))));
+    root.querySelectorAll('[data-category-delete]').forEach(button => button.addEventListener('click', () => deleteManagedCategory(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryDelete)), button)));
+  }
+  async function deleteManagedCategory(category, button) {
+    if (!category || !window.confirm(`Delete category "${category.name}"?\n\nThis cannot be undone. Categories containing products or child categories cannot be deleted.`)) return;
+    button.disabled = true; button.textContent = 'Deleting...';
+    try {
+      const catalog = await api('/api/native/catalog?section=products');
+      const current = catalog.categories.find(item => Number(item.id) === Number(category.id));
+      if (!current) throw new Error('Category no longer exists. Refresh the list.');
+      const result = await api('/api/native/catalog/commands', {method: 'POST', body: JSON.stringify({
+        request_id: crypto.randomUUID(), operation: 'category.delete', values: {id: Number(category.id), revision: current.revision},
+      })});
+      if (result.rejected) throw new Error(result.rejected);
+      await loadCatalog(); await loadProductManager(); toast('Category deleted.');
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; button.textContent = 'Delete'; }
   }
   let itemImageUrl = '';
   const variantFields = [['color', 'Color'], ['size', 'Size'], ['sku', 'SKU'], ['barcode', 'Barcode'], ['price', 'Price', 0], ['cost', 'Cost', 0], ['stock', 'Stock', 0, 1], ['low_stock', 'Low stock', 0, 1]];
