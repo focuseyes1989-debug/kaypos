@@ -7,7 +7,7 @@ function element(key) {
 }
 let receipt = {status:'completed', payment_type:'Cash', total:500, items:[]};
 let fail = false, pending, posts = [], notices = [];
-const ctx = {document:{querySelector:element,querySelectorAll:()=>[]}, window:{matchMedia:()=>({matches:false})}, URLSearchParams, Date,
+const ctx = {hideInventory:()=>{},document:{querySelector:element,querySelectorAll:()=>[]}, window:{matchMedia:()=>({matches:false})}, URLSearchParams, Date,
   money:String, escapeHtml:s=>String(s??''), toast:s=>notices.push(s),
   api:async (url, options) => {
     if (options) { posts.push({url,options}); if (pending) await pending; if (fail) throw Error('Refund rejected'); receipt.status='refunded'; }

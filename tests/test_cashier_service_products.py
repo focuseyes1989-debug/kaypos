@@ -32,6 +32,11 @@ class CashierProductListingTests(unittest.TestCase):
                 sold_by TEXT,
                 unit TEXT,
                 low_stock INTEGER DEFAULT 0,
+                description TEXT DEFAULT '',
+                base_unit TEXT DEFAULT 'pcs',
+                pack_unit TEXT DEFAULT '',
+                pack_size INTEGER DEFAULT 1,
+                last_updated TEXT,
                 is_favourite INTEGER DEFAULT 0
             );
             CREATE TABLE product_locations (
@@ -82,6 +87,18 @@ class CashierProductListingTests(unittest.TestCase):
 
     def _connect(self):
         return sqlite3.connect(self.db_path)
+
+    def test_stock_in_updates_shared_stock_cost_location_and_history(self):
+        with patch("server.cashier_service.connect_db", self._connect), patch(
+            "server.cashier_service.is_postgres_backend", return_value=False
+        ), patch("server.cashier_service.list_products", return_value=[]):
+            cashier_service.adjust_stock(
+                product_id=1, adjustment=4, unit_cost=250, location="Warehouse",
+                reason="Touch POS Stock In", created_by="test-user", batch_no="TEST-BATCH",
+            )
+        self.assertEqual(self.conn.execute("SELECT stock, cost FROM products WHERE id=1").fetchone(), (4, 250))
+        self.assertEqual(self.conn.execute("SELECT location, quantity, batch_no FROM product_locations WHERE product_id=1").fetchone(), ("Warehouse", 4, "TEST-BATCH"))
+        self.assertEqual(self.conn.execute("SELECT type, quantity, created_by FROM stock_movements WHERE product_id=1").fetchone(), ("stock_in", 4, "test-user"))
 
     @patch("server.cashier_service._active_product_discounts", return_value={})
     @patch("server.cashier_service._price_tiers_for_products", return_value={})

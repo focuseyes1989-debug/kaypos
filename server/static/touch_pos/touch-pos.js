@@ -386,6 +386,90 @@
       button.disabled = false; button.textContent = 'Save Sale'; renderCheckoutSummary();
     }
   }
+  let inventoryRequest = 0, inventoryDetailRequest = 0, inventoryOffset = 0;
+  let inventoryProducts = [], inventoryLocations = [], inventorySuppliers = [];
+  function hideInventory() {
+    inventoryRequest++; inventoryDetailRequest++;
+    document.querySelector('#touchInventory').hidden = true;
+    document.querySelector('#inventoryDetail').replaceChildren();
+  }
+  async function showInventoryPage() {
+    receiptsRequest++;
+    document.querySelector('.workspace').hidden = true;
+    document.querySelector('#productManager').hidden = true;
+    document.querySelector('#touchReceipts').hidden = true;
+    document.querySelector('#touchInventory').hidden = false;
+    document.querySelector('#workspaceStatus').textContent = 'Inventory · Stock and movements';
+    inventoryOffset = 0;
+    await loadInventory();
+  }
+  async function loadInventory() {
+    const request = ++inventoryRequest;
+    inventoryDetailRequest++;
+    const rows = document.querySelector('#inventoryRows');
+    document.querySelector('#inventoryDetail').innerHTML = '<div class="receipt-detail-empty"><strong>Select a product</strong><p>Review stock, receive new stock and view movements.</p></div>';
+    rows.textContent = 'Loading inventory...';
+    document.querySelector('#inventoryPrev').disabled = true;
+    document.querySelector('#inventoryNext').disabled = true;
+    try {
+      const query = new URLSearchParams({q:document.querySelector('#inventorySearch').value.trim(),limit:'50',offset:String(inventoryOffset)});
+      const [data, locations, suppliers] = await Promise.all([api(`/api/products?${query}`),api('/api/stock/locations'),api('/api/suppliers')]);
+      if (request !== inventoryRequest) return;
+      inventoryProducts = data.products || []; inventoryLocations = locations.locations || []; inventorySuppliers = suppliers.suppliers || [];
+      rows.innerHTML = inventoryProducts.map(p=>`<button type="button" class="receipt-history-row" data-inventory-id="${Number(p.id)}"><span><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.sku || p.barcode || p.category || '')}</small></span><span><strong>${soldByMode(p.sold_by)==='service' ? 'Service' : money(p.stock)+' '+escapeHtml(p.base_unit || p.unit || 'pcs')}</strong><small>${soldByMode(p.sold_by)==='service' ? 'No stock tracking' : Number(p.stock)<=Number(p.low_stock || 0) ? 'Low stock' : 'In stock'}</small></span></button>`).join('') || '<p>No products found. Try another search.</p>';
+      rows.querySelectorAll('[data-inventory-id]').forEach(button=>button.onclick=()=>openInventoryProduct(Number(button.dataset.inventoryId)));
+      document.querySelector('#inventoryPageInfo').textContent = inventoryProducts.length ? `${inventoryOffset+1}–${inventoryOffset+inventoryProducts.length}` : 'No results';
+      document.querySelector('#inventoryPrev').disabled = inventoryOffset===0;
+      document.querySelector('#inventoryNext').disabled = inventoryProducts.length<50;
+    } catch(error) { if(request===inventoryRequest) rows.textContent=error.message; }
+  }
+  async function openInventoryProduct(id) {
+    const p = inventoryProducts.find(p=>Number(p.id)===id); if (!p) return;
+    const request = ++inventoryDetailRequest, detail=document.querySelector('#inventoryDetail');
+    const variants = p.variants || [], service=soldByMode(p.sold_by)==='service';
+    detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(p.name)}</strong><small>Current stock: ${money(p.stock)} ${escapeHtml(p.base_unit || p.unit || 'pcs')} · Cost: ${money(p.cost)} Ks</small></div></div><div class="inventory-locations">${(p.locations || []).map(l=>`<small>${escapeHtml(l.location)}: ${money(l.quantity)}</small>`).join('')}</div>`;
+    if (!service) {
+      detail.innerHTML += `<form id="inventoryStockIn" class="inventory-stock-form"><h3>Stock In</h3><p>Enter quantity and cost per base stock unit (${escapeHtml(p.base_unit || p.unit || 'pcs')}).</p>${variants.length || soldByMode(p.sold_by)==='variants' ? `<label>Variant<select name="variant_id" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || String(v.variant_id))} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" required>${[...new Set(['Shop',...inventoryLocations])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label>Quantity<input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Unit cost (Ks)<input name="cost" type="number" min="0" step="0.01" required></label><label>Supplier<select name="supplier_id"><option value="">None</option>${inventorySuppliers.map(s=>`<option value="${Number(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select></label><label>Batch number<input name="batch_no" maxlength="100"></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-stock-preview>Enter quantity and cost to review.</strong><button class="full receipt-apply" type="submit">Save Stock In</button><small class="full" role="alert" data-stock-error></small></form>`;
+      const form=detail.querySelector('#inventoryStockIn'), field=name=>form.elements.namedItem(name);
+      const update=()=>{
+        const variant=variants.find(v=>Number(v.variant_id)===Number(field('variant_id')?.value));
+        const qty=Number(field('quantity').value), cost=Number(field('cost').value);
+        form.querySelector('[data-stock-preview]').textContent=`Stock after: ${money(Number((variant || p).stock)+qty)} · Total cost: ${money(qty*cost)} Ks`;
+      };
+      field('cost').value=Number(p.cost || 0);
+      if(field('variant_id')) {
+        field('location').disabled=true;
+        field('location').innerHTML='<option>Variant</option>';
+        field('variant_id').onchange=()=>{const v=variants.find(v=>Number(v.variant_id)===Number(field('variant_id').value));field('cost').value=Number(v?.cost || 0);update();};
+      }
+      field('quantity').oninput=update; field('cost').oninput=update;
+      form.onsubmit=async event=>{
+        event.preventDefault();
+        const button=form.querySelector('button[type="submit"]'), error=form.querySelector('[data-stock-error]');
+        if(button.disabled || !form.reportValidity()) return;
+        const quantity=Number(field('quantity').value), cost=Number(field('cost').value);
+        if(!Number.isInteger(quantity) || quantity<1 || quantity>1000000 || !Number.isFinite(cost) || cost<0) {error.textContent='Enter a valid quantity and cost.';return;}
+        if(!window.confirm(`Receive ${quantity} stock units of "${p.name}"?\nTotal cost: ${money(quantity*cost)} Ks`)) return;
+        button.disabled=true; error.textContent='';
+        try {
+          const data=await api('/api/stock/adjust',{method:'POST',body:JSON.stringify({product_id:id,variant_id:Number(field('variant_id')?.value)||null,adjustment:quantity,unit_cost:cost,location:field('location').value,supplier_id:Number(field('supplier_id').value)||null,batch_no:field('batch_no').value.trim(),notes:field('notes').value.trim(),reason:'Touch POS Stock In'})});
+          toast('Stock In saved.');
+          if(request!==inventoryDetailRequest) return;
+          inventoryProducts=inventoryProducts.map(item=>Number(item.id)===id ? data.product : item);
+          const expected=inventoryRequest+1; await loadInventory();
+          if(inventoryRequest===expected && !document.querySelector('#touchInventory').hidden) await openInventoryProduct(id);
+        } catch(e) {error.textContent=e.message;button.disabled=false;}
+      };
+    } else detail.innerHTML+='<p>Service products do not track inventory.</p>';
+    detail.insertAdjacentHTML('beforeend', '<div class="inventory-history"><h3>Recent movements</h3><div id="inventoryMovements">Loading movements...</div></div>');
+    if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
+    try {
+      const data=await api(`/api/stock/movements?product_id=${id}&limit=50`);
+      if(request!==inventoryDetailRequest) return;
+      detail.querySelector('#inventoryMovements').innerHTML=(data.movements || []).map(m=>`<div class="inventory-movement"><strong>${escapeHtml(m.type)} · ${money(m.quantity)}</strong><small>${escapeHtml(m.created_at)} · ${escapeHtml(m.location)} · ${escapeHtml([m.color,m.size].filter(Boolean).join(' / '))}</small><small>${money(m.old_stock)} → ${money(m.new_stock)} · ${escapeHtml(m.created_by)}</small><small>${escapeHtml(m.reason)}</small></div>`).join('') || '<p>No stock movements yet.</p>';
+    } catch(error) {if(request===inventoryDetailRequest) detail.querySelector('#inventoryMovements').textContent=error.message;}
+  }
+
   let receiptsOffset = 0, receiptsRequest = 0;
   function resetReceiptDetail() {
     const detail = document.querySelector('#receiptsDetail'); detail.hidden = false;
@@ -393,6 +477,7 @@
     document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed','false'));
   }
   async function showReceiptsPage() {
+    hideInventory();
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
     document.querySelector('#touchReceipts').hidden = false;
@@ -468,6 +553,9 @@
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
   function showSalesView() {
+    const fromInventory = !document.querySelector('#touchInventory').hidden;
+    hideInventory();
+    if (fromInventory) loadProducts();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('.workspace').hidden = false;
@@ -475,6 +563,7 @@
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager() {
+    hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('.workspace').hidden = true;
@@ -740,6 +829,7 @@
   }
   function closeBarcodeModal() { document.querySelector('#barcodeModal').hidden = true; barcodeProduct = null; }
   function clearCatalog() {
+    hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('#receiptsRows').replaceChildren();
@@ -897,6 +987,7 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'inventory') { showInventoryPage(); return; }
     if (action === 'receipts') { showReceiptsPage(); return; }
     if (['products', 'categories', 'search', 'cart'].includes(action)) showSalesView();
     if (action === 'products') document.querySelector('#productSearch').focus();
@@ -966,6 +1057,10 @@
     document.querySelector('#receiptsFrom').value=dateText(start);document.querySelector('#receiptsTo').value=dateText(end);
     receiptsOffset=0;loadTouchReceipts();
   }));
+  document.querySelector('#inventorySales').onclick=showSalesView;
+  document.querySelector('#inventoryFilters').onsubmit=event=>{event.preventDefault();inventoryOffset=0;loadInventory();};
+  document.querySelector('#inventoryPrev').onclick=()=>{inventoryOffset=Math.max(0,inventoryOffset-50);loadInventory();};
+  document.querySelector('#inventoryNext').onclick=()=>{inventoryOffset+=50;loadInventory();};
   document.querySelector('#receiptsSales').addEventListener('click', showSalesView);
   document.querySelector('#receiptsFilters').addEventListener('submit', event=>{event.preventDefault();receiptsOffset=0;loadTouchReceipts();});
   document.querySelector('#receiptsTab').addEventListener('change', ()=>{receiptsOffset=0;loadTouchReceipts();});

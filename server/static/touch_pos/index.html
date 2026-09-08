@@ -56,6 +56,7 @@
         </div>
         <div class="side-menu-section">
           <span class="side-menu-label">PRODUCT</span>
+          <button type="button" data-side-action="inventory"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Inventory</span></button>
           <button type="button" data-side-action="product-page"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Product Page</span></button>
           <button type="button" data-side-action="categories"><img class="side-menu-icon" src="/assets/icons/category.svg" alt="" aria-hidden="true"><span>Categories</span></button>
           <button type="button" data-side-action="products"><img class="side-menu-icon" src="/assets/icons/products.svg" alt="" aria-hidden="true"><span>Products</span><em id="sideProductBadge">0</em></button>
@@ -136,6 +137,11 @@
       </section>
     </main>
 
+    <section id="touchInventory" class="touch-receipts" hidden aria-label="Inventory">
+      <div class="panel receipt-page-head"><div><strong>Inventory</strong><small>Track stock, receive products and review movements.</small></div><button type="button" id="inventorySales">Sales</button></div>
+      <form id="inventoryFilters" class="panel receipt-filters"><label>Find a product<input id="inventorySearch" type="search" placeholder="Product name, SKU or barcode"></label><button type="submit" class="receipt-apply">Search / Refresh</button></form>
+      <div class="receipt-workspace"><div class="panel receipt-results"><div class="receipt-list-heading"><strong>Current stock</strong><small>Select a product for Stock In</small></div><div id="inventoryRows" aria-live="polite"></div><div class="receipt-pagination"><button type="button" id="inventoryPrev">Previous</button><span id="inventoryPageInfo"></span><button type="button" id="inventoryNext">Next</button></div></div><section id="inventoryDetail" class="panel receipt-detail" aria-label="Product stock details"></section></div>
+    </section>
     <section id="touchReceipts" class="touch-receipts" hidden aria-label="Receipts">
       <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Find a sale, review its items and payment details.</small></div><button id="receiptsSales" type="button">Sales</button></div>
       <div id="receiptsSummary" class="receipt-summary" aria-live="polite"></div>
