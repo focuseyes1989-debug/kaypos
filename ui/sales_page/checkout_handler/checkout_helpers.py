@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from PyQt6.QtWidgets import QMessageBox
 from models.database import connect_db
+from models import variant_batches
 from models.database.queries import check_expiry_status, get_fifo_locations_with_expiry_check
 from utils.currency import get_currency_symbol, format_money
 from utils.language import lang
@@ -164,15 +165,7 @@ class CheckoutHelpers:
                     WHERE id = ? AND product_id = ?
                 """, (qty_needed, item["variant_id"], product_id))
                 cursor.execute("UPDATE products SET stock = stock - ? WHERE id = ?", (qty_needed, product_id))
-                item["stock_allocations"].append({
-                    "product_id": product_id,
-                    "variant_id": item.get("variant_id"),
-                    "qty": qty_needed,
-                    "location_id": None,
-                    "location": item.get("location") or "Variant",
-                    "batch_no": "",
-                    "expire_date": "",
-                })
+                item["stock_allocations"] = variant_batches.allocate(cursor,product_id,item["variant_id"],available,qty_needed)
                 cursor.execute("""
                     INSERT INTO stock_movements
                     (product_id, type, quantity, old_stock, new_stock, reason, reference, created_by, location, notes)

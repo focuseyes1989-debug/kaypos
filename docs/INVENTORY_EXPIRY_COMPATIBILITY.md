@@ -1,27 +1,27 @@
-# Inventory batch and expiry compatibility
+# Inventory expiry compatibility
 
-Audit: 2026-09-08. Applies to this repository's desktop KAY POS, Lite and Touch clients.
+## Shared contract
 
-## Contract for non-variant stock
+The source clients use `YYYY-MM-DD` for a known expiry and an empty string for explicitly selected No expiry. Forms start at No expiry; Enter expiry date requires the known date. Batch identifiers and expiry are independent.
 
-- Batch identifier: `product_locations.batch_no`, independent of expiry. Blank input generates a timestamp identifier including microseconds. A user-supplied batch number is preserved.
-- Expiry: `product_locations.expire_date`, calendar date `YYYY-MM-DD`. No expiry is an empty string; readers also accept legacy NULL.
-- Batch identity includes product, location, batch number and expiry date. Receiving the same identity increases its quantity; different expiries must remain separate.
-- New stock-in forms default to No expiry. Enter expiry date enables an initially unselected date field; the operator must enter the known product expiry. No automatic future date is assigned.
-- Lite and Touch send `expire_date` to `/api/stock/adjust`. Existing clients that omit it continue to mean No expiry; the server must not silently invent an expiry for old callers.
-- Desktop writes the same batch fields directly. Its expiry selector was previously created but absent from the layout; it is now visible with No expiry support.
-- Desktop expiry reporting reads location batches. The legacy `products.expire_date` field is not a reliable multi-batch expiry source: desktop overwrites it on receipt, while the API tracks expiry on each location batch.
+Standard products continue to use `product_locations`. Variants use `variant_stock_batches`, keyed by product, variant, location, batch and expiry. `variant_batch_changes` stores exact stock movement allocations for reversals. Both tables are created idempotently by desktop initialization or first use by the shared service. Original product/variant balances are retained.
 
-## Limits found by the audit
+Desktop receiving, sale deductions and refunds share the batch ledger used by the server for Lite and Touch. Desktop variant stock-out, count correction and transfer prompt for the variant and route through the shared service. Transfers preserve expiry. A reverse transfer, not movement reversal, undoes a transfer.
 
-- Variant batches are NOT interchangeable yet. Desktop writes variant stock plus product-level location batches without a variant key. Lite/Touch update variant stock without per-variant batches and only offer No expiry. Supporting variant expiry safely requires a variant-aware batch schema and coordinated receiving, sale allocation, refund, transfer and reversal changes across all clients. Do not infer that an expiry on a product-level batch belongs to a specific variant.
-- Expiry ordering is not an expired-sale prohibition. The server allocates dated batches first, then undated batches, but does not reject an expired batch solely because of its date. A common sale policy needs a separate explicit decision.
-- Older desktop/Lite executables do not gain these UI changes from a server-only update. Rebuild/update those clients as well as deploying the server. Touch reloads the web client.
-- Existing data is not rewritten by these changes. No-expiry history remains undated; unknown historical dates are not inferred.
+## Existing stock and compatibility boundaries
+
+- Existing product-level batches are preserved and never guessed into variants. Missing variant balances become an unknown `LEGACY-OPENING` at `Legacy / unassigned` on first mutation. Unknown is distinct from No expiry.
+- If an old client reduces stock below the tracked batch balance, operations fail with a review message rather than deducting an arbitrary batch. All stock-writing clients must be updated together.
+- Historical movements without allocations cannot be reversed once batch tracking starts; use a reviewed compensating adjustment. New receiving/out/count movements record exact batch allocations for reversal.
+- Desktop Inventory > Expiry > Variant batches / expiry is a separate read-only report, including virtual unknown opening balances. Stock-in forms show known variant batches. The standard product expiry report still describes product-level batches.
+- Expiry ordering does not itself forbid selling expired goods. A uniform expiry-sale blocking policy is outside this change.
+- Cloud sync transport/schema changes are not included. Replication must include both new tables before it can be treated as a complete copy of variant stock.
+- Old clients omitting expiry still mean No expiry. The legacy `products.expire_date` is not a multi-batch source of truth.
+
+## Coordinated rollout
+
+Stop the clients and server, back up the complete database, update all source checkouts to the same commit, restart the server and desktop/Lite clients, then refresh Touch. Database recreation is not needed. Never infer historical expiry dates from the installation date.
 
 ## Verification
 
-- `tests/test_lite_expiry_contract.py`: dated and undated API payloads, backwards-compatible omitted date.
-- `tests/test_cashier_service_products.py`: dated/undated batch separation, merging identical batches, invalid date rejection and stock/cost/history persistence in a temporary SQLite database.
-- `tests/test_touch_inventory.cjs`: No expiry default, manual date selection and stock-in payload.
-- Python compilation checks cover the modified desktop and Lite form code. Full installed desktop/Lite end-to-end UI testing is still required before claiming complete release compatibility.
+Temporary SQLite tests cover variant identity, date separation, earliest-expiry allocation, rollback, unknown opening stock, desktop sale followed by API refund, transfer, count corrections, and reversal. Lite API payload and Touch UI tests cover manual expiry and No expiry. Full multi-PC production acceptance testing is still required; tests do not modify the production database.

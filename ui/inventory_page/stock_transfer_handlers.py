@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap
 from models.database import connect_db
+from ui.inventory_page.variant_operations import handle_variant_operation
 from utils.translations import tr
 from datetime import datetime
 from loguru import logger
@@ -34,7 +35,7 @@ class StockTransferHandlers:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT DISTINCT location FROM product_locations 
+            SELECT DISTINCT location FROM (SELECT location FROM product_locations UNION SELECT location FROM variant_stock_batches)
             WHERE location IS NOT NULL AND location != '' 
             ORDER BY location
         """)
@@ -354,6 +355,7 @@ class StockTransferHandlers:
             return
         
         # Check available stock
+        if handle_variant_operation(self.dialog,product_id,'Transfer',qty,from_loc,reason,notes=notes,to_location=to_loc): return
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""

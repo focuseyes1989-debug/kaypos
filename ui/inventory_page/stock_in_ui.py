@@ -332,6 +332,12 @@ class StockInUI:
         grid.addWidget(dialog.si_expiry, row, 1)
         row += 1
 
+        dialog.si_variant_batches = QLabel()
+        dialog.si_variant_batches.setWordWrap(True)
+        dialog.si_variant_batches.setTextFormat(Qt.TextFormat.PlainText)
+        grid.addWidget(dialog.si_variant_batches, row, 0, 1, 2)
+        row += 1
+
         # Row 7: Received By | Date
         received_label = self._create_label("👤 Received By", colors)
         dialog.si_received_by = self._create_lineedit("", colors)

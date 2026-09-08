@@ -832,6 +832,9 @@ def create_tables():
                 cursor.execute(f"ALTER TABLE credit_transactions ADD COLUMN {column} {definition}")
         logger.info("Created credit_transactions table")
 
+        from models.variant_batches import ensure_schema as ensure_variant_batch_schema
+        ensure_variant_batch_schema(cursor)
+
         # ---------- Product Locations (BATCH-AWARE) ----------
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS product_locations (

@@ -1,3 +1,4 @@
+from models import variant_batches
 # ui/receipts_page/receipts_tab.py
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -671,6 +672,11 @@ class ReceiptsTab(QWidget):
                 cursor.execute("UPDATE products SET stock = stock + ?, last_updated = CURRENT_TIMESTAMP WHERE id=?", (qty, product_id))
 
                 if variant_id:
+                    cursor.execute("SELECT stock FROM product_variants WHERE id=? AND product_id=?",(variant_id,product_id))
+                    variant_stock=cursor.fetchone()
+                    if not variant_stock:
+                        raise ValueError("Refund variant no longer exists")
+                    variant_batches.restore(cursor,product_id,variant_id,int(variant_stock[0] or 0),qty,location,batch_no,expire_date)
                     cursor.execute("""
                         UPDATE product_variants
                         SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP

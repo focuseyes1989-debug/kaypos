@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import quote
 
 from loguru import logger
+from models import variant_batches
 
 from models.database import connect_db
 from utils.db_compat import is_postgres_backend, quote_identifier, table_columns
@@ -481,9 +482,11 @@ def list_stock_locations() -> List[str]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
+        variant_batches.ensure_schema(cursor)
         names: Dict[str, str] = {}
         for query in (
             "SELECT TRIM(name) FROM locations WHERE TRIM(COALESCE(name, '')) != ''",
+            "SELECT DISTINCT TRIM(location) FROM variant_stock_batches WHERE TRIM(COALESCE(location, '')) != ''",
             "SELECT DISTINCT TRIM(location) FROM product_locations WHERE TRIM(COALESCE(location, '')) != ''",
             "SELECT DISTINCT TRIM(warehouse) FROM products WHERE TRIM(COALESCE(warehouse, '')) != ''",
         ):
@@ -989,6 +992,8 @@ def list_products(
                 if int(tier.get("active", 1)) == 1
             ]
             product["variants"] = variants_by_product.get(product_id, [])
+            product["variant_batches"] = variant_batches.list_batches(cursor, product_id) if product["variants"] else []
+            if product["variants"]: product["stock"] = sum(int(v["stock"]) for v in product["variants"])
             product["locations"] = locations_by_product.get(product_id, [])
             available_stock = product["stock"]
             if _sold_by_mode(sold_by) == "variants" and product["variants"]:
@@ -1598,10 +1603,7 @@ def create_sale(
                 label = " / ".join(part for part in (str(color or ""), str(size or "")) if part)
                 if label:
                     name = f"{name} ({label})"
-                allocations = [{
-                    "qty": qty, "variant_id": int(variant_id), "location_id": None,
-                    "location": "Variant", "batch_no": "", "expire_date": "",
-                }]
+                allocations = variant_batches.allocate(cursor,product_id,int(variant_id),available_stock,qty,preview=preview_only)
                 if not preview_only:
                     _execute_dynamic_insert(
                         cursor,
@@ -1894,6 +1896,7 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
                 variant_row = cursor.fetchone()
                 if variant_row:
                     old_stock = int(variant_row[0] or 0)
+                    variant_batches.restore(cursor,product_id,variant_id,old_stock,qty,item.get("location"),item.get("batch_no"),item.get("expire_date"))
                     new_stock = old_stock + qty
                     cursor.execute(
                         "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1989,8 +1992,6 @@ def adjust_stock(
                 raise ValueError()
         except ValueError:
             raise ValueError("Expiry date must be a valid YYYY-MM-DD date")
-        if variant_id:
-            raise ValueError("Variant stock does not support batch expiry; use No expiry")
         if adjustment < 0:
             raise ValueError("Expiry date is only supported for Stock In")
     conn = connect_db()
@@ -2003,6 +2004,8 @@ def adjust_stock(
         if not product:
             raise ValueError("Product not found")
         name, master_stock, sold_by, old_cost = product
+        if _sold_by_mode(sold_by) == 'variants' and not variant_id:
+            raise ValueError('Select a variant before changing variant stock')
         if _sold_by_mode(sold_by) == "service":
             raise ValueError("Service items do not use stock adjustments")
         master_stock = int(master_stock or 0)
@@ -2017,6 +2020,12 @@ def adjust_stock(
             if not variant:
                 raise ValueError("Selected variant is unavailable")
             movement_old = int(variant[0] or 0)
+            if adjustment > 0:
+                variant_batches.reconcile(cursor,product_id,variant_id,movement_old)
+                batch_no=variant_batches.receive(cursor,product_id,variant_id,adjustment,location,batch_no,expire_date)
+                batch_changes=[dict(location=location,batch_no=batch_no,expire_date=expire_date,delta=adjustment)]
+            else:
+                batch_changes=[dict(a,delta=-a["qty"]) for a in variant_batches.allocate(cursor,product_id,variant_id,movement_old,abs(adjustment),location if restrict_location else None)]
             movement_new = movement_old + adjustment
             if movement_new < 0:
                 raise ValueError(f"Only {movement_old} available for the selected variant")
@@ -2039,7 +2048,7 @@ def adjust_stock(
                 "UPDATE products SET stock = ?, cost = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
                 (next_master, new_cost, product_id),
             )
-            movement_location = "Variant"
+            movement_location = location
         else:
             available = _effective_stock(cursor, product_id)
             if adjustment < 0 and available < abs(adjustment):
@@ -2113,7 +2122,8 @@ def adjust_stock(
         }
         if transaction_date:
             movement_values["created_at"] = f"{transaction_date} {datetime.now().strftime('%H:%M:%S')}"
-        _execute_dynamic_insert(cursor, "stock_movements", movement_values)
+        movement_id=_execute_dynamic_insert(cursor, "stock_movements", movement_values)
+        if variant_id: variant_batches.record_change(cursor,movement_id,product_id,variant_id,batch_changes)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -2150,6 +2160,8 @@ def set_stock_quantity(
         if not product:
             raise ValueError("Product not found")
         master_stock, sold_by = int(product[0] or 0), product[1]
+        if _sold_by_mode(sold_by) == 'variants' and not variant_id:
+            raise ValueError('Select a variant before changing variant stock')
         if _sold_by_mode(sold_by) == "service":
             raise ValueError("Service items do not use stock adjustments")
         old_quantity = master_stock
@@ -2199,6 +2211,13 @@ def set_stock_quantity(
             if expected_stock is not None and int(expected_stock) != old_quantity:
                 raise ValueError("Stock changed since this page was loaded. Refresh and review the count again.")
             difference = new_quantity - old_quantity
+            batch_changes=[]
+            if difference < 0:
+                batch_changes=[dict(a,delta=-a["qty"]) for a in variant_batches.allocate(cursor,product_id,variant_id,old_quantity,-difference,location)]
+            elif difference > 0:
+                variant_batches.reconcile(cursor,product_id,variant_id,old_quantity)
+                batch=variant_batches.receive(cursor,product_id,variant_id,difference,location,'COUNT-'+datetime.now().strftime('%Y%m%d%H%M%S%f'),'',True)
+                batch_changes=[dict(location=location,batch_no=batch,expire_date='',delta=difference,expiry_unknown=1)]
             cursor.execute(
                 "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (new_quantity, variant_id),
@@ -2207,7 +2226,7 @@ def set_stock_quantity(
                 "UPDATE products SET stock = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
                 (max(0, master_stock + difference), product_id),
             )
-            movement_location = "Variant"
+            movement_location = location
         else:
             difference = new_quantity - old_quantity
             cursor.execute(
@@ -2259,7 +2278,8 @@ def set_stock_quantity(
         }
         if transaction_date:
             movement["created_at"] = f"{str(transaction_date)[:10]} {datetime.now().strftime('%H:%M:%S')}"
-        _execute_dynamic_insert(cursor, "stock_movements", movement)
+        movement_id=_execute_dynamic_insert(cursor, "stock_movements", movement)
+        if variant_id: variant_batches.record_change(cursor,movement_id,product_id,variant_id,batch_changes)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -2272,7 +2292,7 @@ def set_stock_quantity(
 
 def transfer_stock(
     *, product_id: int, from_location: str, to_location: str, quantity: int,
-    reason: str, reference: str = "", notes: str = "", created_by: str = "Lite POS",
+    reason: str, reference: str = "", notes: str = "", created_by: str = "Lite POS", variant_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     product_id, quantity = int(product_id or 0), int(quantity or 0)
     from_location, to_location = str(from_location or "").strip(), str(to_location or "").strip()
@@ -2290,6 +2310,19 @@ def transfer_stock(
         product = cursor.fetchone()
         if not product:
             raise ValueError("Product not found")
+        if variant_id:
+            cursor.execute("SELECT stock FROM product_variants WHERE product_id=? AND id=? AND COALESCE(active,1)=1",(product_id,variant_id))
+            variant=cursor.fetchone()
+            if not variant: raise ValueError("Selected variant is unavailable")
+            stock=int(variant[0] or 0)
+            allocations=variant_batches.allocate(cursor,product_id,variant_id,stock,quantity,from_location)
+            for allocation in allocations:
+                variant_batches.receive(cursor,product_id,variant_id,allocation['qty'],to_location,allocation['batch_no'],allocation['expire_date'],bool(allocation.get('expiry_unknown')))
+            _execute_dynamic_insert(cursor,"stock_movements",{"product_id":product_id,"variant_id":variant_id,"type":"transfer","quantity":quantity,"old_stock":stock,"new_stock":stock,"reason":reason,"reference":reference,"created_by":created_by,"location":f"{from_location} -> {to_location}","notes":notes})
+            conn.commit()
+            return {"id":product_id}
+        if _sold_by_mode(product[1]) == 'variants':
+            raise ValueError("Select a variant to transfer variant stock")
         if _sold_by_mode(product[1]) in {"service", "variants"}:
             raise ValueError("Location transfer is only available for standard stock products")
         total_stock = int(product[0] or 0)
@@ -2389,7 +2422,7 @@ def reverse_stock_movement_safe(movement_id: int, reason: str, created_by: str) 
         reference, notes, movement_type = str(row[0] or ""), str(row[1] or ""), str(row[2] or "")
         if "[REVERSED]" in notes or reference.endswith("-REV"):
             raise ValueError("This movement has already been reversed")
-        if reference.startswith("REV-") or movement_type not in {"in", "out", "adjustment"}:
+        if reference.startswith("REV-") or movement_type not in {"in", "out", "stock_in", "stock_out", "adjustment"}:
             raise ValueError("This movement cannot be reversed")
     finally:
         conn.close()

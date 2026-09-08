@@ -904,6 +904,7 @@ class StockAdjustmentSetRequest(BaseModel):
 
 
 class StockTransferRequest(BaseModel):
+    variant_id: Optional[int] = Field(default=None, gt=0)
     product_id: int = Field(..., gt=0)
     from_location: str = Field(..., min_length=1, max_length=200)
     to_location: str = Field(..., min_length=1, max_length=200)

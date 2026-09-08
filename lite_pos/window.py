@@ -4735,10 +4735,6 @@ class LiteWindow(QMainWindow):
         expiry_date.setSpecialValueText("Select expiry date")
         expiry_date.setDisplayFormat("yyyy-MM-dd")
         expiry_date.setCalendarPopup(True)
-        if variant_combo:
-            expiry_mode.setCurrentIndex(0)
-            expiry_mode.setEnabled(False)
-            expiry_mode.setToolTip("Variant stock has no batch expiry tracking")
         expiry_date.setEnabled(expiry_mode.currentData() != "none")
         expiry_mode.currentIndexChanged.connect(lambda: expiry_date.setEnabled(expiry_mode.currentData() != "none"))
         received_by = QLineEdit(str((self.user or {}).get("full_name") or (self.user or {}).get("username") or ""))
@@ -4752,6 +4748,17 @@ class LiteWindow(QMainWindow):
             form.addRow("Batch No", batch_no)
             form.addRow("Expiry", expiry_mode)
             form.addRow("Expiry Date", expiry_date)
+            if variant_combo:
+                batch_details=QLabel()
+                batch_details.setWordWrap(True)
+                batch_details.setTextFormat(Qt.TextFormat.PlainText)
+                def show_variant_batches(_index=0):
+                    selected=variant_combo.currentData() or {}
+                    batches=[b for b in product.get("variant_batches",[]) if b["variant_id"]==selected.get("variant_id")]
+                    batch_details.setText("\n".join(f"{b['location']} | {b['batch_no']} | {b['quantity']} | " + ("Expiry unknown" if b['expiry_unknown'] else b['expire_date'] or "No expiry") for b in batches) or "Legacy stock: expiry not assigned")
+                variant_combo.currentIndexChanged.connect(show_variant_batches)
+                show_variant_batches()
+                form.addRow("Variant batches", batch_details)
             form.addRow("Received By", received_by)
         else:
             customer = QComboBox()

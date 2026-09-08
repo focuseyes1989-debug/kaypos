@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMessageBox, QInputDialog
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap
 from models.database import connect_db
+from models import variant_batches
 from utils.currency import format_money
 from utils.translations import tr
 from utils.unit_conversion import (
@@ -77,7 +78,7 @@ class StockInHandlers:
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT location FROM product_locations 
+            SELECT DISTINCT location FROM (SELECT location FROM product_locations UNION SELECT location FROM variant_stock_batches)
             WHERE location IS NOT NULL AND location != '' ORDER BY location
         """)
         rows = cursor.fetchall()
@@ -273,6 +274,9 @@ class StockInHandlers:
         cursor = conn.cursor()
         cursor.execute("SELECT stock FROM products WHERE id = ?", (product_id,))
         row = cursor.fetchone()
+        if hasattr(d, 'si_variant_batches'):
+            batches=[b for b in variant_batches.list_batches(cursor,product_id) if b['variant_id']==variant_id] if variant_id else []
+            d.si_variant_batches.setText("\n".join(f"{b['location']} | {b['batch_no']} | {b['quantity']} | " + ("Expiry unknown" if b['expiry_unknown'] else b['expire_date'] or "No expiry") for b in batches) or ("Legacy stock: expiry not assigned" if variant_id else ""))
         conn.close()
         
         if row:
@@ -597,13 +601,19 @@ class StockInHandlers:
                 """, (new_stock, new_average_cost, expire, product_id))
 
             if variant_id:
+                cursor.execute("SELECT stock FROM product_variants WHERE id=? AND product_id=?",(variant_id,product_id))
+                variant_stock=cursor.fetchone()
+                if not variant_stock:
+                    raise ValueError("Selected variant is unavailable")
+                variant_batches.reconcile(cursor,product_id,variant_id,int(variant_stock[0] or 0))
+                batch_no=variant_batches.receive(cursor,product_id,variant_id,qty,location,batch_no,expire)
                 cursor.execute("""
                     UPDATE product_variants
                     SET stock = stock + ?, cost = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ? AND product_id = ?
                 """, (qty, unit_cost, variant_id, product_id))
             
-            if location:
+            if location and not variant_id:
                 if not batch_no:
                     batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
                 expire_value = expire if expire else ""
@@ -621,6 +631,8 @@ class StockInHandlers:
                 VALUES (?, 'in', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (product_id, qty, old_stock, new_stock, f"Stock In via {d.stock_in_no.text()}", 
                   po_no_input, received_by, notes, supplier_id, location, variant_id))
+            if variant_id:
+                variant_batches.record_change(cursor,cursor.lastrowid,product_id,variant_id,[dict(location=location,batch_no=batch_no,expire_date=expire,delta=qty)])
             
             if supplier_id and supplier_id != "None":
                 if not po_no_input:
@@ -656,8 +668,10 @@ class StockInHandlers:
             
             if location:
                 expire_value = expire if expire else ""
-                cursor.execute("SELECT quantity FROM product_locations WHERE product_id=? AND location=? AND batch_no=? AND expire_date=?", 
-                             (product_id, location, batch_no, expire_value))
+                if variant_id:
+                    cursor.execute("SELECT quantity FROM variant_stock_batches WHERE product_id=? AND variant_id=? AND location=? AND batch_no=? AND expire_date=?",(product_id,variant_id,location,batch_no,expire_value))
+                else:
+                    cursor.execute("SELECT quantity FROM product_locations WHERE product_id=? AND location=? AND batch_no=? AND expire_date=?",(product_id,location,batch_no,expire_value))
                 location_qty = cursor.fetchone()
                 loc_qty = location_qty[0] if location_qty else 0
                 expiry_display = expire if expire else "No Expiry"

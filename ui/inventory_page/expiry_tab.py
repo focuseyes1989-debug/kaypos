@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, 
     QHeaderView, QMessageBox, QFileDialog, QLabel, 
     QComboBox, QDateEdit, QMenu, QProgressDialog, QDialog, QFormLayout,
-    QDialogButtonBox, QCheckBox, QDoubleSpinBox, QLineEdit, QFrame
+    QDialogButtonBox, QCheckBox, QDoubleSpinBox, QLineEdit, QFrame, QPushButton
 )
 from PyQt6.QtCore import Qt, QDate, QSize, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter, QAction
@@ -30,6 +30,37 @@ class ExpiryTab(QWidget):
     # Signal when data is refreshed
     data_refreshed = pyqtSignal()
     
+    def show_variant_batches(self):
+        from models import variant_batches
+        conn=connect_db()
+        try:
+            cursor=conn.cursor()
+            variant_batches.ensure_schema(cursor)
+            cursor.execute("SELECT p.name,v.id,v.product_id,v.size,v.color,v.stock FROM product_variants v JOIN products p ON p.id=v.product_id WHERE COALESCE(v.active,1)=1 ORDER BY p.name,v.id")
+            variants=cursor.fetchall()
+            rows=[]
+            for name,vid,pid,size,color,stock in variants:
+                batches=[b for b in variant_batches.list_batches(cursor,pid) if b['variant_id']==vid]
+                label=' / '.join(str(v) for v in [size,color] if v) or str(vid)
+                for b in batches:
+                    expiry='Unknown' if b['expiry_unknown'] else b['expire_date'] or 'No expiry'
+                    rows.append([name,label,b['location'],b['batch_no'],str(b['quantity']),expiry])
+                missing=int(stock or 0)-sum(b['quantity'] for b in batches)
+                if missing>0:rows.append([name,label,'Legacy / unassigned','Unallocated opening',str(missing),'Unknown'])
+        finally:
+            conn.close()
+        dialog=QDialog(self);dialog.setWindowTitle('Variant batches / expiry');dialog.resize(950,600)
+        layout=QVBoxLayout(dialog)
+        note=QLabel('Unknown expiry means historical stock has no reliable batch assignment. Use Stock In for new dated batches.');note.setWordWrap(True);layout.addWidget(note)
+        search=QLineEdit();search.setPlaceholderText('Filter product, variant, location or batch');layout.addWidget(search)
+        table=QTableWidget(len(rows),6);table.setHorizontalHeaderLabels(['Product','Variant','Location','Batch','Quantity','Expiry'])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        for r,values in enumerate(rows):
+            for c,value in enumerate(values):table.setItem(r,c,QTableWidgetItem(value))
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        search.textChanged.connect(lambda text:[table.setRowHidden(r,text.casefold() not in ' '.join(values).casefold()) for r,values in enumerate(rows)])
+        layout.addWidget(table);dialog.exec()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_page = parent
@@ -41,6 +72,9 @@ class ExpiryTab(QWidget):
         
         layout = QVBoxLayout()
         layout.setSpacing(12)
+        variant_button=QPushButton("Variant batches / expiry")
+        variant_button.clicked.connect(self.show_variant_batches)
+        layout.addWidget(variant_button)
 
         # ====== Filter Section ======
         filter_layout = QHBoxLayout()
@@ -388,7 +422,7 @@ class ExpiryTab(QWidget):
         # Build query from product_locations table
         base_query = """
             FROM product_locations pl
-            JOIN products p ON pl.product_id = p.id
+            JOIN products p ON pl.product_id = p.id AND NOT EXISTS (SELECT 1 FROM product_variants variant_scope WHERE variant_scope.product_id=p.id)
             WHERE (p.sold_by IS NULL OR p.sold_by != 'Service')
               AND pl.quantity > 0
         """

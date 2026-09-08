@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMessageBox, QInputDialog
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap
 from models.database import connect_db
+from ui.inventory_page.variant_operations import handle_variant_operation
 from utils.currency import format_money
 from utils.translations import tr
 from datetime import datetime
@@ -55,7 +56,7 @@ class StockOutHandlers:
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT location FROM product_locations 
+            SELECT DISTINCT location FROM (SELECT location FROM product_locations UNION SELECT location FROM variant_stock_batches)
             WHERE location IS NOT NULL AND location != '' ORDER BY location
         """)
         rows = cursor.fetchall()
@@ -451,6 +452,7 @@ class StockOutHandlers:
         if location is None:
             location = "Default"
 
+        if handle_variant_operation(self.dialog,product_id,'Stock Out',qty,location,reason,issued_by,notes): return
         conn = connect_db()
         cursor = conn.cursor()
         try:

@@ -116,8 +116,6 @@ class CashierProductListingTests(unittest.TestCase):
             for expiry in ["2027-02-29", "2027-13-01", "invalid"]:
                 with self.assertRaises(ValueError):
                     cashier_service.adjust_stock(product_id=1, adjustment=1, expire_date=expiry)
-            with self.assertRaisesRegex(ValueError, "Variant"):
-                cashier_service.adjust_stock(product_id=1, variant_id=9, adjustment=1, expire_date="2027-09-08")
             connect.assert_not_called()
 
     def test_stock_out_uses_only_selected_location_and_rolls_back_shortage(self):

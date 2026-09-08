@@ -1,3 +1,4 @@
+from models import variant_batches
 # models/database/queries.py
 """
 Database query functions for CRUD operations.
@@ -789,6 +790,10 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 return {'success': False, 'message': 'Movement not found'}
             
             product_id, mov_type, quantity, old_stock, new_stock, ref_reason, reference, created_by_orig, notes, location, supplier_id, variant_id = movement
+            mov_type = {'stock_in':'in','stock_out':'out'}.get(mov_type,mov_type)
+            if '[REVERSED]' in str(notes or '') or str(reference or '').startswith('REV-') or str(reference or '').endswith('-REV'):
+                conn.rollback()
+                return {'success':False,'message':'This movement has already been reversed'}
             
             # Determine reversal type
             if mov_type == 'in':
@@ -850,8 +855,10 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 WHERE id = ?
             """, (new_stock_after, product_id))
 
+            batch_reversed = False
             # Variant movements must be reversed at the same inventory level.
             if variant_id:
+                batch_reversed = variant_batches.reverse_change(cursor,movement_id,product_id,variant_id)
                 cursor.execute(
                     "SELECT stock FROM product_variants WHERE id = ? AND product_id = ?",
                     (variant_id, product_id),
@@ -880,7 +887,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 )
             
             # Update product locations if location was specified
-            if location and mov_type == 'in':
+            if location and not batch_reversed and mov_type == 'in':
                 # Remove stock from location
                 cursor.execute("""
                     UPDATE product_locations 
@@ -893,7 +900,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                 if remaining and remaining[0] <= 0:
                     cursor.execute("DELETE FROM product_locations WHERE product_id = ? AND location = ?", (product_id, location))
             
-            elif location and mov_type == 'out':
+            elif location and not batch_reversed and mov_type == 'out':
                 # Add stock back to location
                 cursor.execute("""
                     INSERT INTO product_locations (product_id, location, quantity)
@@ -903,7 +910,7 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
                                   last_updated = CURRENT_TIMESTAMP
                 """, (product_id, location, quantity))
             
-            elif location and mov_type == 'adjustment':
+            elif location and not batch_reversed and mov_type == 'adjustment':
                 # Adjust location stock
                 diff = new_stock - old_stock
                 cursor.execute("""

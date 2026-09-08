@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QMessageBox, QInputDialog
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap
 from models.database import connect_db
+from ui.inventory_page.variant_operations import handle_variant_operation
 from utils.translations import tr
 from datetime import datetime
 import os
@@ -101,7 +102,7 @@ class AdjustmentHandlers:
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT DISTINCT location FROM product_locations 
+            SELECT DISTINCT location FROM (SELECT location FROM product_locations UNION SELECT location FROM variant_stock_batches)
             WHERE location IS NOT NULL AND location != '' ORDER BY location
         """)
         rows = cursor.fetchall()
@@ -624,6 +625,7 @@ class AdjustmentHandlers:
         if location is None:
             location = "Default"
 
+        if handle_variant_operation(self.dialog,product_id,'Adjustment',new_qty,location,reason,staff,notes,location_only=is_location_only): return
         conn = connect_db()
         cursor = conn.cursor()
         try:

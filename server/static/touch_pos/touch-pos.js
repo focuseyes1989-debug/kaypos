@@ -390,7 +390,7 @@
     const variants=p.variants || [], hasVariants=variants.length || soldByMode(p.sold_by)==='variants';
     const stockIn=detail.querySelector('#inventoryStockIn');
     stockIn.insertAdjacentHTML('beforebegin','<div class="receipt-tabs inventory-action-tabs" aria-label="Stock action"><button type="button" data-stock-action="in" aria-pressed="true">Stock In</button><button type="button" data-stock-action="out" aria-pressed="false">Stock Out</button><button type="button" data-stock-action="adjust" aria-pressed="false">Adjustment</button></div>');
-    stockIn.insertAdjacentHTML('afterend',`<form id="inventoryChange" class="inventory-stock-form" hidden><h3 data-change-title>Stock Out</h3><p data-change-help></p>${hasVariants ? `<label>Variant<select name="variant" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || v.variant_id)} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" ${hasVariants ? 'disabled' : ''}>${hasVariants ? '<option>Variant</option>' : [...new Set(['Shop',...inventoryLocations,...(p.locations || []).map(l=>l.location)])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label><span data-change-quantity-label>Quantity to remove</span><input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Reason<input name="reason" maxlength="500" required placeholder="Damage, return or stock count correction"></label><label>Handled by<input name="actor" maxlength="200" required></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-change-preview aria-live="polite"></strong><button type="submit" class="full receipt-apply" data-change-save>Review Stock Out</button><small class="full" role="alert" data-change-error></small></form>`);
+    stockIn.insertAdjacentHTML('afterend',`<form id="inventoryChange" class="inventory-stock-form" hidden><h3 data-change-title>Stock Out</h3><p data-change-help></p>${hasVariants ? `<label>Variant<select name="variant" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || v.variant_id)} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" >${[...new Set(['Shop',...inventoryLocations,...(p.locations || []).map(l=>l.location),...(p.variant_batches || []).map(l=>l.location)])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label><span data-change-quantity-label>Quantity to remove</span><input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Reason<input name="reason" maxlength="500" required placeholder="Damage, return or stock count correction"></label><label>Handled by<input name="actor" maxlength="200" required></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-change-preview aria-live="polite"></strong><button type="submit" class="full receipt-apply" data-change-save>Review Stock Out</button><small class="full" role="alert" data-change-error></small></form>`);
     const form=detail.querySelector('#inventoryChange'),field=name=>form.elements.namedItem(name),save=form.querySelector('[data-change-save]');
     let mode='out',busy=false;
     const current=()=>Number((variants.find(v=>Number(v.variant_id)===Number(field('variant')?.value)) || p).stock || 0);
@@ -423,7 +423,7 @@
       detail.querySelectorAll('[data-stock-action]').forEach(button=>button.disabled=true);
       const common={product_id:Number(p.id),variant_id:Number(field('variant')?.value)||null,location:field('location').value,reason,notes:field('notes').value.trim()};
       try {
-        await api(mode==='out'?'/api/stock/adjust':'/api/stock/adjustment',{method:'POST',body:JSON.stringify(mode==='out'?{...common,adjustment:-qty,restrict_location:!hasVariants,issued_by:actor}:{...common,new_quantity:qty,expected_stock:before,adjustment_type:'Count correction',adjusted_by:actor})});
+        await api(mode==='out'?'/api/stock/adjust':'/api/stock/adjustment',{method:'POST',body:JSON.stringify(mode==='out'?{...common,adjustment:-qty,restrict_location:true,issued_by:actor}:{...common,new_quantity:qty,expected_stock:before,adjustment_type:'Count correction',adjusted_by:actor})});
       } catch(e){error.textContent=e.message;busy=false;save.disabled=false;detail.querySelectorAll('[data-stock-action]').forEach(button=>button.disabled=false);return;}
       toast(mode==='out'?'Stock Out saved.':'Adjustment saved.');
       if(request!==inventoryDetailRequest)return;
@@ -474,6 +474,7 @@
     const request = ++inventoryDetailRequest, detail=document.querySelector('#inventoryDetail');
     const variants = p.variants || [], service=soldByMode(p.sold_by)==='service';
     detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(p.name)}</strong><small>Current stock: ${money(p.stock)} ${escapeHtml(p.base_unit || p.unit || 'pcs')} · Cost: ${money(p.cost)} Ks</small></div></div><div class="inventory-locations">${(p.locations || []).map(l=>`<small>${escapeHtml(l.location)}: ${money(l.quantity)}</small>`).join('')}</div>`;
+    if (p.variant_batches?.length) detail.innerHTML += `<div class="inventory-locations"><h3>Variant batches</h3>${p.variant_batches.map(b=>`<small>${escapeHtml(variantLabel(variants.find(v=>Number(v.variant_id)===Number(b.variant_id))) || b.variant_id)} · ${escapeHtml(b.location)} · ${escapeHtml(b.batch_no)} · ${money(b.quantity)} · ${b.expiry_unknown ? 'Expiry unknown (legacy / count)' : escapeHtml(b.expire_date || 'No expiry')}</small>`).join('')}</div>`;
     if (!service) {
       detail.innerHTML += `<form id="inventoryStockIn" class="inventory-stock-form"><h3>Stock In</h3><p>Enter quantity and cost per base stock unit (${escapeHtml(p.base_unit || p.unit || 'pcs')}).</p>${variants.length || soldByMode(p.sold_by)==='variants' ? `<label>Variant<select name="variant_id" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || String(v.variant_id))} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" required>${[...new Set(['Shop',...inventoryLocations])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label>Quantity<input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Unit cost (Ks)<input name="cost" type="number" min="0" step="0.01" required></label><label>Supplier<select name="supplier_id"><option value="">None</option>${inventorySuppliers.map(s=>`<option value="${Number(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select></label><label>Batch number<input name="batch_no" maxlength="100"></label><label class="full">Expiry<select name="expiry_mode" aria-describedby="inventoryExpiryHelp"><option value="none">No expiry</option><option value="date">Enter expiry date</option></select><small id="inventoryExpiryHelp">Choose No expiry or enter the date printed on the product.</small></label><label class="full" data-expiry-date>Expiry date<input name="expire_date" type="date" required></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-stock-preview>Enter quantity and cost to review.</strong><button class="full receipt-apply" type="submit">Save Stock In</button><small class="full" role="alert" data-stock-error></small></form>`;
       const form=detail.querySelector('#inventoryStockIn'), field=name=>form.elements.namedItem(name);
@@ -485,10 +486,6 @@
         form.querySelector('[data-expiry-date]').hidden=none;
       };
       field('expiry_mode').onchange=updateExpiry;
-      if (field('variant_id')) {
-        field('expiry_mode').value='none'; field('expiry_mode').disabled=true;
-        form.querySelector('#inventoryExpiryHelp').textContent='Variant stock has no batch expiry tracking.';
-      }
       updateExpiry();
       const update=()=>{
         const variant=variants.find(v=>Number(v.variant_id)===Number(field('variant_id')?.value));
@@ -497,8 +494,6 @@
       };
       field('cost').value=Number(p.cost || 0);
       if(field('variant_id')) {
-        field('location').disabled=true;
-        field('location').innerHTML='<option>Variant</option>';
         field('variant_id').onchange=()=>{const v=variants.find(v=>Number(v.variant_id)===Number(field('variant_id').value));field('cost').value=Number(v?.cost || 0);update();};
       }
       field('quantity').oninput=update; field('cost').oninput=update;
