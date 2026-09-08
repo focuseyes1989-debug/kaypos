@@ -3208,8 +3208,9 @@ def list_expenses(
             where.append("expense_date <= ?")
             params.append(to_date)
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        cursor.execute(f"SELECT COALESCE(SUM(amount), 0) FROM expenses {where_sql}", params)
-        total = float(cursor.fetchone()[0] or 0)
+        cursor.execute(f"SELECT COALESCE(SUM(amount), 0), COUNT(*) FROM expenses {where_sql}", params)
+        aggregate = cursor.fetchone()
+        total, total_count = float(aggregate[0] or 0), int(aggregate[1] or 0)
         query_params = [*params, max(1, min(int(limit), 200)), max(0, int(offset))]
         cursor.execute(
             f"""
@@ -3223,7 +3224,7 @@ def list_expenses(
             query_params,
         )
         rows = [_dict_from_row(cursor, row) for row in cursor.fetchall()]
-        return {"expenses": rows, "total": total}
+        return {"expenses": rows, "total": total, "total_count": total_count}
     finally:
         conn.close()
 

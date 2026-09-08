@@ -17,6 +17,7 @@ class ExpenseRoundtripTests(unittest.TestCase):
                 item=service.add_expense(category='Transport',description='Delivery',amount=5000,expense_date='2026-09-09',created_by='tester')
                 result=service.list_expenses('Transport','2026-09-09','2026-09-09')
                 self.assertEqual(result['total'],5000)
+                self.assertEqual(result['total_count'],1)
                 self.assertEqual(result['expenses'][0]['created_by'],'tester')
                 service.update_expense(item['id'],category='Transport',description='Corrected',amount=6000,expense_date='2026-09-09')
                 updated=service.list_expenses()['expenses'][0]
