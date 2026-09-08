@@ -457,7 +457,7 @@
       if (visited.has(Number(item.id))) return;
       visited.add(Number(item.id));
       const level = depth === 0 ? 'Parent' : depth === 1 ? 'Child' : depth === 2 ? 'Sub Child' : `Level ${depth + 1}`;
-      rows.push(`<div class="category-tree-row${depth ? ' category-descendant' : ''}" style="--category-depth:${depth}"><div class="manager-row"><div class="manager-row-main"><span class="category-level">${level}</span><strong title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button><button type="button" class="manager-delete" data-category-delete="${Number(item.id)}">Delete</button></div></div></div>`);
+      rows.push(`<div class="category-tree-row${depth ? ' category-descendant' : ''}" data-category-level="${Math.min(depth, 2)}" style="--category-depth:${depth}"><div class="manager-row"><div class="manager-row-main"><strong title="${level}: ${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button><button type="button" class="manager-delete" data-category-delete="${Number(item.id)}">Delete</button></div></div></div>`);
       renderRows(Number(item.id), depth + 1);
     });
     renderRows(0, 0);
