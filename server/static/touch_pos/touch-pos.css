@@ -1590,3 +1590,8 @@ footer{
 
 /* Keep the inventory details visible beside the scrolling product list. */
 @media(min-width:901px){#inventoryDetail{max-height:calc(100dvh - 120px);overflow-y:auto}}
+
+.inventory-product-name .inventory-kind{display:table;margin-top:4px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;line-height:1.6;border:1px solid transparent}
+.inventory-kind.kind-each{background:#eaf2ff;color:#1d4ed8;border-color:#c7dbff}
+.inventory-kind.kind-variants{background:#f3ecff;color:#6d28d9;border-color:#e0d0ff}
+.inventory-kind.kind-service{background:#e6f7f2;color:#0f766e;border-color:#b7e8db}
