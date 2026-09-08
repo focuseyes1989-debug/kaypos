@@ -429,8 +429,23 @@
     const variants = p.variants || [], service=soldByMode(p.sold_by)==='service';
     detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(p.name)}</strong><small>Current stock: ${money(p.stock)} ${escapeHtml(p.base_unit || p.unit || 'pcs')} · Cost: ${money(p.cost)} Ks</small></div></div><div class="inventory-locations">${(p.locations || []).map(l=>`<small>${escapeHtml(l.location)}: ${money(l.quantity)}</small>`).join('')}</div>`;
     if (!service) {
-      detail.innerHTML += `<form id="inventoryStockIn" class="inventory-stock-form"><h3>Stock In</h3><p>Enter quantity and cost per base stock unit (${escapeHtml(p.base_unit || p.unit || 'pcs')}).</p>${variants.length || soldByMode(p.sold_by)==='variants' ? `<label>Variant<select name="variant_id" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || String(v.variant_id))} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" required>${[...new Set(['Shop',...inventoryLocations])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label>Quantity<input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Unit cost (Ks)<input name="cost" type="number" min="0" step="0.01" required></label><label>Supplier<select name="supplier_id"><option value="">None</option>${inventorySuppliers.map(s=>`<option value="${Number(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select></label><label>Batch number<input name="batch_no" maxlength="100"></label><label class="full">Expiry<select name="expiry_mode" aria-describedby="inventoryExpiryHelp"><option value="none">No expiry</option></select><small id="inventoryExpiryHelp">This stock will be saved without an expiry date.</small></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-stock-preview>Enter quantity and cost to review.</strong><button class="full receipt-apply" type="submit">Save Stock In</button><small class="full" role="alert" data-stock-error></small></form>`;
+      detail.innerHTML += `<form id="inventoryStockIn" class="inventory-stock-form"><h3>Stock In</h3><p>Enter quantity and cost per base stock unit (${escapeHtml(p.base_unit || p.unit || 'pcs')}).</p>${variants.length || soldByMode(p.sold_by)==='variants' ? `<label>Variant<select name="variant_id" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || String(v.variant_id))} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" required>${[...new Set(['Shop',...inventoryLocations])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label>Quantity<input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Unit cost (Ks)<input name="cost" type="number" min="0" step="0.01" required></label><label>Supplier<select name="supplier_id"><option value="">None</option>${inventorySuppliers.map(s=>`<option value="${Number(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select></label><label>Batch number<input name="batch_no" maxlength="100"></label><label class="full">Expiry<select name="expiry_mode" aria-describedby="inventoryExpiryHelp"><option value="year">Auto · 1 year</option><option value="none">No expiry</option></select><small id="inventoryExpiryHelp">Expiry defaults to one year from today.</small></label><label class="full" data-expiry-date>Expiry date<input name="expire_date" type="date" required></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-stock-preview>Enter quantity and cost to review.</strong><button class="full receipt-apply" type="submit">Save Stock In</button><small class="full" role="alert" data-stock-error></small></form>`;
       const form=detail.querySelector('#inventoryStockIn'), field=name=>form.elements.namedItem(name);
+      const today=new Date(), nextYear=new Date(today.getFullYear()+1,today.getMonth(),1);
+      nextYear.setDate(Math.min(today.getDate(),new Date(today.getFullYear()+1,today.getMonth()+1,0).getDate()));
+      field('expire_date').value=`${nextYear.getFullYear()}-${String(nextYear.getMonth()+1).padStart(2,'0')}-${String(nextYear.getDate()).padStart(2,'0')}`;
+      field('expiry_mode').value='year';
+      const updateExpiry=()=>{
+        const none=field('expiry_mode').value==='none';
+        field('expire_date').disabled=none; field('expire_date').required=!none;
+        form.querySelector('[data-expiry-date]').hidden=none;
+      };
+      field('expiry_mode').onchange=updateExpiry;
+      if (field('variant_id')) {
+        field('expiry_mode').value='none'; field('expiry_mode').disabled=true;
+        form.querySelector('#inventoryExpiryHelp').textContent='Variant stock has no batch expiry tracking.';
+      }
+      updateExpiry();
       const update=()=>{
         const variant=variants.find(v=>Number(v.variant_id)===Number(field('variant_id')?.value));
         const qty=Number(field('quantity').value), cost=Number(field('cost').value);
@@ -449,10 +464,10 @@
         if(button.disabled || !form.reportValidity()) return;
         const quantity=Number(field('quantity').value), cost=Number(field('cost').value);
         if(!Number.isInteger(quantity) || quantity<1 || quantity>1000000 || !Number.isFinite(cost) || cost<0) {error.textContent='Enter a valid quantity and cost.';return;}
-        if(!window.confirm(`Receive ${quantity} stock units of "${p.name}"?\nTotal cost: ${money(quantity*cost)} Ks\nExpiry: No expiry`)) return;
+        if(!window.confirm(`Receive ${quantity} stock units of "${p.name}"?\nTotal cost: ${money(quantity*cost)} Ks\nExpiry: ${field('expiry_mode').value==='none' ? 'No expiry' : field('expire_date').value}`)) return;
         button.disabled=true; error.textContent='';
         try {
-          const data=await api('/api/stock/adjust',{method:'POST',body:JSON.stringify({product_id:id,variant_id:Number(field('variant_id')?.value)||null,adjustment:quantity,unit_cost:cost,location:field('location').value,supplier_id:Number(field('supplier_id').value)||null,batch_no:field('batch_no').value.trim(),notes:field('notes').value.trim(),reason:'Touch POS Stock In'})});
+          const data=await api('/api/stock/adjust',{method:'POST',body:JSON.stringify({product_id:id,variant_id:Number(field('variant_id')?.value)||null,adjustment:quantity,unit_cost:cost,location:field('location').value,supplier_id:Number(field('supplier_id').value)||null,batch_no:field('batch_no').value.trim(),expire_date:field('expiry_mode').value==='none' ? '' : field('expire_date').value,notes:field('notes').value.trim(),reason:'Touch POS Stock In'})});
           toast('Stock In saved.');
           if(request!==inventoryDetailRequest) return;
           inventoryProducts=inventoryProducts.map(item=>Number(item.id)===id ? data.product : item);

@@ -101,6 +101,25 @@ class CashierProductListingTests(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT type, quantity, created_by FROM stock_movements WHERE product_id=1").fetchone(), ("stock_in", 4, "test-user"))
         self.assertEqual(self.conn.execute("SELECT expire_date FROM product_locations WHERE product_id=1").fetchone(), ("",))
 
+    def test_stock_in_keeps_different_expiries_in_separate_batches(self):
+        with patch("server.cashier_service.connect_db", self._connect), patch(
+            "server.cashier_service.is_postgres_backend", return_value=False
+        ), patch("server.cashier_service.list_products", return_value=[]):
+            for expiry in ["2027-09-08", "", "2027-09-08"]:
+                cashier_service.adjust_stock(product_id=1, adjustment=2, unit_cost=10,
+                    location="Shop", batch_no="SAME", expire_date=expiry)
+        rows = self.conn.execute("SELECT expire_date, quantity FROM product_locations WHERE product_id=1 ORDER BY expire_date").fetchall()
+        self.assertEqual(rows, [("", 2), ("2027-09-08", 4)])
+
+    def test_stock_in_rejects_invalid_expiry_before_writing(self):
+        with patch("server.cashier_service.connect_db") as connect:
+            for expiry in ["2027-02-29", "2027-13-01", "invalid"]:
+                with self.assertRaises(ValueError):
+                    cashier_service.adjust_stock(product_id=1, adjustment=1, expire_date=expiry)
+            with self.assertRaisesRegex(ValueError, "Variant"):
+                cashier_service.adjust_stock(product_id=1, variant_id=9, adjustment=1, expire_date="2027-09-08")
+            connect.assert_not_called()
+
     @patch("server.cashier_service._active_product_discounts", return_value={})
     @patch("server.cashier_service._price_tiers_for_products", return_value={})
     @patch("server.cashier_service._product_thumbnail_url", return_value="/product-images/thumbnails/thumb.jpg")

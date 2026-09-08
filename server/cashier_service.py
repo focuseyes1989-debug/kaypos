@@ -1960,7 +1960,7 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
 def adjust_stock(
     *, product_id: int, adjustment: int, variant_id: Optional[int] = None,
     reason: str = "Lite POS adjustment", location: str = "Shop", created_by: str = "Lite POS",
-    supplier_id: Optional[int] = None, unit_cost: float = 0, batch_no: str = "",
+    supplier_id: Optional[int] = None, unit_cost: float = 0, batch_no: str = "", expire_date: str = "",
     received_by: str = "", notes: str = "",
     customer_id: Optional[int] = None, reference: str = "", issued_by: str = "",
     transaction_date: str = "",
@@ -1982,6 +1982,17 @@ def adjust_stock(
     reference = str(reference or "").strip()[:200]
     issued_by = str(issued_by or "").strip()[:200]
     transaction_date = str(transaction_date or "").strip()[:10]
+    expire_date = str(expire_date or "").strip()
+    if expire_date:
+        try:
+            if datetime.strptime(expire_date, "%Y-%m-%d").strftime("%Y-%m-%d") != expire_date:
+                raise ValueError()
+        except ValueError:
+            raise ValueError("Expiry date must be a valid YYYY-MM-DD date")
+        if variant_id:
+            raise ValueError("Variant stock does not support batch expiry; use No expiry")
+        if adjustment < 0:
+            raise ValueError("Expiry date is only supported for Stock In")
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -2045,10 +2056,10 @@ def adjust_stock(
                     """
                     SELECT id, location, quantity FROM product_locations
                     WHERE product_id = ? AND location = ?
-                      AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ''
+                      AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ?
                     LIMIT 1
                     """,
-                    (product_id, location, batch_no),
+                    (product_id, location, batch_no, expire_date),
                 )
                 target = cursor.fetchone()
                 if target:
@@ -2059,7 +2070,7 @@ def adjust_stock(
                 else:
                     _execute_dynamic_insert(cursor, "product_locations", {
                         "product_id": product_id, "location": location, "quantity": adjustment,
-                        "batch_no": batch_no, "expire_date": "",
+                        "batch_no": batch_no, "expire_date": expire_date,
                     })
             elif adjustment < 0 and locations:
                 remaining = abs(adjustment)

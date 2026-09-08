@@ -869,6 +869,7 @@ class StockAdjustmentRequest(BaseModel):
     supplier_id: Optional[int] = Field(default=None, gt=0)
     unit_cost: float = Field(default=0, ge=0)
     batch_no: str = Field(default="", max_length=100)
+    expire_date: str = Field(default="", max_length=10)
     received_by: str = Field(default="", max_length=200)
     notes: str = Field(default="", max_length=2000)
     customer_id: Optional[int] = Field(default=None, gt=0)
@@ -1213,7 +1214,7 @@ def adjust_stock(payload: StockAdjustmentRequest, user: Dict[str, Any] = Depends
             product_id=payload.product_id, variant_id=payload.variant_id,
             adjustment=payload.adjustment, reason=payload.reason,
             location=payload.location, supplier_id=payload.supplier_id,
-            unit_cost=payload.unit_cost, batch_no=payload.batch_no,
+            unit_cost=payload.unit_cost, batch_no=payload.batch_no, expire_date=payload.expire_date,
             received_by=payload.received_by, notes=payload.notes,
             customer_id=payload.customer_id, reference=payload.reference,
             issued_by=payload.issued_by, transaction_date=payload.transaction_date,

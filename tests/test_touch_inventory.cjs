@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('server/static/touch_pos/touch-pos.js','utf8');
 const nodes=new Map();
-function node(key){if(!nodes.has(key))nodes.set(key,{value:'',disabled:false,hidden:false,innerHTML:'',textContent:'',querySelector:node,querySelectorAll:()=>[],replaceChildren(){this.innerHTML='';},insertAdjacentHTML(_,html){this.innerHTML+=html;},scrollIntoView(){},reportValidity:()=>true,elements:{namedItem:node}});return nodes.get(key);}
+function node(key){if(!nodes.has(key))nodes.set(key,{value:'',disabled:false,hidden:false,innerHTML:'',textContent:'',querySelector:node,querySelectorAll:()=>[],replaceChildren(){this.innerHTML='';},insertAdjacentHTML(_,html){this.innerHTML+=html;},scrollIntoView(){},reportValidity:()=>true,elements:{namedItem:name=>name==='variant_id' && product.sold_by!=='variants' ? null : node(name)}});return nodes.get(key);}
 let product={id:1,name:'<Product>',stock:5,cost:100,sold_by:'variants',variants:[{variant_id:9,size:'Large',stock:5,cost:100}]};
 let confirm=true,fail=false,posts=[],calls=[],pending;
 const ctx={document:{querySelector:node},window:{confirm:()=>confirm,matchMedia:()=>({matches:false})},URLSearchParams,
@@ -16,6 +16,13 @@ confirm=false;await form.onsubmit(event);assert.equal(posts.length,0);
 confirm=true;fail=true;await form.onsubmit(event);assert.equal(node('[data-stock-error]').textContent,'Save failed');assert.equal(node('button[type="submit"]').disabled,false);
 fail=false;let release;pending=new Promise(resolve=>release=resolve);const saving=form.onsubmit(event);await form.onsubmit(event);assert.equal(posts.length,2);release();await saving;
 assert.equal(posts[1].variant_id,9);assert.equal(posts[1].adjustment,3);assert.equal(posts[1].unit_cost,120);assert.equal(posts[1].product_id,1);
+assert.equal(posts[1].expire_date,'');
+product={...product,sold_by:'each',variants:[]};await ctx.loadInventory();await ctx.openInventoryProduct(1);
+assert.equal(node('expiry_mode').value,'year');assert.match(node('expire_date').value,/^\d{4}-\d{2}-\d{2}$/);
+assert.equal(Number(node('expire_date').value.slice(0,4)),new Date().getFullYear()+1);
+node('expiry_mode').value='none';node('expiry_mode').onchange();assert.equal(node('expire_date').disabled,true);
+node('expiry_mode').value='year';node('expiry_mode').onchange();assert.equal(node('expire_date').disabled,false);
+node('button[type="submit"]').disabled=false;await form.onsubmit(event);assert.equal(posts.at(-1).expire_date,node('expire_date').value);
 product={...product,sold_by:'service'};await ctx.loadInventory();await ctx.openInventoryProduct(1);assert.ok(!node('#inventoryDetail').innerHTML.includes('inventoryStockIn'));ctx.hideInventory();assert.equal(node('#touchInventory').hidden,true);
 console.log('Inventory navigation, escaping, variant stock-in, cancel, retry, duplicate prevention and service exclusion passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
