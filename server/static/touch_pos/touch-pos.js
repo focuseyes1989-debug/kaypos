@@ -498,8 +498,8 @@
   const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Wholesale price (တစ်ခုချင်းဈေး)', 0.01], ['note', 'Note']];
   function addItemRow(kind, values = {}) {
     const row = document.createElement('div'); row.className = 'item-detail-row';
-    const fields = kind === 'variants' ? variantFields.filter(([key]) => editingProduct || !['cost', 'stock'].includes(key)) : tierFields;
-    row.innerHTML = fields.map(([key, label, min, step]) => `<label><span>${label}</span><input data-field="${key}" ${min === undefined ? 'maxlength="160"' : `type="number" min="${min}" step="${step || 'any'}" required`} value="${escapeHtml(String(values[key] ?? (min === undefined ? '' : min)))}"></label>`).join('') + '<button type="button" class="remove-item-row">Remove</button>';
+    const fields = kind === 'variants' ? variantFields : tierFields;
+    row.innerHTML = fields.map(([key, label, min, step]) => `<label ${kind === 'variants' && ['cost', 'stock'].includes(key) ? 'hidden' : ''}><span>${label}</span><input data-field="${key}" ${min === undefined ? 'maxlength="160"' : `type="number" min="${min}" step="${step || 'any'}" required`} value="${escapeHtml(String(values[key] ?? (min === undefined ? '' : min)))}"></label>`).join('') + '<button type="button" class="remove-item-row">Remove</button>';
     row.querySelector('button').addEventListener('click', () => row.remove());
     document.querySelector(kind === 'variants' ? '#itemVariants' : '#itemTiers').appendChild(row);
   }
@@ -518,11 +518,9 @@
     ['itemPrice', 'itemCost'].forEach(id => {
       const input = document.getElementById(id); input.closest('label').hidden = mode === 'variants'; input.disabled = mode === 'variants';
     });
-    if (!editingProduct) {
-      ['itemCost', 'itemStock'].forEach(id => {
-        const input = document.getElementById(id); input.closest('label').hidden = true; input.disabled = true;
-      });
-    }
+    ['itemCost', 'itemStock'].forEach(id => {
+      const input = document.getElementById(id); input.closest('label').hidden = true; input.disabled = true;
+    });
   }
   function previewItemImage() {
     const fileInput = document.querySelector('#itemImage'), file = fileInput.files[0];
