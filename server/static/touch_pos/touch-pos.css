@@ -1716,3 +1716,7 @@ html[data-touch-theme=dark] :is(.search,.category-search,.manager-search):focus-
   .expense-editor>.settings-save{padding:10px 18px}
   .expense-editor [data-error]:empty{display:none}
 }
+
+.expense-row-actions{display:flex;gap:6px;align-items:center}
+@media(max-width:800px){.expense-row-actions{grid-column:3}}
+@media(max-width:560px){.expense-row-actions{grid-column:2}}

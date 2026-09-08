@@ -20,9 +20,27 @@
       root.querySelector('[data-page]').textContent=count?`${offset+1}–${offset+rows.length} of ${amount(count)}`:'0 expenses';
       root.querySelector('[data-prev]').disabled=offset===0;root.querySelector('[data-next]').disabled=(data.expenses||[]).length<=50;
       status.textContent=rows.length?'':'No expenses match these filters.';
-      root.querySelector('[data-rows]').innerHTML=rows.map(r=>`<article class="expense-entry"><div class="expense-date"><strong>${esc(String(r.expense_date).slice(8,10))}</strong><small>${esc(String(r.expense_date).slice(0,7))}</small></div><div class="expense-entry-main"><span class="expense-category">${esc(r.category)}</span><strong>${esc(r.description || r.category)}</strong><small>${esc(r.expense_no)} · ${esc(r.created_by || '—')}</small>${r.notes || r.reference_no?`<details><summary>More details</summary><p>Reference: ${esc(r.reference_no||'—')}</p><p>${esc(r.notes||'')}</p></details>`:''}</div><div class="expense-entry-amount"><strong>${amount(r.amount)} <small>Ks</small></strong><span>${esc(r.payment_method)}</span></div><button type="button" data-edit="${Number(r.id)}" aria-label="Edit ${esc(r.expense_no)}">Edit</button></article>`).join('') || '<div class="expense-empty"><strong>No expenses found</strong><p>Add an expense or adjust your date range and search.</p></div>';
+      root.querySelector('[data-rows]').innerHTML=rows.map(r=>`<article class="expense-entry"><div class="expense-date"><strong>${esc(String(r.expense_date).slice(8,10))}</strong><small>${esc(String(r.expense_date).slice(0,7))}</small></div><div class="expense-entry-main"><span class="expense-category">${esc(r.category)}</span><strong>${esc(r.description || r.category)}</strong><small>${esc(r.expense_no)} · ${esc(r.created_by || '—')}</small>${r.notes || r.reference_no?`<details><summary>More details</summary><p>Reference: ${esc(r.reference_no||'—')}</p><p>${esc(r.notes||'')}</p></details>`:''}</div><div class="expense-entry-amount"><strong>${amount(r.amount)} <small>Ks</small></strong><span>${esc(r.payment_method)}</span></div><div class="expense-row-actions"><button type="button" data-edit="${Number(r.id)}" aria-label="Edit ${esc(r.expense_no)}">Edit</button><button type="button" class="settings-danger" data-delete="${Number(r.id)}" aria-label="Delete ${esc(r.expense_no)}">Delete</button></div></article>`).join('') || '<div class="expense-empty"><strong>No expenses found</strong><p>Add an expense or adjust your date range and search.</p></div>';
+      root.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>remove(rows.find(r=>r.id===Number(b.dataset.delete))));
       root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(rows.find(r=>r.id===Number(b.dataset.edit))));
     }catch(e){if(request===sequence){status.textContent=e.message;root.querySelector('[data-prev]').disabled=offset===0;}}
+  }
+  async function remove(record) {
+    if(busy || !record)return;
+    if(!confirm(`Delete ${record.expense_no}?\n${record.category} · ${amount(record.amount)} Ks\nThis permanently deletes the expense and its attachment records.`))return;
+    const request=sequence;
+    busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);
+    root.querySelector('[data-status]').textContent='Deleting expense…';
+    try{
+      await ctx.api(`/api/expenses/${Number(record.id)}`,{method:'DELETE'});
+      ctx.toast('Expense deleted.');
+      if(request===sequence && !root.hidden){
+        if(rows.length===1 && offset>0)offset=Math.max(0,offset-50);
+        root.querySelectorAll('button').forEach(b=>b.disabled=false);
+        await load();
+      }
+    }catch(error){if(request===sequence){root.querySelector('[data-status]').textContent=error.message;root.querySelectorAll('button').forEach(b=>b.disabled=false);root.querySelector('[data-prev]').disabled=offset===0;}}
+    finally{busy=false;}
   }
   async function edit(record) {
     if(busy)return;

@@ -3288,6 +3288,27 @@ def add_expense(
         conn.close()
 
 
+def delete_expense(expense_id: int) -> None:
+    """Delete an expense and its attachment records, matching the App workflow."""
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute("SELECT id FROM expenses WHERE id=?", (int(expense_id),))
+        if not cursor.fetchone():
+            raise ValueError("Expense not found")
+        if _table_columns(cursor, "expense_attachments"):
+            cursor.execute("DELETE FROM expense_attachments WHERE expense_id=?", (int(expense_id),))
+        cursor.execute("DELETE FROM expenses WHERE id=?", (int(expense_id),))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def update_expense(
     expense_id: int,
     *,

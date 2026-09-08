@@ -1548,6 +1548,15 @@ def add_expense(payload: ExpenseRequest, user: Dict[str, Any] = Depends(current_
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.delete("/api/expenses/{expense_id}")
+def remove_expense(expense_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.delete_expense(expense_id)
+        return {"status": "SUCCESS"}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.put("/api/expenses/{expense_id}")
 def update_expense(
     expense_id: int,
