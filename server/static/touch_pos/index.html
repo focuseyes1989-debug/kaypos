@@ -63,6 +63,7 @@
         </div>
         <div class="side-menu-section">
           <span class="side-menu-label">ADMIN</span>
+          <button type="button" data-side-action="receipts"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt="" aria-hidden="true"><span>Receipts</span></button>
           <button type="button" data-side-action="profile"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>Account Setup</span></button>
           <button type="button" data-side-action="refresh"><img class="side-menu-icon" src="/assets/icons/refresh.svg" alt="" aria-hidden="true"><span>Refresh Catalog</span></button>
         </div>
@@ -135,6 +136,18 @@
       </section>
     </main>
 
+    <section id="touchReceipts" class="touch-receipts" hidden aria-label="Receipts">
+      <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Sales history from KAY POS</small></div><button id="receiptsSales" type="button">Sales</button></div>
+      <form id="receiptsFilters" class="panel receipt-filters">
+        <label>From<input id="receiptsFrom" type="date" required></label><label>To<input id="receiptsTo" type="date" required></label>
+        <label>Search<input id="receiptsSearch" type="search" placeholder="Invoice or customer"></label>
+        <label>View<select id="receiptsTab"><option value="receipts">Receipts</option><option value="refunded">Refunded</option><option value="discounted">Discounted</option><option value="credit">Credit</option></select></label>
+        <button type="submit">Apply / Refresh</button>
+      </form>
+      <div id="receiptsSummary" class="receipt-summary" aria-live="polite"></div>
+      <div class="panel receipt-results"><div id="receiptsRows" aria-live="polite"></div><div class="receipt-pagination"><button id="receiptsPrev" type="button">Previous</button><span id="receiptsPageInfo"></span><button id="receiptsNext" type="button">Next</button></div></div>
+      <section id="receiptsDetail" class="panel receipt-detail" hidden aria-label="Receipt details"></section>
+    </section>
     <footer><span id="workspaceStatus">Phase W7 · Receipt print</span><span id="clock"></span></footer>
   </div>
   <div id="receiptModal" class="modal-backdrop" hidden>

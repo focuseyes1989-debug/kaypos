@@ -1539,3 +1539,14 @@ footer{
   }
   .manager-modal label>span{line-height:1.9;padding-block:2px}
 }
+.touch-receipts{min-height:0;overflow:auto;padding:16px;display:grid;align-content:start;gap:14px;line-height:1.9}
+.receipt-page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px}
+.receipt-page-head>div{display:grid}.receipt-page-head strong{font-size:19px}.touch-receipts small{display:block;color:var(--muted)}
+.touch-receipts button,.receipt-filters input,.receipt-filters select{font:inherit;min-height:44px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:#fff;color:var(--ink)}
+.touch-receipts button{cursor:pointer}.touch-receipts button:disabled{opacity:.45;cursor:default}
+.receipt-filters{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:14px 16px}.receipt-filters label{display:grid;gap:4px;flex:1;min-width:140px;font-size:12px}.receipt-filters input,.receipt-filters select{width:100%;min-width:0}
+.receipt-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.receipt-summary>.panel{padding:12px 16px}.receipt-summary strong{display:block;font-size:18px}.receipt-summary-note{grid-column:1/-1;font-size:11px}
+.receipt-results{padding:12px}.receipt-history-row{width:100%;display:flex;justify-content:space-between;text-align:left;gap:14px;margin-bottom:8px}.receipt-history-row>span{min-width:0;overflow-wrap:anywhere}.receipt-history-row>span:last-child{text-align:right}.receipt-history-row small{font-size:12px}.receipt-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:8px}
+.receipt-detail{padding:12px}.receipt-table-wrap{overflow:auto}.receipt-detail table{width:100%;border-collapse:collapse;text-align:left}.receipt-detail th,.receipt-detail td{padding:10px;border-bottom:1px solid var(--line);line-height:1.9}.receipt-detail td:not(:first-child),.receipt-detail th:not(:first-child){text-align:right;white-space:nowrap}.receipt-detail-totals{margin:16px 0 0 auto;max-width:360px}.receipt-detail-totals>div{display:flex;justify-content:space-between;gap:16px;padding:4px 10px}
+@media(max-width:900px){.receipt-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.touch-receipts{padding:10px}}
+@media(max-width:560px){.receipt-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.receipt-history-row{flex-direction:column;gap:4px}.receipt-history-row>span:last-child{text-align:left}.receipt-filters label{min-width:120px}.receipt-summary strong{font-size:16px}}

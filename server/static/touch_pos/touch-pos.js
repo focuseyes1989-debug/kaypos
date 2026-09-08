@@ -386,12 +386,56 @@
       button.disabled = false; button.textContent = 'Save Sale'; renderCheckoutSummary();
     }
   }
+  let receiptsOffset = 0, receiptsRequest = 0;
+  async function showReceiptsPage() {
+    document.querySelector('.workspace').hidden = true;
+    document.querySelector('#productManager').hidden = true;
+    document.querySelector('#touchReceipts').hidden = false;
+    document.querySelector('#workspaceStatus').textContent = 'Receipts · Sales history';
+    if (!document.querySelector('#receiptsFrom').value) {
+      const now = new Date(), day = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      document.querySelector('#receiptsFrom').value = day; document.querySelector('#receiptsTo').value = day;
+    }
+    receiptsOffset = 0; await loadTouchReceipts();
+  }
+  async function loadTouchReceipts() {
+    const request = ++receiptsRequest, root = document.querySelector('#receiptsRows');
+    document.querySelector('#receiptsDetail').hidden = true;
+    document.querySelector('#receiptsPrev').disabled = true; document.querySelector('#receiptsNext').disabled = true;
+    root.textContent = 'Loading receipts...';
+    const query = new URLSearchParams({from_date:document.querySelector('#receiptsFrom').value,to_date:document.querySelector('#receiptsTo').value,tab:document.querySelector('#receiptsTab').value,q:document.querySelector('#receiptsSearch').value.trim(),limit:'30',offset:String(receiptsOffset)});
+    try {
+      const data = await api(`/api/receipts/overview?${query}`); if (request !== receiptsRequest) return;
+      const summary = data.summary || {};
+      document.querySelector('#receiptsSummary').innerHTML = [['receipts','Receipts'],['sales','Sales'],['discount','Discount'],['refund','Refund'],['credit','Credit']].map(([key,label])=>`<div class="panel"><small>${label}</small><strong>${money(summary[key])}${key === 'receipts' ? '' : ' Ks'}</strong></div>`).join('') + '<small class="receipt-summary-note">Summary for the selected date range, across all receipt tabs.</small>';
+      root.innerHTML = (data.rows || []).map(row=>`<button type="button" class="receipt-history-row" data-receipt-id="${Number(row.id)}"><span><strong>${escapeHtml(row.invoice_no)}</strong><small>${escapeHtml(row.created_at)} · ${escapeHtml(row.customer_name)}</small></span><span><strong>${money(row.total)} Ks</strong><small>${escapeHtml(row.payment_type)} · ${escapeHtml(row.status)}</small></span></button>`).join('') || '<p>No receipts found for these filters.</p>';
+      root.querySelectorAll('[data-receipt-id]').forEach(button=>button.addEventListener('click',()=>openTouchReceipt(Number(button.dataset.receiptId))));
+      document.querySelector('#receiptsPageInfo').textContent = data.total_count ? `${receiptsOffset+1}–${Math.min(receiptsOffset+30,data.total_count)} / ${data.total_count}` : '0 receipts';
+      document.querySelector('#receiptsPrev').disabled = receiptsOffset === 0;
+      document.querySelector('#receiptsNext').disabled = receiptsOffset + 30 >= data.total_count;
+    } catch(error) { if(request !== receiptsRequest) return; root.textContent=error.message; document.querySelector('#receiptsSummary').replaceChildren(); document.querySelector('#receiptsPageInfo').textContent=''; }
+  }
+  async function openTouchReceipt(id) {
+    const request = ++receiptsRequest, detail = document.querySelector('#receiptsDetail');
+    detail.hidden = false; detail.textContent = 'Loading receipt...';
+    try {
+      const data = await api(`/api/receipts/${id}`); if(request !== receiptsRequest) return;
+      const r = data.receipt;
+      detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(r.invoice_no)}</strong><small>${escapeHtml(r.created_at)} · ${escapeHtml(r.customer_name || 'Walk-in Customer')} · ${escapeHtml(r.status)}</small></div><button type="button" data-close-detail>Close</button></div><div class="receipt-table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${(r.items || []).map(item=>`<tr><td>${escapeHtml(item.product_name)}</td><td>${money(item.qty)}</td><td>${money(item.price)}</td><td>${money(item.total)}</td></tr>`).join('')}</tbody></table></div><div class="receipt-detail-totals">${[['Payment method',escapeHtml(r.payment_type)],['Discount',money(r.discount_amount)+' Ks'],['Total',money(r.total)+' Ks'],['Paid',money(r.paid_amount ?? r.payment)+' Ks'],['Change',money(r.change_amount)+' Ks'],...(String(r.payment_type).toLowerCase()==='credit' ? [['Credit balance',money(r.balance_amount ?? Math.max(0,Number(r.total)-Number(r.payment)))+' Ks']] : [])].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`;
+      detail.querySelector('[data-close-detail]').onclick=()=>{detail.hidden=true;};
+      detail.scrollIntoView({behavior:'smooth',block:'start'});
+    } catch(error) { if(request === receiptsRequest) detail.textContent=error.message; }
+  }
   function showSalesView() {
+    receiptsRequest += 1;
+    document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('.workspace').hidden = false;
     document.querySelector('#productManager').hidden = true;
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager() {
+    receiptsRequest += 1;
+    document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = false;
     document.querySelector('#workspaceStatus').textContent = 'Product page · Manage catalog';
@@ -655,6 +699,11 @@
   }
   function closeBarcodeModal() { document.querySelector('#barcodeModal').hidden = true; barcodeProduct = null; }
   function clearCatalog() {
+    receiptsRequest += 1;
+    document.querySelector('#touchReceipts').hidden = true;
+    document.querySelector('#receiptsRows').replaceChildren();
+    document.querySelector('#receiptsDetail').replaceChildren();
+    document.querySelector('#receiptsSummary').replaceChildren();
     clearTimeout(searchTimer); searchTimer = null;
     if (productsController) { productsController.abort(); productsController = null; }
     products = []; categories = []; selectedCategory = ''; document.querySelector('#productSearch').value = ''; document.querySelector('#categorySearch').value = '';
@@ -807,6 +856,8 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'receipts') { showReceiptsPage(); return; }
+    if (['products', 'categories', 'search', 'cart'].includes(action)) showSalesView();
     if (action === 'products') document.querySelector('#productSearch').focus();
     else if (action === 'product-page') showProductManager();
     else if (action === 'categories') document.querySelector('#categorySearch').focus();
@@ -863,6 +914,11 @@
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
   document.querySelector('#managerCategorySearch').addEventListener('input', renderManagedCategories);
+  document.querySelector('#receiptsSales').addEventListener('click', showSalesView);
+  document.querySelector('#receiptsFilters').addEventListener('submit', event=>{event.preventDefault();receiptsOffset=0;loadTouchReceipts();});
+  document.querySelector('#receiptsTab').addEventListener('change', ()=>{receiptsOffset=0;loadTouchReceipts();});
+  document.querySelector('#receiptsPrev').addEventListener('click', ()=>{receiptsOffset=Math.max(0,receiptsOffset-30);loadTouchReceipts();});
+  document.querySelector('#receiptsNext').addEventListener('click', ()=>{receiptsOffset+=30;loadTouchReceipts();});
   document.querySelector('#itemForm').addEventListener('submit', saveItemForm);
   document.querySelector('#itemSoldBy').addEventListener('change', updateItemMode);
   document.querySelector('#addItemVariant').addEventListener('click', () => addItemRow('variants'));
