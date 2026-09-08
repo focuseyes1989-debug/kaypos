@@ -1662,6 +1662,8 @@ html[data-touch-theme=dark] :is(#itemForm label>span,#itemImagePlaceholder stron
 html[data-touch-theme=dark] :is(.side-menu-icon,#closeSideMenu img){filter:brightness(0) invert(.9)}
 html[data-touch-theme=dark] .side-menu-button span{background:#e6edf7}
 html[data-touch-theme=dark] .empty-icon{background:#243e64;color:#bfdbfe}
+html[data-touch-theme=dark] .checkout-summary .checkout-total{background:#244773;color:#eff6ff;border-color:#496486;font-weight:700}
+html[data-touch-theme=dark] .checkout-validation.ok{color:#86efac}
 html[data-touch-theme=dark] :is(button,input,select,textarea):focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
 /* Search controls use the rounded wrapper as their focus indicator. */
 html[data-touch-theme=dark] :is(.search,.category-search,.manager-search) input{background:transparent}
