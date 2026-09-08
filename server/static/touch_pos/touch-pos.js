@@ -452,8 +452,21 @@
     if (!managedCategories.length) { root.innerHTML = '<div class="catalog-message"><strong>No categories</strong>Add parent and child categories here.</div>'; return; }
     const childrenByParent = new Map();
     managedCategories.forEach(item => childrenByParent.set(Number(item.parent_id || 0), [...(childrenByParent.get(Number(item.parent_id || 0)) || []), item]));
+    const query = document.querySelector('#managerCategorySearch').value.trim().normalize('NFC').toLocaleLowerCase();
+    const visibleIds = new Set();
+    if (query) {
+      const byId = new Map(managedCategories.map(item => [Number(item.id), item]));
+      managedCategories.filter(item => String(item.name || '').normalize('NFC').toLocaleLowerCase().includes(query)).forEach(item => {
+        const path = new Set();
+        while (item && !path.has(Number(item.id))) {
+          path.add(Number(item.id)); visibleIds.add(Number(item.id));
+          item = byId.get(Number(item.parent_id || 0));
+        }
+      });
+    }
     const rows = [], visited = new Set();
     const renderRows = (parentId, depth) => (childrenByParent.get(parentId) || []).forEach(item => {
+      if (query && !visibleIds.has(Number(item.id))) return;
       if (visited.has(Number(item.id))) return;
       visited.add(Number(item.id));
       const level = depth === 0 ? 'Parent' : depth === 1 ? 'Child' : depth === 2 ? 'Sub Child' : `Level ${depth + 1}`;
@@ -461,7 +474,7 @@
       renderRows(Number(item.id), depth + 1);
     });
     renderRows(0, 0);
-    root.innerHTML = rows.join('');
+    root.innerHTML = rows.join('') || '<div class="catalog-message"><strong>No matching categories</strong>Try another name or clear the search.</div>';
     root.querySelectorAll('[data-category-edit]').forEach(button => button.addEventListener('click', () => openCategoryModal(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryEdit)))));
     root.querySelectorAll('[data-category-delete]').forEach(button => button.addEventListener('click', () => deleteManagedCategory(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryDelete)), button)));
   }
@@ -845,6 +858,7 @@
   document.querySelector('#managerAddItem').addEventListener('click', () => openItemModal());
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
+  document.querySelector('#managerCategorySearch').addEventListener('input', renderManagedCategories);
   document.querySelector('#itemForm').addEventListener('submit', saveItemForm);
   document.querySelector('#itemSoldBy').addEventListener('change', updateItemMode);
   document.querySelector('#addItemVariant').addEventListener('click', () => addItemRow('variants'));

@@ -2,9 +2,12 @@ const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:a
 const source = fs.readFileSync('server/static/touch_pos/touch-pos.js','utf8');
 const code = source.slice(source.indexOf('  function renderManagedCategories'),source.indexOf('  let itemImageUrl'));
 const root = {innerHTML:'',querySelectorAll:()=>[]};
-const calls=[],messages=[];
-const context={document:{querySelector:()=>root}, managedCategories:[{id:1,name:'Parent',parent_id:null},{id:2,name:'Child',parent_id:1},{id:3,name:'Grandchild',parent_id:2}],escapeHtml:s=>String(s),window:{confirm:()=>true},crypto:{randomUUID:()=> 'test-id'},api:async(p,o)=>{calls.push([p,o]);return o?{result:{}}:{categories:[{id:3,revision:'rev'}]};},loadCatalog:async()=>{},loadProductManager:async()=>{},toast:m=>messages.push(m)};
+const calls=[],messages=[], search={value:''};
+const context={document:{querySelector:selector=>selector === '#managerCategorySearch' ? search : root}, managedCategories:[{id:1,name:'Parent',parent_id:null},{id:2,name:'Child',parent_id:1},{id:3,name:'Grandchild',parent_id:2}],escapeHtml:s=>String(s),window:{confirm:()=>true},crypto:{randomUUID:()=> 'test-id'},api:async(p,o)=>{calls.push([p,o]);return o?{result:{}}:{categories:[{id:3,revision:'rev'}]};},loadCatalog:async()=>{},loadProductManager:async()=>{},toast:m=>messages.push(m)};
 vm.createContext(context);vm.runInContext(code,context);context.renderManagedCategories();
 for(const d of [0,1,2]) assert.ok(root.innerHTML.includes('--category-depth:'+d));
 assert.ok(!root.innerHTML.includes('class="category-level"')); for(const d of [0,1,2]) assert.ok(root.innerHTML.includes('data-category-level="'+d+'"')); assert.equal((root.innerHTML.match(/data-category-delete=/g)||[]).length,3);
+search.value=' GRANDCHILD '; context.renderManagedCategories(); for(const d of [0,1,2]) assert.ok(root.innerHTML.includes('--category-depth:'+d));
+search.value='no-match'; context.renderManagedCategories(); assert.ok(root.innerHTML.includes('No matching categories'));
+search.value=''; context.renderManagedCategories(); assert.equal((root.innerHTML.match(/data-category-delete=/g)||[]).length,3);
 (async()=>{const b={};await context.deleteManagedCategory({id:3,name:'Grandchild'},b);assert.equal(JSON.parse(calls[1][1].body).operation,'category.delete');assert.equal(JSON.parse(calls[1][1].body).values.revision,'rev');assert.deepEqual(messages,['Category deleted.']);assert.equal(b.disabled,false);context.window.confirm=()=>false;calls.length=0;await context.deleteManagedCategory({id:3,name:'Grandchild'},b);assert.equal(calls.length,0);console.log('Category hierarchy and delete checks passed');})();
