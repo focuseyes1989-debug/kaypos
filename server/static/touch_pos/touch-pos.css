@@ -1581,3 +1581,5 @@ footer{
 
 .inventory-stock-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.inventory-stock-form h3,.inventory-stock-form p,.inventory-stock-form .full{grid-column:1/-1;margin:0}.inventory-stock-form label{display:grid;gap:5px;font-size:12px}.inventory-stock-form input,.inventory-stock-form select{width:100%;min-width:0;min-height:46px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font:inherit;line-height:1.9}.inventory-stock-form p,.inventory-locations{color:var(--muted);font-size:12px}.inventory-stock-form [role=alert]{color:var(--bad)}.inventory-history{margin-top:20px}.inventory-movement{padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.inventory-movement small{font-size:12px}#inventoryDetail .receipt-page-head strong{overflow-wrap:anywhere}#inventoryDetail{position:static}#inventoryRows .receipt-history-row{line-height:1.9}#inventoryRows small{line-height:1.9}
 @media(max-width:560px){.inventory-stock-form{grid-template-columns:1fr}}
+
+.inventory-action-tabs{margin-top:16px}.inventory-action-tabs button{flex:1}

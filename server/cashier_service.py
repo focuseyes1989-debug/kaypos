@@ -1963,7 +1963,7 @@ def adjust_stock(
     supplier_id: Optional[int] = None, unit_cost: float = 0, batch_no: str = "", expire_date: str = "",
     received_by: str = "", notes: str = "",
     customer_id: Optional[int] = None, reference: str = "", issued_by: str = "",
-    transaction_date: str = "",
+    transaction_date: str = "", restrict_location: bool = False,
 ) -> Dict[str, Any]:
     """Apply a small audited stock-in/out operation in one transaction."""
     product_id = int(product_id or 0)
@@ -2049,6 +2049,10 @@ def adjust_stock(
                 (product_id,),
             )
             locations = cursor.fetchall()
+            if adjustment < 0 and restrict_location:
+                locations = [row for row in locations if row[1] == location]
+                if sum(max(0, int(row[2] or 0)) for row in locations) < abs(adjustment):
+                    raise ValueError(f"Insufficient stock in {location}")
             if adjustment > 0:
                 if not batch_no:
                     batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -2124,7 +2128,7 @@ def set_stock_quantity(
     *, product_id: int, new_quantity: int, reason: str, adjusted_by: str,
     variant_id: Optional[int] = None, adjustment_type: str = "Add",
     transaction_date: str = "", location: str = "Shop", notes: str = "",
-    location_only: bool = False, created_by: str = "Lite POS",
+    location_only: bool = False, created_by: str = "Lite POS", expected_stock: Optional[int] = None,
 ) -> Dict[str, Any]:
     product_id = int(product_id or 0)
     variant_id = int(variant_id or 0) or None
@@ -2149,6 +2153,8 @@ def set_stock_quantity(
         if _sold_by_mode(sold_by) == "service":
             raise ValueError("Service items do not use stock adjustments")
         old_quantity = master_stock
+        if expected_stock is not None and not variant_id and int(expected_stock) != master_stock:
+            raise ValueError("Stock changed since this page was loaded. Refresh and review the count again.")
         if location_only and variant_id:
             raise ValueError("Set Location Only is not available for variants")
         if location_only:
@@ -2190,6 +2196,8 @@ def set_stock_quantity(
             if not variant:
                 raise ValueError("Selected variant is unavailable")
             old_quantity = int(variant[0] or 0)
+            if expected_stock is not None and int(expected_stock) != old_quantity:
+                raise ValueError("Stock changed since this page was loaded. Refresh and review the count again.")
             difference = new_quantity - old_quantity
             cursor.execute(
                 "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",

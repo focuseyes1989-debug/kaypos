@@ -4,7 +4,7 @@ const nodes=new Map();
 function node(key){if(!nodes.has(key))nodes.set(key,{value:'',disabled:false,hidden:false,innerHTML:'',textContent:'',querySelector:node,querySelectorAll:()=>[],replaceChildren(){this.innerHTML='';},insertAdjacentHTML(_,html){this.innerHTML+=html;},scrollIntoView(){},reportValidity:()=>true,elements:{namedItem:name=>name==='variant_id' && product.sold_by!=='variants' ? null : node(name)}});return nodes.get(key);}
 let product={id:1,name:'<Product>',stock:5,cost:100,sold_by:'variants',variants:[{variant_id:9,size:'Large',stock:5,cost:100}]};
 let confirm=true,fail=false,posts=[],calls=[],pending;
-const ctx={document:{querySelector:node},window:{confirm:()=>confirm,matchMedia:()=>({matches:false})},URLSearchParams,
+const ctx={setupInventoryActions:()=>{},document:{querySelector:node},window:{confirm:()=>confirm,matchMedia:()=>({matches:false})},URLSearchParams,
 money:String,escapeHtml:s=>String(s??'').replaceAll('<','&lt;'),soldByMode:s=>s,variantLabel:v=>v.size,toast:()=>{},receiptsRequest:0,
 api:async(url,options)=>{calls.push(url);if(options){posts.push(JSON.parse(options.body));if(pending)await pending;if(fail)throw Error('Save failed');return{product};}if(url.includes('movements'))return{movements:[]};if(url.includes('locations'))return{locations:['Shop']};if(url.includes('suppliers'))return{suppliers:[]};return{products:[product]};}};
 vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('  let inventoryRequest'),source.indexOf('  let receiptsOffset')),ctx);

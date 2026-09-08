@@ -386,6 +386,52 @@
       button.disabled = false; button.textContent = 'Save Sale'; renderCheckoutSummary();
     }
   }
+  function setupInventoryActions(p, detail, request) {
+    const variants=p.variants || [], hasVariants=variants.length || soldByMode(p.sold_by)==='variants';
+    const stockIn=detail.querySelector('#inventoryStockIn');
+    stockIn.insertAdjacentHTML('beforebegin','<div class="receipt-tabs inventory-action-tabs" aria-label="Stock action"><button type="button" data-stock-action="in" aria-pressed="true">Stock In</button><button type="button" data-stock-action="out" aria-pressed="false">Stock Out</button><button type="button" data-stock-action="adjust" aria-pressed="false">Adjustment</button></div>');
+    stockIn.insertAdjacentHTML('afterend',`<form id="inventoryChange" class="inventory-stock-form" hidden><h3 data-change-title>Stock Out</h3><p data-change-help></p>${hasVariants ? `<label>Variant<select name="variant" required><option value="">Select variant</option>${variants.map(v=>`<option value="${Number(v.variant_id)}">${escapeHtml(variantLabel(v) || v.sku || v.variant_id)} · Stock ${money(v.stock)}</option>`).join('')}</select></label>` : ''}<label>Location<select name="location" ${hasVariants ? 'disabled' : ''}>${hasVariants ? '<option>Variant</option>' : [...new Set(['Shop',...inventoryLocations,...(p.locations || []).map(l=>l.location)])].map(l=>`<option>${escapeHtml(l)}</option>`).join('')}</select></label><label><span data-change-quantity-label>Quantity to remove</span><input name="quantity" type="number" min="1" max="1000000" step="1" required></label><label>Reason<input name="reason" maxlength="500" required placeholder="Damage, return or stock count correction"></label><label>Handled by<input name="actor" maxlength="200" required></label><label class="full">Notes<input name="notes" maxlength="2000"></label><strong class="full" data-change-preview aria-live="polite"></strong><button type="submit" class="full receipt-apply" data-change-save>Review Stock Out</button><small class="full" role="alert" data-change-error></small></form>`);
+    const form=detail.querySelector('#inventoryChange'),field=name=>form.elements.namedItem(name),save=form.querySelector('[data-change-save]');
+    let mode='out',busy=false;
+    const current=()=>Number((variants.find(v=>Number(v.variant_id)===Number(field('variant')?.value)) || p).stock || 0);
+    const preview=()=>{
+      const before=current(),qty=Number(field('quantity').value),after=mode==='out' ? before-qty : qty;
+      form.querySelector('[data-change-preview]').textContent=field('quantity').value==='' ? `Current stock: ${money(before)}` : `Current: ${money(before)} → After: ${money(after)} · Change: ${after-before>0?'+':''}${money(after-before)}`;
+    };
+    detail.querySelectorAll('[data-stock-action]').forEach(button=>button.onclick=()=>{
+      if(busy || stockIn.querySelector('button[type="submit"]').disabled) return;
+      const action=button.dataset.stockAction;
+      detail.querySelectorAll('[data-stock-action]').forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+      stockIn.hidden=action!=='in';form.hidden=action==='in';
+      if(action==='in') return;
+      mode=action;field('quantity').value='';field('quantity').min=mode==='out'?'1':'0';
+      form.querySelector('[data-change-title]').textContent=mode==='out'?'Stock Out':'Adjustment';
+      form.querySelector('[data-change-help]').textContent=mode==='out'?'Remove stock from the selected location. Quantity is in base stock units.':'Enter the counted TOTAL stock across all locations (or the selected variant). The difference is applied to the selected location. Cost stays unchanged.';
+      form.querySelector('[data-change-quantity-label]').textContent=mode==='out'?'Quantity to remove':'Counted total stock';
+      save.textContent=mode==='out'?'Review Stock Out':'Review Adjustment';
+      form.querySelector('[data-change-error]').textContent='';preview();
+    });
+    field('quantity').oninput=preview;if(field('variant'))field('variant').onchange=preview;
+    form.onsubmit=async event=>{
+      event.preventDefault();if(busy || !form.reportValidity())return;
+      const qty=Number(field('quantity').value),before=current(),after=mode==='out'?before-qty:qty;
+      const error=form.querySelector('[data-change-error]'),reason=field('reason').value.trim(),actor=field('actor').value.trim();
+      if(!Number.isInteger(qty)||qty<(mode==='out'?1:0)||qty>1000000||after<0||!reason||!actor){error.textContent='Enter a valid quantity, reason and handler. Stock cannot be negative.';return;}
+      if(mode==='adjust' && after===before){error.textContent='The count matches current stock. No adjustment is needed.';return;}
+      if(!window.confirm(`${mode==='out'?'Stock Out':'Adjustment'}: ${p.name}\nLocation: ${field('location').value}\nStock: ${before} → ${after}\nReason: ${reason}`))return;
+      busy=true;save.disabled=true;error.textContent='';
+      detail.querySelectorAll('[data-stock-action]').forEach(button=>button.disabled=true);
+      const common={product_id:Number(p.id),variant_id:Number(field('variant')?.value)||null,location:field('location').value,reason,notes:field('notes').value.trim()};
+      try {
+        await api(mode==='out'?'/api/stock/adjust':'/api/stock/adjustment',{method:'POST',body:JSON.stringify(mode==='out'?{...common,adjustment:-qty,restrict_location:!hasVariants,issued_by:actor}:{...common,new_quantity:qty,expected_stock:before,adjustment_type:'Count correction',adjusted_by:actor})});
+      } catch(e){error.textContent=e.message;busy=false;save.disabled=false;detail.querySelectorAll('[data-stock-action]').forEach(button=>button.disabled=false);return;}
+      toast(mode==='out'?'Stock Out saved.':'Adjustment saved.');
+      if(request!==inventoryDetailRequest)return;
+      const expected=inventoryRequest+1;await loadInventory();
+      if(inventoryRequest===expected&&!document.querySelector('#touchInventory').hidden)await openInventoryProduct(Number(p.id));
+    };
+  }
+
   let inventoryRequest = 0, inventoryDetailRequest = 0, inventoryOffset = 0;
   let inventoryProducts = [], inventoryLocations = [], inventorySuppliers = [];
   function hideInventory() {
@@ -475,6 +521,7 @@
           if(inventoryRequest===expected && !document.querySelector('#touchInventory').hidden) await openInventoryProduct(id);
         } catch(e) {error.textContent=e.message;button.disabled=false;}
       };
+      setupInventoryActions(p, detail, request);
     } else detail.innerHTML+='<p>Service products do not track inventory.</p>';
     detail.insertAdjacentHTML('beforeend', '<div class="inventory-history"><h3>Recent movements</h3><div id="inventoryMovements">Loading movements...</div></div>');
     if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});

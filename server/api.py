@@ -864,6 +864,7 @@ class StockAdjustmentRequest(BaseModel):
     product_id: int = Field(..., gt=0)
     variant_id: Optional[int] = Field(default=None, gt=0)
     adjustment: int = Field(..., ge=-1000000, le=1000000)
+    restrict_location: bool = False
     reason: str = Field(default="Lite POS adjustment", max_length=500)
     location: str = Field(default="Shop", max_length=200)
     supplier_id: Optional[int] = Field(default=None, gt=0)
@@ -892,6 +893,7 @@ class StockAdjustmentSetRequest(BaseModel):
     product_id: int = Field(..., gt=0)
     variant_id: Optional[int] = Field(default=None, gt=0)
     new_quantity: int = Field(..., ge=0, le=1000000)
+    expected_stock: Optional[int] = Field(default=None, ge=0)
     adjustment_type: str = Field(default="Add", max_length=20)
     reason: str = Field(..., min_length=1, max_length=500)
     adjusted_by: str = Field(..., min_length=1, max_length=200)
@@ -1212,7 +1214,7 @@ def adjust_stock(payload: StockAdjustmentRequest, user: Dict[str, Any] = Depends
     try:
         return {"product": cashier_service.adjust_stock(
             product_id=payload.product_id, variant_id=payload.variant_id,
-            adjustment=payload.adjustment, reason=payload.reason,
+            adjustment=payload.adjustment, reason=payload.reason, restrict_location=payload.restrict_location,
             location=payload.location, supplier_id=payload.supplier_id,
             unit_cost=payload.unit_cost, batch_no=payload.batch_no, expire_date=payload.expire_date,
             received_by=payload.received_by, notes=payload.notes,

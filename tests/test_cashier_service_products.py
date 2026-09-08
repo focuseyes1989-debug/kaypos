@@ -120,6 +120,32 @@ class CashierProductListingTests(unittest.TestCase):
                 cashier_service.adjust_stock(product_id=1, variant_id=9, adjustment=1, expire_date="2027-09-08")
             connect.assert_not_called()
 
+    def test_stock_out_uses_only_selected_location_and_rolls_back_shortage(self):
+        self.conn.execute("UPDATE products SET stock=7, cost=100 WHERE id=1")
+        self.conn.executemany("INSERT INTO product_locations(product_id,location,quantity) VALUES(1,?,?)", [("Shop",2),("Warehouse",5)])
+        self.conn.commit()
+        with patch("server.cashier_service.connect_db", self._connect), patch("server.cashier_service.is_postgres_backend", return_value=False), patch("server.cashier_service.list_products", return_value=[]):
+            with self.assertRaisesRegex(ValueError, "Insufficient"):
+                cashier_service.adjust_stock(product_id=1, adjustment=-3, location="Shop", restrict_location=True)
+            self.assertEqual(self.conn.execute("SELECT stock FROM products WHERE id=1").fetchone()[0],7)
+            cashier_service.adjust_stock(product_id=1, adjustment=-3, location="Warehouse", restrict_location=True, reason="Damage")
+        self.assertEqual(self.conn.execute("SELECT stock,cost FROM products WHERE id=1").fetchone(),(4,100))
+        self.assertEqual(self.conn.execute("SELECT quantity FROM product_locations WHERE product_id=1 AND location='Shop'").fetchone()[0],2)
+        self.assertEqual(self.conn.execute("SELECT type,quantity FROM stock_movements WHERE product_id=1").fetchone(),('stock_out',3))
+
+    def test_count_adjustment_rejects_stale_count_and_preserves_cost(self):
+        self.conn.execute("UPDATE products SET stock=5,cost=100 WHERE id=1")
+        self.conn.execute("INSERT INTO product_locations(product_id,location,quantity) VALUES(1,'Shop',5)")
+        self.conn.commit()
+        with patch("server.cashier_service.connect_db", self._connect), patch("server.cashier_service.is_postgres_backend", return_value=False), patch("server.cashier_service.list_products", return_value=[]):
+            with self.assertRaisesRegex(ValueError, "Stock changed"):
+                cashier_service.set_stock_quantity(product_id=1,new_quantity=2,expected_stock=4,reason="Count",adjusted_by="Tester")
+            self.assertEqual(self.conn.execute("SELECT stock FROM products WHERE id=1").fetchone()[0],5)
+            cashier_service.set_stock_quantity(product_id=1,new_quantity=2,expected_stock=5,reason="Count",adjusted_by="Tester")
+        self.assertEqual(self.conn.execute("SELECT stock,cost FROM products WHERE id=1").fetchone(),(2,100))
+        self.assertEqual(self.conn.execute("SELECT quantity FROM product_locations WHERE product_id=1").fetchone()[0],2)
+        self.assertEqual(self.conn.execute("SELECT type,old_stock,new_stock FROM stock_movements WHERE product_id=1").fetchone(),('adjustment',5,2))
+
     @patch("server.cashier_service._active_product_discounts", return_value={})
     @patch("server.cashier_service._price_tiers_for_products", return_value={})
     @patch("server.cashier_service._product_thumbnail_url", return_value="/product-images/thumbnails/thumb.jpg")
