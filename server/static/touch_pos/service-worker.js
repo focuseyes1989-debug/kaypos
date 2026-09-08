@@ -1,10 +1,21 @@
-const CACHE = 'kay-pos-touch-w7-v28';
+const CACHE = 'kay-pos-touch-w7-v29';
 const SHELL = [
   '/touch-pos/',
   '/static/touch_pos/touch-pos.css',
   '/static/touch_pos/touch-pos.js',
   '/static/touch_pos/manifest.webmanifest',
-  '/assets/kay/kay_128x128.png'
+  '/assets/kay/kay_128x128.png',
+  '/assets/icons/dashboard.svg',
+  '/assets/icons/shopping_cart.svg',
+  '/assets/icons/maximize.svg',
+  '/assets/icons/inventory.svg',
+  '/assets/icons/category.svg',
+  '/assets/icons/products.svg',
+  '/assets/icons/search.svg',
+  '/assets/icons/settings.svg',
+  '/assets/icons/refresh.svg',
+  '/assets/icons/logout.svg',
+  '/assets/icons/close.svg'
 ];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(

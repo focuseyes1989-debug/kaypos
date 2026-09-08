@@ -1081,12 +1081,16 @@
 }
 .side-menu-icon{
   width:20px;
+  height:20px;
+  flex:0 0 20px;
+  object-fit:contain;
   display:grid;
   place-items:center;
   color:#111827;
   font-size:12px;
   font-weight:800;
 }
+#closeSideMenu img{display:block;width:20px;height:20px;object-fit:contain}
 .side-menu-nav em{
   min-width:18px;
   height:18px;
