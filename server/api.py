@@ -1423,6 +1423,27 @@ def _service_order_error(exc: ValueError) -> HTTPException:
     )
 
 
+@app.get("/api/settings/touch/display")
+def touch_display_settings(_: Dict[str, Any] = Depends(current_user)):
+    settings = cashier_service.get_touch_settings()
+    return {"settings": {key: settings[key] for key in ("theme", "follow_system_theme")}}
+
+
+@app.get("/api/settings/touch")
+def touch_settings(user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    return {"settings": cashier_service.get_touch_settings()}
+
+
+@app.put("/api/settings/touch")
+def update_touch_settings(payload: LiteSettingsRequest, user: Dict[str, Any] = Depends(current_user)):
+    _require_manager(user)
+    try:
+        return {"settings": cashier_service.save_touch_settings(payload.settings)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/settings/lite")
 def lite_settings(user: Dict[str, Any] = Depends(current_user)):
     _require_manager(user)

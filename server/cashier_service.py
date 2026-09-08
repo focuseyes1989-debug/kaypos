@@ -1200,6 +1200,81 @@ def save_lite_settings(values: Dict[str, Any]) -> Dict[str, str]:
     return get_lite_settings()
 
 
+TOUCH_SETTING_DEFAULTS = {
+    **LITE_SETTING_DEFAULTS, "theme": "Light", "follow_system_theme": "0",
+    "receipt_printer_name": "", "receipt_paper_size": "0", "receipt_print_quality": "203",
+    "receipt_cash_drawer_use_receipt_printer": "0", "show_customer_name": "1",
+    "receipt_thank_you_text": "THANK YOU",
+}
+
+
+def get_touch_settings() -> Dict[str, str]:
+    conn = connect_db()
+    try:
+        cursor = conn.cursor()
+        keys = list(TOUCH_SETTING_DEFAULTS)
+        cursor.execute("SELECT key,value FROM settings WHERE key IN (" + ",".join("?" for _ in keys) + ")", keys)
+        return {**TOUCH_SETTING_DEFAULTS, **{str(k): str(v or "") for k, v in cursor.fetchall()}}
+    finally:
+        conn.close()
+
+
+def save_touch_settings(values: Dict[str, Any]) -> Dict[str, str]:
+    import math
+    import base64
+    import io
+    from PIL import Image
+    unknown = set(values) - set(TOUCH_SETTING_DEFAULTS)
+    if unknown:
+        raise ValueError("Unsupported setting: " + sorted(unknown)[0])
+    values = {k: str(v) for k, v in values.items()}
+    choices = {
+        "theme": {"Light", "Light Gray", "Dark"}, "language": {"en", "my"},
+        "currency": {"Kyats (Ks)", "Dollar ($)", "Baht (B)"},
+        "discount_type": {"percentage", "fixed", "manual"},
+        "receipt_paper_size": {"0", "1", "2"}, "receipt_print_quality": {"203", "300", "600"},
+    }
+    for key in ("tax_enabled", "discount_enabled", "follow_system_theme", "show_customer_name", "receipt_cash_drawer_use_receipt_printer"):
+        choices[key] = {"0", "1"}
+    for key, value in values.items():
+        if key in choices and value not in choices[key]:
+            raise ValueError("Invalid value for " + key)
+        if key in {"tax_rate", "discount_value"}:
+            try: number = float(value)
+            except ValueError: raise ValueError("Invalid number for " + key)
+            if not math.isfinite(number) or number < 0 or (key == "tax_rate" and number > 100):
+                raise ValueError("Invalid number for " + key)
+        if key.endswith("_image") and value:
+            if len(value) > 3_000_000 or not value.startswith(("data:image/png;base64,", "data:image/jpeg;base64,")):
+                raise ValueError("Upload a PNG or JPEG image under 2 MB")
+            try:
+                raw = base64.b64decode(value.split(",", 1)[1], validate=True)
+                with Image.open(io.BytesIO(raw)) as image:
+                    if image.format not in {"PNG", "JPEG"} or image.width * image.height > 16_000_000:
+                        raise ValueError("Image too large")
+                    image.verify()
+            except Exception as exc:
+                raise ValueError("Invalid branding image") from exc
+        elif len(value) > 4000:
+            raise ValueError("Setting text is too long: " + key)
+    conn = connect_db()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT key,value FROM settings WHERE key IN ('discount_type','discount_value')")
+        merged = {**TOUCH_SETTING_DEFAULTS, **dict(cursor.fetchall()), **values}
+        if merged['discount_type'] == 'percentage' and float(merged['discount_value'] or 0) > 100:
+            raise ValueError("Percentage discount cannot exceed 100")
+        for key, value in values.items():
+            cursor.execute("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)", (key, value))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return get_touch_settings()
+
+
 def list_payment_type_records() -> List[Dict[str, Any]]:
     conn = connect_db(); cursor = conn.cursor()
     try:
@@ -1274,6 +1349,12 @@ def save_lite_user(values: Dict[str, Any], user_id: int | None = None) -> Dict[s
     conn = connect_db(); cursor = conn.cursor()
     try:
         if user_id:
+            cursor.execute("SELECT role, COALESCE(is_active,1) FROM users WHERE id=?", (int(user_id),))
+            existing = cursor.fetchone()
+            if existing and str(existing[0]).casefold() == "admin" and existing[1] and (fields["role"].casefold() != "admin" or not fields["is_active"]):
+                cursor.execute("SELECT COUNT(*) FROM users WHERE LOWER(role)='admin' AND COALESCE(is_active,1)=1")
+                if int(cursor.fetchone()[0]) <= 1:
+                    raise ValueError("The only active admin cannot be disabled or demoted.")
             assignments = ", ".join(f"{key}=?" for key in fields)
             cursor.execute(f"UPDATE users SET {assignments} WHERE id=?", [*fields.values(), int(user_id)])
             if cursor.rowcount < 1: raise ValueError("User not found.")
@@ -2502,7 +2583,7 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
         (sale_id,),
     )
     sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
-    receipt_keys = ('shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name')
+    receipt_keys = ('shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
     cursor.execute('SELECT key,value FROM settings WHERE key IN (' + ','.join('?' for _ in receipt_keys) + ')', receipt_keys)
     sale['receipt_settings'] = dict(cursor.fetchall())
     return sale

@@ -13,6 +13,7 @@
   let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
   let managedProducts = [], managedCategories = [], editingProduct = null, editingCategory = null, barcodeProduct = null, managerSearchTimer = null;
   let cart = new Map(), avatarUrl = '';
+  let checkoutSettings = {};
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
   function setConnection(ok) {
@@ -70,9 +71,11 @@
     const {items, count, subtotal} = cartTotals();
     const rawDiscount = Math.max(0, Number(document.querySelector('#checkoutDiscount')?.value || 0));
     const discount = Math.min(subtotal, rawDiscount);
-    const total = Math.max(0, subtotal - discount);
+    const afterDiscount = Math.max(0, subtotal - discount);
+    const tax = checkoutSettings.tax_enabled ? Math.round(afterDiscount * Number(checkoutSettings.tax_rate || 0)) / 100 : 0;
+    const total = Math.round((afterDiscount + tax) * 100) / 100;
     const received = Math.max(0, Number(document.querySelector('#checkoutReceived')?.value || 0));
-    return {items, count, subtotal, rawDiscount, discount, total, received, change: Math.max(0, received - total), balance: Math.max(0, total - received)};
+    return {items, count, subtotal, rawDiscount, discount, tax, total, received, change: Math.max(0, received - total), balance: Math.max(0, total - received)};
   }
   function restoreCart() {
     try {
@@ -243,14 +246,15 @@
   }
   function receiptLines(receipt, paid) {
     const total = Number(receipt.total || 0), items = Array.isArray(receipt.items) ? receipt.items : [];
-    const lines = ['KAY POS', receipt.invoice_no || 'Receipt', receipt.created_at || new Date().toLocaleString(), ''];
+    const settings=receipt.receipt_settings || {};
+    const lines = [settings.shop_name || 'KAY POS', settings.shop_phone || '', settings.shop_address || '', settings.receipt_header || '', receipt.invoice_no || 'Receipt', receipt.created_at || new Date().toLocaleString(), ''];
     for (const item of items) {
       const name = String(item.product_name || item.name || 'Item');
       const qty = Number(item.qty || 0), price = Number(item.price || 0), amount = Number(item.total || qty * price);
       lines.push(name);
       lines.push(`  ${qty} x ${money(price)} = ${money(amount)} Ks`);
     }
-    lines.push('', `Subtotal: ${money(receipt.subtotal || total)} Ks`, `Discount: ${money(receipt.discount_amount || 0)} Ks`, `Total: ${money(total)} Ks`, `Paid: ${money(paid)} Ks`, `Change: ${money(Math.max(0, paid - total))} Ks`, '', 'Thank you.');
+    lines.push('', `Subtotal: ${money(receipt.subtotal || total)} Ks`, `Discount: ${money(receipt.discount_amount || 0)} Ks`, `Total: ${money(total)} Ks`, `Paid: ${money(paid)} Ks`, `Change: ${money(Math.max(0, paid - total))} Ks`, '', settings.receipt_footer || '', settings.shop_footer_message || '', settings.receipt_thank_you_text || 'Thank you.');
     return lines.join('\n');
   }
   function showReceipt(receipt, paid) {
@@ -326,13 +330,14 @@
     }
     if (!totals.items.length) messages.push('Cart is empty.');
     if (mode === 'Credit' && !customer) messages.push('Select a customer for credit sale.');
-    if (mode === 'Cash' && totals.received < totals.total) messages.push('Received amount is less than total.');
+    if (mode !== 'Credit' && totals.received < totals.total) messages.push('Received amount is less than total.');
     if (mode === 'Credit' && totals.received > totals.total) messages.push('Credit received amount cannot exceed total.');
     if (totals.rawDiscount > totals.subtotal) messages.push('Discount cannot exceed subtotal.');
     document.querySelector('#checkoutSummary').innerHTML = [
       ['Items', String(totals.count)],
       ['Subtotal', `${money(totals.subtotal)} Ks`],
       ['Discount', `${money(totals.discount)} Ks`],
+      ['Tax', `${money(totals.tax)} Ks`],
       ['Total', `${money(totals.total)} Ks`, 'checkout-total'],
       ['Received', `${money(totals.received)} Ks`],
       [mode === 'Credit' ? 'Credit Balance' : 'Change', `${money(mode === 'Credit' ? totals.balance : totals.change)} Ks`],
@@ -345,8 +350,15 @@
     const {items, total} = cartTotals();
     if (!items.length) return toast('Cart is empty.');
     const modal = document.querySelector('#checkoutModal');
-    document.querySelector('#checkoutDiscount').value = '0';
-    document.querySelector('#checkoutReceived').value = String(Math.round(total));
+    try {
+      const data=await api('/api/settings/cashier');checkoutSettings=data.settings || {};
+      const methods=[...new Set(['Cash',...(checkoutSettings.payment_types || []),'Credit'])];
+      document.querySelector('#checkoutSaleMode').innerHTML=methods.map(name=>`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+    }catch(error){toast(error.message);return;}
+    const subtotal=cartTotals().subtotal;
+    const defaultDiscount=checkoutSettings.discount_enabled ? (checkoutSettings.discount_type==='percentage' ? subtotal*Number(checkoutSettings.discount_value || 0)/100 : checkoutSettings.discount_type==='fixed' ? Number(checkoutSettings.discount_value || 0) : 0) : 0;
+    document.querySelector('#checkoutDiscount').value = String(Math.min(subtotal,defaultDiscount));
+    document.querySelector('#checkoutReceived').value = String(checkoutTotals().total);
     document.querySelector('#checkoutSaleMode').value = 'Cash';
     modal.hidden = false;
     await loadCheckoutCustomers();
@@ -364,7 +376,7 @@
     const totals = checkoutTotals();
     if (!totals.items.length) return toast('Cart is empty.');
     if (mode === 'Credit' && !customer) return toast('Select a customer for credit sale.');
-    if (mode === 'Cash' && totals.received < totals.total) return toast('Received amount is less than total.');
+    if (mode !== 'Credit' && totals.received < totals.total) return toast('Received amount is less than total.');
     if (mode === 'Credit' && totals.received > totals.total) return toast('Credit received amount cannot exceed total.');
     const button = document.querySelector('#saveCheckout');
     button.disabled = true; button.textContent = 'Saving...';
@@ -491,6 +503,7 @@
     document.querySelector('#inventoryDetail').replaceChildren();
   }
   async function showInventoryPage() {
+    window.KayTouchSettings?.hide();
     receiptsRequest++;
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
@@ -586,6 +599,7 @@
     document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed','false'));
   }
   async function showReceiptsPage() {
+    window.KayTouchSettings?.hide();
     hideInventory();
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
@@ -663,7 +677,16 @@
     await loadTouchReceipts();
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
+  function showTouchSettings() {
+    hideInventory(); receiptsRequest++;
+    document.querySelector('#touchReceipts').hidden=true;
+    document.querySelector('#productManager').hidden=true;
+    document.querySelector('.workspace').hidden=true;
+    document.querySelector('#workspaceStatus').textContent='Settings';
+    window.KayTouchSettings.show({api, escapeHtml, toast, onExit:showSalesView});
+  }
   function showSalesView() {
+    window.KayTouchSettings?.hide();
     const fromInventory = !document.querySelector('#touchInventory').hidden;
     hideInventory();
     if (fromInventory) loadProducts();
@@ -674,6 +697,7 @@
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager() {
+    window.KayTouchSettings?.hide();
     hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
@@ -940,6 +964,7 @@
   }
   function closeBarcodeModal() { document.querySelector('#barcodeModal').hidden = true; barcodeProduct = null; }
   function clearCatalog() {
+    window.KayTouchSettings?.hide();
     hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
@@ -1037,6 +1062,7 @@
     } finally { if (controller === productsController) productsController = null; }
   }
   async function loadCatalog() {
+    api('/api/settings/touch/display').then(data=>window.KayTouchSettings?.applyTheme(data.settings)).catch(()=>{});
     document.querySelector('#productSearch').disabled = false; document.querySelector('#refreshProducts').disabled = false;
     try {
       const result = await api('/api/touch-pos/categories');
@@ -1098,6 +1124,7 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'settings') { showTouchSettings(); return; }
     if (action === 'inventory') { showInventoryPage(); return; }
     if (action === 'receipts') { showReceiptsPage(); return; }
     if (['products', 'categories', 'search', 'cart'].includes(action)) showSalesView();
