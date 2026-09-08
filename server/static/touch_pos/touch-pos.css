@@ -1513,5 +1513,5 @@ footer{
 .category-tree-row .manager-row-main small{font-size:10px}
 #managerCategoryList{gap:6px;padding:0 8px 8px}
 .manager-categories{grid-template-rows:auto auto minmax(0,1fr)}
-.category-manager-search{height:40px;margin:0 8px 8px;padding:0 10px;border-radius:8px}
+.category-manager-search{height:40px;margin:12px 8px 8px;padding:0 10px;border-radius:8px}
 .category-manager-search input{min-width:0;font-size:12px}
