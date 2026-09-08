@@ -18,11 +18,11 @@ fail=false;let release;pending=new Promise(resolve=>release=resolve);const savin
 assert.equal(posts[1].variant_id,9);assert.equal(posts[1].adjustment,3);assert.equal(posts[1].unit_cost,120);assert.equal(posts[1].product_id,1);
 assert.equal(posts[1].expire_date,'');
 product={...product,sold_by:'each',variants:[]};await ctx.loadInventory();await ctx.openInventoryProduct(1);
-assert.equal(node('expiry_mode').value,'year');assert.match(node('expire_date').value,/^\d{4}-\d{2}-\d{2}$/);
-assert.equal(Number(node('expire_date').value.slice(0,4)),new Date().getFullYear()+1);
-node('expiry_mode').value='none';node('expiry_mode').onchange();assert.equal(node('expire_date').disabled,true);
-node('expiry_mode').value='year';node('expiry_mode').onchange();assert.equal(node('expire_date').disabled,false);
-node('button[type="submit"]').disabled=false;await form.onsubmit(event);assert.equal(posts.at(-1).expire_date,node('expire_date').value);
+assert.equal(node('expiry_mode').value,'none');assert.equal(node('expire_date').value,'');
+assert.equal(node('expire_date').disabled,true);
+node('expiry_mode').value='date';node('expiry_mode').onchange();assert.equal(node('expire_date').disabled,false);
+node('expire_date').value='2028-04-15';
+node('button[type="submit"]').disabled=false;await form.onsubmit(event);assert.equal(posts.at(-1).expire_date,'2028-04-15');
 product={...product,sold_by:'service'};await ctx.loadInventory();await ctx.openInventoryProduct(1);assert.ok(!node('#inventoryDetail').innerHTML.includes('inventoryStockIn'));ctx.hideInventory();assert.equal(node('#touchInventory').hidden,true);
 console.log('Inventory navigation, escaping, variant stock-in, cancel, retry, duplicate prevention and service exclusion passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

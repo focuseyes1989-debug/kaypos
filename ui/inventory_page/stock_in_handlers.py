@@ -537,6 +537,9 @@ class StockInHandlers:
         qty = self._stock_in_base_qty()
         unit_cost = self._stock_in_base_cost()
         batch_no = d.si_batch_no.text().strip()
+        if getattr(d, "si_expiry_mode", None) and d.si_expiry_mode.currentData() == "date" and d.si_expiry.date() == d.si_expiry.minimumDate():
+            QMessageBox.warning(self.dialog, "Stock In", "Select the product's expiry date or choose No expiry.")
+            return
         expire = "" if getattr(d, "si_expiry_mode", None) and d.si_expiry_mode.currentData() == "none" else d.si_expiry.date().toString("yyyy-MM-dd")
         received_by = d.si_received_by.text().strip()
         notes = d.si_notes.toPlainText()

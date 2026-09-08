@@ -311,14 +311,17 @@ class StockInUI:
         batch_label = self._create_label("📦 Batch No", colors)
         dialog.si_batch_no = self._create_lineedit("BATCH-YYYYMMDDXXXX", colors)
         expiry_label = self._create_label("📅 Expiry Date", colors)
-        dialog.si_expiry = self._create_date_edit(colors)
+        dialog.si_expiry = self._create_date_edit(colors, QDate(1900, 1, 1))
+        dialog.si_expiry.setMinimumDate(QDate(1900, 1, 1))
+        dialog.si_expiry.setSpecialValueText("Select expiry date")
+        dialog.si_expiry.setEnabled(False)
         grid.addWidget(batch_label, row, 0)
         grid.addWidget(dialog.si_batch_no, row, 1)
         row += 1
         
         dialog.si_expiry_mode = QComboBox()
-        dialog.si_expiry_mode.addItem("Auto - 1 year", "date")
         dialog.si_expiry_mode.addItem("No expiry", "none")
+        dialog.si_expiry_mode.addItem("Enter expiry date", "date")
         dialog.si_expiry_mode.currentIndexChanged.connect(
             lambda: dialog.si_expiry.setEnabled(dialog.si_expiry_mode.currentData() != "none")
         )

@@ -7,7 +7,7 @@ Audit: 2026-09-08. Applies to this repository's desktop KAY POS, Lite and Touch 
 - Batch identifier: `product_locations.batch_no`, independent of expiry. Blank input generates a timestamp identifier including microseconds. A user-supplied batch number is preserved.
 - Expiry: `product_locations.expire_date`, calendar date `YYYY-MM-DD`. No expiry is an empty string; readers also accept legacy NULL.
 - Batch identity includes product, location, batch number and expiry date. Receiving the same identity increases its quantity; different expiries must remain separate.
-- New stock-in forms default to one calendar year from today, with an editable date and No expiry option. February 29 clamps to February 28 in the following non-leap year.
+- New stock-in forms default to No expiry. Enter expiry date enables an initially unselected date field; the operator must enter the known product expiry. No automatic future date is assigned.
 - Lite and Touch send `expire_date` to `/api/stock/adjust`. Existing clients that omit it continue to mean No expiry; the server must not silently invent an expiry for old callers.
 - Desktop writes the same batch fields directly. Its expiry selector was previously created but absent from the layout; it is now visible with No expiry support.
 - Desktop expiry reporting reads location batches. The legacy `products.expire_date` field is not a reliable multi-batch expiry source: desktop overwrites it on receipt, while the API tracks expiry on each location batch.
@@ -23,5 +23,5 @@ Audit: 2026-09-08. Applies to this repository's desktop KAY POS, Lite and Touch 
 
 - `tests/test_lite_expiry_contract.py`: dated and undated API payloads, backwards-compatible omitted date.
 - `tests/test_cashier_service_products.py`: dated/undated batch separation, merging identical batches, invalid date rejection and stock/cost/history persistence in a temporary SQLite database.
-- `tests/test_touch_inventory.cjs`: next-year default, No expiry toggle and stock-in payload.
+- `tests/test_touch_inventory.cjs`: No expiry default, manual date selection and stock-in payload.
 - Python compilation checks cover the modified desktop and Lite form code. Full installed desktop/Lite end-to-end UI testing is still required before claiming complete release compatibility.

@@ -4728,13 +4728,15 @@ class LiteWindow(QMainWindow):
         batch_no = QLineEdit()
         batch_no.setPlaceholderText("Auto-generated when blank")
         expiry_mode = QComboBox()
-        expiry_mode.addItem("Auto - 1 year", "date")
         expiry_mode.addItem("No expiry", "none")
-        expiry_date = QDateEdit(QDate.currentDate().addYears(1))
+        expiry_mode.addItem("Enter expiry date", "date")
+        expiry_date = QDateEdit(QDate(1900, 1, 1))
+        expiry_date.setMinimumDate(QDate(1900, 1, 1))
+        expiry_date.setSpecialValueText("Select expiry date")
         expiry_date.setDisplayFormat("yyyy-MM-dd")
         expiry_date.setCalendarPopup(True)
         if variant_combo:
-            expiry_mode.setCurrentIndex(1)
+            expiry_mode.setCurrentIndex(0)
             expiry_mode.setEnabled(False)
             expiry_mode.setToolTip("Variant stock has no batch expiry tracking")
         expiry_date.setEnabled(expiry_mode.currentData() != "none")
@@ -4838,7 +4840,12 @@ class LiteWindow(QMainWindow):
         unit_cost.valueChanged.connect(lambda value: total_cost.setText(f"{quantity.value() * value:,.0f} Ks"))
         total_cost.setText(f"{quantity.value() * unit_cost.value():,.0f} Ks")
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
+        def accept_stock_dialog():
+            if direction > 0 and expiry_mode.currentData() == "date" and expiry_date.date() == expiry_date.minimumDate():
+                QMessageBox.warning(dialog, "Stock In", "Select the product's expiry date or choose No expiry.")
+                return
+            dialog.accept()
+        buttons.accepted.connect(accept_stock_dialog)
         buttons.rejected.connect(dialog.reject)
         outer.addWidget(buttons)
         if dialog.exec() != QDialog.DialogCode.Accepted:
