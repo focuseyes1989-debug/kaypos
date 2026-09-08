@@ -1436,7 +1436,7 @@ footer{
   }
 }
 
-/* Category names stay compact: two lines, then an ellipsis. */
+/* Two lines with enough vertical room for Myanmar vowel and tone marks. */
 .category-name{
   min-width:0;
   overflow:hidden;
@@ -1445,11 +1445,14 @@ footer{
   -webkit-line-clamp:2;
   line-clamp:2;
   text-overflow:ellipsis;
-  line-height:1.35;
+  line-height:1.9;
   word-break:break-word;
 }
 .category{
   display:block;
+  height:auto;
+  flex-shrink:0;
+  padding-block:8px;
 }
 @media screen and (max-width:760px) and (orientation:portrait){
   .category{
