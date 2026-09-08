@@ -10,7 +10,24 @@
   const sideMenuButton = document.querySelector('#sideMenuButton'), sideMenu = document.querySelector('#sideMenu');
   const sideMenuOverlay = document.querySelector('#sideMenuOverlay'), closeSideMenuButton = document.querySelector('#closeSideMenu');
   const CART_KEY = 'kay_touch_pos_cart';
-  let token = sessionStorage.getItem(TOKEN_KEY), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
+  const REMEMBER_KEY = 'kay_touch_pos_remember';
+  function clearLoginStorage() {
+    sessionStorage.removeItem(TOKEN_KEY);localStorage.removeItem(REMEMBER_KEY);
+  }
+  function readLoginToken() {
+    try {
+      const saved=JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null');
+      if(saved && typeof saved.token==='string' && saved.expires>Date.now())return saved.token;
+      localStorage.removeItem(REMEMBER_KEY);
+    }catch(_){localStorage.removeItem(REMEMBER_KEY);}
+    return sessionStorage.getItem(TOKEN_KEY);
+  }
+  function saveLoginToken(value, remember) {
+    clearLoginStorage();
+    if(remember)localStorage.setItem(REMEMBER_KEY,JSON.stringify({token:value,expires:Date.now()+30*24*60*60*1000}));
+    else sessionStorage.setItem(TOKEN_KEY,value);
+  }
+  let token = readLoginToken(), installPrompt = null, products = [], customers = [], categories = [], selectedCategory = '';
   let managedProducts = [], managedCategories = [], editingProduct = null, editingCategory = null, barcodeProduct = null, managerSearchTimer = null;
   let cart = new Map(), avatarUrl = '';
   let checkoutSettings = {};
@@ -1002,7 +1019,7 @@
     clearCart();
     clearAvatar();
     setSideMenuOpen(false);
-    token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = '';
+    token = null; clearLoginStorage(); password.value = '';
     loginStatus.textContent = message; loginStatus.className = 'login-status';
     userMenu.hidden = true; appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
   }
@@ -1098,10 +1115,10 @@
     signIn.disabled = true; loginStatus.textContent = 'Signing in…'; loginStatus.className = 'login-status info';
     try {
       const result = await api('/api/login', {method: 'POST', body: JSON.stringify({username: username.value.trim(), password: password.value})}); token = result.token;
-      const access = await api('/api/touch-pos/session'); sessionStorage.setItem(TOKEN_KEY, token); showApp(access.user); restoreCart(); await loadCatalog();
+      const access = await api('/api/touch-pos/session'); saveLoginToken(token, document.querySelector('#rememberMe').checked); password.value=''; showApp(access.user); restoreCart(); await loadCatalog();
     } catch (error) {
       if (token) { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} }
-      token = null; sessionStorage.removeItem(TOKEN_KEY); password.value = ''; loginStatus.textContent = error.message; loginStatus.className = 'login-status'; password.focus();
+      token = null; clearLoginStorage(); password.value = ''; loginStatus.textContent = error.message; loginStatus.className = 'login-status'; password.focus();
     } finally { signIn.disabled = false; }
   });
   const saleCart = document.querySelector('#saleCart'), openCart = document.querySelector('#openCart'), closeCart = document.querySelector('#closeCart');

@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('server/static/touch_pos/touch-pos.js','utf8');
+const storage=()=>{const data=new Map();return {getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};};
+const ctx={sessionStorage:storage(),localStorage:storage(),TOKEN_KEY:'token',Date};
+vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('  const REMEMBER_KEY'),source.indexOf('  let token =')),ctx);
+ctx.saveLoginToken('test-token',true);assert.equal(ctx.sessionStorage.getItem('token'),null);assert.equal(ctx.readLoginToken(),'test-token');
+assert.ok(!ctx.localStorage.getItem('kay_touch_pos_remember').includes('password'));
+ctx.saveLoginToken('session-only',false);assert.equal(ctx.localStorage.getItem('kay_touch_pos_remember'),null);assert.equal(ctx.readLoginToken(),'session-only');
+ctx.clearLoginStorage();assert.equal(ctx.readLoginToken(),null);
+ctx.localStorage.setItem('kay_touch_pos_remember',JSON.stringify({token:'expired',expires:1}));assert.equal(ctx.readLoginToken(),null);
+ctx.localStorage.setItem('kay_touch_pos_remember','broken');assert.equal(ctx.readLoginToken(),null);
+console.log('Remember login persistence, opt-out, logout, expiration and malformed storage passed.');
