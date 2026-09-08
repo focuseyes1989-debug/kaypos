@@ -482,6 +482,7 @@
     if (selected) itemImageUrl = URL.createObjectURL(selected);
     const preview = document.querySelector('#itemImagePreview');
     preview.src = itemImageUrl || editingProduct?.thumbnail_url || ''; preview.hidden = !preview.getAttribute('src');
+    document.querySelector('#itemImagePlaceholder').hidden = !preview.hidden;
   }
   function openItemModal(product = null) {
     editingProduct = product || null; populateCategoryOptions();
@@ -501,6 +502,7 @@
     (product?.variants || []).forEach(row => addItemRow('variants', row));
     (product?.wholesale_tiers || []).forEach(row => addItemRow('tiers', row));
     document.querySelector('#itemImage').value = ''; previewItemImage(); updateItemMode();
+    document.querySelector('#itemForm .item-editor-layout').scrollTop = 0;
     setTimeout(() => document.querySelector('#itemName').focus(), 0);
   }
   function closeItemModal() { document.querySelector('#itemModal').hidden = true; editingProduct = null; if (itemImageUrl) URL.revokeObjectURL(itemImageUrl); itemImageUrl = ''; }
