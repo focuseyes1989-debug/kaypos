@@ -1515,3 +1515,9 @@ footer{
 .manager-categories{grid-template-rows:auto auto minmax(0,1fr)}
 .category-manager-search{height:40px;margin:12px 8px 8px;padding:0 10px;border-radius:8px}
 .category-manager-search input{min-width:0;font-size:12px}
+.product-manager,.manager-modal{line-height:1.8}
+.product-manager .manager-row-main strong,.product-manager .manager-row-main small{line-height:1.9;padding-block:2px}
+.product-manager .manager-row-main{gap:0}
+.product-manager input,.manager-modal input,.manager-modal select,.manager-modal textarea{font-family:Inter,"Segoe UI","Myanmar Text",sans-serif;line-height:1.8}
+.product-manager .manager-search input{padding-block:4px}
+.manager-modal .receipt-head small{line-height:1.9;padding-block:2px}
