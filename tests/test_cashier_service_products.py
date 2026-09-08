@@ -99,6 +99,7 @@ class CashierProductListingTests(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT stock, cost FROM products WHERE id=1").fetchone(), (4, 250))
         self.assertEqual(self.conn.execute("SELECT location, quantity, batch_no FROM product_locations WHERE product_id=1").fetchone(), ("Warehouse", 4, "TEST-BATCH"))
         self.assertEqual(self.conn.execute("SELECT type, quantity, created_by FROM stock_movements WHERE product_id=1").fetchone(), ("stock_in", 4, "test-user"))
+        self.assertEqual(self.conn.execute("SELECT expire_date FROM product_locations WHERE product_id=1").fetchone(), ("",))
 
     @patch("server.cashier_service._active_product_discounts", return_value={})
     @patch("server.cashier_service._price_tiers_for_products", return_value={})

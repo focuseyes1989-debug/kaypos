@@ -10,7 +10,7 @@ api:async(url,options)=>{calls.push(url);if(options){posts.push(JSON.parse(optio
 vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('  let inventoryRequest'),source.indexOf('  let receiptsOffset')),ctx);
 (async()=>{
 await ctx.showInventoryPage();assert.equal(node('#touchInventory').hidden,false);assert.match(node('#inventoryRows').innerHTML,/&lt;Product>/);assert.ok(calls.some(url=>url.includes('offset=0')));
-await ctx.openInventoryProduct(1);assert.equal(node('location').disabled,true);node('variant_id').value='9';node('quantity').value='3';node('cost').value='120';
+await ctx.openInventoryProduct(1);assert.match(node('#inventoryDetail').innerHTML,/No expiry/);assert.equal(node('location').disabled,true);node('variant_id').value='9';node('quantity').value='3';node('cost').value='120';
 const form=node('#inventoryStockIn'),event={preventDefault(){}};
 confirm=false;await form.onsubmit(event);assert.equal(posts.length,0);
 confirm=true;fail=true;await form.onsubmit(event);assert.equal(node('[data-stock-error]').textContent,'Save failed');assert.equal(node('button[type="submit"]').disabled,false);
