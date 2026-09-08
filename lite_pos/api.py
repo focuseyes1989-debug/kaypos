@@ -411,7 +411,7 @@ class LiteApiClient:
     def adjust_stock(
         self, product_id: int, adjustment: int, *, variant_id: int | None = None,
         reason: str = "Lite POS adjustment", location: str = "Shop",
-        supplier_id: int | None = None, unit_cost: float = 0, batch_no: str = "",
+        supplier_id: int | None = None, unit_cost: float = 0, batch_no: str = "", expire_date: str = "",
         received_by: str = "", notes: str = "",
         customer_id: int | None = None, reference: str = "", issued_by: str = "",
         transaction_date: str = "",
@@ -420,7 +420,7 @@ class LiteApiClient:
             "product_id": int(product_id), "variant_id": variant_id,
             "adjustment": int(adjustment), "reason": reason, "location": location,
             "supplier_id": supplier_id, "unit_cost": float(unit_cost or 0),
-            "batch_no": batch_no.strip(), "received_by": received_by.strip(),
+            "batch_no": batch_no.strip(), "expire_date": expire_date.strip(), "received_by": received_by.strip(),
             "notes": notes.strip(),
             "customer_id": customer_id, "reference": reference.strip(),
             "issued_by": issued_by.strip(), "transaction_date": transaction_date.strip(),

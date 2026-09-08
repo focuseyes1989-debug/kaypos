@@ -4725,7 +4725,20 @@ class LiteWindow(QMainWindow):
         unit_cost.setGroupSeparatorShown(True)
         total_cost = QLabel("0 Ks")
         total_cost.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        batch_no = QLineEdit(f"BATCH-{QDate.currentDate().toString('yyyyMMdd')}")
+        batch_no = QLineEdit()
+        batch_no.setPlaceholderText("Auto-generated when blank")
+        expiry_mode = QComboBox()
+        expiry_mode.addItem("Auto - 1 year", "date")
+        expiry_mode.addItem("No expiry", "none")
+        expiry_date = QDateEdit(QDate.currentDate().addYears(1))
+        expiry_date.setDisplayFormat("yyyy-MM-dd")
+        expiry_date.setCalendarPopup(True)
+        if variant_combo:
+            expiry_mode.setCurrentIndex(1)
+            expiry_mode.setEnabled(False)
+            expiry_mode.setToolTip("Variant stock has no batch expiry tracking")
+        expiry_date.setEnabled(expiry_mode.currentData() != "none")
+        expiry_mode.currentIndexChanged.connect(lambda: expiry_date.setEnabled(expiry_mode.currentData() != "none"))
         received_by = QLineEdit(str((self.user or {}).get("full_name") or (self.user or {}).get("username") or ""))
         notes = QTextEdit()
         notes.setPlaceholderText("Additional notes or remarks…")
@@ -4735,6 +4748,8 @@ class LiteWindow(QMainWindow):
             form.addRow("Unit Cost", unit_cost)
             form.addRow("Total Cost", total_cost)
             form.addRow("Batch No", batch_no)
+            form.addRow("Expiry", expiry_mode)
+            form.addRow("Expiry Date", expiry_date)
             form.addRow("Received By", received_by)
         else:
             customer = QComboBox()
@@ -4845,6 +4860,7 @@ class LiteWindow(QMainWindow):
             "supplier_id": supplier.currentData() if direction > 0 else None,
             "unit_cost": unit_cost.value() if direction > 0 else 0,
             "batch_no": batch_no.text() if direction > 0 else "",
+            "expire_date": expiry_date.date().toString("yyyy-MM-dd") if direction > 0 and expiry_mode.currentData() != "none" else "",
             "received_by": received_by.text() if direction > 0 else "",
             "notes": notes.toPlainText(),
             "customer_id": customer.currentData() if direction < 0 else None,
@@ -4867,7 +4883,7 @@ class LiteWindow(QMainWindow):
                 location=values["location"],
                 supplier_id=values["supplier_id"],
                 unit_cost=values["unit_cost"],
-                batch_no=values["batch_no"],
+                batch_no=values["batch_no"], expire_date=values["expire_date"],
                 received_by=values["received_by"],
                 notes=values["notes"],
                 customer_id=values["customer_id"],

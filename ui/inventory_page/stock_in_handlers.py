@@ -537,7 +537,7 @@ class StockInHandlers:
         qty = self._stock_in_base_qty()
         unit_cost = self._stock_in_base_cost()
         batch_no = d.si_batch_no.text().strip()
-        expire = d.si_expiry.date().toString("yyyy-MM-dd")
+        expire = "" if getattr(d, "si_expiry_mode", None) and d.si_expiry_mode.currentData() == "none" else d.si_expiry.date().toString("yyyy-MM-dd")
         received_by = d.si_received_by.text().strip()
         notes = d.si_notes.toPlainText()
         supplier_id = d.si_supplier.currentData()
@@ -602,7 +602,7 @@ class StockInHandlers:
             
             if location:
                 if not batch_no:
-                    batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
                 expire_value = expire if expire else ""
                 cursor.execute("""
                     INSERT INTO product_locations (product_id, location, batch_no, expire_date, quantity)

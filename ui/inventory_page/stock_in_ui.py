@@ -316,6 +316,19 @@ class StockInUI:
         grid.addWidget(dialog.si_batch_no, row, 1)
         row += 1
         
+        dialog.si_expiry_mode = QComboBox()
+        dialog.si_expiry_mode.addItem("Auto - 1 year", "date")
+        dialog.si_expiry_mode.addItem("No expiry", "none")
+        dialog.si_expiry_mode.currentIndexChanged.connect(
+            lambda: dialog.si_expiry.setEnabled(dialog.si_expiry_mode.currentData() != "none")
+        )
+        grid.addWidget(self._create_label("Expiry", colors), row, 0)
+        grid.addWidget(dialog.si_expiry_mode, row, 1)
+        row += 1
+        grid.addWidget(expiry_label, row, 0)
+        grid.addWidget(dialog.si_expiry, row, 1)
+        row += 1
+
         # Row 7: Received By | Date
         received_label = self._create_label("👤 Received By", colors)
         dialog.si_received_by = self._create_lineedit("", colors)

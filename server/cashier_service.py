@@ -2055,7 +2055,7 @@ def adjust_stock(
                     raise ValueError(f"Insufficient stock in {location}")
             if adjustment > 0:
                 if not batch_no:
-                    batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    batch_no = f"BATCH-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
                 cursor.execute(
                     """
                     SELECT id, location, quantity FROM product_locations
