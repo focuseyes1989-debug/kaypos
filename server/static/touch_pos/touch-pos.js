@@ -504,6 +504,7 @@
   }
   async function showInventoryPage() {
     window.KayTouchSettings?.hide();
+    window.KayTouchExpenses?.hide();
     receiptsRequest++;
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
@@ -600,6 +601,7 @@
   }
   async function showReceiptsPage() {
     window.KayTouchSettings?.hide();
+    window.KayTouchExpenses?.hide();
     hideInventory();
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
@@ -677,7 +679,16 @@
     await loadTouchReceipts();
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
+  function showTouchExpenses() {
+    window.KayTouchSettings?.hide();hideInventory();receiptsRequest++;
+    document.querySelector('#touchReceipts').hidden=true;
+    document.querySelector('#productManager').hidden=true;
+    document.querySelector('.workspace').hidden=true;
+    document.querySelector('#workspaceStatus').textContent='Expenses';
+    window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView});
+  }
   function showTouchSettings() {
+    window.KayTouchExpenses?.hide();
     hideInventory(); receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;
     document.querySelector('#productManager').hidden=true;
@@ -687,6 +698,7 @@
   }
   function showSalesView() {
     window.KayTouchSettings?.hide();
+    window.KayTouchExpenses?.hide();
     const fromInventory = !document.querySelector('#touchInventory').hidden;
     hideInventory();
     if (fromInventory) loadProducts();
@@ -698,6 +710,7 @@
   }
   async function showProductManager() {
     window.KayTouchSettings?.hide();
+    window.KayTouchExpenses?.hide();
     hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
@@ -965,6 +978,7 @@
   function closeBarcodeModal() { document.querySelector('#barcodeModal').hidden = true; barcodeProduct = null; }
   function clearCatalog() {
     window.KayTouchSettings?.hide();
+    window.KayTouchExpenses?.hide();
     hideInventory();
     receiptsRequest += 1;
     document.querySelector('#touchReceipts').hidden = true;
@@ -1124,6 +1138,7 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'expenses') {showTouchExpenses();return;}
     if (action === 'settings') { showTouchSettings(); return; }
     if (action === 'inventory') { showInventoryPage(); return; }
     if (action === 'receipts') { showReceiptsPage(); return; }
