@@ -428,9 +428,44 @@
       const data = await api(`/api/receipts/${id}`); if(request !== receiptsRequest) return;
       const r = data.receipt;
       detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(r.invoice_no)}</strong><small>${escapeHtml(r.created_at)} · ${escapeHtml(r.customer_name || 'Walk-in Customer')} · ${escapeHtml(r.status)}</small></div><button type="button" data-close-detail>Close</button></div><div class="receipt-table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${(r.items || []).map(item=>`<tr><td>${escapeHtml(item.product_name)}</td><td>${money(item.qty)}</td><td>${money(item.price)}</td><td>${money(item.total)}</td></tr>`).join('')}</tbody></table></div><div class="receipt-detail-totals">${[['Payment method',escapeHtml(r.payment_type)],['Discount',money(r.discount_amount)+' Ks'],['Total',money(r.total)+' Ks'],['Paid',money(r.paid_amount ?? r.payment)+' Ks'],['Change',money(r.change_amount)+' Ks'],...(String(r.payment_type).toLowerCase()==='credit' ? [['Credit balance',money(r.balance_amount ?? Math.max(0,Number(r.total)-Number(r.payment)))+' Ks']] : [])].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`;
+      const completed = String(r.status || 'completed').toLowerCase() === 'completed';
+      const credit = String(r.payment_type || '').toLowerCase() === 'credit';
+      if (completed && !credit) {
+        detail.innerHTML += `<div class="receipt-refund"><button type="button" data-refund-open>Refund</button><form data-refund-form hidden><strong>Refund ${money(r.total)} Ks?</strong><p>This refunds the entire receipt and restores its stock.</p><label>Reason<input name="reason" required maxlength="500" placeholder="Customer return"></label><div><button type="submit" data-refund-submit>Confirm refund</button><button type="button" data-refund-cancel>Cancel</button></div><small data-refund-error role="alert"></small></form></div>`;
+        const form = detail.querySelector('[data-refund-form]');
+        const open = detail.querySelector('[data-refund-open]');
+        open.onclick = () => { form.hidden = false; open.hidden = true; form.querySelector('input').focus(); };
+        detail.querySelector('[data-refund-cancel]').onclick = () => { form.hidden = true; open.hidden = false; open.focus(); };
+        form.onsubmit = event => { event.preventDefault(); return refundTouchReceipt(id, form, request); };
+      } else if (completed && credit) {
+        detail.innerHTML += '<p class="receipt-refund-note">Credit refunds must be processed in the full KAY POS app.</p>';
+      }
       detail.querySelector('[data-close-detail]').onclick=resetReceiptDetail;
       if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     } catch(error) { if(request === receiptsRequest) detail.textContent=error.message; }
+  }
+  async function refundTouchReceipt(id, form, request) {
+    const submit = form.querySelector('[data-refund-submit]');
+    if (submit.disabled) return;
+    const reason = form.querySelector('input').value.trim();
+    const errorNode = form.querySelector('[data-refund-error]');
+    if (!reason) { errorNode.textContent = 'Enter a refund reason.'; return; }
+    submit.disabled = true;
+    submit.textContent = 'Refunding…';
+    errorNode.textContent = '';
+    try {
+      await api(`/api/sales/${id}/refund`, {method:'POST', body:JSON.stringify({reason})});
+    } catch (error) {
+      errorNode.textContent = error.message;
+      submit.disabled = false;
+      submit.textContent = 'Confirm refund';
+      return;
+    }
+    toast('Receipt refunded successfully.');
+    if (request !== receiptsRequest) return;
+    const refreshRequest = receiptsRequest + 1;
+    await loadTouchReceipts();
+    if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
   function showSalesView() {
     receiptsRequest += 1;
