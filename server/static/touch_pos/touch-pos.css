@@ -1718,5 +1718,6 @@ html[data-touch-theme=dark] :is(.search,.category-search,.manager-search):focus-
 }
 
 .expense-row-actions{display:flex;gap:6px;align-items:center}
+.touch-expenses .expense-row-actions .settings-danger:hover:not(:disabled){background:#fee4e2}
 @media(max-width:800px){.expense-row-actions{grid-column:3}}
 @media(max-width:560px){.expense-row-actions{grid-column:2}}
