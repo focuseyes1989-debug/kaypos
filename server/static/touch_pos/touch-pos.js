@@ -495,7 +495,7 @@
   }
   let itemImageUrl = '';
   const variantFields = [['color', 'Color'], ['size', 'Size'], ['sku', 'SKU'], ['barcode', 'Barcode'], ['price', 'Price', 0], ['cost', 'Cost', 0], ['stock', 'Stock', 0, 1], ['low_stock', 'Low stock', 0, 1]];
-  const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Wholesale price (တစ်ခုချင်းဈေး)', 0.01], ['note', 'Note']];
+  const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Wholesale price', 0.01], ['note', 'Note']];
   function addItemRow(kind, values = {}) {
     const row = document.createElement('div'); row.className = 'item-detail-row';
     const fields = kind === 'variants' ? variantFields : tierFields;
