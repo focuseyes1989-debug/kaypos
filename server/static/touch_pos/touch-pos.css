@@ -1550,3 +1550,24 @@ footer{
 .receipt-detail{padding:12px}.receipt-table-wrap{overflow:auto}.receipt-detail table{width:100%;border-collapse:collapse;text-align:left}.receipt-detail th,.receipt-detail td{padding:10px;border-bottom:1px solid var(--line);line-height:1.9}.receipt-detail td:not(:first-child),.receipt-detail th:not(:first-child){text-align:right;white-space:nowrap}.receipt-detail-totals{margin:16px 0 0 auto;max-width:360px}.receipt-detail-totals>div{display:flex;justify-content:space-between;gap:16px;padding:4px 10px}
 @media(max-width:900px){.receipt-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.touch-receipts{padding:10px}}
 @media(max-width:560px){.receipt-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.receipt-history-row{flex-direction:column;gap:4px}.receipt-history-row>span:last-child{text-align:left}.receipt-filters label{min-width:120px}.receipt-summary strong{font-size:16px}}
+.receipt-toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.receipt-tabs,.receipt-presets{display:flex;gap:6px;flex-wrap:wrap}.receipt-tabs{padding:5px;border:1px solid var(--line);background:#e8edf5;border-radius:12px}
+.touch-receipts .receipt-tabs button{border:0;background:transparent;font-weight:600;padding:7px 16px;min-height:42px}
+.touch-receipts .receipt-tabs button[aria-pressed="true"]{background:#fff;color:#2456c4;box-shadow:0 2px 6px #14213d12}
+.touch-receipts .receipt-presets button{font-size:12px;min-height:40px;padding:6px 12px}
+.touch-receipts .receipt-apply{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.receipt-workspace{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,1fr);align-items:start;gap:16px}
+.receipt-list-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:6px 6px 14px}.receipt-list-heading small{font-size:11px}
+.receipt-workspace .receipt-detail{position:sticky;top:0;min-height:320px;border-radius:16px;padding:16px}
+.receipt-detail-empty,.receipt-empty{display:grid;justify-items:center;align-content:center;min-height:270px;padding:25px;text-align:center;color:var(--muted)}
+.receipt-detail-empty img{width:44px;height:44px;opacity:.25;margin-bottom:18px}.receipt-detail-empty strong,.receipt-empty strong{color:var(--ink);font-size:16px}.receipt-detail-empty p,.receipt-empty p{font-size:12px;margin:6px 0}
+.receipt-summary .receipt-metric{border-top:3px solid #94a3b8;border-radius:12px;padding:12px 16px}.receipt-summary .metric-sales{border-top-color:#10b981}.receipt-summary .metric-discount{border-top-color:#f59e0b}.receipt-summary .metric-refund{border-top-color:#ef4444}.receipt-summary .metric-credit{border-top-color:#8b5cf6}.receipt-summary .metric-receipts{border-top-color:#3b82f6}.receipt-metric strong{font-variant-numeric:tabular-nums}
+.touch-receipts .receipt-history-row{border-radius:11px;min-height:82px;padding:12px;transition:background .15s,border-color .15s}
+.touch-receipts .receipt-history-row:hover{background:#f8faff;border-color:#a8bfee}.touch-receipts .receipt-history-row[aria-pressed="true"]{background:#edf4ff;border-color:#2563eb;box-shadow:inset 3px 0 #2563eb}
+.receipt-status{display:inline-block;font-size:10px;padding:1px 7px;border-radius:6px;margin-left:4px}.is-completed{background:#e8f7ef;color:#18794e}.is-refunded{background:#fff0ee;color:#b42318}
+.receipt-detail .receipt-page-head{padding:0 0 16px;border-bottom:1px dashed var(--line);align-items:start}.receipt-detail .receipt-page-head strong{font-size:18px;overflow-wrap:anywhere}.receipt-detail .receipt-page-head small{font-size:12px}
+.receipt-detail .receipt-table-wrap{margin-top:14px}.receipt-detail th{font-size:11px;color:var(--muted);background:#f7f9fc}.receipt-detail td{font-size:13px}.receipt-detail td:first-child{min-width:130px;overflow-wrap:anywhere}
+.receipt-detail-totals{max-width:none;background:#f7f9fc;border-radius:12px;padding:12px;font-size:13px}.receipt-detail-totals strong{font-variant-numeric:tabular-nums}
+.touch-receipts button:focus-visible,.touch-receipts input:focus-visible,.touch-receipts select:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+@media(max-width:900px){.receipt-workspace{grid-template-columns:1fr}.receipt-workspace .receipt-detail{position:static}.receipt-detail-empty{min-height:130px}.receipt-workspace .receipt-detail:has(.receipt-detail-empty){display:none}}
+@media(max-width:560px){.receipt-tabs{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.receipt-presets{width:100%}.receipt-presets button{flex:1}.receipt-list-heading{align-items:start;flex-direction:column;gap:2px}}

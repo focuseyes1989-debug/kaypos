@@ -137,16 +137,19 @@
     </main>
 
     <section id="touchReceipts" class="touch-receipts" hidden aria-label="Receipts">
-      <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Sales history from KAY POS</small></div><button id="receiptsSales" type="button">Sales</button></div>
+      <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Find a sale, review its items and payment details.</small></div><button id="receiptsSales" type="button">Sales</button></div>
       <form id="receiptsFilters" class="panel receipt-filters">
         <label>From<input id="receiptsFrom" type="date" required></label><label>To<input id="receiptsTo" type="date" required></label>
         <label>Search<input id="receiptsSearch" type="search" placeholder="Invoice or customer"></label>
-        <label>View<select id="receiptsTab"><option value="receipts">Receipts</option><option value="refunded">Refunded</option><option value="discounted">Discounted</option><option value="credit">Credit</option></select></label>
-        <button type="submit">Apply / Refresh</button>
+        <label hidden>View<select id="receiptsTab"><option value="receipts">Receipts</option><option value="refunded">Refunded</option><option value="discounted">Discounted</option><option value="credit">Credit</option></select></label>
+        <button type="submit" class="receipt-apply">Apply filters</button>
       </form>
+      <div class="receipt-toolbar"><div class="receipt-tabs" aria-label="Receipt views"><button type="button" data-receipts-tab="receipts" aria-pressed="true">Receipts</button><button type="button" data-receipts-tab="refunded" aria-pressed="false">Refunded</button><button type="button" data-receipts-tab="discounted" aria-pressed="false">Discounted</button><button type="button" data-receipts-tab="credit" aria-pressed="false">Credit</button></div><div class="receipt-presets" aria-label="Quick dates"><button type="button" data-receipts-days="1">Today</button><button type="button" data-receipts-days="7">Last 7 days</button><button type="button" data-receipts-days="30">Last 30 days</button></div></div>
       <div id="receiptsSummary" class="receipt-summary" aria-live="polite"></div>
-      <div class="panel receipt-results"><div id="receiptsRows" aria-live="polite"></div><div class="receipt-pagination"><button id="receiptsPrev" type="button">Previous</button><span id="receiptsPageInfo"></span><button id="receiptsNext" type="button">Next</button></div></div>
-      <section id="receiptsDetail" class="panel receipt-detail" hidden aria-label="Receipt details"></section>
+      <div class="receipt-workspace">
+      <div class="panel receipt-results"><div class="receipt-list-heading"><strong>Transactions</strong><small>Select a receipt to view details</small></div><div id="receiptsRows" aria-live="polite"></div><div class="receipt-pagination"><button id="receiptsPrev" type="button">Previous</button><span id="receiptsPageInfo"></span><button id="receiptsNext" type="button">Next</button></div></div>
+      <section id="receiptsDetail" class="panel receipt-detail" aria-label="Receipt details"><div class="receipt-detail-empty"><img src="/assets/icons/receipt.svg" alt=""><strong>Select a receipt</strong><p>Items and payment details will appear here.</p></div></section>
+      </div>
     </section>
     <footer><span id="workspaceStatus">Phase W7 · Receipt print</span><span id="clock"></span></footer>
   </div>

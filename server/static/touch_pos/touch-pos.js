@@ -387,6 +387,11 @@
     }
   }
   let receiptsOffset = 0, receiptsRequest = 0;
+  function resetReceiptDetail() {
+    const detail = document.querySelector('#receiptsDetail'); detail.hidden = false;
+    detail.innerHTML = '<div class="receipt-detail-empty"><img src="/assets/icons/receipt.svg" alt=""><strong>Select a receipt</strong><p>Items and payment details will appear here.</p></div>';
+    document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed','false'));
+  }
   async function showReceiptsPage() {
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = true;
@@ -400,15 +405,15 @@
   }
   async function loadTouchReceipts() {
     const request = ++receiptsRequest, root = document.querySelector('#receiptsRows');
-    document.querySelector('#receiptsDetail').hidden = true;
+    resetReceiptDetail();
     document.querySelector('#receiptsPrev').disabled = true; document.querySelector('#receiptsNext').disabled = true;
     root.textContent = 'Loading receipts...';
     const query = new URLSearchParams({from_date:document.querySelector('#receiptsFrom').value,to_date:document.querySelector('#receiptsTo').value,tab:document.querySelector('#receiptsTab').value,q:document.querySelector('#receiptsSearch').value.trim(),limit:'30',offset:String(receiptsOffset)});
     try {
       const data = await api(`/api/receipts/overview?${query}`); if (request !== receiptsRequest) return;
       const summary = data.summary || {};
-      document.querySelector('#receiptsSummary').innerHTML = [['receipts','Receipts'],['sales','Sales'],['discount','Discount'],['refund','Refund'],['credit','Credit']].map(([key,label])=>`<div class="panel"><small>${label}</small><strong>${money(summary[key])}${key === 'receipts' ? '' : ' Ks'}</strong></div>`).join('') + '<small class="receipt-summary-note">Summary for the selected date range, across all receipt tabs.</small>';
-      root.innerHTML = (data.rows || []).map(row=>`<button type="button" class="receipt-history-row" data-receipt-id="${Number(row.id)}"><span><strong>${escapeHtml(row.invoice_no)}</strong><small>${escapeHtml(row.created_at)} · ${escapeHtml(row.customer_name)}</small></span><span><strong>${money(row.total)} Ks</strong><small>${escapeHtml(row.payment_type)} · ${escapeHtml(row.status)}</small></span></button>`).join('') || '<p>No receipts found for these filters.</p>';
+      document.querySelector('#receiptsSummary').innerHTML = [['receipts','Receipts'],['sales','Sales'],['discount','Discount'],['refund','Refund'],['credit','Credit']].map(([key,label])=>`<div class="panel receipt-metric metric-${key}"><small>${label}</small><strong>${money(summary[key])}${key === 'receipts' ? '' : ' Ks'}</strong></div>`).join('') + '<small class="receipt-summary-note">Summary for the selected date range, across all receipt tabs.</small>';
+      root.innerHTML = (data.rows || []).map(row=>`<button type="button" class="receipt-history-row" aria-pressed="false" data-receipt-id="${Number(row.id)}"><span><strong>${escapeHtml(row.invoice_no)}</strong><small>${escapeHtml(row.created_at)} · ${escapeHtml(row.customer_name)}</small></span><span><strong>${money(row.total)} Ks</strong><small>${escapeHtml(row.payment_type)} <span class="receipt-status ${row.status === 'refunded' ? 'is-refunded' : 'is-completed'}">${escapeHtml(row.status)}</span></small></span></button>`).join('') || '<div class="receipt-empty"><strong>No receipts found</strong><p>Try a different date range or search term.</p></div>';
       root.querySelectorAll('[data-receipt-id]').forEach(button=>button.addEventListener('click',()=>openTouchReceipt(Number(button.dataset.receiptId))));
       document.querySelector('#receiptsPageInfo').textContent = data.total_count ? `${receiptsOffset+1}–${Math.min(receiptsOffset+30,data.total_count)} / ${data.total_count}` : '0 receipts';
       document.querySelector('#receiptsPrev').disabled = receiptsOffset === 0;
@@ -418,12 +423,13 @@
   async function openTouchReceipt(id) {
     const request = ++receiptsRequest, detail = document.querySelector('#receiptsDetail');
     detail.hidden = false; detail.textContent = 'Loading receipt...';
+    document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.receiptId)===id)));
     try {
       const data = await api(`/api/receipts/${id}`); if(request !== receiptsRequest) return;
       const r = data.receipt;
       detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(r.invoice_no)}</strong><small>${escapeHtml(r.created_at)} · ${escapeHtml(r.customer_name || 'Walk-in Customer')} · ${escapeHtml(r.status)}</small></div><button type="button" data-close-detail>Close</button></div><div class="receipt-table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${(r.items || []).map(item=>`<tr><td>${escapeHtml(item.product_name)}</td><td>${money(item.qty)}</td><td>${money(item.price)}</td><td>${money(item.total)}</td></tr>`).join('')}</tbody></table></div><div class="receipt-detail-totals">${[['Payment method',escapeHtml(r.payment_type)],['Discount',money(r.discount_amount)+' Ks'],['Total',money(r.total)+' Ks'],['Paid',money(r.paid_amount ?? r.payment)+' Ks'],['Change',money(r.change_amount)+' Ks'],...(String(r.payment_type).toLowerCase()==='credit' ? [['Credit balance',money(r.balance_amount ?? Math.max(0,Number(r.total)-Number(r.payment)))+' Ks']] : [])].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`;
-      detail.querySelector('[data-close-detail]').onclick=()=>{detail.hidden=true;};
-      detail.scrollIntoView({behavior:'smooth',block:'start'});
+      detail.querySelector('[data-close-detail]').onclick=resetReceiptDetail;
+      if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     } catch(error) { if(request === receiptsRequest) detail.textContent=error.message; }
   }
   function showSalesView() {
@@ -914,6 +920,17 @@
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
   document.querySelector('#managerCategorySearch').addEventListener('input', renderManagedCategories);
+  document.querySelectorAll('[data-receipts-tab]').forEach(button=>button.addEventListener('click',()=>{
+    document.querySelector('#receiptsTab').value=button.dataset.receiptsTab;
+    document.querySelectorAll('[data-receipts-tab]').forEach(tab=>tab.setAttribute('aria-pressed',String(tab===button)));
+    receiptsOffset=0;loadTouchReceipts();
+  }));
+  document.querySelectorAll('[data-receipts-days]').forEach(button=>button.addEventListener('click',()=>{
+    const end=new Date(), start=new Date();start.setDate(end.getDate()-Number(button.dataset.receiptsDays)+1);
+    const dateText=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    document.querySelector('#receiptsFrom').value=dateText(start);document.querySelector('#receiptsTo').value=dateText(end);
+    receiptsOffset=0;loadTouchReceipts();
+  }));
   document.querySelector('#receiptsSales').addEventListener('click', showSalesView);
   document.querySelector('#receiptsFilters').addEventListener('submit', event=>{event.preventDefault();receiptsOffset=0;loadTouchReceipts();});
   document.querySelector('#receiptsTab').addEventListener('change', ()=>{receiptsOffset=0;loadTouchReceipts();});
