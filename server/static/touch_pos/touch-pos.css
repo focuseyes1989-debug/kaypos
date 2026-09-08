@@ -876,9 +876,9 @@
   color:#fff!important;
 }
 .cart-actions .pay:disabled{
-  border-color:#cfd6e2!important;
-  background:#d7dde8!important;
-  color:#7d8797!important;
+  border-color:var(--disabled-border,#cfd6e2)!important;
+  background:var(--disabled-surface,#d7dde8)!important;
+  color:var(--disabled-text,#7d8797)!important;
 }
 
 /* Myanmar product names need a little extra vertical room on compact cards. */
@@ -1623,8 +1623,44 @@ footer{
 .settings-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.settings-form label{display:grid;gap:6px;font-weight:600;font-size:13px}.settings-form input:not([type=checkbox]),.settings-form select,.settings-form textarea{width:100%;min-width:0;box-sizing:border-box;min-height:46px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;color:var(--ink);font:inherit;line-height:1.9}.settings-form textarea{resize:vertical}.settings-form .settings-check{display:flex;align-items:center;gap:10px;min-height:44px}.settings-check input{width:20px;height:20px;accent-color:#2563eb}.settings-save{grid-column:1/-1;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:18px;margin-top:6px}.settings-save span{color:var(--muted);font-size:12px}.settings-image{padding:16px;border:1px solid var(--line);border-radius:12px}.settings-image img{width:100px;height:100px;object-fit:contain;margin:12px 0;background:#fff;border-radius:8px}.settings-records{display:grid;gap:10px;margin-top:18px}.settings-record{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:14px}.settings-record small{display:block;color:var(--muted)}.settings-record>div:last-child{display:flex;gap:8px}.settings-editor{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}.settings-editor h3{grid-column:1/-1;margin:0}
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-layout nav{position:static;display:flex;overflow:auto;padding-bottom:8px}.settings-layout nav button{white-space:nowrap;flex-shrink:0}.settings-panel{padding:18px}}
 @media(max-width:560px){.settings-form{grid-template-columns:1fr}.settings-save,.settings-record{flex-wrap:wrap}.touch-settings{padding:10px}}
-html[data-touch-theme=gray]{--bg:#e2e5eb}html[data-touch-theme=dark]{--bg:#101827;--ink:#e6edf7;--muted:#a4b2c8;--line:#344156;--panel:#1c283b;color-scheme:dark}
-html[data-touch-theme=dark] body,html[data-touch-theme=dark] .app-shell{background:#101827;color:#e6edf7}
-html[data-touch-theme=dark] :is(.panel,.product-card,.manager-row,.receipt-history-row,.movement-card,.inventory-movement-dialog,.receipt-modal,.manager-modal,.choice-modal,.checkout-modal,.cart-row,.side-menu,.touch-settings button,.touch-settings input,.touch-settings select,.touch-settings textarea){background:#1c283b;color:#e6edf7;border-color:#344156}
-html[data-touch-theme=dark] :is(.touch-receipts,.product-manager,.cart-items,.category-list,.product-image){background:#101827;color:#e6edf7}
-html[data-touch-theme=dark] .touch-settings .settings-primary{background:#2563eb;color:white}html[data-touch-theme=dark] .settings-layout nav button[aria-current=page]{background:#254376;color:#fff}html[data-touch-theme=dark] .touch-settings .settings-danger{background:#48252c;color:#fecaca}
+html[data-touch-theme=gray]{--bg:#e2e5eb}
+/* Screen-only dark palette: printed receipts and barcode artwork remain unchanged. */
+@media screen {
+html[data-touch-theme=dark]{--bg:#101827;--ink:#e6edf7;--muted:#a8b8cf;--line:#3a4a62;--panel:#1c283b;--bad:#fda4af;--disabled-border:#344156;--disabled-surface:#273347;--disabled-text:#96a5ba;--shadow:0 4px 16px #0002;color-scheme:dark;scrollbar-color:#52647f #142033}
+html[data-touch-theme=dark] :is(body,.app-shell,.touch-receipts,.product-manager,.cart-items){background:var(--bg);color:var(--ink)}
+html[data-touch-theme=dark] :is(.panel,.product-card,.manager-row,.receipt-history-row,.movement-card,.inventory-movement-dialog,.receipt-modal,.manager-modal,.choice-modal,.checkout-modal,.cart-row,.side-menu,.user-menu,.login-card,.item-card){background:var(--panel);color:var(--ink);border-color:var(--line)}
+html[data-touch-theme=dark] :is(.search,.category-search,.manager-search,.product-stock,.qty-controls output,.receipt-detail-totals,.receipt-detail th,.receipt-tabs,.checkout-summary,.barcode-preview,.item-image-preview){background:#142033;color:var(--ink);border-color:var(--line)}
+html[data-touch-theme=dark] :is(input,select,textarea){background:#142033;color:var(--ink);border-color:var(--line)}
+html[data-touch-theme=dark] :is(input,textarea)::placeholder{color:#a8b8cf;opacity:1}
+html[data-touch-theme=dark] :is(#app,#itemModal,#categoryModal,#checkoutModal,#receiptModal,#productChoiceModal,#barcodeModal) button,
+html[data-touch-theme=dark] .inventory-movement-dialog button{background:#26364d;color:var(--ink);border-color:var(--line)}
+html[data-touch-theme=dark] :is(#app,#itemModal,#categoryModal,#checkoutModal,#receiptModal,#productChoiceModal,#barcodeModal) button:hover:not(:disabled),
+html[data-touch-theme=dark] .inventory-movement-dialog button:hover:not(:disabled){background:#334963;border-color:#6483aa}
+html[data-touch-theme=dark] :is(#app,#itemModal,#categoryModal,#checkoutModal,#receiptModal,#productChoiceModal,#barcodeModal) :is(.sign-in,.pay,.primary-action,.receipt-apply,.settings-primary),
+html[data-touch-theme=dark] .inventory-movement-dialog .movement-filters button{background:#2563eb;color:#fff;border-color:#467ff0}
+html[data-touch-theme=dark] :is(#app,#itemModal,#categoryModal,#checkoutModal,#receiptModal,#productChoiceModal,#barcodeModal) :is(.sign-in,.pay,.primary-action,.receipt-apply,.settings-primary):hover:not(:disabled),
+html[data-touch-theme=dark] .inventory-movement-dialog .movement-filters button:hover:not(:disabled){background:#1d4ed8;color:#fff}
+html[data-touch-theme=dark] #app :is(.category.active,[data-setting-tab][aria-current=page],.receipt-tabs button[aria-pressed=true],.receipt-history-row[aria-pressed=true]){background:#244773;color:#eff6ff;border-color:#6ea8ff}
+html[data-touch-theme=dark] #app :is(.manager-delete,.settings-danger,[data-refund-open],[data-refund-submit]),
+html[data-touch-theme=dark] :is(.inventory-movement-dialog button.danger,#itemModal .remove-item-row){background:#452730;color:#fecaca;border-color:#80515b}
+html[data-touch-theme=dark] #app :is(.manager-delete,.settings-danger,[data-refund-open],[data-refund-submit]):hover:not(:disabled),
+html[data-touch-theme=dark] .inventory-movement-dialog button.danger:hover:not(:disabled){background:#60303c;color:#fff}
+html[data-touch-theme=dark] #app button:disabled{background:#273347;color:#96a5ba;border-color:#344156;opacity:.65;cursor:not-allowed}
+html[data-touch-theme=dark] :is(.product-price,.quick-cash button){color:#93c5fd}
+html[data-touch-theme=dark] :is(.count,.panel-heading>span,.product-stock){background:#293d59;color:#dbeafe;border-color:#496486}
+html[data-touch-theme=dark] .product-badge{background:#49391c;color:#fde68a}
+html[data-touch-theme=dark] :is(.product-badge.out,.is-refunded){background:#452730;color:#fecaca}
+html[data-touch-theme=dark] :is(.is-completed,.inventory-kind.kind-service){background:#163f3a;color:#99f6e4;border-color:#327165}
+html[data-touch-theme=dark] .inventory-kind.kind-each{background:#243e64;color:#bfdbfe;border-color:#476a9c}
+html[data-touch-theme=dark] .inventory-kind.kind-variants{background:#3b2b58;color:#ddd6fe;border-color:#73569c}
+html[data-touch-theme=dark] :is(.product-meta,.movement-card p,.movement-card dt,.inventory-movement-dialog [data-page],.checkout-field span,.checkout-note,.item-help-card p,footer){color:var(--muted)}
+html[data-touch-theme=dark] :is(.manager-thumb,.product-image){background:#142033;color:#a8b8cf}
+html[data-touch-theme=dark] #itemForm{background:var(--bg)}
+html[data-touch-theme=dark] :is(#itemForm>.receipt-head,#itemForm>.checkout-actions,.item-help-card){background:var(--panel);border-color:var(--line)}
+html[data-touch-theme=dark] :is(#itemForm input,#itemForm select,#itemForm textarea,.settings-form input:not([type=checkbox]),.settings-form select,.settings-form textarea){background:#142033;color:var(--ink);border-color:var(--line)}
+html[data-touch-theme=dark] :is(#itemForm label>span,#itemImagePlaceholder strong){color:var(--muted)}
+html[data-touch-theme=dark] :is(.side-menu-icon,#closeSideMenu img){filter:brightness(0) invert(.9)}
+html[data-touch-theme=dark] .side-menu-button span{background:#e6edf7}
+html[data-touch-theme=dark] .empty-icon{background:#243e64;color:#bfdbfe}
+html[data-touch-theme=dark] :is(button,input,select,textarea):focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+}
