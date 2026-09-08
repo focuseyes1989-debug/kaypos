@@ -1598,6 +1598,18 @@ footer{
 
 .inventory-movement-dialog{width:min(960px,94vw);max-height:90dvh;box-sizing:border-box;padding:24px;border:1px solid #d7e0ed;border-radius:18px;background:#f4f7fb;color:#172238;font-family:inherit;line-height:1.9;overflow:auto}
 .inventory-movement-dialog::backdrop{background:#101b32aa}
+.inventory-movement-dialog button{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 16px;border:1px solid #d7e0ed;border-radius:10px;background:#fff;color:#253650;font-family:inherit;font-size:13px;font-weight:600;line-height:1.6;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s;white-space:nowrap}
+.inventory-movement-dialog button:hover:not(:disabled){background:#edf3fc;border-color:#abc1e1}
+.inventory-movement-dialog button:focus-visible{outline:3px solid #93b4ff;outline-offset:3px}
+.inventory-movement-dialog button:disabled{opacity:.45;cursor:not-allowed}
+.inventory-movement-dialog .movement-filters button{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 2px 5px #2563eb20}
+.inventory-movement-dialog .movement-filters button:hover:not(:disabled){background:#1d4ed8;border-color:#1d4ed8}
+.inventory-movement-dialog button.danger{background:#fff5f5;border-color:#fecaca;color:#b91c1c;margin-top:8px}
+.inventory-movement-dialog button.danger:hover:not(:disabled){background:#fee2e2;border-color:#f87171}
+.inventory-movement-dialog [data-close]::before{content:'\00d7';font-size:20px;line-height:1}
+.inventory-movement-dialog [data-prev]::before{content:'\2039';font-size:20px;line-height:1}
+.inventory-movement-dialog [data-next]::after{content:'\203a';font-size:20px;line-height:1}
+.inventory-movement-dialog footer{padding-top:16px;border-top:1px solid #d7e0ed}.inventory-movement-dialog [data-page]{font-size:13px;color:#61718b}
 .inventory-movement-dialog header,.inventory-movement-dialog footer,.movement-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .inventory-movement-dialog h2,.inventory-movement-dialog p{margin:0 0 8px}.inventory-movement-dialog header>div{min-width:0;overflow-wrap:anywhere}
 .movement-filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.movement-filters label{display:grid;gap:4px;font-size:13px}.movement-filters input,.movement-filters select{width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #d7e0ed;border-radius:8px;background:white;color:inherit;font:inherit}
