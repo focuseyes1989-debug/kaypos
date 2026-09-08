@@ -2383,7 +2383,22 @@ def transfer_stock(
     return products[0] if products else {"id": product_id}
 
 
-def list_stock_movements(product_id: int, limit: int = 200) -> List[Dict[str, Any]]:
+def list_stock_movements(product_id: int, limit: int = 200, offset: int = 0,
+                         from_date: str = "", to_date: str = "", movement_type: str = "") -> List[Dict[str, Any]]:
+    conditions, params = ["sm.product_id = ?"], [int(product_id)]
+    for value, operator in ((from_date, ">="), (to_date, "<=")):
+        if value:
+            from datetime import date
+            date.fromisoformat(value)
+            conditions.append(f"date(sm.created_at) {operator} ?")
+            params.append(value)
+    if from_date and to_date and from_date > to_date:
+        raise ValueError("From date must be before To date")
+    aliases = {"in": ("in", "stock_in"), "out": ("out", "stock_out")}
+    if movement_type:
+        types = aliases.get(movement_type, (movement_type,))
+        conditions.append("sm.type IN (" + ",".join("?" for _ in types) + ")")
+        params.extend(types)
     conn = connect_db()
     cursor = conn.cursor()
     try:
@@ -2394,11 +2409,11 @@ def list_stock_movements(product_id: int, limit: int = 200) -> List[Dict[str, An
                    pv.color, pv.size
             FROM stock_movements sm
             LEFT JOIN product_variants pv ON pv.id = sm.variant_id
-            WHERE sm.product_id = ?
+            WHERE """ + " AND ".join(conditions) + """
             ORDER BY sm.created_at DESC, sm.id DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
             """,
-            (int(product_id), max(1, min(int(limit), 500))),
+            (*params, max(1, min(int(limit), 500)), max(0, int(offset))),
         )
         columns = [description[0] for description in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]

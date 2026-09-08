@@ -1595,3 +1595,11 @@ footer{
 .inventory-kind.kind-each{background:#eaf2ff;color:#1d4ed8;border-color:#c7dbff}
 .inventory-kind.kind-variants{background:#f3ecff;color:#6d28d9;border-color:#e0d0ff}
 .inventory-kind.kind-service{background:#e6f7f2;color:#0f766e;border-color:#b7e8db}
+
+.inventory-movement-dialog{width:min(960px,94vw);max-height:90dvh;box-sizing:border-box;padding:24px;border:1px solid #d7e0ed;border-radius:18px;background:#f4f7fb;color:#172238;font-family:inherit;line-height:1.9;overflow:auto}
+.inventory-movement-dialog::backdrop{background:#101b32aa}
+.inventory-movement-dialog header,.inventory-movement-dialog footer,.movement-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.inventory-movement-dialog h2,.inventory-movement-dialog p{margin:0 0 8px}.inventory-movement-dialog header>div{min-width:0;overflow-wrap:anywhere}
+.movement-filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;margin:16px 0}.movement-filters label{display:grid;gap:4px;font-size:13px}.movement-filters input,.movement-filters select{width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #d7e0ed;border-radius:8px;background:white;color:inherit;font:inherit}
+.movement-results{display:grid;gap:12px}.movement-card{padding:16px;background:white;border:1px solid #d7e0ed;border-radius:12px;overflow-wrap:anywhere}.movement-card p,.movement-card dt{font-size:12px;color:#61718b}.movement-card dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}.movement-card dd{margin:0}.inventory-movement-dialog footer{margin-top:16px}.inventory-history>button{margin-bottom:12px}
+@media(max-width:650px){.inventory-movement-dialog{padding:16px}.movement-filters{grid-template-columns:1fr 1fr}.movement-card dl{grid-template-columns:1fr}}

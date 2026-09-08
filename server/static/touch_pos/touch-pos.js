@@ -432,6 +432,57 @@
     };
   }
 
+  function showInventoryMovements(product) {
+    const dialog=document.createElement('dialog');
+    dialog.className='inventory-movement-dialog';
+    dialog.setAttribute('aria-labelledby','movementTitle');
+    dialog.innerHTML=`<header><div><h2 id="movementTitle">Stock Movements</h2><p>${escapeHtml(product.name)} · ${escapeHtml(product.sku || '')}</p></div><button type="button" data-close>Close</button></header>
+      <form class="movement-filters"><label>From<input type="date" name="from_date"></label><label>To<input type="date" name="to_date"></label><label>Type<select name="movement_type"><option value="">All movements</option value="in">Stock In</option><option value="out">Stock Out</option><option value="adjustment">Adjustment</option><option value="sale">Sale</option><option value="refund">Refund</option><option value="transfer">Transfer</option></select></label><button type="submit">Apply filters</button></form>
+      <p role="status" data-status></p><div class="movement-results"></div><footer><button type="button" data-prev>Previous</button><span data-page></span><button type="button" data-next>Next</button></footer>`;
+    document.body.appendChild(dialog);
+    const opener=document.activeElement, form=dialog.querySelector('form'), results=dialog.querySelector('.movement-results'), status=dialog.querySelector('[data-status]');
+    let offset=0, sequence=0, changed=false, busy=false;
+    dialog.querySelector('[data-close]').onclick=()=>{if(!busy) dialog.close();};
+    dialog.oncancel=e=>{if(busy)e.preventDefault();};
+    dialog.onclose=()=>{sequence++;dialog.remove();opener?.focus();if(changed)loadInventory();};
+    const load=async()=>{
+      const token=++sequence;
+      status.textContent='Loading movements…';results.replaceChildren();
+      dialog.querySelector('[data-prev]').disabled=true;dialog.querySelector('[data-next]').disabled=true;
+      const query=new URLSearchParams({product_id:product.id,limit:51,offset,from_date:form.elements.from_date.value,to_date:form.elements.to_date.value,movement_type:form.elements.movement_type.value});
+      try {
+        const data=await api(`/api/stock/movements?${query}`);
+        if(token!==sequence || !dialog.open)return;
+        const rows=data.movements || [];
+        status.textContent=rows.length ? '' : 'No movements match these filters.';
+        dialog.querySelector('[data-page]').textContent=`Page ${Math.floor(offset/50)+1}`;
+        dialog.querySelector('[data-prev]').disabled=offset===0;dialog.querySelector('[data-next]').disabled=rows.length<=50;
+        const names={in:'Stock In',stock_in:'Stock In',out:'Stock Out',stock_out:'Stock Out',adjustment:'Adjustment',sale:'Sale',refund:'Refund',transfer:'Transfer'};
+        results.innerHTML=rows.slice(0,50).map(m=>{
+          const reversed=String(m.notes||'').includes('[REVERSED]') || String(m.reference||'').endsWith('-REV');
+          const canReverse=['in','stock_in','out','stock_out','adjustment'].includes(m.type) && !reversed && !String(m.reference||'').startsWith('REV-');
+          return `<article class="movement-card"><div class="movement-card-head"><strong>${escapeHtml(names[m.type] || m.type)} · ${money(m.quantity)}</strong><span>${reversed?'Reversed':`#${Number(m.id)}`}</span></div><p>${escapeHtml(m.created_at)} · ${escapeHtml(m.created_by || '—')}</p><dl><div><dt>Stock before → after</dt><dd>${money(m.old_stock)} → ${money(m.new_stock)}</dd></div><div><dt>Location / variant</dt><dd>${escapeHtml(m.location || '—')} · ${escapeHtml([m.color,m.size].filter(Boolean).join(' / ') || '—')}</dd></div><div><dt>Reference</dt><dd>${escapeHtml(m.reference || '—')}</dd></div><div><dt>Reason / notes</dt><dd>${escapeHtml([m.reason,m.notes].filter(Boolean).join(' · ') || '—')}</dd></div></dl>${canReverse?`<button type="button" class="danger" data-reverse="${Number(m.id)}">Reverse movement</button>`:''}</article>`;
+        }).join('');
+        results.querySelectorAll('[data-reverse]').forEach(button=>button.onclick=async()=>{
+          if(busy)return;
+          const reason=window.prompt('Reason for reversing this stock movement:');
+          if(!reason?.trim())return;
+          if(!window.confirm('Reverse this movement? This will change stock balances.'))return;
+          busy=true;dialog.querySelectorAll('button').forEach(b=>b.disabled=true);status.textContent='Reversing movement…';
+          try {
+            await api(`/api/stock/movements/${Number(button.dataset.reverse)}/reverse`,{method:'POST',body:JSON.stringify({reason:reason.trim()})});
+            changed=true;toast('Stock movement reversed.');
+          } catch(error){window.alert(error.message);}
+          finally {busy=false;dialog.querySelectorAll('button').forEach(b=>b.disabled=false);await load();}
+        });
+      }catch(error){if(token===sequence){status.textContent=error.message;dialog.querySelector('[data-prev]').disabled=offset===0;}}
+    };
+    form.onsubmit=e=>{e.preventDefault();if(busy)return;offset=0;load();};
+    dialog.querySelector('[data-prev]').onclick=()=>{offset=Math.max(0,offset-50);load();};
+    dialog.querySelector('[data-next]').onclick=()=>{offset+=50;load();};
+    dialog.showModal();load();
+  }
+
   let inventoryRequest = 0, inventoryDetailRequest = 0, inventoryOffset = 0;
   let inventoryProducts = [], inventoryLocations = [], inventorySuppliers = [];
   function hideInventory() {
@@ -518,6 +569,8 @@
       setupInventoryActions(p, detail, request);
     } else detail.innerHTML+='<p>Service products do not track inventory.</p>';
     detail.insertAdjacentHTML('beforeend', '<div class="inventory-history"><h3>Recent movements</h3><div id="inventoryMovements">Loading movements...</div></div>');
+    detail.insertAdjacentHTML('afterbegin', '<button type="button" id="inventoryViewMovements">View Movements</button>');
+    detail.querySelector('#inventoryViewMovements').onclick=()=>showInventoryMovements(p);
     if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     try {
       const data=await api(`/api/stock/movements?product_id=${id}&limit=50`);
@@ -582,7 +635,9 @@
         detail.innerHTML += '<p class="receipt-refund-note">Credit refunds must be processed in the full KAY POS app.</p>';
       }
       detail.querySelector('[data-close-detail]').onclick=resetReceiptDetail;
-      if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
+      detail.insertAdjacentHTML('afterbegin', '<button type="button" id="inventoryViewMovements">View Movements</button>');
+    detail.querySelector('#inventoryViewMovements').onclick=()=>showInventoryMovements(p);
+    if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     } catch(error) { if(request === receiptsRequest) detail.textContent=error.message; }
   }
   async function refundTouchReceipt(id, form, request) {

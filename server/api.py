@@ -1250,9 +1250,15 @@ def transfer_stock(payload: StockTransferRequest, user: Dict[str, Any] = Depends
 @app.get("/api/stock/movements")
 def stock_movements(
     product_id: int = Query(..., gt=0), limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0), from_date: str = "", to_date: str = "",
+    movement_type: str = "",
     _: Dict[str, Any] = Depends(current_user),
 ):
-    return {"movements": cashier_service.list_stock_movements(product_id, limit)}
+    try:
+        return {"movements": cashier_service.list_stock_movements(
+            product_id, limit, offset, from_date, to_date, movement_type)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/stock/movements/{movement_id}/reverse")
