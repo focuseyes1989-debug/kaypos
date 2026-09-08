@@ -172,16 +172,31 @@
     <form id="itemForm" class="manager-modal" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle">
       <div class="receipt-head"><div><strong id="itemModalTitle">Add Item</strong><small id="itemModalSubtitle">Product details</small></div><button id="closeItemModal" type="button" aria-label="Close">×</button></div>
       <div class="manager-form">
+        <h3 class="full item-section-title">Basic</h3>
         <label><span>Name</span><input id="itemName" required maxlength="300"></label>
         <label><span>Category</span><select id="itemCategory"></select></label>
         <label><span>Sold by</span><select id="itemSoldBy"><option>Each</option><option>Service</option><option>Variants</option></select></label>
-        <label><span>Price</span><input id="itemPrice" type="number" min="0" step="100" inputmode="numeric"></label>
-        <label><span>Cost</span><input id="itemCost" type="number" min="0" step="100" inputmode="numeric"></label>
+        <h3 class="full item-section-title">Sales &amp; Stock</h3>
+        <label><span>Price</span><input id="itemPrice" type="number" min="0" step="any" inputmode="decimal"></label>
+        <label><span>Cost</span><input id="itemCost" type="number" min="0" step="any" inputmode="decimal"></label>
         <label><span>Stock</span><input id="itemStock" type="number" min="0" step="1" inputmode="numeric"></label>
         <label><span>Low stock</span><input id="itemLowStock" type="number" min="0" step="1" inputmode="numeric"></label>
         <label><span>Unit</span><input id="itemUnit" maxlength="40" value="pcs"></label>
         <label><span>SKU</span><input id="itemSku" maxlength="160"></label>
         <label><span>Barcode</span><input id="itemBarcode" maxlength="160"></label>
+        <label data-item-mode="each"><span>Pack name</span><input id="itemPackUnit" maxlength="40" placeholder="box / card"></label>
+        <label data-item-mode="each"><span>Qty / pack</span><input id="itemPackSize" type="number" min="1" step="1" value="1" required></label>
+        <section class="full item-editor-section" data-item-mode="each">
+          <div class="item-section-head"><h3>Wholesale</h3><button id="addItemTier" type="button">+ Add tier</button></div>
+          <p>Minimum quantity is in stock units. Set the price per stock unit.</p><div id="itemTiers"></div>
+        </section>
+        <section class="full item-editor-section" data-item-mode="variants">
+          <div class="item-section-head"><h3>Variants</h3><button id="addItemVariant" type="button">+ Add variant</button></div>
+          <p>Enter size / color, price and stock for each variant.</p><div id="itemVariants"></div>
+        </section>
+        <h3 class="full item-section-title">Optional</h3>
+        <label class="full"><span>Product image</span><input id="itemImage" type="file" accept="image/jpeg,image/png,image/webp"><small>JPEG, PNG or WebP, up to 5 MB. Choose a file to add or replace the image.</small></label>
+        <div class="full item-image-preview"><img id="itemImagePreview" alt="Product preview" hidden></div>
         <label class="full"><span>Description</span><textarea id="itemDescription" maxlength="1000" rows="3"></textarea></label>
       </div>
       <div class="checkout-actions"><button id="cancelItemModal" type="button">Cancel</button><button id="saveItem" class="sign-in" type="submit">Save Item</button></div>

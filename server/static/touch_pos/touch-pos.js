@@ -446,6 +446,43 @@
     root.innerHTML = rows.join('');
     root.querySelectorAll('[data-category-edit]').forEach(button => button.addEventListener('click', () => openCategoryModal(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryEdit)))));
   }
+  let itemImageUrl = '';
+  const variantFields = [['color', 'Color'], ['size', 'Size'], ['sku', 'SKU'], ['barcode', 'Barcode'], ['price', 'Price', 0], ['cost', 'Cost', 0], ['stock', 'Stock', 0, 1], ['low_stock', 'Low stock', 0, 1]];
+  const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Price / stock unit', 0.01], ['note', 'Note']];
+  function addItemRow(kind, values = {}) {
+    const row = document.createElement('div'); row.className = 'item-detail-row';
+    const fields = kind === 'variants' ? variantFields : tierFields;
+    row.innerHTML = fields.map(([key, label, min, step]) => `<label><span>${label}</span><input data-field="${key}" ${min === undefined ? 'maxlength="160"' : `type="number" min="${min}" step="${step || 'any'}" required`} value="${escapeHtml(String(values[key] ?? (min === undefined ? '' : min)))}"></label>`).join('') + '<button type="button" class="remove-item-row">Remove</button>';
+    row.querySelector('button').addEventListener('click', () => row.remove());
+    document.querySelector(kind === 'variants' ? '#itemVariants' : '#itemTiers').appendChild(row);
+  }
+  function readItemRows(selector) {
+    return [...document.querySelector(selector).children].map(row => Object.fromEntries([...row.querySelectorAll('[data-field]')].map(input => [input.dataset.field, input.type === 'number' ? Number(input.value) : input.value.trim()])));
+  }
+  function updateItemMode() {
+    const mode = soldByMode(document.querySelector('#itemSoldBy').value);
+    document.querySelectorAll('[data-item-mode]').forEach(section => {
+      section.hidden = section.dataset.itemMode !== mode;
+      section.querySelectorAll('input').forEach(input => { input.disabled = section.hidden; });
+    });
+    ['itemStock', 'itemLowStock', 'itemUnit'].forEach(id => {
+      const input = document.getElementById(id); input.closest('label').hidden = mode !== 'each'; input.disabled = mode !== 'each';
+    });
+    ['itemPrice', 'itemCost'].forEach(id => {
+      const input = document.getElementById(id); input.closest('label').hidden = mode === 'variants'; input.disabled = mode === 'variants';
+    });
+  }
+  function previewItemImage() {
+    const fileInput = document.querySelector('#itemImage'), file = fileInput.files[0];
+    if (itemImageUrl) URL.revokeObjectURL(itemImageUrl); itemImageUrl = '';
+    if (file && (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+      fileInput.value = ''; toast('Choose a JPEG, PNG or WebP image up to 5 MB.');
+    }
+    const selected = fileInput.files[0];
+    if (selected) itemImageUrl = URL.createObjectURL(selected);
+    const preview = document.querySelector('#itemImagePreview');
+    preview.src = itemImageUrl || editingProduct?.thumbnail_url || ''; preview.hidden = !preview.getAttribute('src');
+  }
   function openItemModal(product = null) {
     editingProduct = product || null; populateCategoryOptions();
     const soldBy = soldByMode(product?.sold_by) === 'service' ? 'Service' : (soldByMode(product?.sold_by) === 'variants' ? 'Variants' : 'Each');
@@ -457,33 +494,47 @@
     document.querySelector('#itemLowStock').value = product?.low_stock ?? 0; document.querySelector('#itemUnit').value = product?.unit || 'pcs';
     document.querySelector('#itemSku').value = product?.sku || ''; document.querySelector('#itemBarcode').value = product?.barcode || '';
     document.querySelector('#itemDescription').value = product?.description || ''; document.querySelector('#itemModal').hidden = false;
+    document.querySelector('#itemUnit').value = product?.base_unit || product?.unit || 'pcs';
+    document.querySelector('#itemPackUnit').value = product?.pack_unit || '';
+    document.querySelector('#itemPackSize').value = product?.pack_size || 1;
+    document.querySelector('#itemVariants').replaceChildren(); document.querySelector('#itemTiers').replaceChildren();
+    (product?.variants || []).forEach(row => addItemRow('variants', row));
+    (product?.wholesale_tiers || []).forEach(row => addItemRow('tiers', row));
+    document.querySelector('#itemImage').value = ''; previewItemImage(); updateItemMode();
     setTimeout(() => document.querySelector('#itemName').focus(), 0);
   }
-  function closeItemModal() { document.querySelector('#itemModal').hidden = true; editingProduct = null; }
+  function closeItemModal() { document.querySelector('#itemModal').hidden = true; editingProduct = null; if (itemImageUrl) URL.revokeObjectURL(itemImageUrl); itemImageUrl = ''; }
   function itemPayload() {
     const soldBy = document.querySelector('#itemSoldBy').value;
-    const variants = soldByMode(soldBy) === 'variants' && Array.isArray(editingProduct?.variants) ? editingProduct.variants.map(variant => ({
-      color: variant.color || '', size: variant.size || '', sku: variant.sku || '', barcode: variant.barcode || '',
-      price: Number(variant.price || 0), cost: Number(variant.cost || 0), stock: Number(variant.stock || 0),
-      low_stock: Number(variant.low_stock || 0), active: true,
-    })) : [];
+    const variants = soldByMode(soldBy) === 'variants' ? readItemRows('#itemVariants') : [];
     return {
       name: document.querySelector('#itemName').value.trim(), category: document.querySelector('#itemCategory').value,
       description: document.querySelector('#itemDescription').value.trim(), sold_by: soldBy,
       price: Number(document.querySelector('#itemPrice').value || 0), cost: Number(document.querySelector('#itemCost').value || 0),
       sku: document.querySelector('#itemSku').value.trim(), barcode: document.querySelector('#itemBarcode').value.trim(),
-      stock: Number(document.querySelector('#itemStock').value || 0), low_stock: Number(document.querySelector('#itemLowStock').value || 0),
+      stock: soldByMode(soldBy) === 'service' ? 0 : Number(document.querySelector('#itemStock').value || 0), low_stock: soldByMode(soldBy) === 'each' ? Number(document.querySelector('#itemLowStock').value || 0) : 0,
       unit: document.querySelector('#itemUnit').value.trim() || 'pcs', base_unit: document.querySelector('#itemUnit').value.trim() || 'pcs',
-      pack_unit: '', pack_size: 1, variants,
+      pack_unit: document.querySelector('#itemPackUnit').value.trim(), pack_size: Number(document.querySelector('#itemPackSize').value || 1), variants,
+      wholesale_tiers: soldByMode(soldBy) === 'each' ? readItemRows('#itemTiers') : [],
     };
   }
   async function saveItemForm(event) {
     event.preventDefault();
     const payload = itemPayload(); if (!payload.name) return toast('Product name is required.');
+    if (soldByMode(payload.sold_by) === 'variants' && !payload.variants.length) return toast('Add at least one variant.');
+    if (new Set(payload.wholesale_tiers.map(t => t.min_qty)).size !== payload.wholesale_tiers.length) return toast('Wholesale minimum quantities must be unique.');
     const button = document.querySelector('#saveItem'); button.disabled = true; button.textContent = 'Saving...';
+    const productId = editingProduct?.id;
     try {
-      const path = editingProduct ? `/api/products/manage/${Number(editingProduct.id)}` : '/api/products/manage';
-      await api(path, {method: editingProduct ? 'PUT' : 'POST', body: JSON.stringify(payload)});
+      const file = document.querySelector('#itemImage').files[0];
+      if (file) {
+        const data = await new Promise((resolve, reject) => {
+          const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Unable to read image.')); reader.readAsDataURL(file);
+        });
+        payload.image_base64 = String(data).split(',')[1]; payload.image_filename = file.name; payload.image_mime = file.type;
+      }
+      const path = productId ? `/api/products/manage/${Number(productId)}` : '/api/products/manage';
+      await api(path, {method: productId ? 'PUT' : 'POST', body: JSON.stringify(payload)});
       closeItemModal(); await loadCatalog(); await loadProductManager(); toast('Item saved.');
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; button.textContent = 'Save Item'; }
@@ -759,6 +810,10 @@
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
   document.querySelector('#itemForm').addEventListener('submit', saveItemForm);
+  document.querySelector('#itemSoldBy').addEventListener('change', updateItemMode);
+  document.querySelector('#addItemVariant').addEventListener('click', () => addItemRow('variants'));
+  document.querySelector('#addItemTier').addEventListener('click', () => addItemRow('tiers'));
+  document.querySelector('#itemImage').addEventListener('change', previewItemImage);
   document.querySelector('#closeItemModal').addEventListener('click', closeItemModal);
   document.querySelector('#cancelItemModal').addEventListener('click', closeItemModal);
   document.querySelector('#itemModal').addEventListener('click', event => { if (event.target.id === 'itemModal') closeItemModal(); });

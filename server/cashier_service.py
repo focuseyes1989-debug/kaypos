@@ -26,7 +26,7 @@ from utils.image_optimizer import ImageOptimizer
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.product_image_store import cached_product_image_path
 from utils.category_hierarchy import expand_category_scope
-from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier
+from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier, save_price_tiers
 
 
 _TABLE_COLUMNS_CACHE: Dict[str, set[str]] = {}
@@ -777,6 +777,13 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
         raise ValueError("Product name is required")
     sold_by = str(values.get("sold_by") or "Each").strip()
     variants = list(values.get("variants") or [])
+    tiers = values.get("wholesale_tiers")
+    if tiers is not None:
+        quantities = [int(tier.get("min_qty") or 0) for tier in tiers]
+        if len(quantities) != len(set(quantities)) or any(q < 1 for q in quantities):
+            raise ValueError("Wholesale minimum quantities must be positive and unique")
+        if any(not math.isfinite(float(t.get("unit_price") or 0)) or float(t.get("unit_price") or 0) <= 0 for t in tiers):
+            raise ValueError("Wholesale prices must be greater than zero")
     barcode = str(values.get("barcode") or "").strip()
     sku = str(values.get("sku") or "").strip()
     conn = connect_db(); cursor = conn.cursor()
@@ -791,6 +798,17 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
         codes = [str(v.get("barcode") or "").strip() for v in variants] + [str(v.get("sku") or "").strip() for v in variants]
         codes = [code for code in codes if code]
         if len(codes) != len(set(codes)): raise ValueError("Variant SKU/barcode values must be unique")
+        if tiers is not None:
+            ensure_wholesale_schema(cursor)
+            tier_codes = [str(t.get("barcode") or "").strip() for t in tiers if str(t.get("barcode") or "").strip()]
+            all_codes = ([barcode] if barcode else []) + [str(v.get("barcode") or "").strip() for v in variants if str(v.get("barcode") or "").strip()] + tier_codes
+            if len(all_codes) != len(set(all_codes)):
+                raise ValueError("Product, variant and wholesale barcodes must be unique")
+            for code in all_codes:
+                for table in ("products", "product_variants", "product_price_tiers"):
+                    owner = "id" if table == "products" else "product_id"
+                    cursor.execute(f"SELECT {owner} FROM {table} WHERE barcode = ? AND {owner} != ? LIMIT 1", (code, int(product_id or 0)))
+                    if cursor.fetchone(): raise ValueError(f"Barcode already exists: {code}")
         image_values = {}
         encoded = str(values.get("image_base64") or "")
         if encoded:
@@ -837,6 +855,8 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
                     "cost": float(variant.get("cost") or 0), "stock": int(variant.get("stock") or 0),
                     "low_stock": int(variant.get("low_stock") or 0), "active": 1 if variant.get("active", True) else 0,
                 })
+        if tiers is not None:
+            save_price_tiers(cursor, int(product_id), tiers if _sold_by_mode(sold_by) == "each" else [])
         conn.commit()
     except Exception:
         conn.rollback(); raise

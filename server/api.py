@@ -926,6 +926,16 @@ class ProductVariantRequest(BaseModel):
     active: bool = True
 
 
+class ProductWholesaleRequest(BaseModel):
+    min_qty: int = Field(default=1, ge=1)
+    unit_label: str = ""
+    unit_multiplier: int = Field(default=1, ge=1)
+    barcode: str = ""
+    unit_price: float = Field(..., gt=0)
+    note: str = ""
+    active: bool = True
+
+
 class ProductManageRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=300)
     category: str = ""
@@ -945,6 +955,7 @@ class ProductManageRequest(BaseModel):
     image_filename: str = ""
     image_mime: str = ""
     variants: List[ProductVariantRequest] = Field(default_factory=list)
+    wholesale_tiers: Optional[List[ProductWholesaleRequest]] = None
 
 
 def _current_token(authorization: str) -> str:
