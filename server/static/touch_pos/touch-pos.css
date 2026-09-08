@@ -1539,7 +1539,8 @@ footer{
   }
   .manager-modal label>span{line-height:1.9;padding-block:2px}
 }
-.touch-receipts{min-height:0;overflow:auto;padding:16px;display:grid;align-content:start;gap:14px;line-height:1.9}
+/* Keep controls at their content height when a full receipt page overflows. */
+.touch-receipts{min-height:0;overflow:auto;padding:16px;display:grid;grid-auto-rows:max-content;align-content:start;gap:14px;line-height:1.9}
 .receipt-page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px}
 .receipt-page-head>div{display:grid}.receipt-page-head strong{font-size:19px}.touch-receipts small{display:block;color:var(--muted)}
 .touch-receipts button,.receipt-filters input,.receipt-filters select{font:inherit;min-height:44px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:#fff;color:var(--ink)}
