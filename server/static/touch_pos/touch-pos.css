@@ -1663,4 +1663,8 @@ html[data-touch-theme=dark] :is(.side-menu-icon,#closeSideMenu img){filter:brigh
 html[data-touch-theme=dark] .side-menu-button span{background:#e6edf7}
 html[data-touch-theme=dark] .empty-icon{background:#243e64;color:#bfdbfe}
 html[data-touch-theme=dark] :is(button,input,select,textarea):focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+/* Search controls use the rounded wrapper as their focus indicator. */
+html[data-touch-theme=dark] :is(.search,.category-search,.manager-search) input{background:transparent}
+html[data-touch-theme=dark] :is(.search,.category-search,.manager-search) input:focus-visible{outline:none;box-shadow:none}
+html[data-touch-theme=dark] :is(.search,.category-search,.manager-search):focus-within{box-shadow:0 0 0 2px #93c5fd}
 }
