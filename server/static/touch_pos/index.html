@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-categories-ui1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-inventory-ui1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -139,9 +139,9 @@
     </main>
 
     <section id="touchInventory" class="touch-receipts" hidden aria-label="Inventory">
-      <div class="panel receipt-page-head"><div><strong>Inventory</strong><small>Track stock, receive products and review movements.</small></div><button type="button" id="inventorySales">Sales</button></div>
-      <form id="inventoryFilters" class="panel receipt-filters"><label>Find a product<input id="inventorySearch" type="search" placeholder="Product name, SKU or barcode"></label><button type="submit" class="receipt-apply">Search / Refresh</button></form>
-      <div class="receipt-workspace"><div class="panel receipt-results"><div class="receipt-list-heading"><strong>Current stock</strong><small>Select a product to manage stock</small></div><div id="inventoryRows" aria-live="polite"></div><div class="receipt-pagination"><button type="button" id="inventoryPrev">Previous</button><span id="inventoryPageInfo"></span><button type="button" id="inventoryNext">Next</button></div></div><section id="inventoryDetail" class="panel receipt-detail" aria-label="Product stock details"></section></div>
+      <div class="panel receipt-page-head"><div><strong>Inventory</strong><small>Review stock levels, receive stock and track movements.</small></div><button type="button" id="inventorySales">Sales</button></div>
+      <form id="inventoryFilters" class="panel receipt-filters"><label>Search inventory<input id="inventorySearch" type="search" placeholder="Product name, SKU or barcode"></label><button type="submit" class="receipt-apply">Search</button><button id="inventoryReset" type="button">Reset</button></form>
+      <div class="receipt-workspace"><div class="panel receipt-results"><div class="receipt-list-heading"><strong>Products &amp; stock</strong><small>Select a row to receive stock or review movements</small></div><div id="inventoryRows" aria-live="polite"></div><div class="receipt-pagination"><button type="button" id="inventoryPrev">Previous</button><span id="inventoryPageInfo"></span><button type="button" id="inventoryNext">Next</button></div></div><section id="inventoryDetail" class="panel receipt-detail" aria-label="Product stock details"></section></div>
     </section>
     <section id="touchReceipts" class="touch-receipts" hidden aria-label="Receipts">
       <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Find a sale, review its items and payment details.</small></div><button id="receiptsSales" type="button">Sales</button></div>
@@ -289,8 +289,8 @@
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-categories-ui1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-categories-ui1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-categories-ui1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-inventory-ui1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-inventory-ui1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-inventory-ui1" defer></script>
 </body>
 </html>

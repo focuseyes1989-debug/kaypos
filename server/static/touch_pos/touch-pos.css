@@ -1963,3 +1963,25 @@ html[data-touch-theme=dark] .category-depth-badge{color:#c4b5fd}html[data-touch-
 #managerCategoryList .manager-row-actions{gap:6px}
 #managerCategoryList .manager-row-actions button{padding:0 12px;font-size:12px}
 @media(max-width:600px){#managerCategoryList .manager-row{grid-template-columns:minmax(0,1fr)}#managerCategoryList .manager-row-actions{justify-content:flex-start;flex-wrap:wrap}#managerCategoryList .category-tree-row{margin-left:min(calc(var(--category-depth,0) * 12px),36px)}.category-page-tools{gap:8px;padding:10px}}
+
+/* Inventory: compact stock rows and a distinct details workspace. */
+#inventoryFilters{grid-template-columns:minmax(0,1fr) auto auto;align-items:end;gap:12px;padding:14px 18px}
+#inventoryFilters button{height:48px;padding:0 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink)}
+#inventoryFilters .receipt-apply{background:#2563eb;color:#fff}
+#touchInventory .receipt-workspace{grid-template-columns:minmax(340px,1fr) minmax(0,1fr);gap:16px}
+#inventoryRows .inventory-product-row{grid-template-columns:44px minmax(0,1fr) auto;gap:10px;min-height:76px;padding:10px 12px;line-height:1.6;border-left:3px solid transparent}
+#inventoryRows .manager-thumb{width:44px;height:44px}
+#inventoryRows .inventory-product-name{min-width:0}
+#inventoryRows .inventory-kind{display:inline-flex;margin:0 0 0 6px;padding:2px 6px;font-size:10px}
+#inventoryRows .inventory-product-name strong{font-size:13px;line-height:1.8}
+#inventoryRows .inventory-product-row[aria-pressed=true]{border-left-color:#2563eb;background:#e8f0ff}
+#inventoryRows .stock-state{padding:2px 7px;border-radius:5px;font-size:10px;line-height:1.6}
+.stock-ok{background:#d5f4e9;color:#12654e}.stock-low{background:#fff0cb;color:#865305}.stock-out{background:#ffe4e6;color:#a51d35}.stock-service{background:var(--bg);color:var(--muted)}
+#inventoryDetail{padding:18px;border-top:3px solid #3b82f6}
+#inventoryDetail .inventory-stock-form{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel,#fff)}
+#inventoryDetail .inventory-locations{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#inventoryDetail .inventory-locations small{padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+html[data-touch-theme=dark] #inventoryRows .inventory-product-row[aria-pressed=true]{background:#244773}
+html[data-touch-theme=dark] .stock-ok{background:#163f3a;color:#99f6e4}html[data-touch-theme=dark] .stock-low{background:#49391c;color:#fde68a}html[data-touch-theme=dark] .stock-out{background:#452730;color:#fecaca}
+@media(max-width:900px){#touchInventory .receipt-workspace{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){#inventoryFilters{grid-template-columns:1fr 1fr}#inventoryFilters label{grid-column:1/-1}#inventoryRows .inventory-product-row{grid-template-columns:44px minmax(0,1fr)}#inventoryDetail{padding:12px}}

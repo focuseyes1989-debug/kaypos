@@ -591,7 +591,7 @@
       const [data, locations, suppliers] = await Promise.all([api(`/api/products?${query}`),api('/api/stock/locations'),api('/api/suppliers')]);
       if (request !== inventoryRequest) return;
       inventoryProducts = data.products || []; inventoryLocations = locations.locations || []; inventorySuppliers = suppliers.suppliers || [];
-      rows.innerHTML = inventoryProducts.map(p=>`<button type="button" class="receipt-history-row inventory-product-row" data-inventory-id="${Number(p.id)}"><span class="manager-thumb" aria-hidden="true">${p.thumbnail_url ? `<img src="${escapeHtml(p.thumbnail_url)}" alt="" loading="lazy">` : '▦'}</span><span class="inventory-product-name"><strong>${escapeHtml(p.name)}</strong><span class="inventory-kind kind-${soldByMode(p.sold_by)==='service' ? 'service' : soldByMode(p.sold_by)==='variants' ? 'variants' : 'each'}">${soldByMode(p.sold_by)==='service' ? 'Service' : soldByMode(p.sold_by)==='variants' ? 'Variants' : 'Each'}</span><small>${escapeHtml(p.sku || p.barcode || p.category || '')}</small></span><span><strong>${soldByMode(p.sold_by)==='service' ? 'Service' : money(p.stock)+' '+escapeHtml(p.base_unit || p.unit || 'pcs')}</strong><small>${soldByMode(p.sold_by)==='service' ? 'No stock tracking' : Number(p.stock)<=Number(p.low_stock || 0) ? 'Low stock' : 'In stock'}</small></span></button>`).join('') || '<p>No products found. Try another search.</p>';
+      rows.innerHTML = inventoryProducts.map(p=>`<button type="button" class="receipt-history-row inventory-product-row" data-inventory-id="${Number(p.id)}" aria-pressed="false"><span class="manager-thumb" aria-hidden="true">${p.thumbnail_url ? `<img src="${escapeHtml(p.thumbnail_url)}" alt="" loading="lazy">` : '▦'}</span><span class="inventory-product-name"><strong>${escapeHtml(p.name)}</strong><span class="inventory-kind kind-${soldByMode(p.sold_by)==='service' ? 'service' : soldByMode(p.sold_by)==='variants' ? 'variants' : 'each'}">${soldByMode(p.sold_by)==='service' ? 'Service' : soldByMode(p.sold_by)==='variants' ? 'Variants' : 'Each'}</span><small>${escapeHtml(p.sku || p.barcode || p.category || '')}</small></span><span><strong>${soldByMode(p.sold_by)==='service' ? 'Service' : money(p.stock)+' '+escapeHtml(p.base_unit || p.unit || 'pcs')}</strong><small class="stock-state stock-${soldByMode(p.sold_by)==='service' ? 'service' : Number(p.stock)<=0 ? 'out' : Number(p.stock)<=Number(p.low_stock || 0) ? 'low' : 'ok'}">${soldByMode(p.sold_by)==='service' ? 'No stock tracking' : Number(p.stock)<=0 ? 'Out of stock' : Number(p.stock)<=Number(p.low_stock || 0) ? 'Low stock' : 'In stock'}</small></span></button>`).join('') || '<p>No products found. Try another search.</p>';
       rows.querySelectorAll('.manager-thumb img').forEach(image=>image.addEventListener('error',()=>{image.parentElement.textContent='▦';},{once:true}));
       rows.querySelectorAll('[data-inventory-id]').forEach(button=>button.onclick=()=>openInventoryProduct(Number(button.dataset.inventoryId)));
       document.querySelector('#inventoryPageInfo').textContent = inventoryProducts.length ? `${inventoryOffset+1}–${inventoryOffset+inventoryProducts.length}` : 'No results';
@@ -601,6 +601,7 @@
   }
   async function openInventoryProduct(id) {
     const p = inventoryProducts.find(p=>Number(p.id)===id); if (!p) return;
+    document.querySelectorAll('[data-inventory-id]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.inventoryId)===id)));
     const request = ++inventoryDetailRequest, detail=document.querySelector('#inventoryDetail');
     const variants = p.variants || [], service=soldByMode(p.sold_by)==='service';
     detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(p.name)}</strong><small>Current stock: ${money(p.stock)} ${escapeHtml(p.base_unit || p.unit || 'pcs')} · Cost: ${money(p.cost)} Ks</small></div></div><div class="inventory-locations">${(p.locations || []).map(l=>`<small>${escapeHtml(l.location)}: ${money(l.quantity)}</small>`).join('')}</div>`;
@@ -1321,6 +1322,7 @@
     document.querySelector('#receiptsFrom').value=dateText(start);document.querySelector('#receiptsTo').value=dateText(end);
     receiptsOffset=0;loadTouchReceipts();
   }));
+  document.querySelector('#inventoryReset').onclick=()=>{document.querySelector('#inventorySearch').value='';inventoryOffset=0;loadInventory();};
   document.querySelector('#inventorySales').onclick=showSalesView;
   document.querySelector('#inventoryFilters').onsubmit=event=>{event.preventDefault();inventoryOffset=0;loadInventory();};
   document.querySelector('#inventoryPrev').onclick=()=>{inventoryOffset=Math.max(0,inventoryOffset-50);loadInventory();};
