@@ -2042,3 +2042,10 @@ button[data-icon="swap_horiz"]{--touch-icon:url("/assets/icons/swap_horiz.svg")}
 button[data-icon="today"]{--touch-icon:url("/assets/icons/today.svg")}
 button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media(max-width:760px){#fullscreen[data-icon]::before{display:none}}
+
+/* Dark side navigation stays plain, matching the light theme. */
+@media screen{
+ html[data-touch-theme=dark] #app #sideMenu :is(.side-menu-nav button,.side-menu-signout){background:transparent;border-color:transparent;box-shadow:none}
+ html[data-touch-theme=dark] #app #sideMenu :is(.side-menu-nav button,.side-menu-signout):hover:not(:disabled){background:#ffffff0a;border-color:transparent}
+ html[data-touch-theme=dark] #sideMenu .side-menu-section{border-color:var(--line)}
+}
