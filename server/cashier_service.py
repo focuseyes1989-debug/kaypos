@@ -363,6 +363,11 @@ def get_user_avatar_blob(user_id: int) -> Optional[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
+        if 'profile_image' in table_columns(cursor, 'users'):
+            cursor.execute("SELECT profile_image FROM users WHERE id=?", (int(user_id),))
+            saved = cursor.fetchone()
+            if saved and saved[0]:
+                return {"data": base64.b64decode(saved[0].split(',', 1)[1]), "mime": "image/png"}
         cursor.execute(
             """
             SELECT photo_data
@@ -1346,8 +1351,33 @@ def save_lite_user(values: Dict[str, Any], user_id: int | None = None) -> Dict[s
     if password:
         salt = os.urandom(32).hex()
         fields.update({"salt": salt, "password_hash": hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 100000).hex(), "force_password_change": 0})
+    avatar = values.get('profile_image')
+    if avatar:
+        import io
+        from PIL import Image
+        try:
+            if not avatar.startswith(('data:image/png;base64,', 'data:image/jpeg;base64,')):
+                raise ValueError('Invalid image type')
+            raw = base64.b64decode(avatar.split(',', 1)[1], validate=True)
+            if len(raw) > 2 * 1024 * 1024:
+                raise ValueError('Image exceeds 2 MB')
+            with Image.open(io.BytesIO(raw)) as image:
+                if image.format not in {'PNG', 'JPEG'} or image.width * image.height > 16_000_000:
+                    raise ValueError('Invalid image size')
+                image.load()
+                image.thumbnail((512, 512))
+                output = io.BytesIO()
+                image.convert('RGBA').save(output, format='PNG')
+            avatar = 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode('ascii')
+        except Exception as exc:
+            raise ValueError('Choose a valid PNG or JPEG profile image up to 2 MB.') from exc
     conn = connect_db(); cursor = conn.cursor()
     try:
+        if avatar is not None:
+            if 'profile_image' not in table_columns(cursor, 'users'):
+                cursor.execute("ALTER TABLE users ADD COLUMN profile_image TEXT")
+                _TABLE_COLUMNS_CACHE.pop("users", None)
+            fields['profile_image'] = avatar
         if user_id:
             cursor.execute("SELECT role, COALESCE(is_active,1) FROM users WHERE id=?", (int(user_id),))
             existing = cursor.fetchone()

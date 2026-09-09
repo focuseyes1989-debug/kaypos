@@ -94,18 +94,24 @@
     }catch(error){if(request===generation){content.textContent='';message(error.message);}}
   }
   function editRecord(record,users,roles) {
-    const editor=root.querySelector('[data-editor]'), data=record || {active:true,role:'Cashier'};
+    const host=root.querySelector('[data-editor]'), data=record || {active:true,role:'Cashier'};
+    host.innerHTML='';
+    const editor=users ? document.createElement('dialog') : host;
+    if(users){editor.className='settings-user-dialog';editor.setAttribute('aria-label',record?'Edit user':'Add user');host.appendChild(editor);editor.addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
+
     const schema=users?[['username','Username','text'],['full_name','Full name','text'],['password',record?'New password (optional)':'Password','password'],['role','Role','select',roles],['active','Active account','checkbox']]:[['name','Payment type name','text']];
-    editor.innerHTML=`<form class="settings-form settings-editor"><h3>${record?'Edit':'Add'} ${users?'user':'payment type'}</h3>${schema.map(f=>fieldMarkup(f,data)).join('')}<div class="settings-save"><button class="settings-primary" type="submit" data-icon="save">Save</button><button type="button" data-cancel data-icon="cancel">Cancel</button></div></form>`;
+    editor.innerHTML=`<form class="settings-form settings-editor"><h3>${record?'Edit':'Add'} ${users?'user':'payment type'}</h3>${schema.map(f=>fieldMarkup(f,data)).join('')}${users?'<label class="user-profile-upload">Profile image<input type="file" name="profile_image" accept="image/png,image/jpeg"><small>PNG or JPEG, up to 2 MB. Leave empty to keep the current photo.</small><img data-profile-preview alt="Selected profile image" hidden></label>':''}<p class="user-editor-error" role="alert" data-editor-error></p><div class="settings-save"><button class="settings-primary" type="submit" data-icon="save">Save</button><button type="button" data-cancel data-icon="cancel">Cancel</button></div></form>`;
     const form=editor.querySelector('form');form.elements[users?'username':'name'].required=true;
     if(users){form.elements.password.autocomplete='new-password';form.elements.password.required=!record;form.elements.password.maxLength=256;form.elements.username.maxLength=80;form.elements.full_name.maxLength=160;}
     else form.elements.name.maxLength=80;
-    editor.querySelector('[data-cancel]').onclick=()=>{editor.innerHTML='';};
+    const dismiss=()=>{if(users)editor.close();host.innerHTML='';};
+    editor.querySelector('[data-cancel]').onclick=dismiss;
+    if(users){form.elements.profile_image.onchange=async()=>{try{const file=form.elements.profile_image.files[0], preview=editor.querySelector('[data-profile-preview]');preview.hidden=!file;if(file)preview.src=await imageValue(file);}catch(e){form.elements.profile_image.value='';editor.querySelector('[data-profile-preview]').hidden=true;editor.querySelector('[data-editor-error]').textContent=e.message;}};editor.showModal();}
     form.onsubmit=async e=>{
       e.preventDefault();if(busy || !form.reportValidity())return;setBusy(true);message('Saving…');
       const payload={};schema.forEach(([key,,type])=>payload[key]=type==='checkbox'?form.elements[key].checked:form.elements[key].value);
-      try{await ctx.api(`/api/settings/${users?'users':'payment-types'}${record?'/'+record.id:''}`,{method:record?'PUT':'POST',body:JSON.stringify(payload)});ctx.toast('Saved.');await renderSection();}
-      catch(error){message(error.message);}finally{setBusy(false);}
+      try{if(users && form.elements.profile_image.files[0])payload.profile_image=await imageValue(form.elements.profile_image.files[0]);await ctx.api(`/api/settings/${users?'users':'payment-types'}${record?'/'+record.id:''}`,{method:record?'PUT':'POST',body:JSON.stringify(payload)});ctx.toast('Saved.');if(users)editor.close();await renderSection();}
+      catch(error){editor.querySelector('[data-editor-error]').textContent=error.message;}finally{setBusy(false);}
     };
     form.elements[users?'username':'name'].focus();
     editor.scrollIntoView({behavior:'smooth',block:'nearest'});

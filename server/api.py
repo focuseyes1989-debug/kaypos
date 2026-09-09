@@ -161,6 +161,7 @@ class CategoryManageRequest(BaseModel):
 
 
 class LiteUserRequest(BaseModel):
+    profile_image: Optional[str] = Field(default=None, max_length=3_000_000)
     username: str = Field(..., min_length=1, max_length=80)
     password: str = Field(default="", max_length=256)
     full_name: str = Field(default="", max_length=160)

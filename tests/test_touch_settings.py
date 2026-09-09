@@ -28,6 +28,23 @@ class TouchSettingsTests(unittest.TestCase):
         for invalid in ({'tax_rate':'nan'}, {'discount_type':'percentage','discount_value':'101'}, {'theme':'bad'}, {'shop_logo_image':'data:image/svg+xml;base64,eA=='}, {'network_printer_api_key':'secret'}):
             with self.assertRaises(ValueError):service.save_touch_settings({'shop_name':'Must not save',**invalid})
         self.assertEqual(service.get_touch_settings()['shop_name'],'ZAY POS')
+    def test_profile_image_validation_and_preservation(self):
+        import base64
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (12, 12), 'blue').save(buf, format='PNG')
+        avatar = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+        values = {'username':'admin','role':'Admin','active':True,'profile_image':avatar}
+        service.save_lite_user(values, 1)
+        self.assertEqual(service.get_user_avatar_blob(1)['mime'], 'image/png')
+        before = service.get_user_avatar_blob(1)['data']
+        service.save_lite_user({'username':'admin','role':'Admin','active':True}, 1)
+        self.assertEqual(service.get_user_avatar_blob(1)['data'], before)
+        with self.assertRaises(ValueError):
+            service.save_lite_user({**values, 'username':'changed', 'profile_image':'data:image/png;base64,bad'}, 1)
+        self.assertEqual(service.list_lite_users()[0]['username'], 'admin')
+
     def test_last_admin_edit_is_blocked(self):
         with self.assertRaisesRegex(ValueError,'only active admin'):
             service.save_lite_user({'username':'admin','role':'Cashier','active':True},1)

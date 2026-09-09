@@ -2049,3 +2049,15 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
  html[data-touch-theme=dark] #app #sideMenu :is(.side-menu-nav button,.side-menu-signout):hover:not(:disabled){background:#ffffff0a;border-color:transparent}
  html[data-touch-theme=dark] #sideMenu .side-menu-section{border-color:var(--line)}
 }
+
+.settings-user-dialog{width:min(640px,94vw);max-height:90dvh;padding:0;border:1px solid var(--line);border-radius:16px;background:var(--panel,#fff);color:var(--ink);overflow:auto}
+.settings-user-dialog::backdrop{background:#07142699}
+.touch-settings .settings-user-dialog .settings-editor{margin:0;padding:22px;border:0;background:var(--panel,#fff);grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.settings-user-dialog h3{font-size:20px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.settings-user-dialog .user-profile-upload,.settings-user-dialog .settings-check,.settings-user-dialog .user-editor-error{grid-column:1/-1}
+.settings-user-dialog .user-profile-upload small{font-size:12px;color:var(--muted)}
+.settings-user-dialog [data-profile-preview]{width:72px;height:72px;object-fit:cover;border-radius:50%}
+.settings-user-dialog input[type=file]::file-selector-button{height:44px;padding:0 16px;border:1px solid var(--control-accent);border-radius:8px;background:var(--control-selected);color:var(--control-selected-text);margin-right:12px;font:inherit}
+.settings-user-dialog .user-editor-error{color:var(--bad);margin:0}.settings-user-dialog .user-editor-error:empty{display:none}
+.touch-settings .settings-user-dialog .settings-save{bottom:0;padding:14px 0 0}
+@media(max-width:560px){.touch-settings .settings-user-dialog .settings-editor{grid-template-columns:1fr;padding:16px}}
