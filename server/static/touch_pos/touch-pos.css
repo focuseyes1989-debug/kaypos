@@ -2210,3 +2210,15 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 .customer-row .customer-actions{flex-wrap:wrap;justify-content:flex-end}.customer-row [data-delete]{color:var(--bad)}
 .customer-ledger{width:min(960px,94vw);padding:20px}.customer-collection{display:grid;grid-template-columns:1fr 1fr;gap:12px}.customer-collection label{display:grid;gap:6px}.customer-collection input,.customer-collection select{min-height:48px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px;width:100%}
 @media(max-width:900px){.customer-row{flex-wrap:wrap}.customer-row .customer-actions{width:100%}.customer-collection{grid-template-columns:1fr}}
+
+.customer-workspace{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+.touch-customers>form{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.touch-customers .customer-select{display:flex;align-items:center;width:100%;height:auto;min-height:82px;gap:12px;padding:12px;margin-bottom:8px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:11px}
+.customer-select .customer-main strong{display:block;overflow-wrap:anywhere}.customer-select small{display:block;color:var(--muted);font-size:12px;margin-top:6px}
+.touch-customers .customer-select:hover{border-color:var(--blue)}.touch-customers .customer-select[aria-pressed="true"]{border-color:var(--blue);box-shadow:inset 3px 0 var(--blue);background:var(--bg)}
+.customer-detail{padding:18px;min-width:0}.customer-detail>header{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:16px}.customer-detail h3{margin:0 0 5px;overflow-wrap:anywhere}.customer-detail small,.customer-detail dt{color:var(--muted)}
+.customer-detail dl>div{display:grid;grid-template-columns:80px minmax(0,1fr);gap:12px;padding:8px 0}.customer-detail dd{margin:0;overflow-wrap:anywhere}
+.customer-financials{padding:12px;border-radius:12px;background:var(--bg)}.customer-financials>div{display:flex;justify-content:space-between;gap:12px;padding:8px}
+.customer-detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;border-top:1px dashed var(--line);padding-top:16px}.customer-detail-actions [data-delete]{color:var(--bad)}
+.touch-customers button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+@media(max-width:900px){.customer-workspace{grid-template-columns:1fr}.customer-detail{scroll-margin-top:12px}}
