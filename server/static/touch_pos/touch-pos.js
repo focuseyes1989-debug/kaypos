@@ -1301,7 +1301,38 @@
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#receiptModal').addEventListener('keydown', event => { if(event.key === 'Escape') document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadProducts, 250); });
-  document.querySelector('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); loadProducts(); } });
+  const scanner = window.KayTouchScanner.collector();
+  let scanQueue = Promise.resolve();
+  function scannerReady() {
+    return Boolean(token) && !appView.hidden && !document.querySelector('.workspace').hidden &&
+      !document.querySelector('.modal-backdrop:not([hidden]), dialog[open]') && !sideMenu.classList.contains('open');
+  }
+  async function scanToCart(code, fromSearch) {
+    if (!scannerReady()) return;
+    const session = token;
+    try {
+      const result = await api(`/api/products/barcode/${encodeURIComponent(window.KayTouchScanner.normalize(code).trim())}`);
+      if (!scannerReady() || token !== session) return;
+      if (!result.product) {if(fromSearch)loadProducts();else toast('Barcode not found: ' + code);return;}
+      const product = result.product;
+      if(fromSearch){document.querySelector('#productSearch').value='';loadProducts();}
+      if(product.matched_variant_id){
+        const variant=(product.variants || []).find(v=>Number(v.variant_id)===Number(product.matched_variant_id));
+        if(!variant)return toast('Barcode variant is unavailable.');
+        addToCart(product,variant);
+      } else chooseProduct(product);
+    } catch(error){toast(error.message);}
+  }
+  document.addEventListener('keydown', event => {
+    const target=event.target, search=target?.id==='productSearch';
+    if(!scannerReady() || event.ctrlKey || event.altKey || event.metaKey || event.isComposing ||
+       (!search && target?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))){scanner.reset();return;}
+    const scanned=scanner.key(event.key,performance.now());
+    const code=event.key==='Enter' && search ? window.KayTouchScanner.normalize(target.value).trim() : scanned;
+    if(!code)return;
+    event.preventDefault();event.stopImmediatePropagation();clearTimeout(searchTimer);
+    scanQueue=scanQueue.then(()=>scanToCart(code,search));
+  },true);
   document.querySelector('#categorySearch').addEventListener('input', filterCategories);
   document.querySelector('#refreshProducts').addEventListener('click', loadCatalog);
   document.querySelector('#backToSales').addEventListener('click', showSalesView);
