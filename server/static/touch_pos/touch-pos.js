@@ -1213,7 +1213,7 @@
     } finally { if (controller === productsController) productsController = null; }
   }
   async function loadCatalog() {
-    api('/api/settings/touch/display').then(data=>window.KayTouchSettings?.applyTheme(data.settings)).catch(()=>{});
+    window.KayTouchSettings?.applyTheme();
     document.querySelector('#productSearch').disabled = false; document.querySelector('#refreshProducts').disabled = false;
     try {
       const result = await api('/api/touch-pos/categories');

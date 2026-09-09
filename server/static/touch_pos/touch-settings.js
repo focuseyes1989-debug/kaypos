@@ -13,7 +13,7 @@
     Regional:[['currency','Currency','select',['Kyats (Ks)','Dollar ($)','Baht (B)']],['language','App language','select',[['en','English'],['my','Myanmar']]]]
   };
   const notes={
-    Appearance:'Shared with Kay POS App. The selected theme also applies to this Touch browser.',
+    Appearance:'Theme preferences apply only to this browser on this device. Other PCs and tablets keep their own theme.',
     Printer:'Choose your local printer in the browser print dialog. Match the paper size, use 100% scale, and turn off headers and footers.',
     'Payment Types':'Manage payment names shared by Kay POS App, Lite and Touch.',
     'Tax and Discount':'Shared tax and discount defaults. Review the checkout totals before completing a sale.',
@@ -28,10 +28,25 @@
     const initials=String(user.full_name || user.username || '?').trim().split(/\s+/).slice(0,2).map(s=>Array.from(s)[0]).join('').toUpperCase();
     return `<span class="settings-user-avatar" aria-hidden="true"><span>${esc(initials)}</span>${validAvatar(user.profile_image)?`<img src="${esc(user.profile_image)}" alt="" loading="lazy">`:''}</span>`;
   }
-  function applyTheme(settings) {
-    const dark=settings.follow_system_theme==='1' ? matchMedia('(prefers-color-scheme: dark)').matches : settings.theme==='Dark';
-    document.documentElement.dataset.touchTheme=dark?'dark':settings.theme==='Light Gray'?'gray':'light';
+  const APPEARANCE_KEY='kay.touch.appearance.v1';
+  const systemTheme=window.matchMedia('(prefers-color-scheme: dark)');
+  function appearanceSettings() {
+    let saved={};
+    try{saved=JSON.parse(localStorage.getItem(APPEARANCE_KEY) || '{}') || {};}catch(_){}
+    return {theme:['Light','Light Gray','Dark'].includes(saved.theme)?saved.theme:'Light',follow_system_theme:saved.follow_system_theme==='1'?'1':'0'};
   }
+  function saveAppearance(settings) {
+    const saved={theme:['Light','Light Gray','Dark'].includes(settings.theme)?settings.theme:'Light',follow_system_theme:settings.follow_system_theme==='1'?'1':'0'};
+    localStorage.setItem(APPEARANCE_KEY,JSON.stringify(saved));
+    applyTheme();
+  }
+  function applyTheme() {
+    const settings=appearanceSettings();
+    document.documentElement.dataset.touchTheme=settings.follow_system_theme==='1' ? (systemTheme.matches?'dark':'light') : settings.theme==='Dark'?'dark':settings.theme==='Light Gray'?'gray':'light';
+  }
+  systemTheme.addEventListener('change',applyTheme);
+  window.addEventListener('storage',event=>{if(event.key===APPEARANCE_KEY || event.key===null)applyTheme();});
+  applyTheme();
   function fieldMarkup([key,label,type,options], source=values) {
     const value=source[key] ?? '';
     if(type==='checkbox')return `<label class="settings-check"><input name="${key}" type="checkbox" ${value==='1' || value===true?'checked':''}><span>${esc(label)}</span></label>`;
@@ -48,7 +63,7 @@
   async function renderSection() {
     const request=++generation, panel=root.querySelector('[data-settings-panel]');
     root.querySelectorAll('[data-setting-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.settingTab===section?'page':'false'));
-    panel.innerHTML=`<header class="settings-section-head"><div><span class="settings-eyebrow">${section==='Printer'?'THIS BROWSER':'SHARED SETTINGS'}</span><h2>${esc(section)}</h2><p>${esc(notes[section])}</p></div></header><p role="status" aria-live="polite" data-settings-status></p><div data-settings-content>Loading…</div>`;
+    panel.innerHTML=`<header class="settings-section-head"><div><span class="settings-eyebrow">${['Appearance','Printer'].includes(section)?'THIS BROWSER':'SHARED SETTINGS'}</span><h2>${esc(section)}</h2><p>${esc(notes[section])}</p></div></header><p role="status" aria-live="polite" data-settings-status></p><div data-settings-content>Loading…</div>`;
     const content=panel.querySelector('[data-settings-content]');
     try {
       if(section==='Payment Types' || section==='Users') {
@@ -69,8 +84,9 @@
         });
         return;
       }
+      if(section==='Appearance')values={...values,...appearanceSettings()};
       if(section==='Printer')values={...values,...window.KayTouchReceipt.settings()};
-      content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary" data-icon="save">Save changes</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
+      content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary" data-icon="save">Save changes</button><span>${['Appearance','Printer'].includes(section) ? 'Saved only in this browser on this device.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
       const form=content.querySelector('form');
       form.querySelectorAll('input[type=file]').forEach(input=>input.onchange=async()=>{
         try{if(input.files[0]){const img=input.closest('.settings-image').querySelector('img');img.src=await imageValue(input.files[0]);img.hidden=false;form.elements[`clear_${input.name}`].checked=false;}}
@@ -87,6 +103,9 @@
               if(form.elements[`clear_${key}`].checked){update[key]='';update[key==='shop_logo_image'?'shop_logo':'shop_qr_code']='';}
               else if(input.files[0]){update[key]=await imageValue(input.files[0]);update[key==='shop_logo_image'?'shop_logo':'shop_qr_code']='';}
             } else update[key]=type==='checkbox'?(input.checked?'1':'0'):input.value;
+          }
+          if(section==='Appearance') {
+            saveAppearance(update);values={...values,...appearanceSettings()};ctx.toast('Theme saved for this browser.');await renderSection();message('Saved on this device.');return;
           }
           if(section==='Printer') {
             window.KayTouchReceipt.saveSettings(update);
