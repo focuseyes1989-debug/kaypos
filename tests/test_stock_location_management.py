@@ -57,6 +57,41 @@ class StockLocationManagementTests(unittest.TestCase):
         self.assertEqual(connection.execute("SELECT warehouse FROM products").fetchone()[0], "Main Shop")
         connection.close()
 
+    def test_stock_filter_search_and_pagination(self):
+        connection = self.connect()
+        connection.executescript("""
+            ALTER TABLE products ADD COLUMN name TEXT;
+            ALTER TABLE products ADD COLUMN sku TEXT;
+            ALTER TABLE products ADD COLUMN category TEXT;
+            UPDATE products SET name='Water',sku='W001',category='Drinks';
+            INSERT INTO product_locations VALUES (2,1,'Warehouse',9,NULL);
+        """)
+        connection.close()
+        with patch("server.cashier_service.connect_db", side_effect=self.connect):
+            result = cashier_service.touch_location_stock('shop', 'W001')
+            self.assertEqual(result['total_count'], 1)
+            self.assertEqual(result['stock'][0]['quantity'], 4)
+            self.assertEqual(cashier_service.touch_location_stock('', 'missing')['total_count'], 0)
+            page = cashier_service.touch_location_stock('', '', 1)
+            self.assertEqual(page['total_count'], 2)
+            self.assertEqual(len(page['stock']), 1)
+
+    def test_variant_location_is_renamed_and_protected(self):
+        connection = self.connect()
+        connection.executescript("""
+            CREATE TABLE variant_stock_batches (id INTEGER PRIMARY KEY, location TEXT);
+            INSERT INTO variant_stock_batches VALUES (1,'Shop');
+            DELETE FROM product_locations;
+        """)
+        connection.close()
+        with patch("server.cashier_service.connect_db", side_effect=self.connect):
+            cashier_service.rename_stock_location(1, 'Main')
+            with self.assertRaisesRegex(ValueError, 'variant stock'):
+                cashier_service.delete_stock_location(1)
+        connection = self.connect()
+        self.assertEqual(connection.execute('SELECT location FROM variant_stock_batches').fetchone()[0], 'Main')
+        connection.close()
+
     def test_empty_location_can_be_deleted(self):
         connection = self.connect()
         connection.execute("INSERT INTO locations (name) VALUES ('Empty')")

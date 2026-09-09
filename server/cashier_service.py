@@ -589,6 +589,22 @@ def list_location_records(search: str = "") -> List[Dict[str, Any]]:
     finally: conn.close()
 
 
+def touch_location_stock(location: str, search: str = '', offset: int = 0):
+    conn=connect_db()
+    try:
+        cur=conn.cursor()
+        query="""SELECT p.id,p.name,p.sku,p.category,pl.location,SUM(pl.quantity) AS quantity
+          FROM product_locations pl JOIN products p ON p.id=pl.product_id
+          WHERE (?='' OR LOWER(TRIM(pl.location))=LOWER(TRIM(?)))
+          AND (LOWER(p.name) LIKE LOWER(?) OR COALESCE(p.sku,'') LIKE ?)
+          GROUP BY p.id,p.name,p.sku,p.category,pl.location"""
+        params=(location,location,'%'+search+'%','%'+search+'%')
+        cur.execute('SELECT COUNT(*) FROM ('+query+') grouped',params);count=int(cur.fetchone()[0])
+        cur.execute(query+' ORDER BY LOWER(p.name),pl.location LIMIT 50 OFFSET ?',(*params,offset))
+        return {'stock':[_dict_from_row(cur,r) for r in cur.fetchall()],'total_count':count}
+    finally:conn.close()
+
+
 def create_stock_location(name: str) -> Dict[str, Any]:
     name = str(name or "").strip()
     if not name: raise ValueError("Location name is required")
@@ -615,6 +631,8 @@ def rename_stock_location(location_id: int, name: str) -> Dict[str, Any]:
         old_name = str(row[0])
         cursor.execute("SELECT id FROM locations WHERE LOWER(TRIM(name)) = LOWER(?) AND id != ?", (name, location_id))
         if cursor.fetchone(): raise ValueError(f"Location already exists: {name}")
+        if 'location' in table_columns(cursor, 'variant_stock_batches'):
+            cursor.execute('UPDATE variant_stock_batches SET location=? WHERE LOWER(TRIM(location))=LOWER(TRIM(?))', (name,old_name))
         cursor.execute("UPDATE locations SET name = ? WHERE id = ?", (name, location_id))
         cursor.execute("UPDATE product_locations SET location = ? WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name, old_name))
         cursor.execute("UPDATE stock_movements SET location = ? WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name, old_name))
@@ -633,6 +651,9 @@ def delete_stock_location(location_id: int) -> None:
         cursor.execute("SELECT name FROM locations WHERE id = ?", (location_id,)); row = cursor.fetchone()
         if not row: raise ValueError("Location not found")
         name = str(row[0])
+        if 'location' in table_columns(cursor, 'variant_stock_batches'):
+            cursor.execute('SELECT 1 FROM variant_stock_batches WHERE LOWER(TRIM(location))=LOWER(TRIM(?)) LIMIT 1',(name,))
+            if cursor.fetchone(): raise ValueError('Move or remove variant stock records from this location first')
         cursor.execute("SELECT COUNT(*) FROM product_locations WHERE LOWER(TRIM(location)) = LOWER(TRIM(?))", (name,))
         if int(cursor.fetchone()[0] or 0) > 0:
             raise ValueError("Move or remove all product stock records from this location first")

@@ -604,6 +604,7 @@
     document.querySelector('#inventoryDetail').replaceChildren();
   }
   async function showInventoryPage() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -708,6 +709,7 @@
     document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed','false'));
   }
   async function showReceiptsPage() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -790,13 +792,20 @@
     await loadTouchReceipts();
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
+  function showTouchLocations() {
+    window.KayTouchSuppliers?.hide();window.KayTouchCustomers?.hide();window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
+    document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
+    document.querySelector('#workspaceStatus').textContent='Locations';window.KayTouchLocations.show({api,escapeHtml,toast,onExit:showSalesView});
+  }
   function showTouchSuppliers() {
+    window.KayTouchLocations?.hide();
     window.KayTouchCustomers?.hide();window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
     document.querySelector('#workspaceStatus').textContent='Suppliers';
     window.KayTouchSuppliers.show({api,escapeHtml,toast,onExit:showSalesView});
   }
   function showTouchCustomers() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
@@ -804,6 +813,7 @@
     window.KayTouchCustomers.show({api,escapeHtml,toast,onExit:showSalesView});
   }
   function showTouchDashboard() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
@@ -814,6 +824,7 @@
     window.KayTouchDashboard.show({api,escapeHtml,onExit:showSalesView});
   }
   function showTouchExpenses(addNew = false) {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -825,6 +836,7 @@
     window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView}, addNew);
   }
   function showTouchSettings() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -837,6 +849,7 @@
     window.KayTouchSettings.show({api, escapeHtml, toast, onExit:showSalesView});
   }
   function showSalesView() {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -852,6 +865,7 @@
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager(page = 'products') {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -1183,6 +1197,7 @@
     document.querySelector('.workspace').hidden = false;
   }
   function showLogin(message = '') {
+    window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
@@ -1327,6 +1342,7 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'locations') {showTouchLocations();return;}
     if (action === 'suppliers') {showTouchSuppliers();return;}
     if (action === 'customers') {showTouchCustomers();return;}
     if (action === 'dashboard') {showTouchDashboard();return;}

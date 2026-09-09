@@ -1448,6 +1448,11 @@ def suppliers(_: Dict[str, Any] = Depends(current_user)):
     return {"suppliers": cashier_service.list_suppliers()}
 
 
+@app.get('/api/touch-pos/location-stock')
+def touch_location_stock(location: str = '', q: str = '', offset: int = Query(default=0,ge=0), _: Dict[str, Any] = Depends(current_user)):
+    return cashier_service.touch_location_stock(location,q,offset)
+
+
 @app.get("/api/stock/locations")
 def stock_locations(_: Dict[str, Any] = Depends(current_user)):
     return {"locations": cashier_service.list_stock_locations()}

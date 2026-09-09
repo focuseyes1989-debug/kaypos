@@ -2338,4 +2338,4 @@ html[data-touch-theme=dark] #touchSuppliers :is(button,.customer-row){background
 #touchSuppliers .customer-select{min-height:82px;padding:12px;border-radius:11px}
 #touchSuppliers .customer-pagination{padding-top:8px;margin-top:0}
 @media(max-width:900px){#touchSuppliers .customer-workspace{grid-template-columns:1fr}#touchSuppliers .customer-detail{position:static;min-height:130px}}
-
+#touchLocations>.customer-list{margin-top:16px}#touchLocations select{min-height:48px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}#touchLocations [data-mode][aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:var(--control-accent)}#touchLocations [data-delete]{color:var(--bad)}
