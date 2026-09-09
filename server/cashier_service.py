@@ -463,6 +463,43 @@ def delete_managed_category(category_id: int) -> None:
     CategoryService().delete_category(int(category_id), force=False)
 
 
+SUPPLIER_FIELDS = ('name','company_name','contact_person','phone','email','address','tax_number','website','payment_terms','bank_account','status')
+
+
+def list_touch_suppliers(search='', status='', offset=0):
+    conn=connect_db()
+    try:
+        cur=conn.cursor()
+        where="WHERE (LOWER(name) LIKE LOWER(?) OR LOWER(COALESCE(company_name,'')) LIKE LOWER(?) OR COALESCE(phone,'') LIKE ?)"
+        params=['%'+search+'%']*3
+        if status:
+            where+=' AND LOWER(status)=LOWER(?)';params.append(status)
+        cur.execute('SELECT COUNT(*) FROM suppliers '+where,params)
+        count=int(cur.fetchone()[0])
+        cur.execute('SELECT id,'+','.join(SUPPLIER_FIELDS)+' FROM suppliers '+where+' ORDER BY LOWER(name),id LIMIT 50 OFFSET ?',[*params,offset])
+        return {'suppliers':[_dict_from_row(cur,r) for r in cur.fetchall()],'total_count':count}
+    finally:conn.close()
+
+
+def save_touch_supplier(values, supplier_id=None):
+    cleaned={key:str(values.get(key) or '').strip() for key in SUPPLIER_FIELDS}
+    if not cleaned['name']:raise ValueError('Supplier name is required.')
+    if cleaned['status'] not in ('Active','Inactive'):raise ValueError('Choose Active or Inactive.')
+    conn=connect_db()
+    try:
+        cur=conn.cursor()
+        if supplier_id is None:
+            cur.execute('INSERT INTO suppliers ('+','.join(SUPPLIER_FIELDS)+') VALUES ('+','.join(['?']*len(SUPPLIER_FIELDS))+')',list(cleaned.values()))
+        else:
+            cur.execute('SELECT id FROM suppliers WHERE id=?',(supplier_id,))
+            if not cur.fetchone():raise ValueError('Supplier not found.')
+            cur.execute('UPDATE suppliers SET '+','.join(key+'=?' for key in SUPPLIER_FIELDS)+' WHERE id=?',[*cleaned.values(),supplier_id])
+        conn.commit()
+    except Exception:
+        conn.rollback();raise
+    finally:conn.close()
+
+
 def list_suppliers() -> List[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()

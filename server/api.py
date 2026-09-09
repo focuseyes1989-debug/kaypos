@@ -1410,6 +1410,39 @@ def credit_settings(_: Dict[str, Any] = Depends(current_user)):
     return {"settings": cashier_service.get_credit_settings()}
 
 
+class TouchSupplierRequest(BaseModel):
+    name: str = Field(min_length=1,max_length=200)
+    company_name: str = Field(default='',max_length=200)
+    contact_person: str = Field(default='',max_length=200)
+    phone: str = Field(default='',max_length=100)
+    email: str = Field(default='',max_length=200)
+    address: str = Field(default='',max_length=2000)
+    tax_number: str = Field(default='',max_length=200)
+    website: str = Field(default='',max_length=500)
+    payment_terms: str = Field(default='',max_length=2000)
+    bank_account: str = Field(default='',max_length=500)
+    status: str = Field(default='Active',pattern=r'^(Active|Inactive)$')
+
+
+@app.get('/api/touch-pos/suppliers')
+def touch_suppliers(q: str = '', status: str = Query(default='',pattern=r'^(|Active|Inactive)$'), offset: int = Query(default=0,ge=0), _: Dict[str, Any] = Depends(current_user)):
+    return cashier_service.list_touch_suppliers(q.strip(),status,offset)
+
+
+@app.post('/api/touch-pos/suppliers')
+def touch_add_supplier(payload: TouchSupplierRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.save_touch_supplier(payload.model_dump());return {'success':True}
+    except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+
+
+@app.put('/api/touch-pos/suppliers/{supplier_id}')
+def touch_edit_supplier(supplier_id: int, payload: TouchSupplierRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.save_touch_supplier(payload.model_dump(),supplier_id);return {'success':True}
+    except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+
+
 @app.get("/api/suppliers")
 def suppliers(_: Dict[str, Any] = Depends(current_user)):
     return {"suppliers": cashier_service.list_suppliers()}

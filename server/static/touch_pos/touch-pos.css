@@ -2326,3 +2326,7 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 #itemForm .item-thumbnail-card .item-image-preview{border-radius:10px;border:1px dashed var(--line)}
 @media(max-width:1000px){#itemForm .item-detail-row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){#itemForm .item-detail-row{grid-template-columns:1fr}#itemForm .item-section-head button{width:100%}#productManager .product-manager-row{flex-wrap:wrap}}
+
+#touchSuppliers .customer-select{display:flex;width:100%;height:auto;min-height:82px;align-items:center;gap:12px;margin-bottom:8px;padding:12px;text-align:left}#touchSuppliers .customer-select small{display:block;margin-top:6px;color:var(--muted)}#touchSuppliers .customer-select[aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:var(--control-accent)}
+#touchSuppliers select{min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:10px;font:inherit}#touchSuppliers .customer-main{overflow-wrap:anywhere}#touchSuppliers .customer-detail dd{overflow-wrap:anywhere}
+html[data-touch-theme=dark] #touchSuppliers :is(button,.customer-row){background:#26364d;color:var(--ink)}html[data-touch-theme=dark] #touchSuppliers button.sign-in{background:#2563eb;color:#fff}html[data-touch-theme=dark] #touchSuppliers .customer-select[aria-pressed="true"]{background:#244773}
