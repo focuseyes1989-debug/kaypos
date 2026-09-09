@@ -271,26 +271,29 @@
       lines.push(name);
       lines.push(`  ${qty} x ${money(price)} = ${money(amount)} Ks`);
     }
-    lines.push('', `Subtotal: ${money(receipt.subtotal || total)} Ks`, `Discount: ${money(receipt.discount_amount || 0)} Ks`, `Total: ${money(total)} Ks`, `Paid: ${money(paid)} Ks`, `Change: ${money(Math.max(0, paid - total))} Ks`, '', settings.receipt_footer || '', settings.shop_footer_message || '', settings.receipt_thank_you_text || 'Thank you.');
+    lines.push('', `Subtotal: ${money(receipt.subtotal ?? total)} Ks`, `Discount: ${money(receipt.discount_amount || 0)} Ks`, `Total: ${money(total)} Ks`, `Paid: ${money(paid)} Ks`, `Change: ${money(Math.max(0, paid - total))} Ks`, '', settings.receipt_footer || '', settings.shop_footer_message || '', settings.receipt_thank_you_text || 'Thank you.');
     return lines.join('\n');
   }
   let activePrintReceipt = null;
   function updateReceiptPreview() {
     if (!activePrintReceipt) return;
     const paper = document.querySelector('#receiptPaper').value;
+    document.querySelector('#receiptPreviewSize').textContent = paper === 'a4' ? 'A4' : `${paper}mm`;
+    document.querySelector('#receiptPaperHint').textContent = paper === 'a4' ? 'Full-page layout for A4 printers.' : 'Compact layout for your thermal paper roll.';
     document.querySelector('#receiptPreview').srcdoc = window.KayTouchReceipt.documentHtml(activePrintReceipt.receipt, activePrintReceipt.paid, paper);
   }
   function showReceipt(receipt, paid) {
     document.querySelector('#receiptCompletionStatus').textContent = '';
     activePrintReceipt = {receipt, paid};
+    document.querySelector('#receiptState').textContent = String(receipt.status).toLowerCase() === 'refunded' ? 'Refunded receipt' : 'Sale saved';
     document.querySelector('#receiptPaper').value = window.KayTouchReceipt.paper(window.KayTouchReceipt.settings().receipt_paper_size);
     updateReceiptPreview();
-    const modal = document.querySelector('#receiptModal'), total = Number(receipt.total || cartTotals().total || 0);
+    const modal = document.querySelector('#receiptModal'), total = Number(receipt.total ?? 0);
     document.querySelector('#receiptInvoice').textContent = receipt.invoice_no || '';
     document.querySelector('#printReceipt').textContent = receiptLines(receipt, paid);
     document.querySelector('#receiptBody').innerHTML = [
       ['Items', String((receipt.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0) || cartTotals().count)],
-      ['Subtotal', `${money(receipt.subtotal || total)} Ks`],
+      ['Subtotal', `${money(receipt.subtotal ?? total)} Ks`],
       ['Discount', `${money(receipt.discount_amount || 0)} Ks`],
       ['Paid', `${money(paid)} Ks`],
       ['Change', `${money(Math.max(0, paid - total))} Ks`],
@@ -1274,7 +1277,8 @@
     catch (error) { toast(`Could not open print dialog: ${error.message}`); }
     finally { button.disabled = false; }
   });
-  document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });
+  document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
+  document.querySelector('#receiptModal').addEventListener('keydown', event => { if(event.key === 'Escape') document.querySelector('#receiptModal').hidden = true; });
   document.querySelector('#productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadProducts, 250); });
   document.querySelector('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); loadProducts(); } });
   document.querySelector('#categorySearch').addEventListener('input', filterCategories);

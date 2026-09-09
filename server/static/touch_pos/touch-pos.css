@@ -1744,4 +1744,28 @@ html[data-touch-theme=dark] :is(.search,.category-search,.manager-search):focus-
 
 .login-card>.login-remember{display:flex;align-items:center;gap:10px;margin:16px 0 0;min-height:44px;cursor:pointer;font-size:13px}.login-remember input{width:19px;height:19px;accent-color:#2563eb;flex-shrink:0}.login-remember span{display:grid;gap:3px}.login-remember small{color:var(--muted);font-size:11px;font-weight:400}
 
-.receipt-print-options{padding:12px 16px;display:grid;gap:10px}.receipt-print-options label{display:grid;gap:6px}.receipt-print-options select{min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel,#fff);color:var(--ink)}.receipt-print-options p{font-size:12px;color:var(--muted);margin:0}.receipt-print-options iframe{width:100%;height:280px;border:1px solid var(--line);background:white;border-radius:8px}#receiptModal .receipt-modal{max-height:calc(100dvh - 30px);overflow:auto}@media print{.receipt-print-options{display:none!important}}
+/* Receipt review keeps controls visible while the document scrolls. */
+#receiptModal .receipt-modal{width:min(960px,96vw);max-height:calc(100dvh - 30px);display:flex;flex-direction:column;overflow:hidden}
+#receiptModal .receipt-head{padding:20px 24px;flex-shrink:0}
+#receiptTitle{font-size:20px}#receiptInvoice{margin-top:4px;overflow-wrap:anywhere}
+#receiptCompletionStatus:empty{display:none}#receiptCompletionStatus{margin:0;padding:12px 24px;background:#fff4e5;color:#8a4100;flex-shrink:0}
+.receipt-review-layout{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:0;overflow:auto}
+.receipt-review-sidebar{padding:22px;display:flex;flex-direction:column;gap:18px;border-right:1px solid var(--line)}
+.receipt-saved-badge{align-self:flex-start;border-radius:20px;padding:5px 10px;background:#e8f7ee;color:#187344;font-size:12px;font-weight:700}
+.receipt-review-sidebar h3{margin:0;font-size:14px}
+#receiptModal .receipt-body{padding:0;gap:12px;font-size:13px}#receiptModal .receipt-body strong{text-align:right}
+#receiptModal .receipt-body .receipt-total{margin-top:4px;padding-top:14px;font-size:18px;border-top:1px solid var(--line)}
+.receipt-print-options{display:grid;gap:8px}.receipt-print-options label{font-size:13px;font-weight:600}
+.receipt-print-options select{width:100%;min-height:46px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel,#fff);color:var(--ink)}
+.receipt-print-options p,.receipt-print-help p{margin:0;font-size:12px;line-height:1.6;color:var(--muted)}
+.receipt-print-help{font-size:13px}.receipt-print-help summary{cursor:pointer;color:var(--muted)}.receipt-print-help p{margin-top:10px}
+.receipt-preview-panel{background:var(--pale,#f1f5f9);padding:20px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.receipt-preview-heading{display:flex;align-items:center;justify-content:space-between;font-size:13px}.receipt-preview-heading span{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+.receipt-preview-sheet{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:0 4px 18px #0f172a0a;flex:1;min-height:340px}
+#receiptPreview{display:block;width:100%;height:100%;min-height:440px;border:0;background:#fff}
+#receiptModal .receipt-actions{display:flex;align-items:center;gap:10px;padding:16px 24px;border-top:1px solid var(--line);flex-shrink:0;background:var(--panel,#fff)}
+#receiptModal .receipt-actions>span{margin-right:auto;font-size:12px;color:var(--muted)}
+#receiptModal .receipt-actions button{width:auto;min-width:110px;padding:0 18px;margin:0}
+#receiptModal #printReceiptButton{background:var(--blue);color:#fff;border-color:var(--blue);min-width:150px}
+@media(max-width:700px){.receipt-review-layout{grid-template-columns:1fr}.receipt-review-sidebar{padding:16px;border-right:0;border-bottom:1px solid var(--line);gap:12px}.receipt-preview-panel{padding:14px}#receiptModal .receipt-head{padding:16px}#receiptModal .receipt-actions{padding:12px 16px}#receiptModal .receipt-actions>span{display:none}#receiptModal .receipt-actions button{flex:1;min-width:0}#receiptPreview{min-height:340px}}
+@media print{.receipt-review-layout{display:none!important}}
