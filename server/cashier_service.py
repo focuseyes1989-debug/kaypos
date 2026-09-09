@@ -1328,7 +1328,7 @@ def list_lite_users() -> List[Dict[str, Any]]:
         cursor.execute(f"SELECT id, username, full_name, role, COALESCE(is_active, 1), {image_column} FROM users ORDER BY username")
         users = [{"id": int(r[0]), "username": r[1], "full_name": r[2] or "", "role": r[3] or "Cashier", "active": bool(r[4]), "profile_image": r[5] or ""} for r in cursor.fetchall()]
         if {"user_id", "photo_data"}.issubset(table_columns(cursor, "employees")):
-            cursor.execute("SELECT user_id, photo_data FROM employees WHERE photo_data IS NOT NULL ORDER BY rowid")
+            cursor.execute("SELECT user_id, photo_data FROM employees WHERE photo_data IS NOT NULL ORDER BY id")
             photos = {}
             for uid, photo in cursor.fetchall():
                 if photo and uid not in photos:

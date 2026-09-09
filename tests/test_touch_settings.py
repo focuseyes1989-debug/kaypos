@@ -46,6 +46,19 @@ class TouchSettingsTests(unittest.TestCase):
             service.save_lite_user({**values, 'username':'changed', 'profile_image':'data:image/png;base64,bad'}, 1)
         self.assertEqual(service.list_lite_users()[0]['username'], 'admin')
 
+    def test_legacy_avatar_without_sqlite_rowid(self):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (8, 8), 'blue').save(buf, format='PNG')
+        with closing(sqlite3.connect(self.db)) as conn:
+            conn.execute("CREATE TABLE employees(id INTEGER PRIMARY KEY, user_id INTEGER, photo_data BLOB) WITHOUT ROWID")
+            conn.execute("INSERT INTO employees VALUES(1,1,?)", (buf.getvalue(),))
+            conn.commit()
+        users = service.list_lite_users()
+        self.assertEqual(users[0]['username'], 'admin')
+        self.assertTrue(users[0]['profile_image'].startswith('data:image/png;base64,'))
+
     def test_last_admin_edit_is_blocked(self):
         with self.assertRaisesRegex(ValueError,'only active admin'):
             service.save_lite_user({'username':'admin','role':'Cashier','active':True},1)
