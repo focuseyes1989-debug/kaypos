@@ -283,7 +283,7 @@
   function showReceipt(receipt, paid) {
     document.querySelector('#receiptCompletionStatus').textContent = '';
     activePrintReceipt = {receipt, paid};
-    document.querySelector('#receiptPaper').value = window.KayLocalPrinter.paper(window.KayLocalPrinter.settings());
+    document.querySelector('#receiptPaper').value = window.KayTouchReceipt.paper(window.KayTouchReceipt.settings().receipt_paper_size);
     updateReceiptPreview();
     const modal = document.querySelector('#receiptModal'), total = Number(receipt.total || cartTotals().total || 0);
     document.querySelector('#receiptInvoice').textContent = receipt.invoice_no || '';
@@ -299,21 +299,12 @@
     modal.hidden = false;
   }
   async function runSaleCompletionActions(receipt, paid) {
-    const settings = window.KayLocalPrinter.settings();
-    const enabled = value => value === '1' || value === true;
-    const messages = [];
-    const completionKey = `sale:${receipt.id || receipt.invoice_no || window.KayLocalPrinter.jobKey()}:${receipt.created_at || ""}`;
-    document.querySelector('#printReceiptButton').disabled = true;
-    if (enabled(settings.touch_auto_open_drawer)) {
-      try { await window.KayLocalPrinter.drawer(completionKey, settings); }
-      catch (error) { messages.push(`Sale saved. Cash drawer could not open: ${error.message}`); }
-    }
-    if (enabled(settings.touch_auto_print_receipt)) {
-      try { await window.KayLocalPrinter.print(receipt, paid, document.querySelector('#receiptPaper').value, completionKey, settings); }
-      catch (error) { messages.push(`Sale saved. Receipt could not be sent to the local printer: ${error.message}. Use Print Receipt to retry.`); }
-    }
-    document.querySelector('#printReceiptButton').disabled = false;
-    document.querySelector('#receiptCompletionStatus').textContent = messages.join(' ');
+    if (window.KayTouchReceipt.settings().touch_auto_print_receipt !== '1') return;
+    const button = document.querySelector('#printReceiptButton');
+    button.disabled = true;
+    try { await window.KayTouchReceipt.print(receipt, paid, document.querySelector('#receiptPaper').value); }
+    catch (error) { document.querySelector('#receiptCompletionStatus').textContent = `Sale saved. Could not open print dialog: ${error.message}. Use Print Receipt to retry.`; }
+    finally { button.disabled = false; }
   }
   async function checkoutCashSale() {
     const {items, total} = cartTotals(), payment = total;
@@ -1275,17 +1266,12 @@
   document.querySelector('#productChoiceModal').addEventListener('keydown', event => { if (event.key === 'Enter') confirmChoice(); });
   document.addEventListener('keydown', handleServiceKeydown);
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
-  document.querySelector('#browserPrintReceiptButton').addEventListener('click', async () => {
-    if(!activePrintReceipt)return;
-    try{await window.KayTouchReceipt.print(activePrintReceipt.receipt,activePrintReceipt.paid,document.querySelector('#receiptPaper').value);}
-    catch(error){toast(error.message);}
-  });
   document.querySelector('#receiptPaper').addEventListener('change', updateReceiptPreview);
   document.querySelector('#printReceiptButton').addEventListener('click', async () => {
     if (!activePrintReceipt) return;
     const button = document.querySelector('#printReceiptButton'); button.disabled = true;
-    try { await window.KayLocalPrinter.print(activePrintReceipt.receipt, activePrintReceipt.paid, document.querySelector('#receiptPaper').value); toast('Receipt sent to local printer.'); }
-    catch (error) { toast(`Could not print locally: ${error.message}`); }
+    try { await window.KayTouchReceipt.print(activePrintReceipt.receipt, activePrintReceipt.paid, document.querySelector('#receiptPaper').value); }
+    catch (error) { toast(`Could not open print dialog: ${error.message}`); }
     finally { button.disabled = false; }
   });
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });

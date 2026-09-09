@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const receipt=require('../server/static/touch_pos/touch-receipt.js');
+const data=new Map();global.localStorage={getItem:key=>data.get(key),setItem:(key,value)=>data.set(key,value),removeItem:key=>data.delete(key)};
+data.set('kay.touch.local-printer.v1',JSON.stringify({bridge_key:'old-key',receipt_printer_name:'Printer',touch_auto_open_drawer:'1',receipt_paper_size:'1',touch_auto_print_receipt:'1'}));
+assert.deepEqual(receipt.settings(),{receipt_paper_size:'1',touch_auto_print_receipt:'1'});
+assert.equal(data.has('kay.touch.local-printer.v1'),false);
+assert.ok(!data.get('kay.touch.browser-print.v1').includes('old-key'));
+receipt.saveSettings({receipt_paper_size:'2',touch_auto_print_receipt:'0'});
+assert.deepEqual(receipt.settings(),{receipt_paper_size:'2',touch_auto_print_receipt:'0'});
+data.set('kay.touch.browser-print.v1','broken');assert.equal(receipt.settings().touch_auto_print_receipt,'0');
+console.log('Browser print local preferences and removal of obsolete pairing settings passed.');

@@ -1205,7 +1205,6 @@ TOUCH_SETTING_DEFAULTS = {
     "receipt_printer_name": "", "receipt_paper_size": "0", "receipt_print_quality": "203",
     "receipt_cash_drawer_use_receipt_printer": "0", "show_customer_name": "1",
     "receipt_thank_you_text": "THANK YOU",
-    "touch_auto_print_receipt": "0", "touch_auto_open_drawer": "0",
 }
 
 
@@ -1235,7 +1234,7 @@ def save_touch_settings(values: Dict[str, Any]) -> Dict[str, str]:
         "discount_type": {"percentage", "fixed", "manual"},
         "receipt_paper_size": {"0", "1", "2"}, "receipt_print_quality": {"203", "300", "600"},
     }
-    for key in ("tax_enabled", "discount_enabled", "follow_system_theme", "show_customer_name", "receipt_cash_drawer_use_receipt_printer", "touch_auto_print_receipt", "touch_auto_open_drawer"):
+    for key in ("tax_enabled", "discount_enabled", "follow_system_theme", "show_customer_name", "receipt_cash_drawer_use_receipt_printer"):
         choices[key] = {"0", "1"}
     for key, value in values.items():
         if key in choices and value not in choices[key]:
@@ -2584,7 +2583,7 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
         (sale_id,),
     )
     sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
-    receipt_keys = ('touch_auto_print_receipt', 'touch_auto_open_drawer', 'receipt_paper_size', 'show_customer_name', 'shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
+    receipt_keys = ('receipt_paper_size', 'show_customer_name', 'shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
     cursor.execute('SELECT key,value FROM settings WHERE key IN (' + ','.join('?' for _ in receipt_keys) + ')', receipt_keys)
     sale['receipt_settings'] = dict(cursor.fetchall())
     return sale
@@ -3413,45 +3412,3 @@ def open_cash_drawer() -> Dict[str, str]:
         raise ValueError("Receipt printer is not configured on the Server PC")
     _send_cash_drawer_pulse(printer_name)
     return {"printer_name": printer_name, "status": "opened"}
-
-
-def touch_printer_names() -> list[str]:
-    """List printer queue names without opening vendor status monitors."""
-    import sys
-    import ctypes
-    from ctypes import wintypes
-    if sys.platform != "win32":
-        raise ValueError("Printer list is available on a Windows Server PC only")
-
-    class PRINTER_INFO_4W(ctypes.Structure):
-        _fields_ = [
-            ("pPrinterName", wintypes.LPWSTR),
-            ("pServerName", wintypes.LPWSTR),
-            ("Attributes", wintypes.DWORD),
-        ]
-
-    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
-    enum_printers = winspool.EnumPrintersW
-    enum_printers.argtypes = [
-        wintypes.DWORD, wintypes.LPWSTR, wintypes.DWORD, wintypes.LPBYTE,
-        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
-    ]
-    needed = wintypes.DWORD(0)
-    returned = wintypes.DWORD(0)
-    flags = 0x00000002 | 0x00000004  # PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
-    enum_printers(flags, None, 4, None, 0, ctypes.byref(needed), ctypes.byref(returned))
-    if not needed.value:
-        if ctypes.get_last_error() not in (0, 122):
-            raise ValueError("Could not read Windows printers")
-        return []
-    buffer = (ctypes.c_byte * needed.value)()
-    if not enum_printers(
-        flags, None, 4, ctypes.cast(buffer, wintypes.LPBYTE), needed.value,
-        ctypes.byref(needed), ctypes.byref(returned),
-    ):
-        raise ValueError("Could not read Windows printers")
-    entries = ctypes.cast(buffer, ctypes.POINTER(PRINTER_INFO_4W))
-    return sorted(
-        {str(entries[index].pPrinterName or "").strip() for index in range(returned.value)} - {""},
-        key=str.casefold,
-    )

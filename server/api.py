@@ -1429,15 +1429,6 @@ def touch_display_settings(_: Dict[str, Any] = Depends(current_user)):
     return {"settings": {key: settings[key] for key in ("theme", "follow_system_theme")}}
 
 
-@app.get("/api/settings/touch/printers")
-def touch_printers(user: Dict[str, Any] = Depends(current_user)):
-    _require_manager(user)
-    try:
-        return {"printers": cashier_service.touch_printer_names()}
-    except (ValueError, OSError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @app.get("/api/settings/touch")
 def touch_settings(user: Dict[str, Any] = Depends(current_user)):
     _require_manager(user)
