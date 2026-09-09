@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-products-center1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-categories-ui1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -129,10 +129,10 @@
         </div>
         <div class="manager-categories panel">
           <div class="panel-heading">
-            <div><strong>Categories</strong><small>Parent and child category setup</small></div>
-            <button id="managerAddCategory" type="button">Add</button>
+            <div><strong>Categories</strong><small id="managerCategorySummary">Organize your catalog with parent and child categories</small></div>
+            <button id="managerAddCategory" class="primary-action" type="button">Add category</button>
           </div>
-          <label class="manager-search category-manager-search"><span aria-hidden="true">⌕</span><input id="managerCategorySearch" type="search" placeholder="Search categories" aria-label="Search categories" autocomplete="off"></label>
+<div class="category-page-tools"><label class="manager-search category-manager-search"><span aria-hidden="true">⌕</span><input id="managerCategorySearch" type="search" placeholder="Search categories" aria-label="Search categories" autocomplete="off"></label><button id="managerCategoryReset" type="button">Clear search</button></div>
           <div id="managerCategoryList" class="manager-list"></div>
         </div>
       </section>
@@ -289,8 +289,8 @@
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-products-center1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-products-center1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-products-center1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-categories-ui1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-categories-ui1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-categories-ui1" defer></script>
 </body>
 </html>

@@ -1944,3 +1944,22 @@ html[data-touch-theme=dark] .product-kind.kind-service{background:#163f3a;color:
 #productManager .product-manager-row .manager-row-main strong,
 #productManager .product-manager-row .manager-row-main small{padding-block:0;line-height:1.8}
 #productManager .product-manager-row .manager-row-actions{align-items:center}
+
+/* Compact category hierarchy with explicit levels and quick child creation. */
+.category-page-tools{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.category-page-tools .category-manager-search{flex:1;min-width:0;margin:0;height:48px}
+#managerCategoryReset{height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink);white-space:nowrap}
+#managerCategoryList{padding:12px 14px;gap:8px;grid-auto-rows:max-content}
+#managerCategoryList .category-tree-row{margin-left:min(calc(var(--category-depth,0) * 22px),88px)}
+#managerCategoryList .manager-row{padding:9px 12px;gap:12px;align-items:center;min-height:68px}
+#managerCategoryList .manager-row-main{gap:4px;align-content:center}
+#managerCategoryList .manager-row-main strong{font-size:13px;padding:0;line-height:1.8;white-space:normal}
+#managerCategoryList .manager-row-main small{padding:0;font-size:11px;line-height:1.8;white-space:normal}
+.category-name-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.category-depth-badge,.category-state{font-size:10px;padding:2px 7px;border-radius:5px;line-height:1.6}
+.category-depth-badge{color:var(--category-color);background:var(--bg)}
+.category-state.is-active{color:#12654e;background:#d5f4e9}.category-state.is-inactive{color:#865305;background:#fff0cb}
+html[data-touch-theme=dark] .category-depth-badge{color:#c4b5fd}html[data-touch-theme=dark] .category-state.is-active{color:#99f6e4;background:#163f3a}html[data-touch-theme=dark] .category-state.is-inactive{color:#fde68a;background:#49391c}
+#managerCategoryList .manager-row-actions{gap:6px}
+#managerCategoryList .manager-row-actions button{padding:0 12px;font-size:12px}
+@media(max-width:600px){#managerCategoryList .manager-row{grid-template-columns:minmax(0,1fr)}#managerCategoryList .manager-row-actions{justify-content:flex-start;flex-wrap:wrap}#managerCategoryList .category-tree-row{margin-left:min(calc(var(--category-depth,0) * 12px),36px)}.category-page-tools{gap:8px;padding:10px}}

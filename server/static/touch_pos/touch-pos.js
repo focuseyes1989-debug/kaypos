@@ -865,6 +865,7 @@
   function renderManagedCategories() {
     const root = document.querySelector('#managerCategoryList');
     if (!managedCategories.length) { root.innerHTML = '<div class="catalog-message"><strong>No categories</strong>Add parent and child categories here.</div>'; return; }
+    document.querySelector('#managerCategorySummary').textContent = `${managedCategories.length} categories · ${managedCategories.filter(c => !c.parent_id).length} parents · Search includes parent context`;
     const childrenByParent = new Map();
     managedCategories.forEach(item => childrenByParent.set(Number(item.parent_id || 0), [...(childrenByParent.get(Number(item.parent_id || 0)) || []), item]));
     const query = document.querySelector('#managerCategorySearch').value.trim().normalize('NFC').toLocaleLowerCase();
@@ -885,11 +886,12 @@
       if (visited.has(Number(item.id))) return;
       visited.add(Number(item.id));
       const level = depth === 0 ? 'Parent' : depth === 1 ? 'Child' : depth === 2 ? 'Sub Child' : `Level ${depth + 1}`;
-      rows.push(`<div class="category-tree-row${depth ? ' category-descendant' : ''}" data-category-level="${Math.min(depth, 2)}" style="--category-depth:${depth}"><div class="manager-row"><div class="manager-row-main"><strong title="${level}: ${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><small>${escapeHtml(item.status || 'active')} · ${Number(item.product_count || 0)} products</small></div><div class="manager-row-actions"><button type="button" data-category-edit="${Number(item.id)}">Edit</button><button type="button" class="manager-delete" data-category-delete="${Number(item.id)}">Delete</button></div></div></div>`);
+      rows.push(`<div class="category-tree-row${depth ? ' category-descendant' : ''}" data-category-level="${Math.min(depth, 2)}" style="--category-depth:${depth}"><div class="manager-row"><div class="manager-row-main"><div class="category-name-line"><strong title="${level}: ${escapeHtml(item.name)}">${escapeHtml(item.name)}</strong><span class="category-depth-badge">${level}</span><span class="category-state ${(item.status || 'active') === 'active' ? 'is-active' : 'is-inactive'}">${escapeHtml(item.status || 'active')}</span></div><small>${Number(item.product_count || 0)} products · ${(childrenByParent.get(Number(item.id)) || []).length} child categories${item.parent_name ? ` · Under ${escapeHtml(item.parent_name)}` : ''}</small></div><div class="manager-row-actions"><button type="button" class="category-add-child" data-category-child="${Number(item.id)}">+ Child</button><button type="button" data-category-edit="${Number(item.id)}">Edit</button><button type="button" class="manager-delete" data-category-delete="${Number(item.id)}">Delete</button></div></div></div>`);
       renderRows(Number(item.id), depth + 1);
     });
     renderRows(0, 0);
     root.innerHTML = rows.join('') || '<div class="catalog-message"><strong>No matching categories</strong>Try another name or clear the search.</div>';
+    root.querySelectorAll('[data-category-child]').forEach(button => button.addEventListener('click', () => { openCategoryModal(); document.querySelector('#categoryParent').value = button.dataset.categoryChild; }));
     root.querySelectorAll('[data-category-edit]').forEach(button => button.addEventListener('click', () => openCategoryModal(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryEdit)))));
     root.querySelectorAll('[data-category-delete]').forEach(button => button.addEventListener('click', () => deleteManagedCategory(managedCategories.find(item => Number(item.id) === Number(button.dataset.categoryDelete)), button)));
   }
@@ -1301,6 +1303,7 @@
   document.querySelector('#backToSales').addEventListener('click', showSalesView);
   document.querySelector('#managerRefresh').addEventListener('click', loadProductManager);
   document.querySelector('#managerAddItem').addEventListener('click', () => openItemModal());
+  document.querySelector('#managerCategoryReset').addEventListener('click', () => { document.querySelector('#managerCategorySearch').value = ''; renderManagedCategories(); document.querySelector('#managerCategorySearch').focus(); });
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerCategoryFilter').addEventListener('change', loadProductManager);
   document.querySelector('#managerTypeFilter').addEventListener('change', renderManagerProducts);
