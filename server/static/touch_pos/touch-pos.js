@@ -363,6 +363,30 @@
     document.querySelector('#checkoutValidation').classList.toggle('ok', messages.length === 0);
     document.querySelector('#saveCheckout').disabled = messages.length > 0;
   }
+  let checkoutKeypadField = 'checkoutReceived';
+  let checkoutKeypadReplace = true;
+  function activateCheckoutKeypad(input) {
+    checkoutKeypadField = input.id;
+    checkoutKeypadReplace = true;
+    document.querySelector('#checkoutKeypadTarget').textContent = `Keypad · ${input.id === 'checkoutDiscount' ? 'Discount' : 'Received'}`;
+    ['checkoutDiscount', 'checkoutReceived'].forEach(id => document.querySelector(`#${id}`).classList.toggle('keypad-active', id === input.id));
+    input.select();
+  }
+  function pressCheckoutKey(key) {
+    const input = document.querySelector(`#${checkoutKeypadField}`);
+    let value = input.value || '';
+    if (key === 'clear') value = '';
+    else if (key === 'backspace') value = checkoutKeypadReplace ? '' : value.slice(0, -1);
+    else {
+      if (checkoutKeypadReplace) value = '';
+      if (key !== '.' || !value.includes('.')) value += key;
+      if (value.startsWith('.')) value = `0${value}`;
+      value = value.replace(/^0+(?=\d)/, '');
+    }
+    checkoutKeypadReplace = false;
+    input.value = value;
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+  }
   async function openCheckoutDetails() {
     const {items, total} = cartTotals();
     if (!items.length) return toast('Cart is empty.');
@@ -380,7 +404,7 @@
     modal.hidden = false;
     await loadCheckoutCustomers();
     renderCheckoutSummary();
-    setTimeout(() => document.querySelector('#checkoutReceived').select(), 0);
+    activateCheckoutKeypad(document.querySelector('#checkoutReceived'));
   }
   function closeCheckout() {
     document.querySelector('#checkoutModal').hidden = true;
@@ -1196,6 +1220,22 @@
   document.querySelector('#checkoutSaleMode').addEventListener('change', renderCheckoutSummary);
   document.querySelector('#checkoutDiscount').addEventListener('input', renderCheckoutSummary);
   document.querySelector('#checkoutReceived').addEventListener('input', renderCheckoutSummary);
+  ['checkoutDiscount', 'checkoutReceived'].forEach(id => {
+    const input = document.querySelector(`#${id}`);
+    input.type = 'text';
+    input.inputMode = 'none';
+    input.autocomplete = 'off';
+    input.addEventListener('focus', () => activateCheckoutKeypad(input));
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+      checkoutKeypadReplace = false;
+      renderCheckoutSummary();
+    });
+  });
+  document.querySelectorAll('[data-checkout-key]').forEach(button => {
+    button.addEventListener('pointerdown', event => event.preventDefault());
+    button.addEventListener('click', () => pressCheckoutKey(button.dataset.checkoutKey));
+  });
   document.querySelector('#checkoutModal').addEventListener('click', event => { if (event.target.id === 'checkoutModal') closeCheckout(); });
   document.querySelector('#closeChoice').addEventListener('click', closeChoice);
   document.querySelector('#cancelChoice').addEventListener('click', closeChoice);

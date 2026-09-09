@@ -190,6 +190,16 @@
           <label class="checkout-field"><span>Received</span><input id="checkoutReceived" type="number" min="0" step="100" inputmode="numeric" value="0"></label>
           <div id="checkoutValidation" class="checkout-validation"></div>
         </div>
+        <div class="checkout-keypad-panel">
+          <strong id="checkoutKeypadTarget">Keypad · Received</strong>
+          <div id="checkoutKeypad" class="checkout-keypad" role="group" aria-labelledby="checkoutKeypadTarget">
+            <button type="button" data-checkout-key="1">1</button><button type="button" data-checkout-key="2">2</button><button type="button" data-checkout-key="3">3</button>
+            <button type="button" data-checkout-key="4">4</button><button type="button" data-checkout-key="5">5</button><button type="button" data-checkout-key="6">6</button>
+            <button type="button" data-checkout-key="7">7</button><button type="button" data-checkout-key="8">8</button><button type="button" data-checkout-key="9">9</button>
+            <button type="button" data-checkout-key="00">00</button><button type="button" data-checkout-key="0">0</button><button type="button" data-checkout-key=".">.</button>
+            <button type="button" data-checkout-key="clear">Clear</button><button type="button" data-checkout-key="backspace" aria-label="Backspace">⌫</button>
+          </div>
+        </div>
       </div>
       <div class="checkout-actions"><button id="cancelCheckout" type="button">Cancel</button><button id="saveCheckout" class="sign-in" type="button">Save Sale</button></div>
     </section>

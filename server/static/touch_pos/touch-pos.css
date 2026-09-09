@@ -353,6 +353,22 @@
   overflow:auto;
   padding:14px 16px;
 }
+.checkout-keypad-panel{display:grid;gap:10px;grid-column:1/-1}
+.checkout-keypad-panel>strong{font-size:13px;color:var(--muted)}
+.checkout-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.checkout-keypad button{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer}
+.checkout-keypad button:active{background:var(--blue);color:#fff}
+.checkout-keypad button[data-checkout-key="clear"]{grid-column:span 2;font-size:14px}
+.checkout-field input.keypad-active{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 20%,transparent)}
+#checkoutModal .checkout-modal{display:flex;flex-direction:column}
+#checkoutModal .receipt-head,#checkoutModal .checkout-actions{flex-shrink:0}
+#checkoutModal .checkout-body{min-height:0;max-height:none;overflow:auto}
+@media(min-width:1000px){
+  #checkoutModal .checkout-modal{width:min(1040px,96vw)}
+  #checkoutModal .checkout-body{grid-template-columns:minmax(220px,.9fr) minmax(260px,1fr) minmax(220px,.8fr)}
+  .checkout-keypad-panel{grid-column:auto}
+  .checkout-keypad button{min-height:54px}
+}
 .checkout-form{
   display:grid;
   gap:9px;
