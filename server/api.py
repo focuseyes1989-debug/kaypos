@@ -1342,6 +1342,7 @@ def customers(
 
 
 class TouchCustomerRequest(BaseModel):
+    credit_limit: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
     name: str = Field(min_length=1, max_length=200)
     phone: str = Field(default='', max_length=100)
     email: str = Field(default='', max_length=200)

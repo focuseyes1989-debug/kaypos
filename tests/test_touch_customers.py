@@ -13,7 +13,13 @@ class CustomersTest(unittest.TestCase):
    service.save_touch_customer({'name':'Alice updated','phone':'456'},1)
    r=service.list_customers('ALICE')[0]
    self.assertEqual((r['points'],r['current_balance'],r['credit_limit']),(5,100,1000))
-   service.save_touch_customer({'name':'Bob'})
+   service.save_touch_customer({'name':'Alice updated','credit_limit':2500},1)
+   r=service.list_customers('Alice')[0]
+   self.assertEqual((r['credit_limit'],r['current_balance'],r['points']),(2500,100,5))
+   with self.assertRaises(ValueError):service.save_touch_customer({'name':'Bad','credit_limit':-1})
+   with self.assertRaises(ValueError):service.save_touch_customer({'name':'Bad','credit_limit':float('nan')})
+   service.save_touch_customer({'name':'Bob','credit_limit':5000})
+   self.assertEqual(service.list_customers('Bob')[0]['credit_limit'],5000)
    self.assertEqual(service.list_customers('',1,1)[0]['name'],'Bob')
    with self.assertRaises(ValueError):service.save_touch_customer({'name':'   '})
    with self.assertRaises(ValueError):service.save_touch_customer({'name':'Missing'},999)

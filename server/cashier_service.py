@@ -1158,6 +1158,12 @@ def save_touch_customer(values: Dict[str, Any], customer_id: Optional[int] = Non
     name = str(values.get('name') or '').strip()
     if not name:
         raise ValueError('Customer name is required.')
+    import math
+    credit_limit = values.get('credit_limit')
+    if credit_limit is not None:
+        credit_limit = float(credit_limit)
+        if not math.isfinite(credit_limit) or credit_limit < 0:
+            raise ValueError('Credit limit must be a non-negative amount.')
     conn = connect_db()
     try:
         cursor = conn.cursor()
@@ -1165,12 +1171,14 @@ def save_touch_customer(values: Dict[str, Any], customer_id: Optional[int] = Non
             cursor.execute("ALTER TABLE customers ADD COLUMN remarks TEXT DEFAULT ''")
         params = [name] + [str(values.get(k) or '').strip() for k in ('phone', 'email', 'address', 'remarks')]
         if customer_id is None:
-            cursor.execute('INSERT INTO customers (name, phone, email, address, remarks) VALUES (?, ?, ?, ?, ?)', params)
+            cursor.execute('INSERT INTO customers (name, phone, email, address, remarks, credit_limit) VALUES (?, ?, ?, ?, ?, ?)', [*params, credit_limit or 0])
         else:
             cursor.execute('SELECT id FROM customers WHERE id = ?', (customer_id,))
             if not cursor.fetchone():
                 raise ValueError('Customer not found.')
             cursor.execute('UPDATE customers SET name=?, phone=?, email=?, address=?, remarks=? WHERE id=?', [*params, customer_id])
+        if credit_limit is not None and customer_id is not None:
+            cursor.execute('UPDATE customers SET credit_limit=? WHERE id=?', (credit_limit, customer_id))
         conn.commit()
     except Exception:
         conn.rollback()
