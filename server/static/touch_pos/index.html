@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-dialog-top1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-sale-shortcuts1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -84,7 +84,7 @@
           <div><strong>Products</strong><small>Tap a category or search the live catalog</small></div>
           <div class="catalog-actions"><button id="openCart" class="checkout-open" type="button" aria-controls="saleCart" aria-expanded="false" data-icon="shopping_cart">Cart (<span id="mobileCartCount">0</span>)</button><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled data-icon="refresh"></button></div>
         </div>
-      <label class="search catalog-search"><span class="touch-search-icon" aria-hidden="true"></span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
+      <label class="search catalog-search"><span class="touch-search-icon" aria-hidden="true"></span><input id="productSearch" aria-keyshortcuts="F2" title="Search products (F2)" type="search" placeholder="Search product, SKU or scan barcode (F2)" autocomplete="off" disabled></label>
         <div id="productGrid" class="product-grid" aria-live="polite">
           <div class="empty-state">
             <div class="empty-icon">▦</div>
@@ -102,7 +102,7 @@
         <div class="totals">
           <div><span>Subtotal</span><strong id="cartSubtotal">0 Ks</strong></div>
           <div class="grand"><span>Total</span><strong id="cartTotal">0 Ks</strong></div>
-          <div class="cart-actions"><button id="clearCart" type="button" disabled>Clear</button><button id="paymentButton" class="pay" type="button" disabled data-icon="payments">Checkout</button></div>
+          <div class="cart-actions"><button id="clearCart" type="button" disabled>Clear</button><button id="paymentButton" class="pay" type="button" disabled data-icon="payments" aria-keyshortcuts="F4" title="Checkout (F4)">Checkout <kbd>F4</kbd></button></div>
         </div>
       </aside>
     </main>
@@ -292,10 +292,10 @@
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js?v=20260909-dialog-top1" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-dialog-top1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-dialog-top1" defer></script>
-  <script src="/static/touch_pos/touch-scanner.js?v=20260909-dialog-top1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-dialog-top1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-sale-shortcuts1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-sale-shortcuts1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-sale-shortcuts1" defer></script>
+  <script src="/static/touch_pos/touch-scanner.js?v=20260909-sale-shortcuts1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-sale-shortcuts1" defer></script>
 </body>
 </html>

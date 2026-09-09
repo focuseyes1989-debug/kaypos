@@ -1334,6 +1334,26 @@
     return Boolean(token) && !appView.hidden && !document.querySelector('.workspace').hidden &&
       !document.querySelector('.modal-backdrop:not([hidden]), dialog[open]') && !sideMenu.classList.contains('open');
   }
+  let checkoutShortcutPending = false;
+  async function handleSaleShortcut(event) {
+    if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing) return;
+    if (!['F2', 'F4'].includes(event.key) || !scannerReady()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    scanner.reset();
+    if (event.repeat) return;
+    if (event.key === 'F2') {
+      const search = document.querySelector('#productSearch');
+      search.focus();
+      search.select();
+      return;
+    }
+    if (checkoutShortcutPending || document.querySelector('#paymentButton').disabled) return;
+    checkoutShortcutPending = true;
+    try { await openCheckoutDetails(); }
+    finally { checkoutShortcutPending = false; }
+  }
+  document.addEventListener('keydown', handleSaleShortcut, true);
   async function scanToCart(code, fromSearch) {
     if (!scannerReady()) return;
     const session = token;

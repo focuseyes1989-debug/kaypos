@@ -2131,3 +2131,5 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
   dialog[open] .expense-editor{max-height:calc(100dvh - var(--touch-dialog-top) - var(--touch-dialog-bottom) - 2px)}
 }
 @media screen and (max-width:760px){:root{--touch-dialog-top:max(10px, env(safe-area-inset-top))}}
+
+#paymentButton kbd{font:inherit;font-size:11px;line-height:1;padding:3px 5px;border:1px solid currentColor;border-radius:4px;opacity:.8;margin-left:5px}
