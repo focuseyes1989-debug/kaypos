@@ -37,7 +37,6 @@ class TouchPosSideMenuTests(unittest.TestCase):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")
         script = (STATIC / "touch-pos.js").read_text(encoding="utf-8")
-        self.assertIn('id="userAvatar"', html)
         self.assertIn('id="sideMenuAvatar"', html)
         self.assertIn('id="sideMenuInitials"', html)
         self.assertIn(".avatar-frame", css)

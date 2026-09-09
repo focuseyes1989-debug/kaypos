@@ -5,8 +5,8 @@
   const loginView = document.querySelector('#loginView'), appView = document.querySelector('#app');
   const loginForm = document.querySelector('#loginForm'), loginStatus = document.querySelector('#loginStatus');
   const signIn = document.querySelector('#signIn'), password = document.querySelector('#password');
-  const username = document.querySelector('#username'), userButton = document.querySelector('#userButton');
-  const userMenu = document.querySelector('#userMenu'), TOKEN_KEY = 'kay_touch_pos_token';
+  const username = document.querySelector('#username');
+  const TOKEN_KEY = 'kay_touch_pos_token';
   const sideMenuButton = document.querySelector('#sideMenuButton'), sideMenu = document.querySelector('#sideMenu');
   const sideMenuOverlay = document.querySelector('#sideMenuOverlay'), closeSideMenuButton = document.querySelector('#closeSideMenu');
   const CART_KEY = 'kay_touch_pos_cart';
@@ -109,11 +109,10 @@
   function clearAvatar() {
     if (avatarUrl) URL.revokeObjectURL(avatarUrl);
     avatarUrl = '';
-    for (const image of [document.querySelector('#userAvatar'), document.querySelector('#sideMenuAvatar')]) {
+    for (const image of [document.querySelector('#sideMenuAvatar')]) {
       image.hidden = true;
       image.removeAttribute('src');
     }
-    document.querySelector('#userInitials').hidden = false;
     document.querySelector('#sideMenuInitials').hidden = false;
   }
   async function loadAvatar() {
@@ -125,11 +124,10 @@
       });
       if (!response.ok) return;
       avatarUrl = URL.createObjectURL(await response.blob());
-      for (const image of [document.querySelector('#userAvatar'), document.querySelector('#sideMenuAvatar')]) {
+      for (const image of [document.querySelector('#sideMenuAvatar')]) {
         image.src = avatarUrl;
         image.hidden = false;
       }
-      document.querySelector('#userInitials').hidden = true;
       document.querySelector('#sideMenuInitials').hidden = true;
     } catch (_) {
       clearAvatar();
@@ -1069,14 +1067,11 @@
     setSideMenuOpen(false);
     token = null; clearLoginStorage(); password.value = '';
     loginStatus.textContent = message; loginStatus.className = 'login-status';
-    userMenu.hidden = true; appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
+    appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
   }
   function showApp(user) {
     const name = user.full_name || user.username;
-    document.querySelector('#userInitials').textContent = initials(user); document.querySelector('#userName').textContent = name;
     document.querySelector('#sideMenuInitials').textContent = initials(user);
-    document.querySelector('#userRole').textContent = user.role || 'Staff'; document.querySelector('#menuUserName').textContent = name;
-    document.querySelector('#menuUserRole').textContent = `${user.role || 'Staff'} · Sales access`;
     document.querySelector('#sideMenuUser').textContent = `${name} · ${user.role || 'Staff'}`;
     loadAvatar();
     loginView.hidden = true; appView.hidden = false; password.value = ''; loginStatus.textContent = '';
@@ -1194,7 +1189,7 @@
     sideMenu.setAttribute('aria-hidden', String(!open));
     sideMenuButton.setAttribute('aria-expanded', String(open));
     if (open) {
-      userMenu.hidden = true; userButton.setAttribute('aria-expanded', 'false'); closeSideMenuButton.focus();
+      closeSideMenuButton.focus();
     } else if (restoreFocus) {
       sideMenuButton.focus();
     }
@@ -1225,11 +1220,7 @@
   closeSideMenuButton.addEventListener('click', () => setSideMenuOpen(false, true));
   sideMenuOverlay.addEventListener('click', () => setSideMenuOpen(false, true));
   document.querySelectorAll('[data-side-action]').forEach(button => button.addEventListener('click', () => runSideMenuAction(button.dataset.sideAction)));
-  document.querySelector('#sideSignOut').addEventListener('click', () => document.querySelector('#signOut').click());
-  userButton.addEventListener('click', () => {
-    userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden));
-  });
-  document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
+  document.querySelector('#sideSignOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });
   document.querySelector('#clearCart').addEventListener('click', () => { clearCart(); toast('Cart cleared.'); });
   document.querySelector('#paymentButton').addEventListener('click', openCheckoutDetails);
   document.querySelector('#closeCheckout').addEventListener('click', closeCheckout);
