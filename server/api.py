@@ -1178,11 +1178,12 @@ def delete_managed_category(category_id: int, _: Dict[str, Any] = Depends(curren
 def products(
     q: str = Query(default=""),
     category: str = Query(default=""),
+    product_type: str = Query(default="", pattern="^(|each|service|variants|wholesale)$"),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     _: Dict[str, Any] = Depends(current_user),
 ):
-    return {"products": cashier_service.list_products(q.strip(), category.strip(), limit, offset)}
+    return {"products": cashier_service.list_products(q.strip(), category.strip(), limit, offset, product_type=product_type)}
 
 
 @app.post("/api/products/manage")

@@ -875,7 +875,7 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
 
 def list_products(
     search: str = "", category: str = "", limit: int = 100, offset: int = 0,
-    product_id: Optional[int] = None,
+    product_id: Optional[int] = None, product_type: str = "",
 ) -> List[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
@@ -914,6 +914,21 @@ def list_products(
             where.append(f"({' OR '.join(category_filters)})")
             params.extend(category_params)
 
+        if product_type:
+            mode = "LOWER(TRIM(REPLACE(COALESCE(p.sold_by, 'Each'), '_', ' ')))"
+            if product_type == 'wholesale':
+                ensure_wholesale_schema(cursor)
+                where.append("EXISTS (SELECT 1 FROM product_price_tiers t WHERE t.product_id=p.id AND COALESCE(t.active,1)=1)")
+            elif product_type == 'service':
+                where.append(f"({mode} IN ('service','services') OR {mode} LIKE ?)")
+                params.append("% service")
+            elif product_type == 'variants':
+                where.append(f"({mode} IN ('variant','variants') OR {mode} LIKE ?)")
+                params.append("% variants")
+            elif product_type == 'each':
+                where.append(f"{mode} = 'each'")
+            else:
+                raise ValueError('Invalid product type')
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
         params.extend([max(1, min(limit, 500)), max(0, offset)])
         stock_expr = _effective_stock_sql("p")

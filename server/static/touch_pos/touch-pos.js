@@ -797,25 +797,23 @@
     await loadProductManager();
   }
   let managerLoadGeneration = 0;
-  async function loadProductManager() {
+  let managerHasMore = false, managerLoading = false;
+  async function loadProductManager(append = false) {
+    append = append === true;
+    if (append && managerLoading) return;
+    managerLoading = true;
     const request = ++managerLoadGeneration;
     if (!token) return;
-    const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), category: document.querySelector('#managerCategoryFilter').value, limit: '300'});
-    document.querySelector('#managerProductList').innerHTML = '<div class="category-loading">Loading products...</div>';
+    const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), category: document.querySelector('#managerCategoryFilter').value, product_type: document.querySelector('#managerTypeFilter').value, limit: '50', offset: String(append ? managedProducts.length : 0)});
+    if (!append) document.querySelector('#managerProductList').innerHTML = '<div class="category-loading">Loading products...</div>';
+    else document.querySelector('#managerLoadMore').disabled = true;
     document.querySelector('#managerCategoryList').innerHTML = '<div class="category-loading">Loading categories...</div>';
     try {
       const [productResult, categoryResult] = await Promise.all([api(`/api/products?${query}`), api('/api/categories/manage')]);
-      const allProducts = Array.isArray(productResult.products) ? [...productResult.products] : [];
-      let batch = productResult.products || [];
-      while (batch.length === 300) {
-        if (request !== managerLoadGeneration) return;
-        query.set('offset', String(allProducts.length));
-        const next = await api(`/api/products?${query}`);
-        batch = Array.isArray(next.products) ? next.products : [];
-        allProducts.push(...batch);
-      }
       if (request !== managerLoadGeneration) return;
-      managedProducts = allProducts;
+      const batch = Array.isArray(productResult.products) ? productResult.products : [];
+      managerHasMore = batch.length === 50;
+      managedProducts = append ? managedProducts.concat(batch) : batch;
       managedCategories = Array.isArray(categoryResult.categories) ? categoryResult.categories : [];
       const filter = document.querySelector('#managerCategoryFilter'), selected = filter.value;
       filter.innerHTML = '<option value="">All categories</option>' + managedCategories.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.parent_name ? c.parent_name + ' / ' + c.name : c.name)}</option>`).join('');
@@ -824,10 +822,10 @@
     } catch (error) {
       if (request !== managerLoadGeneration) return;
       toast(error.message);
-      document.querySelector('#managerProductList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
-      document.querySelector('#managerCategoryList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
-    }
+      if (!append) document.querySelector('#managerProductList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
+    } finally {if (request === managerLoadGeneration) {managerLoading=false;const more=document.querySelector('#managerLoadMore');if(more)more.disabled=false;}}
   }
+
   function populateCategoryOptions() {
     const options = ['<option value="">No category</option>', ...managedCategories.filter(item => String(item.status || 'active') === 'active').map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.parent_name ? `${item.parent_name} / ${item.name}` : item.name)}</option>`)];
     document.querySelector('#itemCategory').innerHTML = options.join('');
@@ -838,7 +836,7 @@
     const root = document.querySelector('#managerProductList');
     const type = document.querySelector('#managerTypeFilter').value;
     const visible = managedProducts.filter(p => !type || (type === 'wholesale' ? (p.wholesale_tiers || []).length > 0 : (isService(p) ? 'service' : soldByMode(p.sold_by)) === type));
-    document.querySelector('#managerProductCount').textContent = `${visible.length} products`;
+    document.querySelector('#managerProductCount').textContent = `${visible.length} loaded${managerHasMore ? ' · more available' : ''}`;
     if (!visible.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another search or filter, or add a product.</div>'; return; }
     root.innerHTML = visible.map(product => {
       const barcode = product.barcode || product.sku || '';
@@ -847,6 +845,7 @@
       const badges = `<span class="product-kind kind-${kind}">${kind === 'service' ? 'Service' : kind === 'variants' ? 'Variants' : 'Each'}</span>${(product.wholesale_tiers || []).length ? '<span class="product-kind kind-wholesale">Wholesale</span>' : ''}`;
       return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><div class="product-name-line"><strong>${escapeHtml(product.name)}</strong><span class="product-kind-list">${badges}</span></div><small>${escapeHtml(product.category || 'No category')}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="product-manager-price"><strong>${money(product.price)} Ks</strong><small>${kind === 'service' ? 'No stock tracking' : `Stock: ${money(product.stock)}`}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}" data-icon="edit">Edit</button><button type="button" title="Delete item" class="manager-delete" data-manager-delete="${Number(product.id)}" data-icon="delete">Delete</button></div></div>`;
     }).join('');
+    if(managerHasMore){root.insertAdjacentHTML('beforeend','<button id="managerLoadMore" class="catalog-load-more" type="button">Load more products</button>');root.querySelector('#managerLoadMore').onclick=()=>loadProductManager(true);}
     root.querySelectorAll('.manager-thumb img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-manager-edit]').forEach(button => button.addEventListener('click', () => openItemModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerEdit)))));
     root.querySelectorAll('[data-manager-delete]').forEach(button => button.addEventListener('click', () => deleteManagedItem(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerDelete)), button)));
@@ -1149,21 +1148,26 @@
       return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-category" title="${escapeHtml(product.category || 'No category')}">${escapeHtml(product.category || 'No category')}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
     }).join('');
     root.querySelectorAll('.product-image img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
+    if(salesHasMore){root.insertAdjacentHTML('beforeend','<button id="salesLoadMore" class="catalog-load-more" type="button">Load more products</button>');root.querySelector('#salesLoadMore').onclick=()=>loadProducts(true);}
     root.querySelectorAll('[data-product-id]').forEach(button => button.addEventListener('click', () => {
       const product = products.find(item => Number(item.id) === Number(button.dataset.productId));
       if (product) chooseProduct(product);
     }));
   }
-  async function loadProducts() {
+  let salesHasMore = false;
+  async function loadProducts(append = false) {
+    append = append === true;
+    if(append && productsController)return;
     if (!token) return; if (productsController) productsController.abort();
     productsController = new AbortController(); const controller = productsController;
-    const root = document.querySelector('#productGrid'); root.classList.add('loaded'); root.innerHTML = '<div class="catalog-message">Loading products…</div>';
-    const query = new URLSearchParams({q: document.querySelector('#productSearch').value.trim(), category: selectedCategory, limit: '200'});
+    const root = document.querySelector('#productGrid'); root.classList.add('loaded'); if(!append)root.innerHTML = '<div class="catalog-message">Loading products…</div>';else document.querySelector('#salesLoadMore').disabled=true;
+    const query = new URLSearchParams({q: document.querySelector('#productSearch').value.trim(), category: selectedCategory, limit: '50', offset: String(append ? products.length : 0)});
     try {
       const result = await api(`/api/touch-pos/products?${query}`, {signal: controller.signal}); if (controller !== productsController) return;
-      products = Array.isArray(result.products) ? result.products : []; renderProducts();
+      const batch=Array.isArray(result.products)?result.products:[];salesHasMore=batch.length===50;products=append?products.concat(batch):batch;renderProducts();
     } catch (error) {
       if (error.name === 'AbortError' || controller !== productsController) return;
+      if(append){toast(error.message);const more=document.querySelector('#salesLoadMore');if(more)more.disabled=false;return;}
       products = []; document.querySelector('#productCount').textContent = 'Unavailable';
       root.innerHTML = `<div class="catalog-message"><strong>Could not load products</strong>${escapeHtml(error.message)}<br><button id="retryProducts" type="button">Retry</button></div>`;
       document.querySelector('#retryProducts').addEventListener('click', loadProducts);
@@ -1341,7 +1345,7 @@
   document.querySelector('#managerCategoryReset').addEventListener('click', () => { document.querySelector('#managerCategorySearch').value = ''; renderManagedCategories(); document.querySelector('#managerCategorySearch').focus(); });
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
   document.querySelector('#managerCategoryFilter').addEventListener('change', loadProductManager);
-  document.querySelector('#managerTypeFilter').addEventListener('change', renderManagerProducts);
+  document.querySelector('#managerTypeFilter').addEventListener('change', loadProductManager);
   document.querySelector('#managerResetFilters').addEventListener('click', () => { clearTimeout(managerSearchTimer); for (const id of ['managerProductSearch','managerCategoryFilter','managerTypeFilter']) document.getElementById(id).value = ''; loadProductManager(); });
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
   document.querySelector('#managerCategorySearch').addEventListener('input', renderManagedCategories);
