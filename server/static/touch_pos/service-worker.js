@@ -1,12 +1,12 @@
-const CACHE = 'kay-pos-touch-w7-v93';
+const CACHE = 'kay-pos-touch-w7-v94';
 const SHELL = [
-  '/static/touch_pos/touch-scanner.js?v=20260909-scanner-stock1',
+  '/static/touch_pos/touch-scanner.js?v=20260909-header-expense1',
   '/touch-pos/',
-  '/static/touch_pos/touch-pos.css?v=20260909-scanner-stock1',
-  '/static/touch_pos/touch-pos.js?v=20260909-scanner-stock1',
-  '/static/touch_pos/touch-settings.js?v=20260909-scanner-stock1',
-  '/static/touch_pos/touch-receipt.js?v=20260909-scanner-stock1',
-  '/static/touch_pos/touch-expenses.js?v=20260909-scanner-stock1',
+  '/static/touch_pos/touch-pos.css?v=20260909-header-expense1',
+  '/static/touch_pos/touch-pos.js?v=20260909-header-expense1',
+  '/static/touch_pos/touch-settings.js?v=20260909-header-expense1',
+  '/static/touch_pos/touch-receipt.js?v=20260909-header-expense1',
+  '/static/touch_pos/touch-expenses.js?v=20260909-header-expense1',
   '/static/touch_pos/manifest.webmanifest',
   '/assets/kay/kay_128x128.png',
   '/assets/icons/dashboard.svg',

@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const connection = document.querySelector('#connection'), clock = document.querySelector('#clock');
+  const clock = document.querySelector('#clock');
   const fullscreen = document.querySelector('#fullscreen'), install = document.querySelector('#install');
   const loginView = document.querySelector('#loginView'), appView = document.querySelector('#app');
   const loginForm = document.querySelector('#loginForm'), loginStatus = document.querySelector('#loginStatus');
@@ -34,7 +34,7 @@
   let searchTimer = null, productsController = null, toastTimer = null, choiceState = null;
 
   function setConnection(ok) {
-    for (const item of [connection, document.querySelector('#loginConnection')]) {
+    for (const item of [document.querySelector('#loginConnection')]) {
       item.className = `connection ${ok ? 'online' : 'offline'}`;
       item.querySelector('span').textContent = ok ? 'Server connected' : 'Server unavailable';
     }
@@ -747,13 +747,13 @@
     await loadTouchReceipts();
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
-  function showTouchExpenses() {
+  function showTouchExpenses(addNew = false) {
     window.KayTouchSettings?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;
     document.querySelector('#productManager').hidden=true;
     document.querySelector('.workspace').hidden=true;
     document.querySelector('#workspaceStatus').textContent='Expenses';
-    window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView});
+    window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView}, addNew);
   }
   function showTouchSettings() {
     window.KayTouchExpenses?.hide();
@@ -1356,6 +1356,7 @@
     document.querySelector('#receiptsFrom').value=dateText(start);document.querySelector('#receiptsTo').value=dateText(end);
     receiptsOffset=0;loadTouchReceipts();
   }));
+  document.querySelector('#headerAddExpense').onclick=()=>showTouchExpenses(true);
   document.querySelector('#inventoryReset').onclick=()=>{document.querySelector('#inventorySearch').value='';document.querySelector('#inventoryCategory').value='';inventoryOffset=0;loadInventory();};
   document.querySelector('#inventorySales').onclick=showSalesView;
   document.querySelector('#inventoryCategory').onchange=()=>{inventoryOffset=0;loadInventory();};

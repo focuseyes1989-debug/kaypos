@@ -73,7 +73,7 @@
   }
   window.KayTouchExpenses={
     hide(){sequence++;if(root){root.hidden=true;root.querySelector('dialog')?.close();}},
-    show(context){
+    async show(context, addNew=false){
       ctx=context;offset=0;
       if(!root){root=document.createElement('section');root.id='touchExpenses';root.className='touch-settings touch-expenses';document.querySelector('#app').insertBefore(root,document.querySelector('#app>footer'));}
       root.hidden=false;
@@ -87,7 +87,9 @@
       root.querySelector('[data-reset]').onclick=()=>{filter.reset();offset=0;load();};
       root.querySelector('[data-sales]').onclick=ctx.onExit;root.querySelector('[data-add]').onclick=()=>edit(null);
       root.querySelector('[data-filters]').onsubmit=e=>{e.preventDefault();offset=0;load();};
-      root.querySelector('[data-prev]').onclick=()=>{offset=Math.max(0,offset-50);load();};root.querySelector('[data-next]').onclick=()=>{offset+=50;load();};load();
+      root.querySelector('[data-prev]').onclick=()=>{offset=Math.max(0,offset-50);load();};root.querySelector('[data-next]').onclick=()=>{offset+=50;load();};
+      await load();
+      if(addNew && !root.hidden)await edit(null);
     }
   };
 })();

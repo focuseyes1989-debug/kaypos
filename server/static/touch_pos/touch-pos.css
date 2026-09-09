@@ -2072,3 +2072,7 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 .catalog .product-category{display:block;min-width:0;font-size:11px;line-height:1.8;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media screen and (min-width:761px){.catalog .product-card{min-height:160px;height:auto}}
 @media screen and (max-width:760px){.catalog .product-card{min-height:202px;height:auto}}
+
+#headerAddExpense{height:40px;min-height:40px;padding:0 12px;border:1px solid #52647f;border-radius:9px;background:#26364d;color:#fff;font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
+#headerAddExpense:hover{background:#334963}
+@media(max-width:480px){#headerAddExpense{padding:0 8px;font-size:11px}.topbar .brand>div{max-width:100px}.topbar .brand strong{font-size:12px}}
