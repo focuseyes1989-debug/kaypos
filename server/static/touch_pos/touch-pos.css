@@ -2255,3 +2255,29 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media(min-width:1500px){#touchDashboard .dashboard-cards:not(.dashboard-credit-cards){grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:700px){#touchDashboard{padding:12px}#touchDashboard .dashboard-summary{grid-template-columns:1fr}#touchDashboard .dashboard-summary>div{display:flex;justify-content:space-between}#touchDashboard .dashboard-filters label{flex-basis:100%}.dashboard-jump a{flex:1;justify-content:center;text-align:center}.dashboard-loading{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){#touchDashboard{scroll-behavior:auto}}
+
+/* Customer workspace polish, scoped away from sales and reports. */
+#touchCustomers{padding:20px 24px 32px}#touchCustomers>.dashboard-header{box-shadow:none;border-radius:14px;margin-bottom:12px}#touchCustomers .dashboard-header h2{font-size:24px}
+#touchCustomers .customer-search{box-shadow:none;padding:16px;gap:10px}#touchCustomers .customer-search label{font-size:12px;font-weight:600}
+#touchCustomers .customer-list,#touchCustomers .customer-detail{box-shadow:none;border-radius:14px}
+#touchCustomers .customer-list [data-status]{font-size:12px;padding:0 6px 8px}
+#touchCustomers .customer-select{transition:border-color .15s,background .15s;min-height:82px}
+#touchCustomers .customer-select .customer-main strong{font-size:14px}
+#touchCustomers .customer-select .customer-avatar{background:var(--bg);border:1px solid var(--line);font-size:16px}
+#touchCustomers .customer-select[data-balance="outstanding"] .customer-balance small{color:var(--bad)}
+#touchCustomers .customer-select[data-balance="clear"] .customer-balance small{color:var(--good)}
+#touchCustomers .customer-balance strong{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
+#touchCustomers .customer-detail{position:sticky;top:0;border-top:3px solid var(--blue)}
+#touchCustomers .customer-detail>header .customer-avatar{width:52px;height:52px;font-size:20px}
+#touchCustomers .customer-detail dl{margin:18px 0}#touchCustomers .customer-detail dt{font-size:12px}#touchCustomers .customer-detail dd{line-height:1.6}
+#touchCustomers .customer-financials{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:transparent;padding:0}
+#touchCustomers .customer-financials>div{display:grid;gap:8px;background:var(--bg);padding:14px;border:1px solid var(--line);border-radius:10px;min-width:0}
+#touchCustomers .customer-financials span{font-size:12px;color:var(--muted)}#touchCustomers .customer-financials strong{font-size:16px;overflow-wrap:anywhere}
+#touchCustomers .customer-detail-actions{padding-top:18px;gap:10px}#touchCustomers .customer-detail-actions [data-delete]{background:transparent}
+#touchCustomers .customer-back-list{display:none;margin-top:12px;width:100%}
+.customer-loading{display:grid;gap:8px}.customer-loading span{display:block;height:82px;background:var(--bg);border:1px solid var(--line);border-radius:11px}
+#touchCustomers .customer-ledger>header{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px}#touchCustomers .customer-collection{padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:12px}
+#touchCustomers .customer-ledger h3{margin-top:22px;font-size:14px}#touchCustomers .customer-ledger [data-close]{margin-top:16px}
+@media(max-width:900px){#touchCustomers .customer-detail{position:static}#touchCustomers .customer-back-list{display:block}}
+@media(max-width:600px){#touchCustomers{padding:12px}#touchCustomers .customer-financials{grid-template-columns:1fr 1fr}#touchCustomers .customer-select .customer-balance{text-align:right;flex:0 0 auto}#touchCustomers .customer-select .customer-main{flex:1}#touchCustomers .customer-search{gap:8px}}
+@media(prefers-reduced-motion:reduce){#touchCustomers .customer-select{transition:none}}
