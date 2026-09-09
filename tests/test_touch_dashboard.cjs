@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let source=fs.readFileSync('server/static/touch_pos/touch-dashboard.js','utf8');
+source=source.replace('  window.KayTouchDashboard={','  window.test={render,load,set:(r,c)=>{root=r;ctx=c;}};\n  window.KayTouchDashboard={');
+const output={innerHTML:''},status={textContent:''},form={elements:{from:{value:'2026-09-09'},to:{value:'2026-09-09'}}};
+const root={hidden:false,querySelector:s=>s==='form'?form:s==='[data-status]'?status:output,setAttribute(){}};
+let calls=0;
+const data={period:{from_date:'2026-09-09',to_date:'2026-09-09',sales:9000,gross_sales:10000,refunds:1000,transactions:3},expenses:{total:2000,count:2},payment_sales:[{label:'<Cash>',total:9000,count:3}],expense_groups:[]};
+const ctx={escapeHtml:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;'),api:async url=>{calls++;assert.match(url,/trend_days=0/);return data}};
+const sandbox={window:{},URLSearchParams,Date};vm.createContext(sandbox);vm.runInContext(source,sandbox);const t=sandbox.window.test;t.set(root,ctx);
+(async()=>{await t.load();assert.match(output.innerHTML,/7,000 Ks/);assert.match(output.innerHTML,/&lt;Cash&gt;/);assert.match(output.innerHTML,/No records/);assert.match(status.textContent,/Updated/);
+form.elements.from.value='2026-10-01';await t.load();assert.equal(calls,1);assert.equal(output.innerHTML,'');
+form.elements.from.value='2026-09-09';ctx.api=async()=>{throw Error('offline')};await t.load();assert.match(status.textContent,/Use Apply to retry/);
+sandbox.window.KayTouchDashboard.hide();assert.equal(root.hidden,true);assert.equal(output.innerHTML,'');console.log('Dashboard totals, escaped labels, empty state, invalid dates, errors and hide passed.');})().catch(e=>{console.error(e);process.exitCode=1});

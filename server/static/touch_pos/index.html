@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-checkout-enter1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-dashboard1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -48,6 +48,7 @@
       <nav class="side-menu-nav" aria-label="Main navigation">
         <div class="side-menu-section" role="group" aria-labelledby="sideGroup0">
           <span id="sideGroup0" class="side-menu-label">SALES</span>
+          <button type="button" data-side-action="dashboard"><img class="side-menu-icon" src="/assets/icons/dashboard.svg" alt="" aria-hidden="true"><span>Dashboard</span></button>
           <button type="button" data-side-action="products"><img class="side-menu-icon" src="/assets/icons/dashboard.svg" alt="" aria-hidden="true"><span>Sales</span></button>
           <button type="button" data-side-action="cart"><img class="side-menu-icon" src="/assets/icons/shopping_cart.svg" alt="" aria-hidden="true"><span>Current Cart</span><em id="sideCartBadge">0</em></button>
           <button type="button" data-side-action="receipts"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt="" aria-hidden="true"><span>Receipts</span></button>
@@ -292,10 +293,11 @@
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js?v=20260909-checkout-enter1" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-checkout-enter1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-checkout-enter1" defer></script>
-  <script src="/static/touch_pos/touch-scanner.js?v=20260909-checkout-enter1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-checkout-enter1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-dashboard1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-dashboard1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-dashboard1" defer></script>
+  <script src="/static/touch_pos/touch-scanner.js?v=20260909-dashboard1" defer></script>
+  <script src="/static/touch_pos/touch-dashboard.js?v=20260909-dashboard1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-dashboard1" defer></script>
 </body>
 </html>

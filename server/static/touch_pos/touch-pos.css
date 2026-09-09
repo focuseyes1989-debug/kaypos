@@ -2133,3 +2133,22 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media screen and (max-width:760px){:root{--touch-dialog-top:max(10px, env(safe-area-inset-top))}}
 
 #paymentButton kbd{font:inherit;font-size:11px;line-height:1;padding:3px 5px;border:1px solid currentColor;border-radius:4px;opacity:.8;margin-left:5px}
+
+.touch-dashboard{min-height:0;overflow:auto;padding:18px 24px;display:block;color:var(--ink)}
+.dashboard-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px;margin-bottom:16px;min-height:90px}
+.dashboard-header h2{margin:0 0 6px}.dashboard-header p{margin:0;color:var(--muted)}
+.dashboard-filters{display:flex;align-items:end;gap:12px;padding:16px;flex-wrap:wrap}
+.dashboard-filters label{display:grid;gap:6px;flex:1;min-width:150px}
+.dashboard-filters input{height:48px;min-width:0;width:100%;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:var(--panel);color:var(--ink);font:inherit}
+.touch-dashboard button{height:48px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer;font:inherit}
+.touch-dashboard button.sign-in{background:var(--blue);color:#fff;width:auto;margin:0;min-height:48px}
+.touch-dashboard [data-status]{color:var(--muted);font-size:12px}
+.dashboard-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.dashboard-cards article{display:grid;gap:10px;padding:18px;border-top:3px solid var(--blue)}
+.dashboard-cards strong{font-size:22px;overflow-wrap:anywhere}.dashboard-cards small,.dashboard-summary small,.dashboard-breakdown small{color:var(--muted)}
+.dashboard-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.dashboard-summary,.dashboard-breakdown{padding:18px}.touch-dashboard h3{margin:0 0 16px}
+.dashboard-summary>div,.dashboard-breakdown>div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line)}
+.dashboard-breakdown small{display:block;margin-top:4px}.dashboard-breakdown strong,.dashboard-summary strong{white-space:nowrap}
+@media(max-width:1100px){.dashboard-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.touch-dashboard{padding:12px}.dashboard-columns,.dashboard-cards{grid-template-columns:1fr}.dashboard-header{flex-wrap:wrap}.dashboard-filters label{flex-basis:100%}}
