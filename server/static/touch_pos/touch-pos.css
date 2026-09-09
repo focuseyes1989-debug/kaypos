@@ -2330,3 +2330,12 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 #touchSuppliers .customer-select{display:flex;width:100%;height:auto;min-height:82px;align-items:center;gap:12px;margin-bottom:8px;padding:12px;text-align:left}#touchSuppliers .customer-select small{display:block;margin-top:6px;color:var(--muted)}#touchSuppliers .customer-select[aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:var(--control-accent)}
 #touchSuppliers select{min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:10px;font:inherit}#touchSuppliers .customer-main{overflow-wrap:anywhere}#touchSuppliers .customer-detail dd{overflow-wrap:anywhere}
 html[data-touch-theme=dark] #touchSuppliers :is(button,.customer-row){background:#26364d;color:var(--ink)}html[data-touch-theme=dark] #touchSuppliers button.sign-in{background:#2563eb;color:#fff}html[data-touch-theme=dark] #touchSuppliers .customer-select[aria-pressed="true"]{background:#244773}
+
+/* Keep supplier information in place while browsing the supplier list. */
+@media(min-width:901px){
+ #touchSuppliers{display:grid;grid-template-rows:auto auto minmax(0,1fr);overflow:hidden;min-height:0}
+ #touchSuppliers>.customer-workspace{min-height:0;align-items:stretch;overflow:hidden}
+ #touchSuppliers .customer-list{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;min-height:0;overflow:hidden}
+ #touchSuppliers [data-rows]{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+ #touchSuppliers .customer-detail{min-height:0;overflow-y:auto;overscroll-behavior:contain;align-self:stretch}
+}
