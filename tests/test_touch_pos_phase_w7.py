@@ -25,7 +25,9 @@ class TouchPosPhaseW7Tests(unittest.TestCase):
 
     def test_print_button_uses_browser_print_only(self):
         script = (STATIC / "touch-pos.js").read_text(encoding="utf-8")
-        self.assertIn("addEventListener('click', () => window.print())", script)
+        self.assertIn("window.KayTouchReceipt.print(", script)
+        renderer = (STATIC / "touch-receipt.js").read_text(encoding="utf-8")
+        self.assertIn("frame.contentWindow.print()", renderer)
         self.assertNotIn("printer", script.lower())
         self.assertNotIn("cash drawer", script.lower())
 

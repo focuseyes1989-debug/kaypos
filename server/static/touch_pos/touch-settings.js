@@ -12,7 +12,7 @@
   };
   const notes={
     Appearance:'Shared with Kay POS App. The selected theme also applies to this Touch browser.',
-    Printer:'These are shared App printer defaults. Touch uses the browser print dialog: choose the printer and matching paper there. Browser printing cannot open a cash drawer or silently select an App printer.',
+    Printer:'Receipt paper sets the Touch preview default: 58mm or 80mm for thermal rolls, A4 for Canon G2100. Install your USB/cable printer or pair a supported Bluetooth printer in your device first, then select it in the print dialog. Match paper size, use 100% scale, and disable headers/footers. Bluetooth needs an OS driver or compatible print service; direct Bluetooth and cash drawer control are not available in this browser print mode.',
     'Payment Types':'Manage payment names shared by Kay POS App, Lite and Touch.',
     'Tax and Discount':'Shared tax and discount defaults. Review the checkout totals before completing a sale.',
     'Business and Branding':'Business details and images are stored in the shared database. Upload PNG or JPEG images up to 2 MB.',

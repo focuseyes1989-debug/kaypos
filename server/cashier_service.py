@@ -2583,7 +2583,7 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
         (sale_id,),
     )
     sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
-    receipt_keys = ('shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
+    receipt_keys = ('receipt_paper_size', 'show_customer_name', 'shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
     cursor.execute('SELECT key,value FROM settings WHERE key IN (' + ','.join('?' for _ in receipt_keys) + ')', receipt_keys)
     sale['receipt_settings'] = dict(cursor.fetchall())
     return sale

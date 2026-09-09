@@ -274,7 +274,16 @@
     lines.push('', `Subtotal: ${money(receipt.subtotal || total)} Ks`, `Discount: ${money(receipt.discount_amount || 0)} Ks`, `Total: ${money(total)} Ks`, `Paid: ${money(paid)} Ks`, `Change: ${money(Math.max(0, paid - total))} Ks`, '', settings.receipt_footer || '', settings.shop_footer_message || '', settings.receipt_thank_you_text || 'Thank you.');
     return lines.join('\n');
   }
+  let activePrintReceipt = null;
+  function updateReceiptPreview() {
+    if (!activePrintReceipt) return;
+    const paper = document.querySelector('#receiptPaper').value;
+    document.querySelector('#receiptPreview').srcdoc = window.KayTouchReceipt.documentHtml(activePrintReceipt.receipt, activePrintReceipt.paid, paper);
+  }
   function showReceipt(receipt, paid) {
+    activePrintReceipt = {receipt, paid};
+    document.querySelector('#receiptPaper').value = window.KayTouchReceipt.paper(receipt.receipt_settings?.receipt_paper_size ?? checkoutSettings.receipt_paper_size);
+    updateReceiptPreview();
     const modal = document.querySelector('#receiptModal'), total = Number(receipt.total || cartTotals().total || 0);
     document.querySelector('#receiptInvoice').textContent = receipt.invoice_no || '';
     document.querySelector('#printReceipt').textContent = receiptLines(receipt, paid);
@@ -679,6 +688,7 @@
       const data = await api(`/api/receipts/${id}`); if(request !== receiptsRequest) return;
       const r = data.receipt;
       detail.innerHTML = `<div class="receipt-page-head"><div><strong>${escapeHtml(r.invoice_no)}</strong><small>${escapeHtml(r.created_at)} · ${escapeHtml(r.customer_name || 'Walk-in Customer')} · ${escapeHtml(r.status)}</small></div><button type="button" data-close-detail>Close</button></div><div class="receipt-table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${(r.items || []).map(item=>`<tr><td>${escapeHtml(item.product_name)}</td><td>${money(item.qty)}</td><td>${money(item.price)}</td><td>${money(item.total)}</td></tr>`).join('')}</tbody></table></div><div class="receipt-detail-totals">${[['Payment method',escapeHtml(r.payment_type)],['Discount',money(r.discount_amount)+' Ks'],['Total',money(r.total)+' Ks'],['Paid',money(r.paid_amount ?? r.payment)+' Ks'],['Change',money(r.change_amount)+' Ks'],...(String(r.payment_type).toLowerCase()==='credit' ? [['Credit balance',money(r.balance_amount ?? Math.max(0,Number(r.total)-Number(r.payment)))+' Ks']] : [])].map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`;
+      detail.innerHTML += '<button type="button" data-reprint-receipt>Print Receipt</button>';
       const completed = String(r.status || 'completed').toLowerCase() === 'completed';
       const credit = String(r.payment_type || '').toLowerCase() === 'credit';
       if (completed && !credit) {
@@ -692,8 +702,7 @@
         detail.innerHTML += '<p class="receipt-refund-note">Credit refunds must be processed in the full KAY POS app.</p>';
       }
       detail.querySelector('[data-close-detail]').onclick=resetReceiptDetail;
-      detail.insertAdjacentHTML('afterbegin', '<button type="button" id="inventoryViewMovements">View Movements</button>');
-    detail.querySelector('#inventoryViewMovements').onclick=()=>showInventoryMovements(p);
+      detail.querySelector('[data-reprint-receipt]').onclick = () => showReceipt(r, r.paid_amount ?? r.payment ?? 0);
     if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     } catch(error) { if(request === receiptsRequest) detail.textContent=error.message; }
   }
@@ -1244,7 +1253,14 @@
   document.querySelector('#productChoiceModal').addEventListener('keydown', event => { if (event.key === 'Enter') confirmChoice(); });
   document.addEventListener('keydown', handleServiceKeydown);
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
-  document.querySelector('#printReceiptButton').addEventListener('click', () => window.print());
+  document.querySelector('#receiptPaper').addEventListener('change', updateReceiptPreview);
+  document.querySelector('#printReceiptButton').addEventListener('click', async () => {
+    if (!activePrintReceipt) return;
+    const button = document.querySelector('#printReceiptButton'); button.disabled = true;
+    try { await window.KayTouchReceipt.print(activePrintReceipt.receipt, activePrintReceipt.paid, document.querySelector('#receiptPaper').value); }
+    catch (error) { toast(`Could not open print dialog: ${error.message}`); }
+    finally { button.disabled = false; }
+  });
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });
   document.querySelector('#productSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadProducts, 250); });
   document.querySelector('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); loadProducts(); } });
