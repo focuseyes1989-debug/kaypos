@@ -2066,3 +2066,9 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 .settings-user-info>div{min-width:0;overflow-wrap:anywhere}
 .settings-user-avatar{position:relative;display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:50%;overflow:hidden;background:var(--control-selected);color:var(--control-selected-text);font-size:16px;font-weight:700;border:1px solid var(--line)}
 .settings-user-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+/* Category sits between the sales product name and price. */
+.catalog .product-info{grid-template-rows:auto auto auto;gap:4px}
+.catalog .product-category{display:block;min-width:0;font-size:11px;line-height:1.8;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media screen and (min-width:761px){.catalog .product-card{min-height:160px;height:auto}}
+@media screen and (max-width:760px){.catalog .product-card{min-height:202px;height:auto}}
