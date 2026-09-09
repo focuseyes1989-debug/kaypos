@@ -587,9 +587,12 @@
     document.querySelector('#inventoryPrev').disabled = true;
     document.querySelector('#inventoryNext').disabled = true;
     try {
-      const query = new URLSearchParams({q:document.querySelector('#inventorySearch').value.trim(),limit:'50',offset:String(inventoryOffset)});
-      const [data, locations, suppliers] = await Promise.all([api(`/api/products?${query}`),api('/api/stock/locations'),api('/api/suppliers')]);
+      const query = new URLSearchParams({q:document.querySelector('#inventorySearch').value.trim(),category:document.querySelector('#inventoryCategory').value,limit:'50',offset:String(inventoryOffset)});
+      const [data, locations, suppliers, categoryData] = await Promise.all([api(`/api/products?${query}`),api('/api/stock/locations'),api('/api/suppliers'),api('/api/categories/manage')]);
       if (request !== inventoryRequest) return;
+      const categoryFilter = document.querySelector('#inventoryCategory'), selectedCategory = categoryFilter.value;
+      categoryFilter.innerHTML = '<option value="">All categories</option>' + (categoryData.categories || []).map(c=>`<option value="${escapeHtml(c.name)}">${escapeHtml(c.parent_name ? c.parent_name + ' / ' + c.name : c.name)}</option>`).join('');
+      categoryFilter.value = selectedCategory;
       inventoryProducts = data.products || []; inventoryLocations = locations.locations || []; inventorySuppliers = suppliers.suppliers || [];
       rows.innerHTML = inventoryProducts.map(p=>`<button type="button" class="receipt-history-row inventory-product-row" data-inventory-id="${Number(p.id)}" aria-pressed="false"><span class="manager-thumb" aria-hidden="true">${p.thumbnail_url ? `<img src="${escapeHtml(p.thumbnail_url)}" alt="" loading="lazy">` : '▦'}</span><span class="inventory-product-name"><strong>${escapeHtml(p.name)}</strong><span class="inventory-kind kind-${soldByMode(p.sold_by)==='service' ? 'service' : soldByMode(p.sold_by)==='variants' ? 'variants' : 'each'}">${soldByMode(p.sold_by)==='service' ? 'Service' : soldByMode(p.sold_by)==='variants' ? 'Variants' : 'Each'}</span><small>${escapeHtml(p.sku || p.barcode || p.category || '')}</small></span><span><strong>${soldByMode(p.sold_by)==='service' ? 'Service' : money(p.stock)+' '+escapeHtml(p.base_unit || p.unit || 'pcs')}</strong><small class="stock-state stock-${soldByMode(p.sold_by)==='service' ? 'service' : Number(p.stock)<=0 ? 'out' : Number(p.stock)<=Number(p.low_stock || 0) ? 'low' : 'ok'}">${soldByMode(p.sold_by)==='service' ? 'No stock tracking' : Number(p.stock)<=0 ? 'Out of stock' : Number(p.stock)<=Number(p.low_stock || 0) ? 'Low stock' : 'In stock'}</small></span></button>`).join('') || '<p>No products found. Try another search.</p>';
       rows.querySelectorAll('.manager-thumb img').forEach(image=>image.addEventListener('error',()=>{image.parentElement.textContent='▦';},{once:true}));
@@ -648,7 +651,7 @@
       setupInventoryActions(p, detail, request);
     } else detail.innerHTML+='<p>Service products do not track inventory.</p>';
     detail.insertAdjacentHTML('beforeend', '<div class="inventory-history"><h3>Recent movements</h3><div id="inventoryMovements">Loading movements...</div></div>');
-    detail.insertAdjacentHTML('afterbegin', '<button type="button" id="inventoryViewMovements">View Movements</button>');
+    detail.insertAdjacentHTML('afterbegin', '<div class="inventory-detail-actions"><button type="button" id="inventoryViewMovements">View Movements</button></div>');
     detail.querySelector('#inventoryViewMovements').onclick=()=>showInventoryMovements(p);
     if (window.matchMedia('(max-width: 900px)').matches) detail.scrollIntoView({behavior:'smooth',block:'start'});
     try {
@@ -1322,8 +1325,9 @@
     document.querySelector('#receiptsFrom').value=dateText(start);document.querySelector('#receiptsTo').value=dateText(end);
     receiptsOffset=0;loadTouchReceipts();
   }));
-  document.querySelector('#inventoryReset').onclick=()=>{document.querySelector('#inventorySearch').value='';inventoryOffset=0;loadInventory();};
+  document.querySelector('#inventoryReset').onclick=()=>{document.querySelector('#inventorySearch').value='';document.querySelector('#inventoryCategory').value='';inventoryOffset=0;loadInventory();};
   document.querySelector('#inventorySales').onclick=showSalesView;
+  document.querySelector('#inventoryCategory').onchange=()=>{inventoryOffset=0;loadInventory();};
   document.querySelector('#inventoryFilters').onsubmit=event=>{event.preventDefault();inventoryOffset=0;loadInventory();};
   document.querySelector('#inventoryPrev').onclick=()=>{inventoryOffset=Math.max(0,inventoryOffset-50);loadInventory();};
   document.querySelector('#inventoryNext').onclick=()=>{inventoryOffset+=50;loadInventory();};
