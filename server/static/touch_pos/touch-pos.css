@@ -1908,3 +1908,19 @@ button:is(.settings-primary,.settings-danger,.primary-action,.manager-delete,.re
 /* Each catalog management page uses the full workspace width. */
 #productManager .manager-grid{grid-template-columns:minmax(0,1fr)}
 #productManager .manager-grid>[hidden],#managerAddItem[hidden]{display:none!important}
+
+#productManager .manager-products{grid-template-rows:auto auto minmax(0,1fr)}
+.product-manager-filters{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1fr) minmax(130px,1fr) auto;gap:12px;padding:14px;border-bottom:1px solid var(--line);align-items:end}
+.product-manager-filters label{display:grid;gap:6px;font-size:12px;color:var(--muted);min-width:0}
+.product-manager-filters input,.product-manager-filters select{box-sizing:border-box;width:100%;min-width:0;min-height:48px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink);font:inherit}
+#managerResetFilters{height:48px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink)}
+#productManager .product-manager-row{display:grid;grid-template-columns:56px minmax(0,1fr) minmax(110px,auto) auto;gap:16px;align-items:center;padding:16px;border-bottom:1px solid var(--line)}
+#productManager .product-manager-row .manager-thumb{width:56px;height:56px;border-radius:10px}
+.product-manager-row .manager-row-main{min-width:0;overflow-wrap:anywhere}
+.product-manager-price{text-align:right;display:grid;gap:6px}.product-manager-price small{font-size:12px;color:var(--muted)}
+.product-kind-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.product-kind{display:inline-flex;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;line-height:1.5}
+.product-kind.kind-service{background:#d5f4e9;color:#12654e}.product-kind.kind-each{background:#e1edff;color:#2452a0}.product-kind.kind-variants{background:#eee3ff;color:#6836a5}.product-kind.kind-wholesale{background:#fff0cb;color:#865305}
+html[data-touch-theme=dark] .product-kind.kind-service{background:#163f3a;color:#99f6e4}html[data-touch-theme=dark] .product-kind.kind-each{background:#243e64;color:#bfdbfe}html[data-touch-theme=dark] .product-kind.kind-variants{background:#3b2b58;color:#ddd6fe}html[data-touch-theme=dark] .product-kind.kind-wholesale{background:#49391c;color:#fde68a}
+@media(max-width:800px){.product-manager-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#productManager .product-manager-row{grid-template-columns:48px minmax(0,1fr) auto}.product-manager-row .manager-row-actions{grid-column:2/-1;justify-content:flex-end}}
+@media(max-width:480px){.product-manager-filters{grid-template-columns:minmax(0,1fr)}#productManager .product-manager-row{grid-template-columns:48px minmax(0,1fr)}.product-manager-price{grid-column:2;text-align:left}}

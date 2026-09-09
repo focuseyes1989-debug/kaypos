@@ -792,17 +792,33 @@
     document.querySelector('#workspaceStatus').textContent = categoriesPage ? 'Categories · Manage categories' : 'Products · Manage products';
     await loadProductManager();
   }
+  let managerLoadGeneration = 0;
   async function loadProductManager() {
+    const request = ++managerLoadGeneration;
     if (!token) return;
-    const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), limit: '300'});
+    const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), category: document.querySelector('#managerCategoryFilter').value, limit: '300'});
     document.querySelector('#managerProductList').innerHTML = '<div class="category-loading">Loading products...</div>';
     document.querySelector('#managerCategoryList').innerHTML = '<div class="category-loading">Loading categories...</div>';
     try {
       const [productResult, categoryResult] = await Promise.all([api(`/api/products?${query}`), api('/api/categories/manage')]);
-      managedProducts = Array.isArray(productResult.products) ? productResult.products : [];
+      const allProducts = Array.isArray(productResult.products) ? [...productResult.products] : [];
+      let batch = productResult.products || [];
+      while (batch.length === 300) {
+        if (request !== managerLoadGeneration) return;
+        query.set('offset', String(allProducts.length));
+        const next = await api(`/api/products?${query}`);
+        batch = Array.isArray(next.products) ? next.products : [];
+        allProducts.push(...batch);
+      }
+      if (request !== managerLoadGeneration) return;
+      managedProducts = allProducts;
       managedCategories = Array.isArray(categoryResult.categories) ? categoryResult.categories : [];
+      const filter = document.querySelector('#managerCategoryFilter'), selected = filter.value;
+      filter.innerHTML = '<option value="">All categories</option>' + managedCategories.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.parent_name ? c.parent_name + ' / ' + c.name : c.name)}</option>`).join('');
+      filter.value = selected;
       renderManagerProducts(); renderManagedCategories(); populateCategoryOptions();
     } catch (error) {
+      if (request !== managerLoadGeneration) return;
       toast(error.message);
       document.querySelector('#managerProductList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
       document.querySelector('#managerCategoryList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
@@ -816,12 +832,16 @@
   }
   function renderManagerProducts() {
     const root = document.querySelector('#managerProductList');
-    document.querySelector('#managerProductCount').textContent = String(managedProducts.length);
-    if (!managedProducts.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Add an item to start.</div>'; return; }
-    root.innerHTML = managedProducts.map(product => {
+    const type = document.querySelector('#managerTypeFilter').value;
+    const visible = managedProducts.filter(p => !type || (type === 'wholesale' ? (p.wholesale_tiers || []).length > 0 : (isService(p) ? 'service' : soldByMode(p.sold_by)) === type));
+    document.querySelector('#managerProductCount').textContent = `${visible.length} products`;
+    if (!visible.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another search or filter, or add a product.</div>'; return; }
+    root.innerHTML = visible.map(product => {
       const barcode = product.barcode || product.sku || '';
       const image = String(product.thumbnail_url || '').trim();
-      return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><strong>${escapeHtml(product.name)}</strong><small>${escapeHtml(product.category || 'No category')} · ${money(product.price)} Ks · Stock ${money(product.stock)}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}">Edit</button><button type="button" title="Delete item" class="manager-delete" data-manager-delete="${Number(product.id)}">Delete</button></div></div>`;
+      const kind = isService(product) ? 'service' : soldByMode(product.sold_by) === 'variants' ? 'variants' : 'each';
+      const badges = `<span class="product-kind kind-${kind}">${kind === 'service' ? 'Service' : kind === 'variants' ? 'Variants' : 'Each'}</span>${(product.wholesale_tiers || []).length ? '<span class="product-kind kind-wholesale">Wholesale</span>' : ''}`;
+      return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><strong>${escapeHtml(product.name)}</strong><div class="product-kind-list">${badges}</div><small>${escapeHtml(product.category || 'No category')}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="product-manager-price"><strong>${money(product.price)} Ks</strong><small>${kind === 'service' ? 'No stock tracking' : `Stock: ${money(product.stock)}`}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}">Edit</button><button type="button" title="Delete item" class="manager-delete" data-manager-delete="${Number(product.id)}">Delete</button></div></div>`;
     }).join('');
     root.querySelectorAll('.manager-thumb img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-manager-edit]').forEach(button => button.addEventListener('click', () => openItemModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerEdit)))));
@@ -1282,6 +1302,9 @@
   document.querySelector('#managerRefresh').addEventListener('click', loadProductManager);
   document.querySelector('#managerAddItem').addEventListener('click', () => openItemModal());
   document.querySelector('#managerAddCategory').addEventListener('click', () => openCategoryModal());
+  document.querySelector('#managerCategoryFilter').addEventListener('change', loadProductManager);
+  document.querySelector('#managerTypeFilter').addEventListener('change', renderManagerProducts);
+  document.querySelector('#managerResetFilters').addEventListener('click', () => { clearTimeout(managerSearchTimer); for (const id of ['managerProductSearch','managerCategoryFilter','managerTypeFilter']) document.getElementById(id).value = ''; loadProductManager(); });
   document.querySelector('#managerProductSearch').addEventListener('input', () => { clearTimeout(managerSearchTimer); managerSearchTimer = setTimeout(loadProductManager, 250); });
   document.querySelector('#managerCategorySearch').addEventListener('input', renderManagedCategories);
   document.querySelectorAll('[data-receipts-tab]').forEach(button=>button.addEventListener('click',()=>{
