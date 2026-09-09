@@ -976,6 +976,16 @@
     const row = document.createElement('div'); row.className = 'item-detail-row';
     const fields = kind === 'variants' ? variantFields : tierFields;
     row.innerHTML = fields.map(([key, label, min, step]) => `<label ${kind === 'variants' && ['cost', 'stock'].includes(key) ? 'hidden' : ''}><span>${label}</span><input data-field="${key}" ${min === undefined ? 'maxlength="160"' : `type="number" min="${min}" step="${step || 'any'}" required`} value="${escapeHtml(String(values[key] ?? (min === undefined ? '' : min)))}"></label>`).join('') + '<button type="button" class="remove-item-row">Remove</button>';
+    row.dataset.kind = kind;
+    const heading = document.createElement('strong'); heading.className='item-row-heading';
+    heading.textContent=kind==='variants'?'Variant details':'Wholesale tier';row.prepend(heading);
+    const summary=document.createElement('small');summary.className='item-row-summary';row.appendChild(summary);
+    const updateSummary=()=>{
+      const value=key=>row.querySelector(`[data-field="${key}"]`)?.value || '';
+      summary.textContent=kind==='variants' ? `${[value('color'),value('size')].filter(Boolean).join(' / ') || 'Variant'} · ${money(value('price'))} Ks per unit` : `Buy ${value('min_qty')} or more stock units → ${money(value('unit_price'))} Ks per stock unit`;
+    };
+    row.addEventListener('input',updateSummary);updateSummary();
+    row.querySelector('button').setAttribute('aria-label',kind==='variants'?'Remove variant':'Remove wholesale tier');
     row.querySelector('button').addEventListener('click', () => row.remove());
     document.querySelector(kind === 'variants' ? '#itemVariants' : '#itemTiers').appendChild(row);
   }

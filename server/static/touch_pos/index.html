@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-tier-icon1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-product-editor1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -227,8 +227,8 @@
       <div class="manager-form item-editor-layout">
         <div class="item-main-column">
 <section class="item-card"><h3>Product information</h3>
-<div class="item-fields"><label><span>Name</span><input id="itemName" required maxlength="300"></label>
-<label><span>Sold by</span><select id="itemSoldBy"><option>Each</option><option>Service</option><option>Variants</option></select></label>
+<div class="item-fields"><label><span>Product name *</span><input id="itemName" required maxlength="300"></label>
+<label><span>Product type</span><select id="itemSoldBy"><option>Each</option><option>Service</option><option>Variants</option></select></label>
 <label class="full"><span>Description</span><textarea id="itemDescription" maxlength="1000" rows="3"></textarea></label>
 </div>
 </section>
@@ -249,11 +249,11 @@
 </section>
 <section class="item-card item-editor-section" data-item-mode="each">
           <div class="item-section-head"><h3>Wholesale</h3><button id="addItemTier" type="button" data-icon="add">Add tier</button></div>
-          <p>Minimum quantity is in stock units. Set the price per stock unit.</p><div id="itemTiers"></div>
+          <p>Set quantity-based prices below. Minimum quantity and wholesale price are per stock unit.</p><div id="itemTiers"></div>
         </section>
         <section class="item-card item-editor-section" data-item-mode="variants">
-          <div class="item-section-head"><h3>Variants</h3><button id="addItemVariant" type="button" data-icon="add">+ Add variant</button></div>
-          <p>Enter size / color and selling price for each variant.</p><div id="itemVariants"></div>
+          <div class="item-section-head"><h3>Variants</h3><button id="addItemVariant" type="button" data-icon="add">Add variant</button></div>
+          <p>Add one row per size or color. Set its selling price and barcode; manage stock from Inventory.</p><div id="itemVariants"></div>
         </section>
         </div>
         <aside class="item-side-column">
@@ -294,12 +294,12 @@
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-scanner.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-dashboard.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-customers.js?v=20260909-tier-icon1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-tier-icon1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-scanner.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-dashboard.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-customers.js?v=20260909-product-editor1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-product-editor1" defer></script>
 </body>
 </html>
