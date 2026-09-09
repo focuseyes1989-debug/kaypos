@@ -3413,3 +3413,45 @@ def open_cash_drawer() -> Dict[str, str]:
         raise ValueError("Receipt printer is not configured on the Server PC")
     _send_cash_drawer_pulse(printer_name)
     return {"printer_name": printer_name, "status": "opened"}
+
+
+def touch_printer_names() -> list[str]:
+    """List printer queue names without opening vendor status monitors."""
+    import sys
+    import ctypes
+    from ctypes import wintypes
+    if sys.platform != "win32":
+        raise ValueError("Printer list is available on a Windows Server PC only")
+
+    class PRINTER_INFO_4W(ctypes.Structure):
+        _fields_ = [
+            ("pPrinterName", wintypes.LPWSTR),
+            ("pServerName", wintypes.LPWSTR),
+            ("Attributes", wintypes.DWORD),
+        ]
+
+    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
+    enum_printers = winspool.EnumPrintersW
+    enum_printers.argtypes = [
+        wintypes.DWORD, wintypes.LPWSTR, wintypes.DWORD, wintypes.LPBYTE,
+        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+    ]
+    needed = wintypes.DWORD(0)
+    returned = wintypes.DWORD(0)
+    flags = 0x00000002 | 0x00000004  # PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    enum_printers(flags, None, 4, None, 0, ctypes.byref(needed), ctypes.byref(returned))
+    if not needed.value:
+        if ctypes.get_last_error() not in (0, 122):
+            raise ValueError("Could not read Windows printers")
+        return []
+    buffer = (ctypes.c_byte * needed.value)()
+    if not enum_printers(
+        flags, None, 4, ctypes.cast(buffer, wintypes.LPBYTE), needed.value,
+        ctypes.byref(needed), ctypes.byref(returned),
+    ):
+        raise ValueError("Could not read Windows printers")
+    entries = ctypes.cast(buffer, ctypes.POINTER(PRINTER_INFO_4W))
+    return sorted(
+        {str(entries[index].pPrinterName or "").strip() for index in range(returned.value)} - {""},
+        key=str.casefold,
+    )
