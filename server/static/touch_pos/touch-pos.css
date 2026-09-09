@@ -1993,3 +1993,10 @@ html[data-touch-theme=dark] .stock-ok{background:#163f3a;color:#99f6e4}html[data
 #inventoryViewMovements{height:48px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink)}
 @media(max-width:700px){#inventoryFilters{grid-template-columns:repeat(2,minmax(0,1fr))}#inventoryFilters label{grid-column:auto}}
 @media(max-width:400px){#inventoryFilters label{grid-column:1/-1}}
+
+/* Expense cards use the same base dimensions as receipt history cards. */
+.touch-expenses .expense-entry{box-sizing:border-box;min-height:82px;padding:12px;gap:14px;margin-bottom:8px;border:1px solid var(--line);border-radius:11px;background:var(--panel,#fff);align-items:center}
+.touch-expenses .expense-date{padding:5px 8px;line-height:1.4}
+.touch-expenses .expense-entry-main{gap:2px;line-height:1.6}
+.touch-expenses .expense-entry-amount{gap:3px;line-height:1.6}
+@media(max-width:560px){.touch-expenses .expense-entry{gap:8px}.touch-expenses .expense-row-actions{grid-column:2}}
