@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-expense-width1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-svg-icons1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -19,7 +19,7 @@
       <label for="password">Password</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required>
       <label class="login-remember"><input id="rememberMe" type="checkbox" name="rememberMe"><span>Remember me on this device<small>Stay signed in for up to 30 days.</small></span></label>
-      <button id="signIn" class="sign-in" type="submit">Sign In</button>
+      <button id="signIn" class="sign-in" type="submit" data-icon="login">Sign In</button>
       <div id="loginStatus" class="login-status" role="status" aria-live="polite"></div>
       <div class="login-foot"><span id="loginConnection" class="connection checking"><i></i><span>Checking server…</span></span><small>Phase W7 · Receipt print</small></div>
     </form>
@@ -35,7 +35,7 @@
       <div class="top-actions">
         <span id="connection" class="connection checking" role="status"><i></i><span>Checking server…</span></span>
         <button id="install" class="secondary" type="button" hidden>Install App</button>
-        <button id="fullscreen" class="secondary" type="button">Full Screen</button>
+        <button id="fullscreen" class="secondary" type="button" data-icon="maximize">Full Screen</button>
       </div>
     </header>
     <div id="sideMenuOverlay" class="side-menu-overlay" hidden></div>
@@ -75,16 +75,16 @@
     <main class="workspace" aria-label="KAY POS Touch foundation preview">
       <aside class="categories panel">
         <div class="panel-heading"><strong>Categories</strong><span id="categoryCount">0</span></div>
-        <label class="category-search"><span aria-hidden="true">⌕</span><input id="categorySearch" type="search" placeholder="Search categories" autocomplete="off" disabled></label>
+        <label class="category-search"><span class="touch-search-icon" aria-hidden="true"></span><input id="categorySearch" type="search" placeholder="Search categories" autocomplete="off" disabled></label>
         <nav id="categoryList" aria-label="Product categories"><div class="category-loading">Sign in to load</div></nav>
       </aside>
 
       <section class="catalog panel">
         <div class="panel-heading">
           <div><strong>Products</strong><small>Tap a category or search the live catalog</small></div>
-          <div class="catalog-actions"><button id="openCart" class="checkout-open" type="button" aria-controls="saleCart" aria-expanded="false">Cart (<span id="mobileCartCount">0</span>)</button><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled>↻</button></div>
+          <div class="catalog-actions"><button id="openCart" class="checkout-open" type="button" aria-controls="saleCart" aria-expanded="false" data-icon="shopping_cart">Cart (<span id="mobileCartCount">0</span>)</button><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled data-icon="refresh"></button></div>
         </div>
-      <label class="search catalog-search"><span aria-hidden="true">⌕</span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
+      <label class="search catalog-search"><span class="touch-search-icon" aria-hidden="true"></span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
         <div id="productGrid" class="product-grid" aria-live="polite">
           <div class="empty-state">
             <div class="empty-icon">▦</div>
@@ -102,7 +102,7 @@
         <div class="totals">
           <div><span>Subtotal</span><strong id="cartSubtotal">0 Ks</strong></div>
           <div class="grand"><span>Total</span><strong id="cartTotal">0 Ks</strong></div>
-          <div class="cart-actions"><button id="clearCart" type="button" disabled>Clear</button><button id="paymentButton" class="pay" type="button" disabled>Checkout</button></div>
+          <div class="cart-actions"><button id="clearCart" type="button" disabled>Clear</button><button id="paymentButton" class="pay" type="button" disabled data-icon="payments">Checkout</button></div>
         </div>
       </aside>
     </main>
@@ -113,9 +113,9 @@
           <small id="managerPageDescription">Add products, edit item details and print barcodes.</small>
         </div>
         <div class="manager-actions">
-          <button id="backToSales" type="button">Sales</button>
-          <button id="managerRefresh" type="button">Refresh</button>
-          <button id="managerAddItem" class="primary-action" type="button">Add Item</button>
+          <button id="backToSales" type="button" data-icon="point_of_sale">Sales</button>
+          <button id="managerRefresh" type="button" data-icon="refresh">Refresh</button>
+          <button id="managerAddItem" class="primary-action" type="button" data-icon="add">Add Item</button>
         </div>
       </section>
       <section class="manager-grid">
@@ -124,37 +124,37 @@
             <div><strong>Items</strong><small>Edit item details or print a barcode label</small></div>
             <span id="managerProductCount" class="count">0</span>
           </div>
-          <div class="product-manager-filters"><label>Search<input id="managerProductSearch" type="search" placeholder="Product, SKU or barcode" autocomplete="off"></label><label>Category<select id="managerCategoryFilter"><option value="">All categories</option></select></label><label>Product type<select id="managerTypeFilter"><option value="">All types</option><option value="service">Service</option><option value="each">Each</option><option value="variants">Variants</option><option value="wholesale">Wholesale</option></select></label><button id="managerResetFilters" type="button">Reset</button></div>
+          <div class="product-manager-filters"><label>Search<input id="managerProductSearch" type="search" placeholder="Product, SKU or barcode" autocomplete="off"></label><label>Category<select id="managerCategoryFilter"><option value="">All categories</option></select></label><label>Product type<select id="managerTypeFilter"><option value="">All types</option><option value="service">Service</option><option value="each">Each</option><option value="variants">Variants</option><option value="wholesale">Wholesale</option></select></label><button id="managerResetFilters" type="button" data-icon="refresh">Reset</button></div>
           <div id="managerProductList" class="manager-list"></div>
         </div>
         <div class="manager-categories panel">
           <div class="panel-heading">
             <div><strong>Categories</strong><small id="managerCategorySummary">Organize your catalog with parent and child categories</small></div>
-            <button id="managerAddCategory" class="primary-action" type="button">Add category</button>
+            <button id="managerAddCategory" class="primary-action" type="button" data-icon="add">Add category</button>
           </div>
-<div class="category-page-tools"><label class="manager-search category-manager-search"><span aria-hidden="true">⌕</span><input id="managerCategorySearch" type="search" placeholder="Search categories" aria-label="Search categories" autocomplete="off"></label><button id="managerCategoryReset" type="button">Clear search</button></div>
+<div class="category-page-tools"><label class="manager-search category-manager-search"><span class="touch-search-icon" aria-hidden="true"></span><input id="managerCategorySearch" type="search" placeholder="Search categories" aria-label="Search categories" autocomplete="off"></label><button id="managerCategoryReset" type="button" data-icon="close_small">Clear search</button></div>
           <div id="managerCategoryList" class="manager-list"></div>
         </div>
       </section>
     </main>
 
     <section id="touchInventory" class="touch-receipts" hidden aria-label="Inventory">
-      <div class="panel receipt-page-head"><div><strong>Inventory</strong><small>Review stock levels, receive stock and track movements.</small></div><button type="button" id="inventorySales">Sales</button></div>
-      <form id="inventoryFilters" class="panel receipt-filters"><label>Search inventory<input id="inventorySearch" type="search" placeholder="Product name, SKU or barcode"></label><label>Category<select id="inventoryCategory"><option value="">All categories</option></select></label><button type="submit" class="receipt-apply">Search</button><button id="inventoryReset" type="button">Reset</button></form>
-      <div class="receipt-workspace"><div class="panel receipt-results"><div class="receipt-list-heading"><strong>Products &amp; stock</strong><small>Select a row to receive stock or review movements</small></div><div id="inventoryRows" aria-live="polite"></div><div class="receipt-pagination"><button type="button" id="inventoryPrev">Previous</button><span id="inventoryPageInfo"></span><button type="button" id="inventoryNext">Next</button></div></div><section id="inventoryDetail" class="panel receipt-detail" aria-label="Product stock details"></section></div>
+      <div class="panel receipt-page-head"><div><strong>Inventory</strong><small>Review stock levels, receive stock and track movements.</small></div><button type="button" id="inventorySales" data-icon="point_of_sale">Sales</button></div>
+      <form id="inventoryFilters" class="panel receipt-filters"><label>Search inventory<input id="inventorySearch" type="search" placeholder="Product name, SKU or barcode"></label><label>Category<select id="inventoryCategory"><option value="">All categories</option></select></label><button type="submit" class="receipt-apply" data-icon="search">Search</button><button id="inventoryReset" type="button" data-icon="refresh">Reset</button></form>
+      <div class="receipt-workspace"><div class="panel receipt-results"><div class="receipt-list-heading"><strong>Products &amp; stock</strong><small>Select a row to receive stock or review movements</small></div><div id="inventoryRows" aria-live="polite"></div><div class="receipt-pagination"><button type="button" id="inventoryPrev" data-icon="arrow_circle_left">Previous</button><span id="inventoryPageInfo"></span><button type="button" id="inventoryNext" data-icon="arrow_circle_right">Next</button></div></div><section id="inventoryDetail" class="panel receipt-detail" aria-label="Product stock details"></section></div>
     </section>
     <section id="touchReceipts" class="touch-receipts" hidden aria-label="Receipts">
-      <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Find a sale, review its items and payment details.</small></div><button id="receiptsSales" type="button">Sales</button></div>
+      <div class="panel receipt-page-head"><div><strong>Receipts</strong><small>Find a sale, review its items and payment details.</small></div><button id="receiptsSales" type="button" data-icon="point_of_sale">Sales</button></div>
       <div id="receiptsSummary" class="receipt-summary" aria-live="polite"></div>
       <form id="receiptsFilters" class="panel receipt-filters">
         <label>From<input id="receiptsFrom" type="date" required></label><label>To<input id="receiptsTo" type="date" required></label>
         <label>Search<input id="receiptsSearch" type="search" placeholder="Invoice or customer"></label>
         <label hidden>View<select id="receiptsTab"><option value="receipts">Receipts</option><option value="refunded">Refunded</option><option value="discounted">Discounted</option><option value="credit">Credit</option></select></label>
-        <button type="submit" class="receipt-apply">Apply filters</button>
+        <button type="submit" class="receipt-apply" data-icon="check_circle">Apply filters</button>
       </form>
-      <div class="receipt-toolbar"><div class="receipt-tabs" aria-label="Receipt views"><button type="button" data-receipts-tab="receipts" aria-pressed="true">Receipts</button><button type="button" data-receipts-tab="refunded" aria-pressed="false">Refunded</button><button type="button" data-receipts-tab="discounted" aria-pressed="false">Discounted</button><button type="button" data-receipts-tab="credit" aria-pressed="false">Credit</button></div><div class="receipt-presets" aria-label="Quick dates"><button type="button" data-receipts-days="1">Today</button><button type="button" data-receipts-days="7">Last 7 days</button><button type="button" data-receipts-days="30">Last 30 days</button></div></div>
+      <div class="receipt-toolbar"><div class="receipt-tabs" aria-label="Receipt views"><button type="button" data-receipts-tab="receipts" aria-pressed="true">Receipts</button><button type="button" data-receipts-tab="refunded" aria-pressed="false">Refunded</button><button type="button" data-receipts-tab="discounted" aria-pressed="false">Discounted</button><button type="button" data-receipts-tab="credit" aria-pressed="false">Credit</button></div><div class="receipt-presets" aria-label="Quick dates"><button type="button" data-receipts-days="1" data-icon="today">Today</button><button type="button" data-receipts-days="7">Last 7 days</button><button type="button" data-receipts-days="30">Last 30 days</button></div></div>
       <div class="receipt-workspace">
-      <div class="panel receipt-results"><div class="receipt-list-heading"><strong>Transactions</strong><small>Select a receipt to view details</small></div><div id="receiptsRows" aria-live="polite"></div><div class="receipt-pagination"><button id="receiptsPrev" type="button">Previous</button><span id="receiptsPageInfo"></span><button id="receiptsNext" type="button">Next</button></div></div>
+      <div class="panel receipt-results"><div class="receipt-list-heading"><strong>Transactions</strong><small>Select a receipt to view details</small></div><div id="receiptsRows" aria-live="polite"></div><div class="receipt-pagination"><button id="receiptsPrev" type="button" data-icon="arrow_circle_left">Previous</button><span id="receiptsPageInfo"></span><button id="receiptsNext" type="button" data-icon="arrow_circle_right">Next</button></div></div>
       <section id="receiptsDetail" class="panel receipt-detail" aria-label="Receipt details"><div class="receipt-detail-empty"><img src="/assets/icons/receipt.svg" alt=""><strong>Select a receipt</strong><p>Items and payment details will appear here.</p></div></section>
       </div>
     </section>
@@ -175,14 +175,14 @@
         <div class="receipt-preview-panel"><div class="receipt-preview-heading"><strong>Receipt preview</strong><span id="receiptPreviewSize">80mm</span></div><div class="receipt-preview-sheet"><iframe id="receiptPreview" title="Receipt preview"></iframe></div></div>
       </div>
       <div id="printReceipt" class="print-receipt"></div>
-      <div class="receipt-actions"><span>Your printer opens in the next dialog.</span><button id="newSale" type="button">Done</button><button id="printReceiptButton" class="sign-in" type="button">Print Receipt</button></div>
+      <div class="receipt-actions"><span>Your printer opens in the next dialog.</span><button id="newSale" type="button" data-icon="check_circle">Done</button><button id="printReceiptButton" class="sign-in" type="button" data-icon="print">Print Receipt</button></div>
     </section>
   </div>
   <div id="productChoiceModal" class="modal-backdrop" hidden>
     <section class="choice-modal" role="dialog" aria-modal="true" aria-labelledby="choiceTitle">
       <div class="receipt-head"><div><strong id="choiceTitle">Add to cart</strong><small id="choiceSubtitle"></small></div><button id="closeChoice" type="button" aria-label="Close">×</button></div>
       <div id="choiceBody" class="choice-body"></div>
-      <div class="choice-actions"><button id="cancelChoice" type="button">Cancel</button><button id="confirmChoice" class="sign-in" type="button">Add</button></div>
+      <div class="choice-actions"><button id="cancelChoice" type="button" data-icon="cancel">Cancel</button><button id="confirmChoice" class="sign-in" type="button" data-icon="add">Add</button></div>
     </section>
   </div>
   <div id="checkoutModal" class="modal-backdrop" hidden>
@@ -201,7 +201,7 @@
         </div>
 
       </div>
-      <div class="checkout-actions"><button id="cancelCheckout" type="button">Cancel</button><button id="saveCheckout" class="sign-in" type="button">Save Sale</button></div>
+      <div class="checkout-actions"><button id="cancelCheckout" type="button" data-icon="cancel">Cancel</button><button id="saveCheckout" class="sign-in" type="button" data-icon="save">Save Sale</button></div>
       </div>
         <div class="checkout-keypad-panel">
           <strong id="checkoutKeypadTarget">Keypad · Received</strong>
@@ -242,11 +242,11 @@
 </div>
 </section>
 <section class="item-card item-editor-section" data-item-mode="each">
-          <div class="item-section-head"><h3>Wholesale</h3><button id="addItemTier" type="button">+ Add tier</button></div>
+          <div class="item-section-head"><h3>Wholesale</h3><button id="addItemTier" type="button" data-icon="add">+ Add tier</button></div>
           <p>Minimum quantity is in stock units. Set the price per stock unit.</p><div id="itemTiers"></div>
         </section>
         <section class="item-card item-editor-section" data-item-mode="variants">
-          <div class="item-section-head"><h3>Variants</h3><button id="addItemVariant" type="button">+ Add variant</button></div>
+          <div class="item-section-head"><h3>Variants</h3><button id="addItemVariant" type="button" data-icon="add">+ Add variant</button></div>
           <p>Enter size / color and selling price for each variant.</p><div id="itemVariants"></div>
         </section>
         </div>
@@ -261,7 +261,7 @@
 <section class="item-card item-help-card"><h3>Ready to save?</h3><p>Review the product details, then save your changes.</p><p>Each supports packs and wholesale pricing. Use Variants for sizes or colors, and Service for non-stock items.</p></section>
         </aside>
       </div>
-      <div class="checkout-actions"><button id="cancelItemModal" type="button">Cancel</button><button id="saveItem" class="sign-in" type="submit">Save Item</button></div>
+      <div class="checkout-actions"><button id="cancelItemModal" type="button" data-icon="cancel">Cancel</button><button id="saveItem" class="sign-in" type="submit" data-icon="save">Save Item</button></div>
     </form>
   </div>
   <div id="categoryModal" class="modal-backdrop" hidden>
@@ -274,7 +274,7 @@
         <label><span>Status</span><select id="categoryStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
         <label><span>Description</span><textarea id="categoryDescription" maxlength="1000" rows="3"></textarea></label>
       </div>
-      <div class="checkout-actions"><button id="cancelCategoryModal" type="button">Cancel</button><button id="saveCategory" class="sign-in" type="submit">Save Category</button></div>
+      <div class="checkout-actions"><button id="cancelCategoryModal" type="button" data-icon="cancel">Cancel</button><button id="saveCategory" class="sign-in" type="submit" data-icon="save">Save Category</button></div>
     </form>
   </div>
   <div id="barcodeModal" class="modal-backdrop" hidden>
@@ -283,14 +283,14 @@
       <div class="barcode-controls"><label><span>Quantity</span><input id="barcodeQty" type="number" min="1" max="200" step="1" value="1"></label></div>
       <div id="barcodePreview" class="barcode-preview"></div>
       <div id="barcodePrintArea" class="barcode-print-area"></div>
-      <div class="checkout-actions"><button id="cancelBarcodeModal" type="button">Cancel</button><button id="printBarcodeButton" class="sign-in" type="button">Print</button></div>
+      <div class="checkout-actions"><button id="cancelBarcodeModal" type="button" data-icon="cancel">Cancel</button><button id="printBarcodeButton" class="sign-in" type="button" data-icon="print">Print</button></div>
     </section>
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-expense-width1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-expense-width1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-expense-width1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-svg-icons1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-svg-icons1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-svg-icons1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-svg-icons1" defer></script>
 </body>
 </html>

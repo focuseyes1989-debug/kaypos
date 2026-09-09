@@ -2,7 +2,7 @@
   'use strict';
   let root, ctx, values={}, section='Appearance', generation=0, busy=false;
   const navigation=[['WORKSPACE',['Appearance','Printer']],['BUSINESS',['Payment Types','Tax and Discount','Business and Branding','Receipt Text']],['ADMINISTRATION',['Regional','Users']]];
-  const icons={'Appearance':'theme','Printer':'receipt','Payment Types':'total','Tax and Discount':'settings','Business and Branding':'inventory','Receipt Text':'receipt','Regional':'settings','Users':'settings'};
+  const icons={'Appearance':'theme','Printer':'print','Payment Types':'payments','Tax and Discount':'percent_discount','Business and Branding':'home','Receipt Text':'receipt','Regional':'currency_exchange','Users':'groups'};
   const groups={Appearance:[['Display preferences',['theme','follow_system_theme']]],Printer:[['Receipt printing',['receipt_paper_size','touch_auto_print_receipt']]],'Tax and Discount':[['Tax',['tax_enabled','tax_rate']],['Discount',['discount_enabled','discount_type','discount_value']]],'Business and Branding':[['Business details',['shop_name','shop_phone','shop_address']],['Branding and payment',['shop_qr_name','shop_logo_image','shop_qr_code_image']]],'Receipt Text':[['Header and customer',['receipt_header','show_customer_name']],['Footer messages',['receipt_footer','shop_footer_message','receipt_thank_you_text']]],Regional:[['Currency and language',['currency','language']]]};
   const fields={
     Appearance:[['theme','Theme','select',['Light','Light Gray','Dark']],['follow_system_theme','Follow system theme','checkbox']],
@@ -51,7 +51,7 @@
         const data=await ctx.api(`/api/settings/${path}`);
         if(request!==generation)return;
         const records=data[users?'users':'payment_types'] || [];
-        content.innerHTML=`<button type="button" class="settings-primary" data-add>Add ${users?'user':'payment type'}</button><div class="settings-records">${records.map(r=>`<div class="settings-record"><div><strong>${esc(users?r.username:r.name)}</strong><small>${esc(users?`${r.full_name} · ${r.role} · ${r.active?'Active':'Inactive'}`:r.active?'Active':'Inactive')}</small></div><div><button type="button" data-edit="${Number(r.id)}">Edit</button><button type="button" class="settings-danger" data-delete="${Number(r.id)}">Delete</button></div></div>`).join('') || '<p>No records yet.</p>'}</div><div data-editor></div>`;
+        content.innerHTML=`<button type="button" class="settings-primary" data-add data-icon="add">Add ${users?'user':'payment type'}</button><div class="settings-records">${records.map(r=>`<div class="settings-record"><div><strong>${esc(users?r.username:r.name)}</strong><small>${esc(users?`${r.full_name} · ${r.role} · ${r.active?'Active':'Inactive'}`:r.active?'Active':'Inactive')}</small></div><div><button type="button" data-edit="${Number(r.id)}" data-icon="edit">Edit</button><button type="button" class="settings-danger" data-delete="${Number(r.id)}" data-icon="delete">Delete</button></div></div>`).join('') || '<p>No records yet.</p>'}</div><div data-editor></div>`;
         content.querySelector('[data-add]').onclick=()=>editRecord(null,users,data.roles || []);
         content.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editRecord(records.find(r=>r.id===Number(b.dataset.edit)),users,data.roles || []));
         content.querySelectorAll('[data-delete]').forEach(b=>b.onclick=async()=>{
@@ -64,7 +64,7 @@
         return;
       }
       if(section==='Printer')values={...values,...window.KayTouchReceipt.settings()};
-      content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary">Save changes</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
+      content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary" data-icon="save">Save changes</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
       const form=content.querySelector('form');
       form.querySelectorAll('input[type=file]').forEach(input=>input.onchange=async()=>{
         try{if(input.files[0]){const img=input.closest('.settings-image').querySelector('img');img.src=await imageValue(input.files[0]);img.hidden=false;form.elements[`clear_${input.name}`].checked=false;}}
@@ -96,7 +96,7 @@
   function editRecord(record,users,roles) {
     const editor=root.querySelector('[data-editor]'), data=record || {active:true,role:'Cashier'};
     const schema=users?[['username','Username','text'],['full_name','Full name','text'],['password',record?'New password (optional)':'Password','password'],['role','Role','select',roles],['active','Active account','checkbox']]:[['name','Payment type name','text']];
-    editor.innerHTML=`<form class="settings-form settings-editor"><h3>${record?'Edit':'Add'} ${users?'user':'payment type'}</h3>${schema.map(f=>fieldMarkup(f,data)).join('')}<div class="settings-save"><button class="settings-primary" type="submit">Save</button><button type="button" data-cancel>Cancel</button></div></form>`;
+    editor.innerHTML=`<form class="settings-form settings-editor"><h3>${record?'Edit':'Add'} ${users?'user':'payment type'}</h3>${schema.map(f=>fieldMarkup(f,data)).join('')}<div class="settings-save"><button class="settings-primary" type="submit" data-icon="save">Save</button><button type="button" data-cancel data-icon="cancel">Cancel</button></div></form>`;
     const form=editor.querySelector('form');form.elements[users?'username':'name'].required=true;
     if(users){form.elements.password.autocomplete='new-password';form.elements.password.required=!record;form.elements.password.maxLength=256;form.elements.username.maxLength=80;form.elements.full_name.maxLength=160;}
     else form.elements.name.maxLength=80;
@@ -117,7 +117,7 @@
       ctx=context;
       if(!root){root=document.createElement('section');root.id='touchSettings';root.className='touch-settings';document.querySelector('#app').insertBefore(root,document.querySelector('#app>footer'));}
       root.hidden=false;
-      root.innerHTML=`<header class="panel settings-heading"><div><h1>Settings</h1><p>Manage your workspace, checkout and business preferences.</p></div><button type="button" data-settings-exit>Back to Sales</button></header><div class="settings-layout"><nav aria-label="Settings sections">${navigation.map(([label,items])=>`<div class="settings-nav-group"><span class="settings-nav-label">${label}</span>${items.map(s=>`<button type="button" data-setting-tab="${esc(s)}"><img src="/assets/icons/${icons[s]}.svg" alt="" aria-hidden="true"><span>${esc(s)}</span></button>`).join('')}</div>`).join('')}</nav><section class="panel settings-panel" data-settings-panel><p>Loading settings…</p></section></div>`;
+      root.innerHTML=`<header class="panel settings-heading"><div><h1>Settings</h1><p>Manage your workspace, checkout and business preferences.</p></div><button type="button" data-settings-exit data-icon="point_of_sale">Back to Sales</button></header><div class="settings-layout"><nav aria-label="Settings sections">${navigation.map(([label,items])=>`<div class="settings-nav-group"><span class="settings-nav-label">${label}</span>${items.map(s=>`<button type="button" data-setting-tab="${esc(s)}"><img src="/assets/icons/${icons[s]}.svg" alt="" aria-hidden="true"><span>${esc(s)}</span></button>`).join('')}</div>`).join('')}</nav><section class="panel settings-panel" data-settings-panel><p>Loading settings…</p></section></div>`;
       root.querySelector('[data-settings-exit]').onclick=()=>{if(!busy)ctx.onExit();};
       root.querySelectorAll('[data-setting-tab]').forEach(b=>b.onclick=()=>{if(!busy){section=b.dataset.settingTab;renderSection();}});
       const request=++generation;
