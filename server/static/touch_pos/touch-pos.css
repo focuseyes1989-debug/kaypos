@@ -2281,3 +2281,19 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media(max-width:900px){#touchCustomers .customer-detail{position:static}#touchCustomers .customer-back-list{display:block}}
 @media(max-width:600px){#touchCustomers{padding:12px}#touchCustomers .customer-financials{grid-template-columns:1fr 1fr}#touchCustomers .customer-select .customer-balance{text-align:right;flex:0 0 auto}#touchCustomers .customer-select .customer-main{flex:1}#touchCustomers .customer-search{gap:8px}}
 @media(prefers-reduced-motion:reduce){#touchCustomers .customer-select{transition:none}}
+
+/* Match Inventory's dark surfaces and selected-blue controls. */
+@media screen {
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers){background:var(--bg);color:var(--ink)}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) :is(.panel,.customer-dialog,.customer-collection){background:var(--panel);color:var(--ink);border-color:var(--line)}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) :is(button,.dashboard-jump a,.dashboard-breakdown-row,.customer-row,.customer-financials>div){background:#26364d;color:var(--ink);border-color:var(--line)}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) :is(input,select,textarea,.dashboard-tabs,.dashboard-breakdown-total,.customer-avatar,.dashboard-row-icon){background:#142033;color:var(--ink);border-color:var(--line)}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) :is(button.sign-in,button.settings-primary){background:#2563eb;color:#fff;border-color:#3b82f6}
+ html[data-touch-theme=dark] #touchDashboard .dashboard-tabs button[aria-pressed="true"],
+ html[data-touch-theme=dark] #touchCustomers .customer-select[aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:#60a5fa}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) :is(button,.dashboard-jump a):hover:not(:disabled){border-color:#60a5fa}
+ html[data-touch-theme=dark] :is(#touchDashboard,#touchCustomers) button:disabled{background:#273347;color:#96a5ba;border-color:#344156;opacity:.65;cursor:not-allowed}
+ html[data-touch-theme=dark] #touchCustomers [data-delete]{background:#452730;color:#fecaca;border-color:#70404c}
+ html[data-touch-theme=dark] #touchCustomers .customer-select[data-balance="clear"] .customer-balance small{color:#99f6e4}
+ html[data-touch-theme=dark] #touchCustomers .customer-select[data-balance="outstanding"] .customer-balance small{color:#fecaca}
+}
