@@ -63,6 +63,11 @@
     const item = document.querySelector('#workspaceToast'); item.textContent = message; item.classList.add('show'); clearTimeout(toastTimer);
     toastTimer = setTimeout(() => item.classList.remove('show'), 2200);
   }
+  function categoryTone(category) {
+    let hash = 0;
+    for (const char of String(category || 'No category').trim().toLowerCase()) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+    return hash % 6;
+  }
   function cartKey(product, variant = null) { return `${Number(product.id) || 0}:${Number((variant || {}).variant_id) || 0}`; }
   function variantLabel(variant) { return [variant?.color, variant?.size].filter(Boolean).join(' / '); }
   function stockFor(product, variant = null) { return Number((variant || product).stock || 0); }
@@ -1198,7 +1203,7 @@
       const low = Boolean(product.is_low_stock), image = String(product.thumbnail_url || '').trim();
       const badge = out ? '<span class="product-badge out">Out of stock</span>' : (low ? '<span class="product-badge">Low stock</span>' : (service ? '<span class="product-badge">Service</span>' : (variants ? '<span class="product-badge">Variants</span>' : '')));
       const stockBadge = service ? '' : `<span class="product-stock">${money(variants ? variantRows.reduce((sum, item) => sum + Number(item.stock || 0), 0) : product.stock)}</span>`;
-      return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-category" title="${escapeHtml(product.category || 'No category')}">${escapeHtml(product.category || 'No category')}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
+      return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-category" data-category-tone="${categoryTone(product.category)}" title="${escapeHtml(product.category || 'No category')}">${escapeHtml(product.category || 'No category')}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
     }).join('');
     root.querySelectorAll('.product-image img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     if(salesHasMore){root.insertAdjacentHTML('beforeend',`<div class="catalog-more-area"><span class="catalog-more-count">${products.length} products loaded</span><button id="salesLoadMore" class="catalog-load-more" type="button" aria-label="Load more products"><span>Load more products</span></button><small>Show up to 50 more</small></div>`);root.querySelector('#salesLoadMore').onclick=()=>loadProducts(true);}
