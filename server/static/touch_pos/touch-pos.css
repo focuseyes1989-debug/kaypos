@@ -2341,7 +2341,7 @@ html[data-touch-theme=dark] #touchSuppliers :is(button,.customer-row){background
 #touchLocations>.customer-list{margin-top:16px}#touchLocations select{min-height:48px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}#touchLocations [data-mode][aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:var(--control-accent)}#touchLocations [data-delete]{color:var(--bad)}
 
 /* Locations toolbar and compact inventory rows. */
-#touchLocations .location-filters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,2fr) auto auto;gap:12px;align-items:end;padding:16px}
+#touchLocations .location-filters{display:grid;grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) auto auto;gap:12px;align-items:end;padding:16px}
 #touchLocations .location-filters.manage-mode{grid-template-columns:minmax(220px,1fr) auto auto}
 #touchLocations .location-filters label{display:grid;gap:8px;min-width:0}
 #touchLocations .location-filters :is(input,select){width:100%;box-sizing:border-box;height:48px;margin:0}
