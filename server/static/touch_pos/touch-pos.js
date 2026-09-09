@@ -1056,7 +1056,6 @@
     products = []; categories = []; selectedCategory = ''; document.querySelector('#productSearch').value = ''; document.querySelector('#categorySearch').value = '';
     document.querySelector('#productSearch').disabled = true; document.querySelector('#categorySearch').disabled = true; document.querySelector('#refreshProducts').disabled = true;
     document.querySelector('#categoryCount').textContent = '0'; document.querySelector('#productCount').textContent = '0 items';
-    document.querySelector('#sideProductBadge').textContent = '0';
     document.querySelector('#categoryList').innerHTML = '<div class="category-loading">Sign in to load</div>';
     document.querySelector('#productGrid').classList.add('loaded');
     document.querySelector('#productGrid').innerHTML = '<div class="catalog-message">Sign in to view products.</div>';
@@ -1105,7 +1104,6 @@
   function renderProducts() {
     const root = document.querySelector('#productGrid'); root.classList.add('loaded');
     document.querySelector('#productCount').textContent = `${products.length} item${products.length === 1 ? '' : 's'}`;
-    document.querySelector('#sideProductBadge').textContent = String(products.length);
     if (!products.length) { root.innerHTML = '<div class="catalog-message"><strong>No products found</strong>Try another category or search.</div>'; return; }
     const displayProducts = products.map((product, index) => ({product, index})).sort((left, right) => {
       const leftOut = productOutOfStock(left.product), rightOut = productOutOfStock(right.product);
@@ -1136,7 +1134,7 @@
       products = Array.isArray(result.products) ? result.products : []; renderProducts();
     } catch (error) {
       if (error.name === 'AbortError' || controller !== productsController) return;
-      products = []; document.querySelector('#productCount').textContent = 'Unavailable'; document.querySelector('#sideProductBadge').textContent = '0';
+      products = []; document.querySelector('#productCount').textContent = 'Unavailable';
       root.innerHTML = `<div class="catalog-message"><strong>Could not load products</strong>${escapeHtml(error.message)}<br><button id="retryProducts" type="button">Retry</button></div>`;
       document.querySelector('#retryProducts').addEventListener('click', loadProducts);
     } finally { if (controller === productsController) productsController = null; }
@@ -1208,11 +1206,9 @@
     if (action === 'settings') { showTouchSettings(); return; }
     if (action === 'inventory') { showInventoryPage(); return; }
     if (action === 'receipts') { showReceiptsPage(); return; }
-    if (['products', 'categories', 'search', 'cart'].includes(action)) showSalesView();
+    if (['products', 'cart'].includes(action)) showSalesView();
     if (action === 'products') document.querySelector('#productSearch').focus();
     else if (action === 'product-page') showProductManager();
-    else if (action === 'categories') document.querySelector('#categorySearch').focus();
-    else if (action === 'search') document.querySelector('#productSearch').focus();
     else if (action === 'cart') setCartOpen(true);
     else if (action === 'fullscreen') fullscreen.click();
     else if (action === 'profile') userButton.click();

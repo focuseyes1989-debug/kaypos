@@ -1068,8 +1068,8 @@
 }
 .side-menu-section{
   display:grid;
-  gap:6px;
-  padding:20px;
+  gap:4px;
+  padding:12px 20px;
   border-top:1px solid #edf0f4;
 }
 .side-menu-section:first-child{

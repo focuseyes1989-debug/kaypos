@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-compact-print1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-sidebar1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -48,27 +48,27 @@
         <div><strong>KAY POS Touch</strong><small id="sideMenuUser">Signed out</small></div>
         <button id="closeSideMenu" type="button" aria-label="Close side menu"><img src="/assets/icons/close.svg" alt="" aria-hidden="true"></button>
       </div>
-      <nav class="side-menu-nav">
-        <div class="side-menu-section">
-          <span class="side-menu-label">ACCOUNT</span>
-          <button type="button" data-side-action="products"><img class="side-menu-icon" src="/assets/icons/dashboard.svg" alt="" aria-hidden="true"><span>Overview</span></button>
+      <nav class="side-menu-nav" aria-label="Main navigation">
+        <div class="side-menu-section" role="group" aria-labelledby="sideGroup0">
+          <span id="sideGroup0" class="side-menu-label">SALES</span>
+          <button type="button" data-side-action="products"><img class="side-menu-icon" src="/assets/icons/dashboard.svg" alt="" aria-hidden="true"><span>Sales</span></button>
           <button type="button" data-side-action="cart"><img class="side-menu-icon" src="/assets/icons/shopping_cart.svg" alt="" aria-hidden="true"><span>Current Cart</span><em id="sideCartBadge">0</em></button>
-          <button type="button" data-side-action="fullscreen"><img class="side-menu-icon" src="/assets/icons/maximize.svg" alt="" aria-hidden="true"><span>Full Screen</span></button>
-        </div>
-        <div class="side-menu-section">
-          <span class="side-menu-label">PRODUCT</span>
-          <button type="button" data-side-action="inventory"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Inventory</span></button>
-          <button type="button" data-side-action="product-page"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Product Page</span></button>
-          <button type="button" data-side-action="categories"><img class="side-menu-icon" src="/assets/icons/category.svg" alt="" aria-hidden="true"><span>Categories</span></button>
-          <button type="button" data-side-action="products"><img class="side-menu-icon" src="/assets/icons/products.svg" alt="" aria-hidden="true"><span>Products</span><em id="sideProductBadge">0</em></button>
-          <button type="button" data-side-action="search"><img class="side-menu-icon" src="/assets/icons/search.svg" alt="" aria-hidden="true"><span>Search Stock</span></button>
-        </div>
-        <div class="side-menu-section">
-          <span class="side-menu-label">ADMIN</span>
           <button type="button" data-side-action="receipts"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt="" aria-hidden="true"><span>Receipts</span></button>
-          <button type="button" data-side-action="expenses"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt=""><span>Expenses</span></button>
-          <button type="button" data-side-action="settings"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt=""><span>Settings</span></button>
-          <button type="button" data-side-action="profile"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>Account Setup</span></button>
+        </div>
+        <div class="side-menu-section" role="group" aria-labelledby="sideGroup1">
+          <span id="sideGroup1" class="side-menu-label">PRODUCTS &amp; STOCK</span>
+          <button type="button" data-side-action="product-page"><img class="side-menu-icon" src="/assets/icons/products.svg" alt="" aria-hidden="true"><span>Products &amp; Categories</span></button>
+          <button type="button" data-side-action="inventory"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Inventory</span></button>
+        </div>
+        <div class="side-menu-section" role="group" aria-labelledby="sideGroup2">
+          <span id="sideGroup2" class="side-menu-label">MANAGEMENT</span>
+          <button type="button" data-side-action="expenses"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt="" aria-hidden="true"><span>Expenses</span></button>
+          <button type="button" data-side-action="settings"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>Settings</span></button>
+          <button type="button" data-side-action="profile"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>My Account</span></button>
+        </div>
+        <div class="side-menu-section" role="group" aria-labelledby="sideGroup3">
+          <span id="sideGroup3" class="side-menu-label">TOOLS</span>
+          <button type="button" data-side-action="fullscreen"><img class="side-menu-icon" src="/assets/icons/maximize.svg" alt="" aria-hidden="true"><span>Full Screen</span></button>
           <button type="button" data-side-action="refresh"><img class="side-menu-icon" src="/assets/icons/refresh.svg" alt="" aria-hidden="true"><span>Refresh Catalog</span></button>
         </div>
       </nav>
@@ -111,7 +111,7 @@
     <main id="productManager" class="product-manager" aria-label="Product management" hidden>
       <section class="product-manager-head panel">
         <div>
-          <strong>Product Page</strong>
+          <strong>Products &amp; Categories</strong>
           <small>Add items, edit products, manage parent/child categories, and print barcodes.</small>
         </div>
         <div class="manager-actions">
@@ -291,8 +291,8 @@
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-compact-print1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-compact-print1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-compact-print1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-sidebar1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-sidebar1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-sidebar1" defer></script>
 </body>
 </html>
