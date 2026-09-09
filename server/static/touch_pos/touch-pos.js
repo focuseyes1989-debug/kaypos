@@ -281,6 +281,7 @@
     document.querySelector('#receiptPreview').srcdoc = window.KayTouchReceipt.documentHtml(activePrintReceipt.receipt, activePrintReceipt.paid, paper);
   }
   function showReceipt(receipt, paid) {
+    document.querySelector('#receiptCompletionStatus').textContent = '';
     activePrintReceipt = {receipt, paid};
     document.querySelector('#receiptPaper').value = window.KayTouchReceipt.paper(receipt.receipt_settings?.receipt_paper_size ?? checkoutSettings.receipt_paper_size);
     updateReceiptPreview();
@@ -297,6 +298,20 @@
     ].map(row => `<div class="${row[2] || ''}"><span>${escapeHtml(row[0])}</span><strong>${escapeHtml(row[1])}</strong></div>`).join('');
     modal.hidden = false;
   }
+  async function runSaleCompletionActions(receipt, paid) {
+    const settings = receipt.receipt_settings || {};
+    const enabled = value => value === '1' || value === true;
+    const messages = [];
+    if (enabled(settings.touch_auto_open_drawer)) {
+      try { await api('/api/cashdrawer/open', {method: 'POST'}); }
+      catch (error) { messages.push(`Sale saved. Cash drawer could not open: ${error.message}`); }
+    }
+    if (enabled(settings.touch_auto_print_receipt)) {
+      try { await window.KayTouchReceipt.print(receipt, paid, document.querySelector('#receiptPaper').value); }
+      catch (error) { messages.push(`Sale saved. Print dialog could not open: ${error.message}. Use Print Receipt to retry.`); }
+    }
+    document.querySelector('#receiptCompletionStatus').textContent = messages.join(' ');
+  }
   async function checkoutCashSale() {
     const {items, total} = cartTotals(), payment = total;
     if (!items.length) return toast('Cart is empty.');
@@ -310,7 +325,9 @@
         }),
       });
       const receipt = data.receipt || {};
-      clearCart(); renderCart(); await loadProducts(); showReceipt(receipt, payment);
+      clearCart(); renderCart(); showReceipt(receipt, payment);
+      await runSaleCompletionActions(receipt, payment);
+      await loadProducts();
       toast(`Saved ${receipt.invoice_no || 'sale'}.`);
     } catch (error) {
       toast(error.message);
@@ -440,7 +457,9 @@
         }),
       });
       const receipt = data.receipt || {};
-      closeCheckout(); clearCart(); renderCart(); await loadProducts(); showReceipt(receipt, totals.received);
+      closeCheckout(); clearCart(); renderCart(); showReceipt(receipt, totals.received);
+      await runSaleCompletionActions(receipt, totals.received);
+      await loadProducts();
       toast(`Saved ${receipt.invoice_no || 'sale'}.`);
     } catch (error) {
       toast(error.message);

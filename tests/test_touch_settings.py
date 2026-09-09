@@ -28,6 +28,15 @@ class TouchSettingsTests(unittest.TestCase):
         for invalid in ({'tax_rate':'nan'}, {'discount_type':'percentage','discount_value':'101'}, {'theme':'bad'}, {'shop_logo_image':'data:image/svg+xml;base64,eA=='}, {'network_printer_api_key':'secret'}):
             with self.assertRaises(ValueError):service.save_touch_settings({'shop_name':'Must not save',**invalid})
         self.assertEqual(service.get_touch_settings()['shop_name'],'ZAY POS')
+    def test_sale_completion_options(self):
+        self.assertEqual(service.get_touch_settings()['touch_auto_print_receipt'], '0')
+        self.assertEqual(service.get_touch_settings()['touch_auto_open_drawer'], '0')
+        service.save_touch_settings({'touch_auto_print_receipt': '1', 'touch_auto_open_drawer': '1'})
+        self.assertEqual(service.get_touch_settings()['touch_auto_print_receipt'], '1')
+        self.assertEqual(service.get_touch_settings()['touch_auto_open_drawer'], '1')
+        with self.assertRaises(ValueError):
+            service.save_touch_settings({'touch_auto_open_drawer': 'yes'})
+
     def test_last_admin_edit_is_blocked(self):
         with self.assertRaisesRegex(ValueError,'only active admin'):
             service.save_lite_user({'username':'admin','role':'Cashier','active':True},1)

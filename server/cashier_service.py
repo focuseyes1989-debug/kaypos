@@ -1205,6 +1205,7 @@ TOUCH_SETTING_DEFAULTS = {
     "receipt_printer_name": "", "receipt_paper_size": "0", "receipt_print_quality": "203",
     "receipt_cash_drawer_use_receipt_printer": "0", "show_customer_name": "1",
     "receipt_thank_you_text": "THANK YOU",
+    "touch_auto_print_receipt": "0", "touch_auto_open_drawer": "0",
 }
 
 
@@ -1234,7 +1235,7 @@ def save_touch_settings(values: Dict[str, Any]) -> Dict[str, str]:
         "discount_type": {"percentage", "fixed", "manual"},
         "receipt_paper_size": {"0", "1", "2"}, "receipt_print_quality": {"203", "300", "600"},
     }
-    for key in ("tax_enabled", "discount_enabled", "follow_system_theme", "show_customer_name", "receipt_cash_drawer_use_receipt_printer"):
+    for key in ("tax_enabled", "discount_enabled", "follow_system_theme", "show_customer_name", "receipt_cash_drawer_use_receipt_printer", "touch_auto_print_receipt", "touch_auto_open_drawer"):
         choices[key] = {"0", "1"}
     for key, value in values.items():
         if key in choices and value not in choices[key]:
@@ -2583,7 +2584,7 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
         (sale_id,),
     )
     sale["items"] = [_dict_from_row(cursor, item) for item in cursor.fetchall()]
-    receipt_keys = ('receipt_paper_size', 'show_customer_name', 'shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
+    receipt_keys = ('touch_auto_print_receipt', 'touch_auto_open_drawer', 'receipt_paper_size', 'show_customer_name', 'shop_name', 'shop_phone', 'shop_address', 'receipt_header', 'receipt_footer', 'shop_footer_message', 'currency_symbol', 'shop_logo_image', 'shop_qr_code_image', 'shop_qr_name', 'receipt_thank_you_text')
     cursor.execute('SELECT key,value FROM settings WHERE key IN (' + ','.join('?' for _ in receipt_keys) + ')', receipt_keys)
     sale['receipt_settings'] = dict(cursor.fetchall())
     return sale
