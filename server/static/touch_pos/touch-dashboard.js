@@ -3,13 +3,26 @@
   let root, ctx, sequence = 0;
   const date = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const money = n => Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:2});
-  function breakdown(title, rows) {
-    return `<section class="panel dashboard-breakdown"><h3>${ctx.escapeHtml(title)}</h3>${rows.length ? rows.map(r=>`<div><span>${ctx.escapeHtml(r.label)}<small>${money(r.count)} records</small></span><strong>${money(r.total)} Ks</strong></div>`).join('') : '<p>No records for this period.</p>'}</section>`;
+  function breakdownTabs(data, kind) {
+    const tabs = kind === 'sales' ? [['Items','top_items'],['Categories','category_sales'],['Parent','parent_sales'],['Payment','payment_sales'],['Wholesale','wholesale_sales'],['Discount','discount_sales']] : [['Items','expense_items'],['Categories','expense_groups']];
+    return `<section class="panel dashboard-breakdown" data-breakdown="${kind}"><h3>${kind === 'sales' ? 'Sale by' : 'Expense by'}</h3><nav class="dashboard-tabs" aria-label="${kind} breakdown">${tabs.map(([label,key],i)=>`<button type="button" data-breakdown-key="${key}" aria-pressed="${i===0}">${label}</button>`).join('')}</nav><div data-breakdown-content></div></section>`;
+  }
+  function fillBreakdown(panel, data, key) {
+    const rows=data[key] || [];
+    const note=key==='discount_sales' ? 'Top 10 discounted receipts · Amount is the discount, not sale revenue.' : key==='wholesale_sales' ? 'Top 10 items sold using a recorded wholesale tier.' : key==='expense_items' ? 'Top 10 expense descriptions, grouped by name.' : key==='payment_sales' ? 'Completed sales by payment type.' : 'Top 10 by amount · Item totals are before receipt-level discount and tax.';
+    const content=panel.querySelector('[data-breakdown-content]');
+    content.innerHTML=`<p class="dashboard-breakdown-note">${key==='expense_groups'?'Top 10 expense categories by amount.':note}</p>${rows.length ? rows.map(r=>`<div class="dashboard-breakdown-row"><span>${ctx.escapeHtml(r.label)}<small>${r.qty!==undefined ? `${money(r.qty)} units` : r.discount!==undefined ? `Sale total: ${money(r.total)} Ks` : `${money(r.count)} records`}</small></span><strong>${money(r.discount!==undefined?r.discount:r.total)} Ks</strong></div>`).join('') : `<p>${key==='wholesale_sales' && data.wholesale_available===false ? 'Wholesale history is not available in this database.' : 'No records for this period.'}</p>`}`;
+    panel.querySelectorAll('[data-breakdown-key]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.breakdownKey===key)));
   }
   function render(data) {
     const p=data.period || {}, e=data.expenses || {};
     const cards=[['Sales',p.sales,'Completed sales total after refunds'],['Completed sales',p.transactions,'Number of completed transactions',true],['Expenses',e.total,`${money(e.count)} expense records`],['Sales less expenses',Number(p.sales||0)-Number(e.total||0),'Before cost of goods; not net profit']];
-    root.querySelector('[data-results]').innerHTML=`<div class="dashboard-cards">${cards.map(([label,value,note,count])=>`<article class="panel"><span>${label}</span><strong>${money(value)}${count?'':' Ks'}</strong><small>${note}</small></article>`).join('')}</div><section class="panel dashboard-summary"><h3>Sales summary</h3><div><span>Sales including refunded receipts</span><strong>${money(p.gross_sales)} Ks</strong></div><div><span>Refunded receipts</span><strong>${money(p.refunds)} Ks</strong></div><div><span>Average completed sale</span><strong>${money(p.transactions ? p.sales/p.transactions : 0)} Ks</strong></div><small>Sales use the receipt date; expenses use the expense date. Refunded receipts are excluded from completed sales.</small></section><div class="dashboard-columns">${breakdown('Sales by payment type',data.payment_sales || [])}${breakdown('Top 10 expense categories',data.expense_groups || [])}</div>`;
+    root.querySelector('[data-results]').innerHTML=`<div class="dashboard-cards">${cards.map(([label,value,note,count])=>`<article class="panel"><span>${label}</span><strong>${money(value)}${count?'':' Ks'}</strong><small>${note}</small></article>`).join('')}</div><section class="panel dashboard-summary"><h3>Sales summary</h3><div><span>Sales including refunded receipts</span><strong>${money(p.gross_sales)} Ks</strong></div><div><span>Refunded receipts</span><strong>${money(p.refunds)} Ks</strong></div><div><span>Average completed sale</span><strong>${money(p.transactions ? p.sales/p.transactions : 0)} Ks</strong></div><small>Sales use the receipt date; expenses use the expense date. Refunded receipts are excluded from completed sales.</small></section><div class="dashboard-columns">${breakdownTabs(data,'sales')}${breakdownTabs(data,'expenses')}</div>`;
+    root.querySelectorAll('[data-breakdown]').forEach(panel=>{
+      const buttons=panel.querySelectorAll('[data-breakdown-key]');
+      fillBreakdown(panel,data,buttons[0].dataset.breakdownKey);
+      buttons.forEach(button=>button.onclick=()=>fillBreakdown(panel,data,button.dataset.breakdownKey));
+    });
   }
   async function load() {
     const request=++sequence, form=root.querySelector('form'), status=root.querySelector('[data-status]');

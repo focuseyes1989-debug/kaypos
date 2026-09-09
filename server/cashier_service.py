@@ -2836,6 +2836,42 @@ def get_receipts_overview(
         conn.close()
 
 
+def _dashboard_extra_breakdowns(cursor, start_text: str, end_text: str) -> Dict[str, Any]:
+    """Top ten breakdowns from recorded transactions, not current price tiers."""
+    params = (start_text, end_text)
+    cursor.execute("""
+        SELECT COALESCE(NULLIF(TRIM(description), ''), NULLIF(TRIM(category), ''), 'Uncategorized'),
+               COUNT(*), COALESCE(SUM(amount), 0)
+        FROM expenses WHERE date(expense_date) BETWEEN ? AND ?
+        GROUP BY COALESCE(NULLIF(TRIM(description), ''), NULLIF(TRIM(category), ''), 'Uncategorized')
+        ORDER BY 3 DESC, 1 LIMIT 10
+    """, params)
+    expense_items = [{"label": r[0], "count": int(r[1]), "total": float(r[2])} for r in cursor.fetchall()]
+    cursor.execute("""
+        SELECT invoice_no, discount_amount, total
+        FROM sales WHERE LOWER(TRIM(COALESCE(status, 'completed'))) = 'completed'
+          AND date(created_at) BETWEEN ? AND ? AND COALESCE(discount_amount, 0) > 0
+        ORDER BY discount_amount DESC, id DESC LIMIT 10
+    """, params)
+    discount_sales = [{"label": r[0] or 'Receipt', "discount": float(r[1]), "total": float(r[2] or 0)} for r in cursor.fetchall()]
+    columns = table_columns(cursor, 'sale_items')
+    wholesale_sales = []
+    wholesale_available = 'wholesale_tier_min_qty' in columns
+    if wholesale_available:
+        cursor.execute("""
+            SELECT COALESCE(NULLIF(TRIM(si.product_name), ''), 'Unknown Item'),
+                   COALESCE(SUM(si.qty), 0), COALESCE(SUM(si.total), 0)
+            FROM sale_items si JOIN sales s ON s.id = si.sale_id
+            WHERE LOWER(TRIM(COALESCE(s.status, 'completed'))) = 'completed'
+              AND date(s.created_at) BETWEEN ? AND ? AND si.wholesale_tier_min_qty IS NOT NULL
+            GROUP BY COALESCE(NULLIF(TRIM(si.product_name), ''), 'Unknown Item')
+            ORDER BY 3 DESC, 1 LIMIT 10
+        """, params)
+        wholesale_sales = [{"label": r[0], "qty": float(r[1]), "total": float(r[2])} for r in cursor.fetchall()]
+    return {"expense_items": expense_items, "discount_sales": discount_sales,
+            "wholesale_sales": wholesale_sales, "wholesale_available": wholesale_available}
+
+
 def get_dashboard_summary(
     from_date: str = "", to_date: str = "", trend_days: int = 10
 ) -> Dict[str, Any]:
@@ -3192,6 +3228,7 @@ def get_dashboard_summary(
             "group_sales": group_sales,
             "payment_sales": payment_sales,
             "expense_groups": expense_groups,
+            **_dashboard_extra_breakdowns(cursor, start_text, end_text),
             "expenses": {
                 "count": int(expense_count or 0),
                 "total": float(expense_total or 0),
