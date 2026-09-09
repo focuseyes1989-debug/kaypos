@@ -1311,7 +1311,7 @@
     if (!scannerReady()) return;
     const session = token;
     try {
-      const result = await api(`/api/products/barcode/${encodeURIComponent(window.KayTouchScanner.normalize(code).trim())}`);
+      const result = await api(`/api/products/scan/${encodeURIComponent(window.KayTouchScanner.normalize(code).trim())}`);
       if (!scannerReady() || token !== session) return;
       if (!result.product) {if(fromSearch)loadProducts();else toast('Barcode not found: ' + code);return;}
       const product = result.product;
