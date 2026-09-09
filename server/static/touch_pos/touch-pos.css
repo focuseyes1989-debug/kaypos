@@ -2339,3 +2339,27 @@ html[data-touch-theme=dark] #touchSuppliers :is(button,.customer-row){background
 #touchSuppliers .customer-pagination{padding-top:8px;margin-top:0}
 @media(max-width:900px){#touchSuppliers .customer-workspace{grid-template-columns:1fr}#touchSuppliers .customer-detail{position:static;min-height:130px}}
 #touchLocations>.customer-list{margin-top:16px}#touchLocations select{min-height:48px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}#touchLocations [data-mode][aria-pressed="true"]{background:var(--control-selected);color:var(--control-selected-text);border-color:var(--control-accent)}#touchLocations [data-delete]{color:var(--bad)}
+
+/* Locations toolbar and compact inventory rows. */
+#touchLocations .location-tabs{display:flex;gap:6px;padding:5px;margin:16px 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;width:fit-content}
+#touchLocations .location-tabs button{border:1px solid transparent;background:transparent;min-height:48px;padding:10px 18px}
+#touchLocations .location-tabs button[aria-pressed=true]{background:var(--control-selected);border-color:var(--control-accent);color:var(--control-selected-text)}
+#touchLocations .location-filters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,2fr) auto auto;gap:12px;align-items:end;padding:16px}
+#touchLocations .location-filters.manage-mode{grid-template-columns:minmax(220px,1fr) auto auto}
+#touchLocations .location-filters label{display:grid;gap:8px;min-width:0}
+#touchLocations .location-filters :is(input,select){width:100%;box-sizing:border-box;height:48px;margin:0}
+#touchLocations .location-filters button{height:48px;margin:0}
+#touchLocations .customer-list{padding:14px}
+#touchLocations .location-list-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:2px 0 14px}
+#touchLocations .location-list-heading :is(h3,p){margin:0}
+#touchLocations .location-list-heading h3{font-size:15px}
+#touchLocations [data-status],#touchLocations .location-help{font-size:12px;color:var(--muted)}
+#touchLocations .customer-row{display:flex;align-items:center;gap:12px;min-height:82px;box-sizing:border-box;margin-bottom:8px;padding:12px;border:1px solid var(--line);border-radius:11px}
+#touchLocations .location-quantity{text-align:right;flex-shrink:0;min-width:80px}
+#touchLocations .location-quantity strong{font-size:16px;font-variant-numeric:tabular-nums}
+#touchLocations .customer-actions{width:auto}
+#touchLocations .customer-dialog{width:min(460px,calc(100vw - 32px))}
+#touchLocations .customer-dialog .customer-fields{grid-template-columns:1fr}
+html[data-touch-theme=dark] #touchLocations .customer-row{background:#26364d}
+html[data-touch-theme=dark] #touchLocations .location-tabs button[aria-pressed=true]{background:#244773;border-color:#609bff;color:#e6edf7}
+@media(max-width:650px){#touchLocations .location-filters,#touchLocations .location-filters.manage-mode{grid-template-columns:1fr 1fr}#touchLocations .location-filters label{grid-column:1/-1}#touchLocations .location-tabs{width:auto}#touchLocations .location-tabs button{flex:1;padding:10px}#touchLocations .location-list-heading{align-items:flex-start;flex-direction:column}#touchLocations .customer-row .customer-actions{margin-left:auto}}
