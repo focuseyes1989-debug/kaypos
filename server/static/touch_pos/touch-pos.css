@@ -1873,3 +1873,11 @@ html[data-touch-theme=dark] .settings-nav-group img{filter:invert(1)}
  .touch-settings .settings-image input[type=file]:disabled,#itemForm input[type=file]:disabled{opacity:.5;cursor:not-allowed}
  .touch-settings .settings-image input[type=file]:disabled::file-selector-button,#itemForm input[type=file]:disabled::file-selector-button{cursor:not-allowed}
 }
+
+/* Expense filters keep their own layout instead of the settings form grid. */
+.touch-expenses .expense-filters.settings-form{grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(200px,2fr) auto;align-items:end;gap:12px}
+.touch-expenses .expense-filters>label{min-width:0}
+.touch-expenses .expense-filter-actions{flex-wrap:nowrap}
+.touch-expenses .expense-filter-actions button{min-height:48px}
+@media(max-width:800px){.touch-expenses .expense-filters.settings-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.touch-expenses .expense-filters.settings-form{grid-template-columns:minmax(0,1fr)}}
