@@ -1368,6 +1368,36 @@ def touch_edit_customer(customer_id: int, payload: TouchCustomerRequest, _: Dict
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+class TouchCollectionRequest(BaseModel):
+    credit_id: int = Field(gt=0)
+    amount: float = Field(gt=0, allow_inf_nan=False)
+    method: str = Field(default='Cash', min_length=1, max_length=100)
+    request_id: str = Field(min_length=16, max_length=80, pattern=r'^[a-zA-Z0-9-]+$')
+    note: str = Field(default='', max_length=2000)
+
+
+@app.get('/api/customers/{customer_id}/ledger')
+def touch_customer_ledger(customer_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try: return cashier_service.touch_customer_ledger(customer_id)
+    except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post('/api/customers/{customer_id}/payments')
+def touch_customer_payment(customer_id: int, payload: TouchCollectionRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.collect_touch_payment(customer_id,payload.credit_id,payload.amount,payload.method,payload.request_id,payload.note)
+        return {'success': True}
+    except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete('/api/customers/{customer_id}')
+def touch_customer_delete(customer_id: int, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.delete_touch_customer(customer_id)
+        return {'success': True}
+    except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/payment-types")
 def payment_types(_: Dict[str, Any] = Depends(current_user)):
     return {"payment_types": cashier_service.list_payment_types()}

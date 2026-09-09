@@ -2206,3 +2206,7 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 [data-touch-theme="dark"] .catalog .product-category[data-category-tone="3"]{background:#593c18;color:#fde68a}
 [data-touch-theme="dark"] .catalog .product-category[data-category-tone="4"]{background:#57233e;color:#fbcfe8}
 [data-touch-theme="dark"] .catalog .product-category[data-category-tone="5"]{background:#164e63;color:#a5f3fc}
+
+.customer-row .customer-actions{flex-wrap:wrap;justify-content:flex-end}.customer-row [data-delete]{color:var(--bad)}
+.customer-ledger{width:min(960px,94vw);padding:20px}.customer-collection{display:grid;grid-template-columns:1fr 1fr;gap:12px}.customer-collection label{display:grid;gap:6px}.customer-collection input,.customer-collection select{min-height:48px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px;width:100%}
+@media(max-width:900px){.customer-row{flex-wrap:wrap}.customer-row .customer-actions{width:100%}.customer-collection{grid-template-columns:1fr}}

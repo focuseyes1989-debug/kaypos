@@ -1187,6 +1187,80 @@ def save_touch_customer(values: Dict[str, Any], customer_id: Optional[int] = Non
         conn.close()
 
 
+def touch_customer_ledger(customer_id: int) -> Dict[str, Any]:
+    conn = connect_db()
+    try:
+        cur = conn.cursor()
+        cur.execute('SELECT id,name,current_balance,credit_limit FROM customers WHERE id=?', (customer_id,))
+        row = cur.fetchone()
+        if not row: raise ValueError('Customer not found.')
+        customer = _dict_from_row(cur, row)
+        cur.execute('SELECT id,invoice_no,total_amount,paid_amount,balance_amount,sale_date,due_date,status FROM credit_sales WHERE customer_id=? ORDER BY sale_date DESC,id DESC', (customer_id,))
+        credits = [_dict_from_row(cur, r) for r in cur.fetchall()]
+        cur.execute('SELECT id,credit_sale_id,amount,payment_date,payment_method,reference_no,note FROM credit_payments WHERE customer_id=? ORDER BY payment_date DESC,id DESC LIMIT 200', (customer_id,))
+        payments = [_dict_from_row(cur, r) for r in cur.fetchall()]
+        adjustments = []
+        for table in ('credit_adjustments', 'credit_writeoffs'):
+            columns = table_columns(cur, table)
+            if 'customer_id' in columns:
+                cur.execute(f'SELECT * FROM {table} WHERE customer_id=? ORDER BY id DESC LIMIT 200', (customer_id,))
+                for entry in cur.fetchall():
+                    item = _dict_from_row(cur, entry)
+                    item['entry_type'] = 'Write-off' if table == 'credit_writeoffs' else 'Adjustment'
+                    adjustments.append(item)
+        return {'customer': customer, 'credits': credits, 'payments': payments, 'adjustments': adjustments}
+    finally: conn.close()
+
+
+def collect_touch_payment(customer_id: int, credit_id: int, amount: float, method: str, request_id: str, note: str = '') -> None:
+    import math
+    if not math.isfinite(amount) or amount <= 0: raise ValueError('Enter a positive payment amount.')
+    conn = connect_db()
+    try:
+        cur = conn.cursor()
+        if not is_postgres_backend(): cur.execute('BEGIN IMMEDIATE')
+        lock = ' FOR UPDATE' if is_postgres_backend() else ''
+        cur.execute('SELECT id FROM customers WHERE id=?' + lock, (customer_id,))
+        if not cur.fetchone(): raise ValueError('Customer not found.')
+        reference = 'TOUCH-' + request_id
+        cur.execute('SELECT credit_sale_id,amount,payment_method FROM credit_payments WHERE customer_id=? AND reference_no=?', (customer_id,reference))
+        previous = cur.fetchone()
+        if previous:
+            if int(previous[0]) != credit_id or float(previous[1]) != amount or previous[2] != method:
+                raise ValueError('This payment request was already used. Reopen Payment Collection.')
+            return
+        cur.execute('SELECT balance_amount,status FROM credit_sales WHERE id=? AND customer_id=?' + lock, (credit_id,customer_id))
+        row = cur.fetchone()
+        if not row or str(row[1]).lower() in ('refunded','cancelled','paid'): raise ValueError('Select an unpaid credit sale.')
+        if amount > float(row[0] or 0): raise ValueError('Payment exceeds the outstanding invoice balance.')
+        cur.execute("UPDATE credit_sales SET paid_amount=COALESCE(paid_amount,0)+?,balance_amount=balance_amount-?,status=? WHERE id=?", (amount,amount,'paid' if amount == float(row[0]) else 'partial',credit_id))
+        cur.execute('INSERT INTO credit_payments(credit_sale_id,customer_id,amount,payment_date,payment_method,reference_no,note) VALUES(?,?,?,CURRENT_TIMESTAMP,?,?,?)', (credit_id,customer_id,amount,method,reference,note))
+        cur.execute('UPDATE customers SET current_balance=COALESCE(current_balance,0)-? WHERE id=?', (amount,customer_id))
+        conn.commit()
+    except Exception:
+        conn.rollback();raise
+    finally: conn.close()
+
+
+def delete_touch_customer(customer_id: int) -> None:
+    conn = connect_db()
+    try:
+        cur = conn.cursor()
+        if not is_postgres_backend(): cur.execute('BEGIN IMMEDIATE')
+        cur.execute('SELECT current_balance FROM customers WHERE id=?' + (' FOR UPDATE' if is_postgres_backend() else ''), (customer_id,))
+        row = cur.fetchone()
+        if not row: raise ValueError('Customer not found.')
+        if float(row[0] or 0) != 0: raise ValueError('Cannot delete a customer with an outstanding balance.')
+        for table in ('sales','credit_sales','credit_payments','credit_adjustments','credit_writeoffs'):
+            if 'customer_id' in table_columns(cur,table):
+                cur.execute(f'SELECT 1 FROM {table} WHERE customer_id=? LIMIT 1', (customer_id,))
+                if cur.fetchone(): raise ValueError('Cannot delete a customer with transaction history.')
+        cur.execute('DELETE FROM customers WHERE id=?', (customer_id,));conn.commit()
+    except Exception:
+        conn.rollback();raise
+    finally: conn.close()
+
+
 def list_payment_types() -> List[str]:
     conn = connect_db()
     cursor = conn.cursor()
