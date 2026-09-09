@@ -2160,3 +2160,24 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 .dashboard-breakdown-note{font-size:12px;color:var(--muted);line-height:1.6}
 .dashboard-breakdown-row{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--line);padding:12px 0}
 .dashboard-breakdown-row>span{min-width:0;overflow-wrap:anywhere}
+
+/* Dashboard uses the same compact records and aligned totals as receipts/expenses. */
+.dashboard-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 10px;flex-wrap:wrap}
+.dashboard-section-title h3{margin:0}.dashboard-section-title>span{font-size:12px;color:var(--muted)}
+.dashboard-cards{grid-template-columns:repeat(2,minmax(0,1fr));margin:10px 0 16px}
+.dashboard-cards .dashboard-metric{display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:82px;padding:12px 16px;border-radius:12px}
+.dashboard-metric>div{display:grid;gap:6px}.dashboard-metric>div>span{font-weight:600}.dashboard-metric>strong{font-size:21px;text-align:right}.dashboard-metric>strong>small{font-size:11px;font-weight:400}
+.dashboard-metric[data-tone="expense"]{border-top-color:#14b8a6}.dashboard-metric[data-tone="discount"]{border-top-color:#f59e0b}.dashboard-metric[data-tone="balance"],.dashboard-metric[data-tone="credit"]{border-top-color:#a78bfa}
+.dashboard-credit-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dashboard-breakdown-row{min-height:82px;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;background:var(--panel);gap:12px}
+.dashboard-row-main{flex:1;min-width:0}.dashboard-row-main>strong{white-space:normal}
+.dashboard-row-icon{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:var(--bg)}
+.dashboard-row-icon img{width:20px;height:20px}.dashboard-breakdown-row>strong,.dashboard-row-amount{text-align:right;font-size:14px}
+.dashboard-row-amount small{display:block;margin-top:5px;font-size:11px;color:var(--muted)}
+.dashboard-credit{padding:18px;margin-top:16px}.dashboard-credit>header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.dashboard-credit h3{margin:0 0 6px}.dashboard-credit header p{margin:0;color:var(--muted);font-size:12px}.dashboard-credit .dashboard-row-main small{display:block;margin-top:6px;color:var(--muted);font-size:12px}
+.dashboard-badge{font-size:12px;padding:6px 10px;border:1px solid var(--line);border-radius:20px;color:var(--ink)}
+.dashboard-empty{padding:24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:12px}
+[data-touch-theme="dark"] .dashboard-row-icon img{filter:brightness(0) invert(1)}
+@media(max-width:1100px){.dashboard-credit-cards{grid-template-columns:1fr}.dashboard-columns{grid-template-columns:1fr}}
+@media(max-width:600px){.dashboard-cards{grid-template-columns:1fr}.dashboard-row-icon{display:none}.dashboard-metric>strong{font-size:18px}.dashboard-credit{padding:12px}}
