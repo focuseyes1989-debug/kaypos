@@ -1211,7 +1211,6 @@
     else if (action === 'product-page') showProductManager();
     else if (action === 'cart') setCartOpen(true);
     else if (action === 'fullscreen') fullscreen.click();
-    else if (action === 'profile') userButton.click();
     else if (action === 'refresh') loadCatalog();
   }
   openCart.addEventListener('click', () => setCartOpen(true));
@@ -1228,7 +1227,6 @@
   document.querySelectorAll('[data-side-action]').forEach(button => button.addEventListener('click', () => runSideMenuAction(button.dataset.sideAction)));
   document.querySelector('#sideSignOut').addEventListener('click', () => document.querySelector('#signOut').click());
   userButton.addEventListener('click', () => {
-    setSideMenuOpen(false);
     userMenu.hidden = !userMenu.hidden; userButton.setAttribute('aria-expanded', String(!userMenu.hidden));
   });
   document.querySelector('#signOut').addEventListener('click', async () => { try { await api('/api/touch-pos/logout', {method: 'POST'}); } catch (_) {} clearCatalog(); showLogin('Signed out.'); });

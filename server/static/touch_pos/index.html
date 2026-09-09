@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-action-layout1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-catalog-search1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -32,13 +32,10 @@
         <img src="/assets/kay/kay_128x128.png" alt="">
         <div><strong>KAY POS Touch</strong><span>Touch sales workspace</span></div>
       </div>
-      <label class="search"><span aria-hidden="true">⌕</span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
       <div class="top-actions">
         <span id="connection" class="connection checking" role="status"><i></i><span>Checking server…</span></span>
         <button id="install" class="secondary" type="button" hidden>Install App</button>
         <button id="fullscreen" class="secondary" type="button">Full Screen</button>
-        <button id="userButton" class="user-button" type="button" aria-expanded="false"><span class="avatar-frame"><img id="userAvatar" alt="" hidden><span id="userInitials">—</span></span><span class="user-copy"><strong id="userName">Signed out</strong><small id="userRole"></small></span></button>
-        <div id="userMenu" class="user-menu" hidden><div><strong id="menuUserName"></strong><small id="menuUserRole"></small></div><button id="signOut" type="button">Sign Out</button></div>
       </div>
     </header>
     <div id="sideMenuOverlay" class="side-menu-overlay" hidden></div>
@@ -64,7 +61,8 @@
           <span id="sideGroup2" class="side-menu-label">MANAGEMENT</span>
           <button type="button" data-side-action="expenses"><img class="side-menu-icon" src="/assets/icons/receipt.svg" alt="" aria-hidden="true"><span>Expenses</span></button>
           <button type="button" data-side-action="settings"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>Settings</span></button>
-          <button type="button" data-side-action="profile"><img class="side-menu-icon" src="/assets/icons/settings.svg" alt="" aria-hidden="true"><span>My Account</span></button>
+        <button id="userButton" class="user-button" aria-label="My Account" type="button" aria-expanded="false"><span class="avatar-frame"><img id="userAvatar" alt="" hidden><span id="userInitials">—</span></span><span>My Account</span><span class="user-copy" hidden><strong id="userName">Signed out</strong><small id="userRole"></small></span></button>
+        <div id="userMenu" class="user-menu" hidden><div><strong id="menuUserName"></strong><small id="menuUserRole"></small></div><button id="signOut" type="button">Sign Out</button></div>
         </div>
         <div class="side-menu-section" role="group" aria-labelledby="sideGroup3">
           <span id="sideGroup3" class="side-menu-label">TOOLS</span>
@@ -87,6 +85,7 @@
           <div><strong>Products</strong><small>Tap a category or search the live catalog</small></div>
           <div class="catalog-actions"><button id="openCart" class="checkout-open" type="button" aria-controls="saleCart" aria-expanded="false">Cart (<span id="mobileCartCount">0</span>)</button><span id="productCount" class="count">0 items</span><button id="refreshProducts" type="button" aria-label="Refresh products" disabled>↻</button></div>
         </div>
+      <label class="search catalog-search"><span aria-hidden="true">⌕</span><input id="productSearch" type="search" placeholder="Search product, SKU or scan barcode" autocomplete="off" disabled></label>
         <div id="productGrid" class="product-grid" aria-live="polite">
           <div class="empty-state">
             <div class="empty-icon">▦</div>
@@ -291,8 +290,8 @@
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-action-layout1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-action-layout1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-action-layout1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-catalog-search1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-catalog-search1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-catalog-search1" defer></script>
 </body>
 </html>
