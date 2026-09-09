@@ -1126,28 +1126,55 @@ def get_product_image_blob(product_id: int) -> Optional[Dict[str, Any]]:
         conn.close()
 
 
-def list_customers(search: str = "", limit: int = 50) -> List[Dict[str, Any]]:
+def list_customers(search: str = "", limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
     conn = connect_db()
     cursor = conn.cursor()
     try:
+        columns = table_columns(cursor, 'customers')
+        remarks_select = 'remarks' if 'remarks' in columns else "'' AS remarks"
         params: List[Any] = []
         where_sql = ""
         if search:
-            where_sql = "WHERE name LIKE ? OR phone LIKE ?"
+            where_sql = "WHERE LOWER(name) LIKE LOWER(?) OR phone LIKE ?"
             pattern = f"%{search}%"
             params.extend([pattern, pattern])
-        params.append(max(1, min(limit, 200)))
+        params.extend([max(1, min(limit, 200)), max(0, offset)])
         cursor.execute(
             f"""
-            SELECT id, name, phone, points, current_balance, credit_limit
+            SELECT id, name, phone, email, address, {remarks_select}, points, current_balance, credit_limit
             FROM customers
             {where_sql}
-            ORDER BY name COLLATE NOCASE
-            LIMIT ?
+            ORDER BY LOWER(name), id
+            LIMIT ? OFFSET ?
             """,
             params,
         )
         return [_dict_from_row(cursor, row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def save_touch_customer(values: Dict[str, Any], customer_id: Optional[int] = None) -> None:
+    name = str(values.get('name') or '').strip()
+    if not name:
+        raise ValueError('Customer name is required.')
+    conn = connect_db()
+    try:
+        cursor = conn.cursor()
+        if 'remarks' not in table_columns(cursor, 'customers'):
+            cursor.execute("ALTER TABLE customers ADD COLUMN remarks TEXT DEFAULT ''")
+        params = [name] + [str(values.get(k) or '').strip() for k in ('phone', 'email', 'address', 'remarks')]
+        if customer_id is None:
+            cursor.execute('INSERT INTO customers (name, phone, email, address, remarks) VALUES (?, ?, ?, ?, ?)', params)
+        else:
+            cursor.execute('SELECT id FROM customers WHERE id = ?', (customer_id,))
+            if not cursor.fetchone():
+                raise ValueError('Customer not found.')
+            cursor.execute('UPDATE customers SET name=?, phone=?, email=?, address=?, remarks=? WHERE id=?', [*params, customer_id])
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 

@@ -591,6 +591,7 @@
     document.querySelector('#inventoryDetail').replaceChildren();
   }
   async function showInventoryPage() {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     window.KayTouchSettings?.hide();
     window.KayTouchExpenses?.hide();
@@ -693,6 +694,7 @@
     document.querySelectorAll('[data-receipt-id]').forEach(button=>button.setAttribute('aria-pressed','false'));
   }
   async function showReceiptsPage() {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     window.KayTouchSettings?.hide();
     window.KayTouchExpenses?.hide();
@@ -773,7 +775,14 @@
     await loadTouchReceipts();
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
+  function showTouchCustomers() {
+    window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
+    document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
+    document.querySelector('#workspaceStatus').textContent='Customers';
+    window.KayTouchCustomers.show({api,escapeHtml,toast,onExit:showSalesView});
+  }
   function showTouchDashboard() {
+    window.KayTouchCustomers?.hide();
     window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;
     document.querySelector('#productManager').hidden=true;
@@ -782,6 +791,7 @@
     window.KayTouchDashboard.show({api,escapeHtml,onExit:showSalesView});
   }
   function showTouchExpenses(addNew = false) {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     window.KayTouchSettings?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;
@@ -791,6 +801,7 @@
     window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView}, addNew);
   }
   function showTouchSettings() {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     window.KayTouchExpenses?.hide();
     hideInventory(); receiptsRequest++;
@@ -801,6 +812,7 @@
     window.KayTouchSettings.show({api, escapeHtml, toast, onExit:showSalesView});
   }
   function showSalesView() {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     window.KayTouchSettings?.hide();
     window.KayTouchExpenses?.hide();
@@ -814,6 +826,7 @@
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager(page = 'products') {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     const categoriesPage = page === 'categories';
     const manager = document.querySelector('#productManager');
@@ -1133,6 +1146,7 @@
     document.querySelector('.workspace').hidden = false;
   }
   function showLogin(message = '') {
+    window.KayTouchCustomers?.hide();
     window.KayTouchDashboard?.hide();
     clearCatalog();
     clearCart();
@@ -1275,6 +1289,7 @@
   }
   function runSideMenuAction(action) {
     setSideMenuOpen(false, true);
+    if (action === 'customers') {showTouchCustomers();return;}
     if (action === 'dashboard') {showTouchDashboard();return;}
     if (action === 'expenses') {showTouchExpenses();return;}
     if (action === 'settings') { showTouchSettings(); return; }

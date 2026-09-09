@@ -1335,9 +1335,36 @@ def product_image(product_id: int):
 def customers(
     q: str = Query(default=""),
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     _: Dict[str, Any] = Depends(current_user),
 ):
-    return {"customers": cashier_service.list_customers(q.strip(), limit)}
+    return {"customers": cashier_service.list_customers(q.strip(), limit, offset)}
+
+
+class TouchCustomerRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    phone: str = Field(default='', max_length=100)
+    email: str = Field(default='', max_length=200)
+    address: str = Field(default='', max_length=2000)
+    remarks: str = Field(default='', max_length=2000)
+
+
+@app.post('/api/customers')
+def touch_add_customer(payload: TouchCustomerRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.save_touch_customer(payload.model_dump())
+        return {'success': True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.put('/api/customers/{customer_id}')
+def touch_edit_customer(customer_id: int, payload: TouchCustomerRequest, _: Dict[str, Any] = Depends(current_user)):
+    try:
+        cashier_service.save_touch_customer(payload.model_dump(), customer_id)
+        return {'success': True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/payment-types")
