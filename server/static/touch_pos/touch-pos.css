@@ -1924,3 +1924,14 @@ button:is(.settings-primary,.settings-danger,.primary-action,.manager-delete,.re
 html[data-touch-theme=dark] .product-kind.kind-service{background:#163f3a;color:#99f6e4}html[data-touch-theme=dark] .product-kind.kind-each{background:#243e64;color:#bfdbfe}html[data-touch-theme=dark] .product-kind.kind-variants{background:#3b2b58;color:#ddd6fe}html[data-touch-theme=dark] .product-kind.kind-wholesale{background:#49391c;color:#fde68a}
 @media(max-width:800px){.product-manager-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#productManager .product-manager-row{grid-template-columns:48px minmax(0,1fr) auto}.product-manager-row .manager-row-actions{grid-column:2/-1;justify-content:flex-end}}
 @media(max-width:480px){.product-manager-filters{grid-template-columns:minmax(0,1fr)}#productManager .product-manager-row{grid-template-columns:48px minmax(0,1fr)}.product-manager-price{grid-column:2;text-align:left}}
+
+/* Compact product rows with type badges beside the name. */
+#productManager .product-manager-row{padding:9px 12px;gap:12px;grid-template-columns:44px minmax(0,1fr) minmax(110px,auto) auto;min-height:68px}
+#productManager .product-manager-row .manager-thumb{width:44px;height:44px}
+#productManager .product-manager-row .manager-row-main{gap:4px;line-height:1.5}
+.product-name-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.product-name-line .product-kind-list{margin:0;gap:4px}
+.product-name-line .product-kind{padding:2px 7px;font-size:10px}
+.product-manager-price{gap:3px;line-height:1.5}
+@media(max-width:800px){#productManager .product-manager-row{grid-template-columns:44px minmax(0,1fr) auto}}
+@media(max-width:480px){#productManager .product-manager-row{grid-template-columns:44px minmax(0,1fr)}}
