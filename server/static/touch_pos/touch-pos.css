@@ -2000,3 +2000,9 @@ html[data-touch-theme=dark] .stock-ok{background:#163f3a;color:#99f6e4}html[data
 .touch-expenses .expense-entry-main{gap:2px;line-height:1.6}
 .touch-expenses .expense-entry-amount{gap:3px;line-height:1.6}
 @media(max-width:560px){.touch-expenses .expense-entry{gap:8px}.touch-expenses .expense-row-actions{grid-column:2}}
+
+/* Give the Expenses heading room on tablet screens. */
+@media screen and (min-width:601px) and (max-width:1440px){
+ .touch-expenses>.settings-heading{box-sizing:border-box;min-height:88px;padding:18px 20px;align-items:center;gap:16px}
+ .touch-expenses>.settings-heading p{margin-top:4px;line-height:1.6}
+}
