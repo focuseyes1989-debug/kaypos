@@ -1,7 +1,9 @@
 (() => {
   'use strict';
   let root, ctx, values={}, section='Appearance', generation=0, busy=false;
-  const sections=['Appearance','Printer','Payment Types','Tax and Discount','Business and Branding','Receipt Text','Regional','Users'];
+  const navigation=[['WORKSPACE',['Appearance','Printer']],['BUSINESS',['Payment Types','Tax and Discount','Business and Branding','Receipt Text']],['ADMINISTRATION',['Regional','Users']]];
+  const icons={'Appearance':'theme','Printer':'receipt','Payment Types':'total','Tax and Discount':'settings','Business and Branding':'inventory','Receipt Text':'receipt','Regional':'settings','Users':'settings'};
+  const groups={Appearance:[['Display preferences',['theme','follow_system_theme']]],Printer:[['Receipt printing',['receipt_paper_size','touch_auto_print_receipt']]],'Tax and Discount':[['Tax',['tax_enabled','tax_rate']],['Discount',['discount_enabled','discount_type','discount_value']]],'Business and Branding':[['Business details',['shop_name','shop_phone','shop_address']],['Branding and payment',['shop_qr_name','shop_logo_image','shop_qr_code_image']]],'Receipt Text':[['Header and customer',['receipt_header','show_customer_name']],['Footer messages',['receipt_footer','shop_footer_message','receipt_thank_you_text']]],Regional:[['Currency and language',['currency','language']]]};
   const fields={
     Appearance:[['theme','Theme','select',['Light','Light Gray','Dark']],['follow_system_theme','Follow system theme','checkbox']],
     Printer:[['touch_auto_print_receipt','Open print dialog automatically after completing a sale','checkbox'],['receipt_paper_size','Receipt paper','select',[['0','80mm'],['1','58mm'],['2','A4']]]],
@@ -30,7 +32,7 @@
     if(type==='checkbox')return `<label class="settings-check"><input name="${key}" type="checkbox" ${value==='1' || value===true?'checked':''}><span>${esc(label)}</span></label>`;
     if(type==='image')return `<div class="settings-image"><label>${esc(label)}<input type="file" name="${key}" accept="image/png,image/jpeg"></label><img alt="${esc(label)} preview" ${/^data:image\/(png|jpeg);base64,/.test(value)?`src="${esc(value)}"`:'hidden'}><label class="settings-check"><input type="checkbox" name="clear_${key}">Remove image</label></div>`;
     const control=type==='select'?`<select name="${key}">${options.map(o=>{const [v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${String(v)===String(value)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`:type==='textarea'?`<textarea name="${key}" rows="3" maxlength="4000">${esc(value)}</textarea>`:`<input name="${key}" type="${type}" value="${esc(value)}" ${type==='number'?'min="0" step="0.01"':''} maxlength="4000">`;
-    return `<label>${esc(label)}${control}</label>`;
+    return `<label class="settings-field ${type==='textarea' || key==='shop_qr_name'?'settings-wide':''}"><span>${esc(label)}</span>${control}</label>`;
   }
   function setBusy(on){busy=on;root.querySelectorAll('button').forEach(b=>b.disabled=on);}
   function message(text){root.querySelector('[data-settings-status]').textContent=text;}
@@ -41,7 +43,7 @@
   async function renderSection() {
     const request=++generation, panel=root.querySelector('[data-settings-panel]');
     root.querySelectorAll('[data-setting-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.settingTab===section?'page':'false'));
-    panel.innerHTML=`<h2>${esc(section)}</h2><p>${esc(notes[section])}</p><p role="status" data-settings-status></p><div data-settings-content>Loading…</div>`;
+    panel.innerHTML=`<header class="settings-section-head"><div><span class="settings-eyebrow">${section==='Printer'?'THIS BROWSER':'SHARED SETTINGS'}</span><h2>${esc(section)}</h2><p>${esc(notes[section])}</p></div></header><p role="status" aria-live="polite" data-settings-status></p><div data-settings-content>Loading…</div>`;
     const content=panel.querySelector('[data-settings-content]');
     try {
       if(section==='Payment Types' || section==='Users') {
@@ -62,7 +64,7 @@
         return;
       }
       if(section==='Printer')values={...values,...window.KayTouchReceipt.settings()};
-      content.innerHTML=`<form class="settings-form">${fields[section].map(f=>fieldMarkup(f)).join('')}<div class="settings-save"><button type="submit" class="settings-primary">Save ${esc(section)}</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
+      content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary">Save changes</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
       const form=content.querySelector('form');
       form.querySelectorAll('input[type=file]').forEach(input=>input.onchange=async()=>{
         try{if(input.files[0]){const img=input.closest('.settings-image').querySelector('img');img.src=await imageValue(input.files[0]);img.hidden=false;form.elements[`clear_${input.name}`].checked=false;}}
@@ -115,7 +117,7 @@
       ctx=context;
       if(!root){root=document.createElement('section');root.id='touchSettings';root.className='touch-settings';document.querySelector('#app').insertBefore(root,document.querySelector('#app>footer'));}
       root.hidden=false;
-      root.innerHTML=`<header class="panel settings-heading"><div><h1>Settings</h1><p>Manage your business and shared app preferences.</p></div><button type="button" data-settings-exit>Sales</button></header><div class="settings-layout"><nav aria-label="Settings sections">${sections.map(s=>`<button type="button" data-setting-tab="${esc(s)}">${esc(s)}</button>`).join('')}</nav><section class="panel settings-panel" data-settings-panel><p>Loading settings…</p></section></div>`;
+      root.innerHTML=`<header class="panel settings-heading"><div><h1>Settings</h1><p>Manage your workspace, checkout and business preferences.</p></div><button type="button" data-settings-exit>Back to Sales</button></header><div class="settings-layout"><nav aria-label="Settings sections">${navigation.map(([label,items])=>`<div class="settings-nav-group"><span class="settings-nav-label">${label}</span>${items.map(s=>`<button type="button" data-setting-tab="${esc(s)}"><img src="/assets/icons/${icons[s]}.svg" alt="" aria-hidden="true"><span>${esc(s)}</span></button>`).join('')}</div>`).join('')}</nav><section class="panel settings-panel" data-settings-panel><p>Loading settings…</p></section></div>`;
       root.querySelector('[data-settings-exit]').onclick=()=>{if(!busy)ctx.onExit();};
       root.querySelectorAll('[data-setting-tab]').forEach(b=>b.onclick=()=>{if(!busy){section=b.dataset.settingTab;renderSection();}});
       const request=++generation;
