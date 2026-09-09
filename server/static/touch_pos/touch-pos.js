@@ -772,7 +772,16 @@
     document.querySelector('#productManager').hidden = true;
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
-  async function showProductManager() {
+  async function showProductManager(page = 'products') {
+    const categoriesPage = page === 'categories';
+    const manager = document.querySelector('#productManager');
+    manager.dataset.page = categoriesPage ? 'categories' : 'products';
+    manager.setAttribute('aria-label', categoriesPage ? 'Category management' : 'Product management');
+    document.querySelector('#managerPageTitle').textContent = categoriesPage ? 'Categories' : 'Products';
+    document.querySelector('#managerPageDescription').textContent = categoriesPage ? 'Manage parent and child categories.' : 'Add products, edit item details and print barcodes.';
+    document.querySelector('.manager-products').hidden = categoriesPage;
+    document.querySelector('.manager-categories').hidden = !categoriesPage;
+    document.querySelector('#managerAddItem').hidden = categoriesPage;
     window.KayTouchSettings?.hide();
     window.KayTouchExpenses?.hide();
     hideInventory();
@@ -780,7 +789,7 @@
     document.querySelector('#touchReceipts').hidden = true;
     document.querySelector('.workspace').hidden = true;
     document.querySelector('#productManager').hidden = false;
-    document.querySelector('#workspaceStatus').textContent = 'Product page · Manage catalog';
+    document.querySelector('#workspaceStatus').textContent = categoriesPage ? 'Categories · Manage categories' : 'Products · Manage products';
     await loadProductManager();
   }
   async function loadProductManager() {
@@ -1204,6 +1213,7 @@
     if (['products', 'cart'].includes(action)) showSalesView();
     if (action === 'products') document.querySelector('#productSearch').focus();
     else if (action === 'product-page') showProductManager();
+    else if (action === 'category-page') showProductManager('categories');
     else if (action === 'cart') setCartOpen(true);
     else if (action === 'fullscreen') fullscreen.click();
     else if (action === 'refresh') loadCatalog();

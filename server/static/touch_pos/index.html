@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-sidebar-account1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-catalog-pages1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -54,7 +54,8 @@
         </div>
         <div class="side-menu-section" role="group" aria-labelledby="sideGroup1">
           <span id="sideGroup1" class="side-menu-label">PRODUCTS &amp; STOCK</span>
-          <button type="button" data-side-action="product-page"><img class="side-menu-icon" src="/assets/icons/products.svg" alt="" aria-hidden="true"><span>Products &amp; Categories</span></button>
+          <button type="button" data-side-action="product-page"><img class="side-menu-icon" src="/assets/icons/products.svg" alt="" aria-hidden="true"><span>Products</span></button>
+          <button type="button" data-side-action="category-page"><img class="side-menu-icon" src="/assets/icons/category.svg" alt="" aria-hidden="true"><span>Categories</span></button>
           <button type="button" data-side-action="inventory"><img class="side-menu-icon" src="/assets/icons/inventory.svg" alt="" aria-hidden="true"><span>Inventory</span></button>
         </div>
         <div class="side-menu-section" role="group" aria-labelledby="sideGroup2">
@@ -108,8 +109,8 @@
     <main id="productManager" class="product-manager" aria-label="Product management" hidden>
       <section class="product-manager-head panel">
         <div>
-          <strong>Products &amp; Categories</strong>
-          <small>Add items, edit products, manage parent/child categories, and print barcodes.</small>
+          <strong id="managerPageTitle">Products</strong>
+          <small id="managerPageDescription">Add products, edit item details and print barcodes.</small>
         </div>
         <div class="manager-actions">
           <button id="backToSales" type="button">Sales</button>
@@ -288,8 +289,8 @@
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
   <script src="/static/touch_pos/touch-expenses.js" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-sidebar-account1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-sidebar-account1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-sidebar-account1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-catalog-pages1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-catalog-pages1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-catalog-pages1" defer></script>
 </body>
 </html>

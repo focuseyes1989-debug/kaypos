@@ -1904,3 +1904,7 @@ button:is(.settings-primary,.settings-danger,.primary-action,.manager-delete,.re
  #sideMenu #userButton .avatar-frame{width:24px;height:24px;flex:0 0 24px}
  #sideMenu #userMenu{position:static;width:auto;min-width:0;margin-top:4px;box-shadow:none}
 }
+
+/* Each catalog management page uses the full workspace width. */
+#productManager .manager-grid{grid-template-columns:minmax(0,1fr)}
+#productManager .manager-grid>[hidden],#managerAddItem[hidden]{display:none!important}
