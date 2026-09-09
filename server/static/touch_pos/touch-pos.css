@@ -2181,3 +2181,8 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 [data-touch-theme="dark"] .dashboard-row-icon img{filter:brightness(0) invert(1)}
 @media(max-width:1100px){.dashboard-credit-cards{grid-template-columns:1fr}.dashboard-columns{grid-template-columns:1fr}}
 @media(max-width:600px){.dashboard-cards{grid-template-columns:1fr}.dashboard-row-icon{display:none}.dashboard-metric>strong{font-size:18px}.dashboard-credit{padding:12px}}
+
+.dashboard-breakdown-total{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin:12px 0;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;background:var(--bg)}
+.dashboard-breakdown-total>div{display:grid;gap:5px;min-width:0}.dashboard-breakdown-total span{font-weight:600}.dashboard-breakdown-total strong{font-size:20px;text-align:right;white-space:normal;overflow-wrap:anywhere}
+[data-breakdown="expenses"] .dashboard-breakdown-total{border-left-color:#14b8a6}
+@media(max-width:600px){.dashboard-breakdown-total{padding:12px;gap:10px}.dashboard-breakdown-total strong{font-size:17px}}

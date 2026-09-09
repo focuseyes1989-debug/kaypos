@@ -8,9 +8,11 @@ const data={period:{from_date:'2026-09-09',to_date:'2026-09-09',sales:9000,gross
 const ctx={escapeHtml:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;'),api:async url=>{calls++;assert.match(url,/trend_days=0/);return data}};
 const sandbox={window:{},URLSearchParams,Date};vm.createContext(sandbox);vm.runInContext(source,sandbox);const t=sandbox.window.test;t.set(root,ctx);
 const content={innerHTML:''}, panel={querySelector:()=>content,querySelectorAll:()=>[]};
-t.fillBreakdown(panel,data,'payment_sales');assert.match(content.innerHTML,/&lt;Cash&gt;/);
+t.fillBreakdown(panel,data,'payment_sales');assert.match(content.innerHTML,/&lt;Cash&gt;/);assert.match(content.innerHTML,/Total sales/);assert.match(content.innerHTML,/>9,000 Ks/);
 t.fillBreakdown(panel,{discount_sales:[{label:'A',discount:500,total:4500}]},'discount_sales');assert.match(content.innerHTML,/>500 Ks/);assert.match(content.innerHTML,/Sale total: 4,500 Ks/);
-t.fillBreakdown(panel,{wholesale_available:false},'wholesale_sales');assert.match(content.innerHTML,/not available/);
+t.fillBreakdown(panel,{wholesale_available:false},'wholesale_sales');assert.match(content.innerHTML,/not available/);assert.match(content.innerHTML,/>Unavailable</);
+t.fillBreakdown(panel,{expense_items:[{label:'A',total:100,count:1},{label:'B',total:250,count:2}]},'expense_items');assert.match(content.innerHTML,/>350 Ks/);assert.match(content.innerHTML,/Top 10 only/);
+t.fillBreakdown(panel,{},'expense_groups');assert.match(content.innerHTML,/>0 Ks/);
 
 (async()=>{await t.load();assert.match(output.innerHTML,/7,000 <small>Ks/);assert.match(output.innerHTML,/Sale by/);assert.match(output.innerHTML,/Expense by/);assert.match(output.innerHTML,/Wholesale/);assert.match(output.innerHTML,/30,000/);assert.match(output.innerHTML,/&lt;Customer&gt;/);assert.match(output.innerHTML,/All dates/);assert.match(output.innerHTML,/500 <small>Ks/);assert.match(status.textContent,/Updated/);
 form.elements.from.value='2026-10-01';await t.load();assert.equal(calls,1);assert.equal(output.innerHTML,'');
