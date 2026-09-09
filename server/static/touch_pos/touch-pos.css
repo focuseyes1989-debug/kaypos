@@ -2006,3 +2006,6 @@ html[data-touch-theme=dark] .stock-ok{background:#163f3a;color:#99f6e4}html[data
  .touch-expenses>.settings-heading{box-sizing:border-box;min-height:88px;padding:18px 20px;align-items:center;gap:16px}
  .touch-expenses>.settings-heading p{margin-top:4px;line-height:1.6}
 }
+
+/* Expense heading follows its ledger width, not the Settings page width cap. */
+.touch-expenses>.settings-heading{width:100%;max-width:none;box-sizing:border-box;margin-left:0;margin-right:0}
