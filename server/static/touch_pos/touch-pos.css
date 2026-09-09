@@ -2114,3 +2114,20 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
     backdrop-filter:blur(4px);
   }
 }
+
+/* All Touch dialogs share a top anchor, including native showModal editors. */
+@media screen {
+  :root{--touch-dialog-top:max(18px, env(safe-area-inset-top));--touch-dialog-bottom:max(12px, env(safe-area-inset-bottom))}
+  .modal-backdrop{overflow-y:auto;overscroll-behavior:contain}
+  dialog[open]{
+    position:fixed;
+    top:0;
+    bottom:auto;
+    margin:var(--touch-dialog-top) auto 0;
+    max-height:calc(100dvh - var(--touch-dialog-top) - var(--touch-dialog-bottom));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  dialog[open] .expense-editor{max-height:calc(100dvh - var(--touch-dialog-top) - var(--touch-dialog-bottom) - 2px)}
+}
+@media screen and (max-width:760px){:root{--touch-dialog-top:max(10px, env(safe-area-inset-top))}}
