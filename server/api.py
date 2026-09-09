@@ -920,6 +920,8 @@ class MovementReverseRequest(BaseModel):
 
 
 class ProductVariantRequest(BaseModel):
+    wholesale_min_qty: int = Field(default=0, ge=0)
+    wholesale_price: float = Field(default=0, ge=0, allow_inf_nan=False)
     color: str = ""
     size: str = ""
     sku: str = ""

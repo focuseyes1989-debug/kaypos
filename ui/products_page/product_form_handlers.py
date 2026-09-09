@@ -182,6 +182,8 @@ class ProductFormHandlers:
             values.get("barcode", ""),
             str(price if price not in (None, 0, "0") else ""),
             str(values.get("low_stock", "")),
+            str(values.get("wholesale_min_qty", 0)),
+            str(values.get("wholesale_price", 0)),
         ]
         for col, text in enumerate(defaults):
             item = QTableWidgetItem(str(text))
@@ -584,7 +586,7 @@ class ProductFormHandlers:
     def _add_variant_row_to_table(self, table):
         row = table.rowCount()
         table.insertRow(row)
-        defaults = ["", "", self.generate_variant_sku(row + 1), "", "", ""]
+        defaults = ["", "", self.generate_variant_sku(row + 1), "", "", "", "0", "0"]
         for col, text in enumerate(defaults):
             item = QTableWidgetItem(text)
             if col in (4, 5):
@@ -596,7 +598,7 @@ class ProductFormHandlers:
         colors = get_theme_colors()
         dialog = QDialog(d)
         dialog.setWindowTitle("Manage Variants")
-        dialog.resize(760, 420)
+        dialog.resize(1000, 480)
         dialog.setStyleSheet(f"""
             QDialog {{
                 background: {colors['bg']};
@@ -605,8 +607,8 @@ class ProductFormHandlers:
         """)
         layout = QVBoxLayout(dialog)
 
-        table = QTableWidget(0, 6)
-        table.setHorizontalHeaderLabels(["Size", "Color", "SKU", "Barcode", "Price", "Stock Alert"])
+        table = QTableWidget(0, 8)
+        table.setHorizontalHeaderLabels(["Size", "Color", "SKU", "Barcode", "Price", "Stock Alert", "Wholesale min qty", "Wholesale price"])
         table.verticalHeader().setVisible(False)
         table.setAlternatingRowColors(True)
         table.setStyleSheet(ProductFormUIStyles.get_table_style(colors))
@@ -656,8 +658,11 @@ class ProductFormHandlers:
         d.variants_table.setRowCount(0)
         conn = connect_db()
         cursor = conn.cursor()
+        from utils.wholesale_pricing import ensure_variant_wholesale_schema
+        ensure_variant_wholesale_schema(cursor)
+        conn.commit()
         cursor.execute("""
-            SELECT size, color, sku, barcode, price, low_stock
+            SELECT size, color, sku, barcode, price, low_stock, wholesale_min_qty, wholesale_price
             FROM product_variants
             WHERE product_id = ?
             ORDER BY size, color, id
@@ -671,7 +676,7 @@ class ProductFormHandlers:
                 "sku": row[2] or "",
                 "barcode": row[3] or "",
                 "price": row[4] or "",
-                "low_stock": row[5] or 0,
+                "low_stock": row[5] or 0, "wholesale_min_qty": row[6] or 0, "wholesale_price": row[7] or 0,
             })
 
     def _collect_variants(self):
@@ -692,6 +697,8 @@ class ProductFormHandlers:
             if not any([size, color, sku, barcode, price_text, low_stock_text]):
                 continue
             try:
+                from utils.wholesale_pricing import validate_variant_wholesale
+                wholesale_min_qty, wholesale_price = validate_variant_wholesale(text(6), text(7))
                 price = float(price_text.replace(",", "")) if price_text else 0.0
                 low_stock = int(float(low_stock_text.replace(",", ""))) if low_stock_text else 0
             except ValueError:
@@ -702,7 +709,7 @@ class ProductFormHandlers:
                 "color": color,
                 "sku": sku,
                 "barcode": barcode,
-                "price": price,
+                "price": price, "wholesale_min_qty": wholesale_min_qty, "wholesale_price": wholesale_price,
                 "cost": 0.0,
                 "stock": 0,
                 "low_stock": max(0, low_stock),
@@ -712,6 +719,8 @@ class ProductFormHandlers:
         return variants
 
     def _save_variants(self, cursor, product_id, variants):
+        from utils.wholesale_pricing import ensure_variant_wholesale_schema
+        ensure_variant_wholesale_schema(cursor)
         cursor.execute("""
             SELECT sku, barcode, stock
             FROM product_variants
@@ -732,8 +741,8 @@ class ProductFormHandlers:
                 variant_stock = existing_stock[("barcode", variant["barcode"])]
             cursor.execute("""
                 INSERT INTO product_variants
-                (product_id, size, color, sku, barcode, price, cost, stock, low_stock, image, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (product_id, size, color, sku, barcode, price, cost, stock, low_stock, image, active, wholesale_min_qty, wholesale_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 product_id,
                 variant["size"],
@@ -745,7 +754,7 @@ class ProductFormHandlers:
                 variant_stock,
                 variant["low_stock"],
                 variant["image"],
-                variant["active"],
+                variant["active"], variant.get("wholesale_min_qty", 0), variant.get("wholesale_price", 0),
             ))
         if variants:
             cursor.execute("SELECT COALESCE(SUM(stock), 0) FROM product_variants WHERE product_id = ? AND COALESCE(active, 1) = 1", (product_id,))

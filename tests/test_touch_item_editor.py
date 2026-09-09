@@ -40,6 +40,13 @@ class ItemEditorTests(unittest.TestCase):
     def rows(self, sql):
         with closing(sqlite3.connect(self.path)) as conn: return conn.execute(sql).fetchall()
 
+    def test_variant_wholesale_roundtrip(self):
+        values = dict(name='Shirt', sold_by='Variants', variants=[dict(color='Red',sku='red',price=1000,wholesale_min_qty=12,wholesale_price=800)])
+        service.save_managed_product(values)
+        self.assertEqual(self.rows('SELECT wholesale_min_qty,wholesale_price FROM product_variants'), [(12,800)])
+        values['variants'][0]['wholesale_price']=0
+        with self.assertRaises(ValueError): service.save_managed_product(values)
+
     def test_wholesale_create_edit_clear_and_legacy_preservation(self):
         values = dict(name='Bottle', sold_by='Each', pack_unit='Box', pack_size=12,
                       wholesale_tiers=[dict(min_qty=12, unit_price=800, unit_multiplier=12, barcode='BOX')])

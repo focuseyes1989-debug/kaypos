@@ -159,3 +159,30 @@ def save_price_tiers(cursor, product_id: int, tiers: List[Dict[str, Any]]) -> No
             str(tier.get("note") or "").strip(),
             int(tier.get("active", 1) or 0),
         ))
+
+
+def ensure_variant_wholesale_schema(cursor):
+    from utils.db_compat import table_columns
+    columns = table_columns(cursor, 'product_variants')
+    for name, definition in [('wholesale_min_qty', 'INTEGER DEFAULT 0'), ('wholesale_price', 'REAL DEFAULT 0')]:
+        if name not in columns:
+            cursor.execute(f'ALTER TABLE product_variants ADD COLUMN {name} {definition}')
+
+
+def validate_variant_wholesale(min_qty, price):
+    import math
+    qty, amount = float(min_qty or 0), float(price or 0)
+    if not math.isfinite(qty) or not math.isfinite(amount) or qty < 0 or qty != int(qty) or amount < 0 or ((qty > 0) != (amount > 0)):
+        raise ValueError('Set both variant wholesale minimum quantity and price, or set both to 0 to disable.')
+    return int(qty), amount
+
+
+def get_variant_price_tier(cursor, product_id, variant_id, qty):
+    from utils.db_compat import table_columns
+    if 'wholesale_min_qty' not in table_columns(cursor, 'product_variants'):
+        return None
+    cursor.execute('SELECT wholesale_min_qty,wholesale_price FROM product_variants WHERE id=? AND product_id=? AND COALESCE(active,1)=1', (variant_id,product_id))
+    row = cursor.fetchone()
+    if row and int(row[0] or 0) > 0 and qty >= int(row[0]) and float(row[1] or 0) > 0:
+        return {'id': variant_id, 'min_qty': int(row[0]), 'unit_price': float(row[1]), 'unit_label': '', 'unit_multiplier': 1}
+    return None

@@ -27,7 +27,7 @@ from utils.image_optimizer import ImageOptimizer
 from utils.paths import app_relative_path, get_product_images_dir
 from utils.product_image_store import cached_product_image_path
 from utils.category_hierarchy import expand_category_scope
-from utils.wholesale_pricing import ensure_wholesale_schema, get_best_price_tier, save_price_tiers
+from utils.wholesale_pricing import ensure_variant_wholesale_schema, validate_variant_wholesale, get_variant_price_tier, ensure_wholesale_schema, get_best_price_tier, save_price_tiers
 
 
 _TABLE_COLUMNS_CACHE: Dict[str, set[str]] = {}
@@ -853,6 +853,10 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
         else:
             _sync_postgres_id_sequences(cursor, ("products", "product_variants"))
             product_id = _execute_dynamic_insert(cursor, "products", product_values)
+        ensure_variant_wholesale_schema(cursor)
+        _TABLE_COLUMNS_CACHE.pop("product_variants", None)
+        for v in variants:
+            validate_variant_wholesale(v.get("wholesale_min_qty"), v.get("wholesale_price"))
         cursor.execute("DELETE FROM product_variants WHERE product_id = ?", (int(product_id),))
         if _sold_by_mode(sold_by) == "variants":
             for variant in variants:
@@ -860,6 +864,7 @@ def save_managed_product(values: Dict[str, Any], product_id: Optional[int] = Non
                     "product_id": int(product_id), "color": str(variant.get("color") or "").strip(),
                     "size": str(variant.get("size") or "").strip(), "sku": str(variant.get("sku") or "").strip(),
                     "barcode": str(variant.get("barcode") or "").strip(), "price": float(variant.get("price") or 0),
+                    "wholesale_min_qty": int(variant.get("wholesale_min_qty") or 0), "wholesale_price": float(variant.get("wholesale_price") or 0),
                     "cost": float(variant.get("cost") or 0), "stock": int(variant.get("stock") or 0),
                     "low_stock": int(variant.get("low_stock") or 0), "active": 1 if variant.get("active", True) else 0,
                 })
@@ -951,6 +956,8 @@ def list_products(
         product_ids = [int(row[0] or 0) for row in rows]
         discounts = _active_product_discounts(cursor, product_ids)
         tiers_by_product = _price_tiers_for_products(cursor, product_ids)
+        ensure_variant_wholesale_schema(cursor)
+        conn.commit()
         variants_by_product: Dict[int, List[Dict[str, Any]]] = {}
         locations_by_product: Dict[int, List[Dict[str, Any]]] = {}
         if product_ids:
@@ -958,7 +965,7 @@ def list_products(
             try:
                 cursor.execute(
                     f"""
-                    SELECT id, product_id, size, color, sku, barcode, price, cost, stock, low_stock
+                    SELECT id, product_id, size, color, sku, barcode, price, cost, stock, low_stock, wholesale_min_qty, wholesale_price
                     FROM product_variants
                     WHERE product_id IN ({placeholders}) AND COALESCE(active, 1) = 1
                     ORDER BY product_id, size, color, id
@@ -971,7 +978,7 @@ def list_products(
                         "color": variant[3] or "", "sku": variant[4] or "",
                         "barcode": variant[5] or "", "price": float(variant[6] or 0),
                         "cost": float(variant[7] or 0), "stock": int(variant[8] or 0),
-                        "low_stock": int(variant[9] or 0),
+                        "low_stock": int(variant[9] or 0), "wholesale_min_qty": int(variant[10] or 0), "wholesale_price": float(variant[11] or 0),
                     })
             except Exception as exc:
                 logger.debug(f"Product variants unavailable for cashier list: {exc}")
@@ -1856,6 +1863,12 @@ def create_sale(
                         (qty, qty, product_id),
                     )
                 price = float(variant_price or price or 0)
+                tier = get_variant_price_tier(cursor, int(product_id), int(variant_id), qty)
+                if tier:
+                    wholesale_regular_price = price
+                    wholesale_savings = max(0.0, price - tier['unit_price'])
+                    wholesale_min_qty = tier['min_qty']
+                    price = tier['unit_price']
                 cost = float(variant_cost or cost or 0)
                 label = " / ".join(part for part in (str(color or ""), str(size or "")) if part)
                 if label:

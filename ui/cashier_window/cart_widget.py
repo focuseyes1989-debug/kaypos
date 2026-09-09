@@ -1309,7 +1309,7 @@ class CartWidget(QWidget):
             conn.close()
 
     def _apply_wholesale_price(self, item: Dict[str, Any]) -> None:
-        if item.get("is_service", False) or item.get("variant_id"):
+        if item.get("is_service", False):
             return
         product_id = int(item.get("id") or 0)
         qty = int(item.get("qty") or 0)
@@ -1324,7 +1324,15 @@ class CartWidget(QWidget):
             or 0
         )
         item["price_before_wholesale"] = regular_price
-        tier = self._get_wholesale_tier(product_id, qty)
+        if item.get("variant_id"):
+            from utils.wholesale_pricing import get_variant_price_tier
+            conn = connect_db()
+            try:
+                tier = get_variant_price_tier(conn.cursor(), product_id, int(item['variant_id']), qty)
+            finally:
+                conn.close()
+        else:
+            tier = self._get_wholesale_tier(product_id, qty)
         if tier and float(tier.get("unit_price") or 0) > 0:
             item["price"] = float(tier["unit_price"])
             item["wholesale_tier_id"] = tier.get("id")

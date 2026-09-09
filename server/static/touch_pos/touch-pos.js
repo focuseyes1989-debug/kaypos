@@ -81,10 +81,18 @@
   function variantName(variant, index = 0) {
     return variantLabel(variant) || variant?.sku || variant?.barcode || `Variant ${index + 1}`;
   }
+  function repriceVariantCart() {
+    for (const item of cart.values()) {
+      if (!item.variant_id || item.regular_price === undefined) continue;
+      item.price=item.wholesale_min_qty>0 && item.wholesale_price>0 && item.qty>=item.wholesale_min_qty ? item.wholesale_price : item.regular_price;
+    }
+  }
   function saveCart() {
+    repriceVariantCart();
     sessionStorage.setItem(CART_KEY, JSON.stringify([...cart.values()]));
   }
   function cartTotals() {
+    repriceVariantCart();
     const items = [...cart.values()], count = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
     const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
     return {items, count, subtotal, discount: 0, total: subtotal};
@@ -166,7 +174,7 @@
     const item = cart.get(key) || {
       key, product_id: Number(product.id), variant_id: Number(variant?.variant_id || 0) || null,
       name: product.name, sku: variant?.sku || product.sku || product.barcode || '', variant_label: variantLabel(variant),
-      price, stock, qty: 0, is_service: service,
+      price, regular_price:price, wholesale_min_qty:Number(variant?.wholesale_min_qty || 0), wholesale_price:Number(variant?.wholesale_price || 0), stock, qty: 0, is_service: service,
     };
     if (!service && item.qty + 1 > stock) return toast(`Only ${stock} left: ${item.name}`);
     item.qty += 1; cart.set(key, item); saveCart(); renderCart(); toast(`${item.name} added to cart.`);
@@ -970,7 +978,7 @@
     finally { button.disabled = false; button.textContent = 'Delete'; }
   }
   let itemImageUrl = '';
-  const variantFields = [['color', 'Color'], ['size', 'Size'], ['sku', 'SKU'], ['barcode', 'Barcode'], ['price', 'Price', 0], ['cost', 'Cost', 0], ['stock', 'Stock', 0, 1], ['low_stock', 'Low stock', 0, 1]];
+  const variantFields = [['color', 'Color'], ['size', 'Size'], ['sku', 'SKU'], ['barcode', 'Barcode'], ['price', 'Price', 0], ['cost', 'Cost', 0], ['stock', 'Stock', 0, 1], ['low_stock', 'Low stock', 0, 1], ['wholesale_min_qty', 'Wholesale minimum qty (0 = off)', 0, 1], ['wholesale_price', 'Wholesale price / unit', 0]];
   const tierFields = [['min_qty', 'Minimum qty', 1, 1], ['unit_label', 'Unit label'], ['unit_multiplier', 'Qty / unit', 1, 1], ['barcode', 'Barcode'], ['unit_price', 'Wholesale price', 0.01], ['note', 'Note']];
   function addItemRow(kind, values = {}) {
     const row = document.createElement('div'); row.className = 'item-detail-row';

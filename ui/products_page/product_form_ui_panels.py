@@ -310,8 +310,8 @@ class ProductFormUIPanels(ProductFormUIBase):
         variants_layout.setContentsMargins(0, 0, 0, 0)
         variants_layout.setSpacing(4)
 
-        dialog.variants_table = QTableWidget(0, 6)
-        dialog.variants_table.setHorizontalHeaderLabels(["Size", "Color", "SKU", "Barcode", "Price", "Stock Alert"])
+        dialog.variants_table = QTableWidget(0, 8)
+        dialog.variants_table.setHorizontalHeaderLabels(["Size", "Color", "SKU", "Barcode", "Price", "Stock Alert", "Wholesale min qty", "Wholesale price"])
         dialog.variants_table.setMinimumHeight(120)
         dialog.variants_table.setMaximumHeight(150)
         dialog.variants_table.verticalHeader().setVisible(False)
