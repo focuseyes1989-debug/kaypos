@@ -806,7 +806,7 @@
     if (!token) return;
     const query = new URLSearchParams({q: document.querySelector('#managerProductSearch').value.trim(), category: document.querySelector('#managerCategoryFilter').value, product_type: document.querySelector('#managerTypeFilter').value, limit: '50', offset: String(append ? managedProducts.length : 0)});
     if (!append) document.querySelector('#managerProductList').innerHTML = '<div class="category-loading">Loading products...</div>';
-    else document.querySelector('#managerLoadMore').disabled = true;
+    else {const more=document.querySelector('#managerLoadMore');more.disabled=true;more.setAttribute('aria-busy','true');more.textContent='Loading products…';}
     document.querySelector('#managerCategoryList').innerHTML = '<div class="category-loading">Loading categories...</div>';
     try {
       const [productResult, categoryResult] = await Promise.all([api(`/api/products?${query}`), api('/api/categories/manage')]);
@@ -823,7 +823,7 @@
       if (request !== managerLoadGeneration) return;
       toast(error.message);
       if (!append) document.querySelector('#managerProductList').innerHTML = `<div class="category-loading">${escapeHtml(error.message)}</div>`;
-    } finally {if (request === managerLoadGeneration) {managerLoading=false;const more=document.querySelector('#managerLoadMore');if(more)more.disabled=false;}}
+    } finally {if (request === managerLoadGeneration) {managerLoading=false;const more=document.querySelector('#managerLoadMore');if(more){more.disabled=false;more.removeAttribute('aria-busy');if(more.textContent==='Loading products…')more.textContent='Try again';}}}
   }
 
   function populateCategoryOptions() {
@@ -845,7 +845,7 @@
       const badges = `<span class="product-kind kind-${kind}">${kind === 'service' ? 'Service' : kind === 'variants' ? 'Variants' : 'Each'}</span>${(product.wholesale_tiers || []).length ? '<span class="product-kind kind-wholesale">Wholesale</span>' : ''}`;
       return `<div class="manager-row product-manager-row"><span class="manager-thumb">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span><div class="manager-row-main"><div class="product-name-line"><strong>${escapeHtml(product.name)}</strong><span class="product-kind-list">${badges}</span></div><small>${escapeHtml(product.category || 'No category')}${barcode ? ` · ${escapeHtml(barcode)}` : ''}</small></div><div class="product-manager-price"><strong>${money(product.price)} Ks</strong><small>${kind === 'service' ? 'No stock tracking' : `Stock: ${money(product.stock)}`}</small></div><div class="manager-row-actions"><button type="button" title="Edit" data-manager-edit="${Number(product.id)}" data-icon="edit">Edit</button><button type="button" title="Delete item" class="manager-delete" data-manager-delete="${Number(product.id)}" data-icon="delete">Delete</button></div></div>`;
     }).join('');
-    if(managerHasMore){root.insertAdjacentHTML('beforeend','<button id="managerLoadMore" class="catalog-load-more" type="button">Load more products</button>');root.querySelector('#managerLoadMore').onclick=()=>loadProductManager(true);}
+    if(managerHasMore){root.insertAdjacentHTML('beforeend',`<div class="catalog-more-area"><span class="catalog-more-count">${managedProducts.length} products loaded</span><button id="managerLoadMore" class="catalog-load-more" type="button" aria-label="Load more products"><span>Load more products</span></button><small>Show up to 50 more</small></div>`);root.querySelector('#managerLoadMore').onclick=()=>loadProductManager(true);}
     root.querySelectorAll('.manager-thumb img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
     root.querySelectorAll('[data-manager-edit]').forEach(button => button.addEventListener('click', () => openItemModal(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerEdit)))));
     root.querySelectorAll('[data-manager-delete]').forEach(button => button.addEventListener('click', () => deleteManagedItem(managedProducts.find(item => Number(item.id) === Number(button.dataset.managerDelete)), button)));
@@ -1148,7 +1148,7 @@
       return `<button class="product-card" type="button" data-product-id="${Number(product.id)}" ${out ? 'disabled' : ''}><span class="product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy">` : '▦'}</span>${badge}<span class="product-info"><span class="product-name">${escapeHtml(product.name)}</span><span class="product-category" title="${escapeHtml(product.category || 'No category')}">${escapeHtml(product.category || 'No category')}</span><span class="product-price">${money(product.price)} Ks</span></span>${stockBadge}</button>`;
     }).join('');
     root.querySelectorAll('.product-image img').forEach(image => image.addEventListener('error', () => { image.parentElement.textContent = '▦'; }, {once: true}));
-    if(salesHasMore){root.insertAdjacentHTML('beforeend','<button id="salesLoadMore" class="catalog-load-more" type="button">Load more products</button>');root.querySelector('#salesLoadMore').onclick=()=>loadProducts(true);}
+    if(salesHasMore){root.insertAdjacentHTML('beforeend',`<div class="catalog-more-area"><span class="catalog-more-count">${products.length} products loaded</span><button id="salesLoadMore" class="catalog-load-more" type="button" aria-label="Load more products"><span>Load more products</span></button><small>Show up to 50 more</small></div>`);root.querySelector('#salesLoadMore').onclick=()=>loadProducts(true);}
     root.querySelectorAll('[data-product-id]').forEach(button => button.addEventListener('click', () => {
       const product = products.find(item => Number(item.id) === Number(button.dataset.productId));
       if (product) chooseProduct(product);
@@ -1160,14 +1160,14 @@
     if(append && productsController)return;
     if (!token) return; if (productsController) productsController.abort();
     productsController = new AbortController(); const controller = productsController;
-    const root = document.querySelector('#productGrid'); root.classList.add('loaded'); if(!append)root.innerHTML = '<div class="catalog-message">Loading products…</div>';else document.querySelector('#salesLoadMore').disabled=true;
+    const root = document.querySelector('#productGrid'); root.classList.add('loaded'); if(!append)root.innerHTML = '<div class="catalog-message">Loading products…</div>';else {const more=document.querySelector('#salesLoadMore');more.disabled=true;more.setAttribute('aria-busy','true');more.textContent='Loading products…';}
     const query = new URLSearchParams({q: document.querySelector('#productSearch').value.trim(), category: selectedCategory, limit: '50', offset: String(append ? products.length : 0)});
     try {
       const result = await api(`/api/touch-pos/products?${query}`, {signal: controller.signal}); if (controller !== productsController) return;
       const batch=Array.isArray(result.products)?result.products:[];salesHasMore=batch.length===50;products=append?products.concat(batch):batch;renderProducts();
     } catch (error) {
       if (error.name === 'AbortError' || controller !== productsController) return;
-      if(append){toast(error.message);const more=document.querySelector('#salesLoadMore');if(more)more.disabled=false;return;}
+      if(append){toast(error.message);const more=document.querySelector('#salesLoadMore');if(more){more.disabled=false;more.removeAttribute('aria-busy');more.textContent='Try again';}return;}
       products = []; document.querySelector('#productCount').textContent = 'Unavailable';
       root.innerHTML = `<div class="catalog-message"><strong>Could not load products</strong>${escapeHtml(error.message)}<br><button id="retryProducts" type="button">Retry</button></div>`;
       document.querySelector('#retryProducts').addEventListener('click', loadProducts);
