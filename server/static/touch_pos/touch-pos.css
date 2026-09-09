@@ -1935,3 +1935,12 @@ html[data-touch-theme=dark] .product-kind.kind-service{background:#163f3a;color:
 .product-manager-price{gap:3px;line-height:1.5}
 @media(max-width:800px){#productManager .product-manager-row{grid-template-columns:44px minmax(0,1fr) auto}}
 @media(max-width:480px){#productManager .product-manager-row{grid-template-columns:44px minmax(0,1fr)}}
+
+/* Center each content group within compact product cards. */
+#managerProductList{grid-auto-rows:max-content}
+#productManager .product-manager-row{height:auto;align-items:center;align-content:center;padding-block:9px}
+#productManager .product-manager-row> *{align-self:center}
+#productManager .product-manager-row .manager-row-main{align-content:center;gap:3px}
+#productManager .product-manager-row .manager-row-main strong,
+#productManager .product-manager-row .manager-row-main small{padding-block:0;line-height:1.8}
+#productManager .product-manager-row .manager-row-actions{align-items:center}
