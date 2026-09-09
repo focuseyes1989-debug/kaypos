@@ -1324,8 +1324,30 @@ def delete_payment_type(payment_id: int) -> None:
 def list_lite_users() -> List[Dict[str, Any]]:
     conn = connect_db(); cursor = conn.cursor()
     try:
-        cursor.execute("SELECT id, username, full_name, role, COALESCE(is_active, 1) FROM users ORDER BY username")
-        return [{"id": int(r[0]), "username": r[1], "full_name": r[2] or "", "role": r[3] or "Cashier", "active": bool(r[4])} for r in cursor.fetchall()]
+        image_column = "profile_image" if "profile_image" in table_columns(cursor, "users") else "NULL"
+        cursor.execute(f"SELECT id, username, full_name, role, COALESCE(is_active, 1), {image_column} FROM users ORDER BY username")
+        users = [{"id": int(r[0]), "username": r[1], "full_name": r[2] or "", "role": r[3] or "Cashier", "active": bool(r[4]), "profile_image": r[5] or ""} for r in cursor.fetchall()]
+        if {"user_id", "photo_data"}.issubset(table_columns(cursor, "employees")):
+            cursor.execute("SELECT user_id, photo_data FROM employees WHERE photo_data IS NOT NULL ORDER BY rowid")
+            photos = {}
+            for uid, photo in cursor.fetchall():
+                if photo and uid not in photos:
+                    photos[uid] = photo
+            for user in users:
+                if not user['profile_image'] and user['id'] in photos:
+                    import io
+                    from PIL import Image
+                    try:
+                        with Image.open(io.BytesIO(bytes(photos[user['id']]))) as image:
+                            if image.width * image.height > 16_000_000:
+                                continue
+                            image.thumbnail((128, 128))
+                            output = io.BytesIO()
+                            image.convert('RGBA').save(output, format='PNG')
+                        user['profile_image'] = 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode('ascii')
+                    except Exception:
+                        pass  # A damaged legacy photo must not hide the user list.
+        return users
     finally:
         conn.close()
 

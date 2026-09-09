@@ -38,6 +38,7 @@ class TouchSettingsTests(unittest.TestCase):
         values = {'username':'admin','role':'Admin','active':True,'profile_image':avatar}
         service.save_lite_user(values, 1)
         self.assertEqual(service.get_user_avatar_blob(1)['mime'], 'image/png')
+        self.assertTrue(service.list_lite_users()[0]['profile_image'].startswith('data:image/png;base64,'))
         before = service.get_user_avatar_blob(1)['data']
         service.save_lite_user({'username':'admin','role':'Admin','active':True}, 1)
         self.assertEqual(service.get_user_avatar_blob(1)['data'], before)

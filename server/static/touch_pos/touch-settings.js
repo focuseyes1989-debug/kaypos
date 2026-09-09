@@ -23,6 +23,11 @@
     Users:'Admin access is required. Leave the password blank when editing to keep the existing password.'
   };
   const esc=v=>ctx.escapeHtml(v);
+  const validAvatar=value=>/^data:image\/(png|jpeg);base64,/.test(value || '');
+  function avatarMarkup(user) {
+    const initials=String(user.full_name || user.username || '?').trim().split(/\s+/).slice(0,2).map(s=>Array.from(s)[0]).join('').toUpperCase();
+    return `<span class="settings-user-avatar" aria-hidden="true"><span>${esc(initials)}</span>${validAvatar(user.profile_image)?`<img src="${esc(user.profile_image)}" alt="" loading="lazy">`:''}</span>`;
+  }
   function applyTheme(settings) {
     const dark=settings.follow_system_theme==='1' ? matchMedia('(prefers-color-scheme: dark)').matches : settings.theme==='Dark';
     document.documentElement.dataset.touchTheme=dark?'dark':settings.theme==='Light Gray'?'gray':'light';
@@ -51,7 +56,8 @@
         const data=await ctx.api(`/api/settings/${path}`);
         if(request!==generation)return;
         const records=data[users?'users':'payment_types'] || [];
-        content.innerHTML=`<button type="button" class="settings-primary" data-add data-icon="add">Add ${users?'user':'payment type'}</button><div class="settings-records">${records.map(r=>`<div class="settings-record"><div><strong>${esc(users?r.username:r.name)}</strong><small>${esc(users?`${r.full_name} · ${r.role} · ${r.active?'Active':'Inactive'}`:r.active?'Active':'Inactive')}</small></div><div><button type="button" data-edit="${Number(r.id)}" data-icon="edit">Edit</button><button type="button" class="settings-danger" data-delete="${Number(r.id)}" data-icon="delete">Delete</button></div></div>`).join('') || '<p>No records yet.</p>'}</div><div data-editor></div>`;
+        content.innerHTML=`<button type="button" class="settings-primary" data-add data-icon="add">Add ${users?'user':'payment type'}</button><div class="settings-records">${records.map(r=>`<div class="settings-record"><div class="${users?'settings-user-info':''}">${users?avatarMarkup(r):''}<div><strong>${esc(users?r.username:r.name)}</strong><small>${esc(users?`${r.full_name} · ${r.role} · ${r.active?'Active':'Inactive'}`:r.active?'Active':'Inactive')}</small></div></div><div><button type="button" data-edit="${Number(r.id)}" data-icon="edit">Edit</button><button type="button" class="settings-danger" data-delete="${Number(r.id)}" data-icon="delete">Delete</button></div></div>`).join('') || '<p>No records yet.</p>'}</div><div data-editor></div>`;
+        content.querySelectorAll('.settings-user-avatar img').forEach(img=>img.onerror=()=>img.remove());
         content.querySelector('[data-add]').onclick=()=>editRecord(null,users,data.roles || []);
         content.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editRecord(records.find(r=>r.id===Number(b.dataset.edit)),users,data.roles || []));
         content.querySelectorAll('[data-delete]').forEach(b=>b.onclick=async()=>{
@@ -106,6 +112,7 @@
     else form.elements.name.maxLength=80;
     const dismiss=()=>{if(users)editor.close();host.innerHTML='';};
     editor.querySelector('[data-cancel]').onclick=dismiss;
+    if(users && validAvatar(record?.profile_image)){const preview=editor.querySelector('[data-profile-preview]');preview.src=record.profile_image;preview.hidden=false;}
     if(users){form.elements.profile_image.onchange=async()=>{try{const file=form.elements.profile_image.files[0], preview=editor.querySelector('[data-profile-preview]');preview.hidden=!file;if(file)preview.src=await imageValue(file);}catch(e){form.elements.profile_image.value='';editor.querySelector('[data-profile-preview]').hidden=true;editor.querySelector('[data-editor-error]').textContent=e.message;}};editor.showModal();}
     form.onsubmit=async e=>{
       e.preventDefault();if(busy || !form.reportValidity())return;setBusy(true);message('Saving…');
