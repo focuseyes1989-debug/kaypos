@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-load-more-ui1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-quick-received1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -212,6 +212,10 @@
             <button type="button" data-checkout-key="00">00</button><button type="button" data-checkout-key="0">0</button><button type="button" data-checkout-key=".">.</button>
             <button type="button" data-checkout-key="clear">Clear</button><button type="button" data-checkout-key="backspace" aria-label="Backspace">⌫</button>
           </div>
+          <div class="checkout-quick-received">
+            <strong id="checkoutReceivedSuggestionsLabel">Quick received</strong>
+            <div id="checkoutReceivedSuggestions" role="group" aria-labelledby="checkoutReceivedSuggestionsLabel"></div>
+          </div>
         </div>
     </section>
   </div>
@@ -288,10 +292,10 @@
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js?v=20260909-load-more-ui1" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-load-more-ui1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-load-more-ui1" defer></script>
-  <script src="/static/touch_pos/touch-scanner.js?v=20260909-load-more-ui1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-load-more-ui1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-quick-received1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-quick-received1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-quick-received1" defer></script>
+  <script src="/static/touch_pos/touch-scanner.js?v=20260909-quick-received1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-quick-received1" defer></script>
 </body>
 </html>

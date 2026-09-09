@@ -354,7 +354,30 @@
       toast(error.message);
     }
   }
+  function suggestedReceivedAmounts(total) {
+    if (!Number.isFinite(total) || total <= 0) return [];
+    const step = total < 5000 ? 1000 : total < 10000 ? 5000 : 10000;
+    return [...new Set([total, Math.ceil(total / step) * step, 500, 1000, 5000, 10000])]
+      .filter(amount => amount >= total).sort((a, b) => a - b);
+  }
+  function renderReceivedSuggestions() {
+    const container = document.querySelector('#checkoutReceivedSuggestions');
+    if (!container) return;
+    const {total, received} = checkoutTotals();
+    container.innerHTML = suggestedReceivedAmounts(total).map(amount =>
+      `<button type="button" data-received-amount="${amount}" aria-pressed="${received === amount}">${money(amount)} Ks</button>`
+    ).join('');
+    container.querySelectorAll('[data-received-amount]').forEach(button => {
+      button.addEventListener('click', () => {
+        const input = document.querySelector('#checkoutReceived');
+        input.value = button.dataset.receivedAmount;
+        activateCheckoutKeypad(input);
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+      });
+    });
+  }
   function renderCheckoutSummary() {
+    renderReceivedSuggestions();
     const customer = selectedCheckoutCustomer();
     const mode = document.querySelector('#checkoutSaleMode').value;
     const totals = checkoutTotals();
