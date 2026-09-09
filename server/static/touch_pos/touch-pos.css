@@ -2382,3 +2382,9 @@ html[data-touch-theme=dark] #touchLocations .receipt-tabs button[aria-pressed=tr
 html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-color:#7f3944;background:#402630}
 @media(max-width:560px){#touchLocations .receipt-tabs{width:100%}#touchLocations .receipt-page-head{flex-wrap:wrap}#touchLocations .customer-row{flex-direction:row;flex-wrap:wrap}}
 #touchLocations .receipt-page-head>.customer-actions{display:flex;align-items:center;gap:8px}
+
+/* Reset login button dimensions inside Locations actions. */
+#touchLocations button{height:48px;min-height:48px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;line-height:1.35;margin:0}
+#touchLocations button.sign-in{width:auto;margin:0;padding:0 16px;background:var(--blue);border:1px solid var(--blue);color:#fff;font-weight:600}
+#touchLocations .customer-dialog footer{align-items:center}
+#touchLocations .customer-dialog footer button{min-width:100px;flex:0 0 auto}
