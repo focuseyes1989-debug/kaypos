@@ -4,7 +4,7 @@ const receipt={invoice_no:'TEST-001',created_at:'2026-09-09 12:00',total:945,dis
 for(const [value,expected] of [['0','80'],['1','58'],['2','a4'],['bad','80']])assert.equal(paper(value),expected);
 for(const format of ['58','80','a4']){
  const html=documentHtml(receipt,undefined,format);
- assert.ok(html.includes(format==='a4'?'size:A4':format==='58'?'width:48mm':'width:72mm'));
+ assert.ok(html.includes(format==='a4'?'size:A4':format==='58'?'width:44mm':'width:64mm'));
  assert.ok(html.includes('KAY &amp; POS'));assert.ok(!html.includes('<script>'));
  assert.ok(html.includes('45 Ks'));assert.ok(html.includes('55 Ks'));assert.ok(!html.includes('Walk-in Customer'));
 }
@@ -12,3 +12,13 @@ const zero=documentHtml({...receipt,total:0,discount_amount:1000},0,'58');assert
 const credit=documentHtml({...receipt,payment_type:'Credit',balance_amount:445},500,'80');assert.ok(credit.includes('Credit balance'));assert.ok(credit.includes('445 Ks'));
 const image=documentHtml({...receipt,receipt_settings:{shop_logo_image:'javascript:alert(1)'}},1000,'80');assert.ok(!image.includes('<img'));
 console.log('Receipt paper sizes, escaping, tax, zero totals, credit and image validation passed.');
+
+for (const size of ['58','80','a4']) {
+ const noCharges=documentHtml({...receipt,total:1000,discount_amount:0,tax_amount:0},1000,size);
+ assert.ok(!noCharges.includes('<span>Discount</span>'));
+ assert.ok(!noCharges.includes('<span>Tax</span>'));
+ const charges=documentHtml({...receipt,total:945,discount_amount:100,tax_amount:45},1000,size);
+ assert.ok(charges.includes('<span>Discount</span>'));
+ assert.ok(charges.includes('<span>Tax</span>'));
+}
+console.log('Zero discount/tax hidden; nonzero charges preserved in all paper sizes.');
