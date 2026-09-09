@@ -1881,3 +1881,14 @@ html[data-touch-theme=dark] .settings-nav-group img{filter:invert(1)}
 .touch-expenses .expense-filter-actions button{min-height:48px}
 @media(max-width:800px){.touch-expenses .expense-filters.settings-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.touch-expenses .expense-filters.settings-form{grid-template-columns:minmax(0,1fr)}}
+
+/* Shared action sizing across Touch pages and dialogs. */
+:root{--touch-action-height:48px}
+:is(.settings-save,.settings-record,.settings-heading,.expense-head-actions,.expense-filter-actions,.expense-row-actions,.expense-pagination,.expense-presets,.manager-actions,.manager-row-actions,.checkout-actions,.cart-actions,.receipt-detail-actions,.receipt-refund,.receipt-pagination,.inventory-stock-form,.movement-filters,.movement-card,.receipt-print-actions) button,
+button:is(.settings-primary,.settings-danger,.primary-action,.manager-delete,.receipt-apply,[data-edit],[data-delete],[data-cancel],[data-refund-open],[data-refund-submit],[data-reprint-receipt]){
+ box-sizing:border-box;height:var(--touch-action-height)!important;min-height:var(--touch-action-height)!important;max-height:none;padding-top:0!important;padding-bottom:0!important;line-height:1.4;align-self:center;white-space:nowrap
+}
+.touch-expenses .expense-dialog .expense-editor-body.settings-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;align-items:start}
+.touch-expenses .expense-dialog .expense-editor-body>label{min-width:0}
+.touch-expenses .expense-dialog .expense-editor>.settings-save{padding:12px 18px;bottom:0}
+@media(max-width:560px){.touch-expenses .expense-dialog .expense-editor-body.settings-form{grid-template-columns:minmax(0,1fr)}}
