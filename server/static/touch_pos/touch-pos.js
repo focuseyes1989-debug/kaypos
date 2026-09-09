@@ -283,7 +283,7 @@
   function showReceipt(receipt, paid) {
     document.querySelector('#receiptCompletionStatus').textContent = '';
     activePrintReceipt = {receipt, paid};
-    document.querySelector('#receiptPaper').value = window.KayTouchReceipt.paper(receipt.receipt_settings?.receipt_paper_size ?? checkoutSettings.receipt_paper_size);
+    document.querySelector('#receiptPaper').value = window.KayLocalPrinter.paper(window.KayLocalPrinter.settings());
     updateReceiptPreview();
     const modal = document.querySelector('#receiptModal'), total = Number(receipt.total || cartTotals().total || 0);
     document.querySelector('#receiptInvoice').textContent = receipt.invoice_no || '';
@@ -299,17 +299,20 @@
     modal.hidden = false;
   }
   async function runSaleCompletionActions(receipt, paid) {
-    const settings = receipt.receipt_settings || {};
+    const settings = window.KayLocalPrinter.settings();
     const enabled = value => value === '1' || value === true;
     const messages = [];
+    const completionKey = `sale:${receipt.id || receipt.invoice_no || window.KayLocalPrinter.jobKey()}:${receipt.created_at || ""}`;
+    document.querySelector('#printReceiptButton').disabled = true;
     if (enabled(settings.touch_auto_open_drawer)) {
-      try { await api('/api/cashdrawer/open', {method: 'POST'}); }
+      try { await window.KayLocalPrinter.drawer(completionKey, settings); }
       catch (error) { messages.push(`Sale saved. Cash drawer could not open: ${error.message}`); }
     }
     if (enabled(settings.touch_auto_print_receipt)) {
-      try { await window.KayTouchReceipt.print(receipt, paid, document.querySelector('#receiptPaper').value); }
-      catch (error) { messages.push(`Sale saved. Print dialog could not open: ${error.message}. Use Print Receipt to retry.`); }
+      try { await window.KayLocalPrinter.print(receipt, paid, document.querySelector('#receiptPaper').value, completionKey, settings); }
+      catch (error) { messages.push(`Sale saved. Receipt could not be sent to the local printer: ${error.message}. Use Print Receipt to retry.`); }
     }
+    document.querySelector('#printReceiptButton').disabled = false;
     document.querySelector('#receiptCompletionStatus').textContent = messages.join(' ');
   }
   async function checkoutCashSale() {
@@ -1272,12 +1275,17 @@
   document.querySelector('#productChoiceModal').addEventListener('keydown', event => { if (event.key === 'Enter') confirmChoice(); });
   document.addEventListener('keydown', handleServiceKeydown);
   document.querySelector('#closeReceipt').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; });
+  document.querySelector('#browserPrintReceiptButton').addEventListener('click', async () => {
+    if(!activePrintReceipt)return;
+    try{await window.KayTouchReceipt.print(activePrintReceipt.receipt,activePrintReceipt.paid,document.querySelector('#receiptPaper').value);}
+    catch(error){toast(error.message);}
+  });
   document.querySelector('#receiptPaper').addEventListener('change', updateReceiptPreview);
   document.querySelector('#printReceiptButton').addEventListener('click', async () => {
     if (!activePrintReceipt) return;
     const button = document.querySelector('#printReceiptButton'); button.disabled = true;
-    try { await window.KayTouchReceipt.print(activePrintReceipt.receipt, activePrintReceipt.paid, document.querySelector('#receiptPaper').value); }
-    catch (error) { toast(`Could not open print dialog: ${error.message}`); }
+    try { await window.KayLocalPrinter.print(activePrintReceipt.receipt, activePrintReceipt.paid, document.querySelector('#receiptPaper').value); toast('Receipt sent to local printer.'); }
+    catch (error) { toast(`Could not print locally: ${error.message}`); }
     finally { button.disabled = false; }
   });
   document.querySelector('#newSale').addEventListener('click', () => { document.querySelector('#receiptModal').hidden = true; document.querySelector('#productSearch').focus(); });

@@ -23,13 +23,13 @@ class TouchPosPhaseW7Tests(unittest.TestCase):
         self.assertIn("Thank you.", script)
         self.assertIn("document.querySelector('#printReceipt').textContent = receiptLines(receipt, paid)", script)
 
-    def test_print_button_uses_browser_print_only(self):
+    def test_print_button_supports_local_and_browser_fallback(self):
         script = (STATIC / "touch-pos.js").read_text(encoding="utf-8")
         self.assertIn("window.KayTouchReceipt.print(", script)
         renderer = (STATIC / "touch-receipt.js").read_text(encoding="utf-8")
         self.assertIn("frame.contentWindow.print()", renderer)
-        self.assertNotIn("printer", script.lower())
-        self.assertNotIn("cash drawer", script.lower())
+        self.assertIn("window.KayLocalPrinter.print(", script)
+        self.assertIn("browserPrintReceiptButton", script)
 
     def test_print_css_outputs_receipt_without_app_shell(self):
         css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")

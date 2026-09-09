@@ -4,7 +4,7 @@
   const sections=['Appearance','Printer','Payment Types','Tax and Discount','Business and Branding','Receipt Text','Regional','Users'];
   const fields={
     Appearance:[['theme','Theme','select',['Light','Light Gray','Dark']],['follow_system_theme','Follow system theme','checkbox']],
-    Printer:[['touch_auto_open_drawer','Open cash drawer automatically after completing a sale','checkbox'],['touch_auto_print_receipt','Print receipt automatically after completing a sale','checkbox'],['receipt_printer_name','App receipt printer name','text'],['receipt_paper_size','Receipt paper','select',[['0','80mm'],['1','58mm'],['2','A4']]],['receipt_print_quality','Print quality (DPI)','select',['203','300','600']],['receipt_cash_drawer_use_receipt_printer','Use receipt printer for cash drawer (App)','checkbox']],
+    Printer:[['touch_auto_open_drawer','Open cash drawer automatically after completing a sale','checkbox'],['touch_auto_print_receipt','Print receipt automatically after completing a sale','checkbox'],['receipt_printer_name','App receipt printer name','text'],['receipt_paper_size','Receipt paper','select',[['0','80mm'],['1','58mm'],['2','A4']]],['receipt_print_quality','Print quality (DPI)','select',['203','300','600']]],
     'Tax and Discount':[['tax_enabled','Enable tax','checkbox'],['tax_rate','Tax rate (%)','number'],['discount_enabled','Enable discount','checkbox'],['discount_type','Discount type','select',[['percentage','Percentage'],['fixed','Fixed amount'],['manual','Manual']]],['discount_value','Discount value','number']],
     'Business and Branding':[['shop_name','Business name','text'],['shop_phone','Phone','text'],['shop_address','Address','textarea'],['shop_qr_name','QR payment name','text'],['shop_logo_image','Business logo','image'],['shop_qr_code_image','Payment QR image','image']],
     'Receipt Text':[['receipt_header','Receipt header','textarea'],['receipt_footer','Receipt footer','textarea'],['shop_footer_message','Footer message','textarea'],['receipt_thank_you_text','Thank you text','text'],['show_customer_name','Show customer name','checkbox']],
@@ -12,7 +12,7 @@
   };
   const notes={
     Appearance:'Shared with Kay POS App. The selected theme also applies to this Touch browser.',
-    Printer:'Choose a Server PC printer for the cash drawer. Receipt printing uses the printer selected in your browser print dialog.',
+    Printer:'Choose a printer installed on this PC. Keep KAY Touch Local Print Bridge running for printing and cash drawer control.',
     'Payment Types':'Manage payment names shared by Kay POS App, Lite and Touch.',
     'Tax and Discount':'Shared tax and discount defaults. Review the checkout totals before completing a sale.',
     'Business and Branding':'Business details and images are stored in the shared database. Upload PNG or JPEG images up to 2 MB.',
@@ -61,7 +61,8 @@
         });
         return;
       }
-      content.innerHTML=`<form class="settings-form">${section==='Printer' ? `<fieldset class="simple-printer"><legend>Receipt Printer</legend><div class="printer-picker"><label>Windows printer (Server PC)<select name="receipt_printer_name"><option value="${esc(values.receipt_printer_name || '')}">${esc(values.receipt_printer_name || 'Select a printer…')}</option></select></label><button type="button" data-refresh-printers>Refresh Printers</button></div>${fields.Printer.filter(f=>f[0].startsWith('touch_auto_')).map(f=>fieldMarkup(f)).join('')}<small data-printer-status role="status">Loading printers…</small><details><summary>Paper and advanced settings</summary>${fields.Printer.filter(f=>!f[0].startsWith('touch_auto_') && f[0]!=='receipt_printer_name').map(f=>fieldMarkup(f)).join('')}</details></fieldset>` : fields[section].map(f=>fieldMarkup(f)).join('')}<div class="settings-save"><button type="submit" class="settings-primary">Save ${esc(section)}</button><span>${section==='Printer' ? 'Saved for all Touch devices.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
+      if(section==='Printer')values={...values,...window.KayLocalPrinter.settings()};
+      content.innerHTML=`<form class="settings-form">${section==='Printer' ? `<fieldset class="simple-printer"><legend>Receipt Printer</legend><div class="printer-picker"><label>Windows printer (This PC)<select name="receipt_printer_name"><option value="${esc(values.receipt_printer_name || '')}">${esc(values.receipt_printer_name || 'Select a printer…')}</option></select></label><button type="button" data-refresh-printers>Refresh Printers</button></div>${fields.Printer.filter(f=>f[0].startsWith('touch_auto_')).map(f=>fieldMarkup(f)).join('')}<small data-printer-status role="status">Local bridge not connected.</small><details ${values.bridge_key ? '' : 'open'}><summary>Local bridge setup</summary><p>Run Start_Touch_Print_Bridge.cmd on this PC. Set its Touch website address to <strong>${esc(location.origin)}</strong>, start it, and paste its pairing key below.</p><label>Pairing key<input type="password" name="bridge_key" autocomplete="off" value="${esc(values.bridge_key || '')}"></label><p>Click Refresh Printers to connect. Allow local network access if Chrome asks. Keep the bridge window open or minimized.</p></details><details><summary>Paper and advanced settings</summary>${fields.Printer.filter(f=>!f[0].startsWith('touch_auto_') && f[0]!=='receipt_printer_name').map(f=>fieldMarkup(f)).join('')}</details></fieldset>` : fields[section].map(f=>fieldMarkup(f)).join('')}<div class="settings-save"><button type="submit" class="settings-primary">${section==='Printer' ? 'Save Local Printer' : `Save ${esc(section)}`}</button><span>${section==='Printer' ? 'Saved only in this browser on this PC.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
       const form=content.querySelector('form');
       if(section==='Printer') {
         const refresh=form.querySelector('[data-refresh-printers]'), status=form.querySelector('[data-printer-status]'), select=form.elements.receipt_printer_name;
@@ -70,17 +71,17 @@
           const listRequest=++printerRequest;
           refresh.disabled=true;status.textContent='Loading printers…';
           try {
-            const data=await ctx.api('/api/settings/touch/printers');
+            const data=await window.KayLocalPrinter.printers({...values,bridge_key:form.elements.bridge_key.value.trim()});
             if(request!==generation || listRequest!==printerRequest)return;
             const selected=select.value, names=data.printers || [];
             select.innerHTML='<option value="">Select a printer…</option>'+names.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
             if(selected && !names.includes(selected))select.insertAdjacentHTML('beforeend',`<option value="${esc(selected)}">${esc(selected)} (unavailable)</option>`);
             select.value=selected;
-            status.textContent=`${names.length} Windows printer(s) available on Server PC.${selected && !names.includes(selected) ? ' Saved printer is unavailable.' : ''}`;
+            status.textContent=`${names.length} Windows printer(s) available on this PC.${selected && !names.includes(selected) ? ' Saved printer is unavailable.' : ''}`;
           }catch(error){if(request===generation)status.textContent=error.message;}
           finally{if(request===generation)refresh.disabled=busy;}
         };
-        refresh.onclick=loadPrinters;loadPrinters();
+        refresh.onclick=loadPrinters;if(values.bridge_key)loadPrinters();
       }
       form.querySelectorAll('input[type=file]').forEach(input=>input.onchange=async()=>{
         try{if(input.files[0]){const img=input.closest('.settings-image').querySelector('img');img.src=await imageValue(input.files[0]);img.hidden=false;form.elements[`clear_${input.name}`].checked=false;}}
@@ -97,6 +98,12 @@
               if(form.elements[`clear_${key}`].checked){update[key]='';update[key==='shop_logo_image'?'shop_logo':'shop_qr_code']='';}
               else if(input.files[0]){update[key]=await imageValue(input.files[0]);update[key==='shop_logo_image'?'shop_logo':'shop_qr_code']='';}
             } else update[key]=type==='checkbox'?(input.checked?'1':'0'):input.value;
+          }
+          if(section==='Printer') {
+            update.bridge_key=form.elements.bridge_key.value.trim();
+            if((update.touch_auto_print_receipt==='1' || update.touch_auto_open_drawer==='1') && (!update.receipt_printer_name || !update.bridge_key))throw new Error('Connect the local bridge and select a printer before enabling automatic actions.');
+            window.KayLocalPrinter.save(update);
+            values={...values,...update};ctx.toast('Local printer saved.');await renderSection();message('Saved on this PC.');return;
           }
           if(update.currency)update.currency_symbol={'Kyats (Ks)':'Ks','Dollar ($)':'$','Baht (B)':'B'}[update.currency];
           const data=await ctx.api('/api/settings/touch',{method:'PUT',body:JSON.stringify({settings:update})});
