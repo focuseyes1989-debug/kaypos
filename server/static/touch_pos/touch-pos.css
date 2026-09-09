@@ -353,21 +353,25 @@
   overflow:auto;
   padding:14px 16px;
 }
-.checkout-keypad-panel{display:grid;gap:10px;grid-column:1/-1}
-.checkout-keypad-panel>strong{font-size:13px;color:var(--muted)}
+#checkoutModal .checkout-modal{display:grid;grid-template-columns:minmax(0,680px) 300px;gap:14px;width:min(1008px,96vw);max-height:calc(100dvh - 30px);overflow:auto;background:transparent;box-shadow:none;border-radius:0;align-items:start}
+.checkout-main-panel{display:flex;flex-direction:column;min-width:0;background:var(--panel,#fff);border-radius:15px;overflow:hidden}
+.checkout-keypad-panel{display:grid;gap:14px;padding:16px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:15px}
+.checkout-keypad-panel>strong{font-size:14px;color:var(--ink)}
 .checkout-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.checkout-keypad button{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink);font-size:20px;font-weight:700;cursor:pointer}
+.checkout-keypad button{min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--panel,#fff);color:var(--ink);font-size:18px;font-weight:600;cursor:pointer}
 .checkout-keypad button:active{background:var(--blue);color:#fff}
-.checkout-keypad button[data-checkout-key="clear"]{grid-column:span 2;font-size:14px}
+.checkout-keypad button[data-checkout-key="clear"]{grid-column:span 2;font-size:14px;color:var(--bad)}
 .checkout-field input.keypad-active{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 20%,transparent)}
-#checkoutModal .checkout-modal{display:flex;flex-direction:column}
-#checkoutModal .receipt-head,#checkoutModal .checkout-actions{flex-shrink:0}
-#checkoutModal .checkout-body{min-height:0;max-height:none;overflow:auto}
-@media(min-width:1000px){
-  #checkoutModal .checkout-modal{width:min(1040px,96vw)}
-  #checkoutModal .checkout-body{grid-template-columns:minmax(220px,.9fr) minmax(260px,1fr) minmax(220px,.8fr)}
-  .checkout-keypad-panel{grid-column:auto}
-  .checkout-keypad button{min-height:54px}
+#checkoutModal .checkout-body{min-height:0;max-height:none;overflow:visible}
+@media(max-width:900px){
+  #checkoutModal .checkout-modal{grid-template-columns:minmax(0,1fr) 240px;gap:10px}
+  #checkoutModal .checkout-body{grid-template-columns:1fr}
+  #checkoutModal .checkout-summary>div{padding:7px 10px}
+  .checkout-keypad-panel{padding:12px;position:sticky;top:0}
+}
+@media(max-width:540px){
+  #checkoutModal .checkout-modal{grid-template-columns:minmax(0,1fr)}
+  .checkout-keypad-panel{position:static}
 }
 .checkout-form{
   display:grid;

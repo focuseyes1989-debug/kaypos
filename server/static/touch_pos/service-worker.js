@@ -1,8 +1,8 @@
-const CACHE = 'kay-pos-touch-w7-v58';
+const CACHE = 'kay-pos-touch-w7-v59';
 const SHELL = [
   '/touch-pos/',
-  '/static/touch_pos/touch-pos.css',
-  '/static/touch_pos/touch-pos.js',
+  '/static/touch_pos/touch-pos.css?v=20260909-checkout2',
+  '/static/touch_pos/touch-pos.js?v=20260909-checkout2',
   '/static/touch_pos/touch-settings.js',
   '/static/touch_pos/touch-expenses.js',
   '/static/touch_pos/manifest.webmanifest',
@@ -29,7 +29,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname === '/health') return;
   event.respondWith(fetch(event.request).then(response => {
-    if (response.ok && SHELL.includes(url.pathname)) caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
+    if (response.ok && SHELL.includes(url.pathname + url.search)) caches.open(CACHE).then(cache => cache.put(event.request, response.clone()));
     return response;
   }).catch(() => caches.match(event.request)));
 });
