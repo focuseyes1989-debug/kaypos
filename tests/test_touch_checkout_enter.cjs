@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const s=fs.readFileSync('server/static/touch_pos/touch-pos.js','utf8');
+let saves=0,prints=0,native=false;
+const received={id:'checkoutReceived'},other={id:'cancelCheckout'};
+const save={disabled:false,click(){saves++}},print={disabled:false,click(){prints++}};
+const checkout={hidden:false,contains:c=>[received,other,save].includes(c)},receipt={hidden:true,contains:c=>c===print};
+const ctx={token:'session',appView:{hidden:false},document:{querySelector:q=>({'#checkoutModal':checkout,'#receiptModal':receipt,'#saveCheckout':save,'#printReceiptButton':print,'dialog[open]':native}[q]),querySelectorAll:()=>[checkout,receipt].filter(x=>!x.hidden)}};
+vm.createContext(ctx);vm.runInContext(s.slice(s.indexOf('  function handleCheckoutEnter'),s.indexOf("  document.addEventListener('keydown', handleCheckoutEnter")),ctx);
+const run=(control,extra={})=>ctx.handleCheckoutEnter({key:'Enter',target:{closest:()=>control},preventDefault(){},stopImmediatePropagation(){},...extra});
+run(received);assert.equal(saves,1);run(received,{repeat:true});save.disabled=true;run(received);save.disabled=false;run(other);assert.equal(saves,1);
+checkout.hidden=true;receipt.hidden=false;run(received);assert.equal(prints,1);run(print,{repeat:true});print.disabled=true;run(print);assert.equal(prints,1);print.disabled=false;native=true;run(print);assert.equal(prints,1);
+console.log('Checkout Enter: save, subsequent receipt print, repeat/disabled, other controls and nested dialog guards passed.');

@@ -448,6 +448,7 @@
     modal.hidden = false;
     await loadCheckoutCustomers();
     renderCheckoutSummary();
+    document.querySelector('#checkoutReceived').focus();
     activateCheckoutKeypad(document.querySelector('#checkoutReceived'));
   }
   function closeCheckout() {
@@ -1334,6 +1335,22 @@
     return Boolean(token) && !appView.hidden && !document.querySelector('.workspace').hidden &&
       !document.querySelector('.modal-backdrop:not([hidden]), dialog[open]') && !sideMenu.classList.contains('open');
   }
+  function handleCheckoutEnter(event) {
+    if (event.key !== 'Enter' || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || !token || appView.hidden) return;
+    if (document.querySelector('dialog[open]')) return;
+    const checkout = document.querySelector('#checkoutModal');
+    const receipt = document.querySelector('#receiptModal');
+    const modal = !checkout.hidden ? checkout : !receipt.hidden ? receipt : null;
+    if (!modal || [...document.querySelectorAll('.modal-backdrop:not([hidden])')].some(item => item !== modal)) return;
+    const button = document.querySelector(modal === checkout ? '#saveCheckout' : '#printReceiptButton');
+    const control = event.target?.closest('button,input,select,textarea,a,[contenteditable]:not([contenteditable="false"])');
+    // Preserve Enter for other controls (Cancel, paper selection, etc.).
+    if (control && modal.contains(control) && control !== button && !(modal === checkout && control.id === 'checkoutReceived')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!event.repeat && !button.disabled) button.click();
+  }
+  document.addEventListener('keydown', handleCheckoutEnter, true);
   let checkoutShortcutPending = false;
   async function handleSaleShortcut(event) {
     if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing) return;

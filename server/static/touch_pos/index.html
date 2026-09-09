@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="/assets/kay/kay_128x128.png">
   <link rel="manifest" href="/static/touch_pos/manifest.webmanifest">
-  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-sale-shortcuts1">
+  <link rel="stylesheet" href="/static/touch_pos/touch-pos.css?v=20260909-checkout-enter1">
   <title>KAY POS Touch</title>
 </head>
 <body>
@@ -175,7 +175,7 @@
         <div class="receipt-preview-panel"><div class="receipt-preview-heading"><strong>Receipt preview</strong><span id="receiptPreviewSize">80mm</span></div><div class="receipt-preview-sheet"><iframe id="receiptPreview" title="Receipt preview"></iframe></div></div>
       </div>
       <div id="printReceipt" class="print-receipt"></div>
-      <div class="receipt-actions"><span>Your printer opens in the next dialog.</span><button id="newSale" type="button" data-icon="check_circle">Done</button><button id="printReceiptButton" class="sign-in" type="button" data-icon="print">Print Receipt</button></div>
+      <div class="receipt-actions"><span>Your printer opens in the next dialog.</span><button id="newSale" type="button" data-icon="check_circle">Done</button><button id="printReceiptButton" aria-keyshortcuts="Enter" title="Print Receipt (Enter)" class="sign-in" type="button" data-icon="print">Print Receipt</button></div>
     </section>
   </div>
   <div id="productChoiceModal" class="modal-backdrop" hidden>
@@ -201,7 +201,7 @@
         </div>
 
       </div>
-      <div class="checkout-actions"><button id="cancelCheckout" type="button" data-icon="cancel">Cancel</button><button id="saveCheckout" class="sign-in" type="button" data-icon="save">Save Sale</button></div>
+      <div class="checkout-actions"><button id="cancelCheckout" type="button" data-icon="cancel">Cancel</button><button id="saveCheckout" aria-keyshortcuts="Enter" title="Save Sale (Enter)" class="sign-in" type="button" data-icon="save">Save Sale</button></div>
       </div>
         <div class="checkout-keypad-panel">
           <strong id="checkoutKeypadTarget">Keypad · Received</strong>
@@ -292,10 +292,10 @@
   </div>
   <div id="workspaceToast" class="workspace-toast" role="status" aria-live="polite"></div>
   <noscript>KAY POS Touch requires JavaScript.</noscript>
-  <script src="/static/touch_pos/touch-expenses.js?v=20260909-sale-shortcuts1" defer></script>
-  <script src="/static/touch_pos/touch-settings.js?v=20260909-sale-shortcuts1" defer></script>
-  <script src="/static/touch_pos/touch-receipt.js?v=20260909-sale-shortcuts1" defer></script>
-  <script src="/static/touch_pos/touch-scanner.js?v=20260909-sale-shortcuts1" defer></script>
-  <script src="/static/touch_pos/touch-pos.js?v=20260909-sale-shortcuts1" defer></script>
+  <script src="/static/touch_pos/touch-expenses.js?v=20260909-checkout-enter1" defer></script>
+  <script src="/static/touch_pos/touch-settings.js?v=20260909-checkout-enter1" defer></script>
+  <script src="/static/touch_pos/touch-receipt.js?v=20260909-checkout-enter1" defer></script>
+  <script src="/static/touch_pos/touch-scanner.js?v=20260909-checkout-enter1" defer></script>
+  <script src="/static/touch_pos/touch-pos.js?v=20260909-checkout-enter1" defer></script>
 </body>
 </html>
