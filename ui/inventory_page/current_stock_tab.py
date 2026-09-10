@@ -168,7 +168,7 @@ class CurrentStockTab(QWidget):
 
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        image_label.setFixedSize(50, 50)
+        image_label.setFixedSize(44, 44)
         image_label.setScaledContents(False)
         image_label.setStyleSheet("""
             QLabel {
@@ -181,7 +181,7 @@ class CurrentStockTab(QWidget):
 
         try:
             from ui.products_page.product_table import load_thumbnail
-            thumb = load_thumbnail(image_path or "", 50)
+            thumb = load_thumbnail(image_path or "", 44)
         except Exception:
             thumb = None
 
@@ -487,7 +487,7 @@ class CurrentStockTab(QWidget):
         
         header = self.stock_table.horizontalHeader()
         header.setSectionResizeMode(image_col, QHeaderView.ResizeMode.Fixed)
-        self.stock_table.setColumnWidth(image_col, 66)
+        self.stock_table.setColumnWidth(image_col, 56)
         header.setSectionResizeMode(name_col, QHeaderView.ResizeMode.Stretch)
         self.stock_table.setColumnWidth(name_col, 280)
         for col in range(3, len(headers) - 1):

@@ -12,6 +12,7 @@ from utils.language import lang
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 import csv
 from datetime import datetime
 from loguru import logger
@@ -34,8 +35,7 @@ class OutstandingReportDialog(QDialog):
         )
         
         self.setWindowTitle("Outstanding Debts Report")
-        self.setMinimumSize(960, 620)
-        self.resize(1100, 720)
+        fit_dialog_to_available_screen(self, 1080, 640, 900, 520)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -46,8 +46,8 @@ class OutstandingReportDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(18)
-        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(10)
+        layout.setContentsMargins(18, 16, 18, 16)
 
         # Report heading
         self.header_frame = QFrame()
@@ -65,7 +65,7 @@ class OutstandingReportDialog(QDialog):
 
         # Summary cards - Using SummaryCardWidget with SVG icons
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(14)
+        card_layout.setSpacing(8)
 
         # ✅ Total Outstanding Card with SVG icon
         self.total_card = SummaryCardWidget(
@@ -76,7 +76,7 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.total_card.set_icon("money_off", is_svg=True, size=(24, 24))
-        self.total_card.setMinimumHeight(126)
+        self.total_card.setMinimumHeight(104)
         card_layout.addWidget(self.total_card)
 
         # ✅ Overdue Amount Card with SVG icon
@@ -88,7 +88,7 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.overdue_card.set_icon("warning", is_svg=True, size=(24, 24))
-        self.overdue_card.setMinimumHeight(126)
+        self.overdue_card.setMinimumHeight(104)
         card_layout.addWidget(self.overdue_card)
 
         # ✅ Customers with Debt Card with SVG icon
@@ -100,7 +100,7 @@ class OutstandingReportDialog(QDialog):
             icon_is_svg=True
         )
         self.customer_count_card.set_icon("groups", is_svg=True, size=(24, 24))
-        self.customer_count_card.setMinimumHeight(126)
+        self.customer_count_card.setMinimumHeight(104)
         card_layout.addWidget(self.customer_count_card)
 
         layout.addLayout(card_layout)
@@ -147,7 +147,7 @@ class OutstandingReportDialog(QDialog):
         button_frame.setStyleSheet(self._get_button_frame_style(colors))
         
         btn_layout = QHBoxLayout(button_frame)
-        btn_layout.setSpacing(12)
+        btn_layout.setSpacing(8)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         
         # ✅ Export button with SVG icon

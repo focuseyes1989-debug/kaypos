@@ -14,6 +14,7 @@ from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.no_wheel_spinbox import NoWheelDoubleSpinBox  # ✅ Import custom spinbox
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.design_system.dialog_styles import modern_table_stylesheet
+from ui.responsive_utils import fit_dialog_to_available_screen
 
 
 class ExpenseBudgetDialog(QDialog):
@@ -31,8 +32,7 @@ class ExpenseBudgetDialog(QDialog):
             Qt.WindowType.WindowMaximizeButtonHint
         )
         
-        self.setMinimumSize(1100, 700)
-        self.resize(1200, 750)
+        fit_dialog_to_available_screen(self, 1080, 640, 940, 540)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -40,12 +40,12 @@ class ExpenseBudgetDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
 
         # ========== MONTH/YEAR SELECTION ==========
         selection_layout = QHBoxLayout()
-        selection_layout.setSpacing(15)
+        selection_layout.setSpacing(10)
         
         select_label = QLabel("Select Month/Year:")
         select_label.setStyleSheet(self._get_label_style())
@@ -81,7 +81,7 @@ class ExpenseBudgetDialog(QDialog):
 
         # ========== SUMMARY CARDS (Using SummaryCardWidget with SVG Icons) ==========
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(12)
+        card_layout.setSpacing(8)
         
         # Total Budget Card - Using SVG icon
         self.total_card = SummaryCardWidget(
@@ -146,7 +146,7 @@ class ExpenseBudgetDialog(QDialog):
         ])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        self.table.setMinimumHeight(400)
+        self.table.setMinimumHeight(300)
         
         # Apply table style
         self._update_table_style()
@@ -154,13 +154,13 @@ class ExpenseBudgetDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        self.table.setColumnWidth(1, 160)
+        self.table.setColumnWidth(1, 140)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
-        self.table.verticalHeader().setDefaultSectionSize(50)
+        self.table.verticalHeader().setDefaultSectionSize(42)
         
         self.scroll_area.setWidget(self.table)
         table_container_layout.addWidget(self.scroll_area)
@@ -168,7 +168,7 @@ class ExpenseBudgetDialog(QDialog):
 
         # ========== BUTTONS ==========
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        btn_layout.setSpacing(8)
         
         btn_layout.addStretch()
         

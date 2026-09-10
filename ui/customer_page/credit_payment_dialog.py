@@ -13,6 +13,7 @@ from services.credit_service import CreditService
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 import os
@@ -30,7 +31,7 @@ class CreditPaymentDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle(f"Payment Collection - {customer_name}")
-        self.setMinimumSize(950, 700)
+        fit_dialog_to_available_screen(self, 960, 640, 860, 540)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -38,12 +39,12 @@ class CreditPaymentDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 14, 14, 14)
 
         # ========== Customer Information Cards (SummaryCardWidget) - 4 Cards in a Row ==========
         info_layout = QHBoxLayout()
-        info_layout.setSpacing(12)
+        info_layout.setSpacing(8)
         
         # ✅ Customer Name Card with SVG icon
         self.customer_card = SummaryCardWidget(
@@ -94,7 +95,7 @@ class CreditPaymentDialog(QDialog):
 
         # ========== 2-Column Layout: LEFT = Payment Form, RIGHT = Invoice Table ==========
         two_col_layout = QHBoxLayout()
-        two_col_layout.setSpacing(15)
+        two_col_layout.setSpacing(10)
         
         # ========== LEFT COLUMN: Payment Details (Form) ==========
         left_column = QVBoxLayout()
@@ -105,9 +106,9 @@ class CreditPaymentDialog(QDialog):
         payment_group.setStyleSheet(self._get_groupbox_style(colors))
         
         payment_layout = QFormLayout()
-        payment_layout.setVerticalSpacing(14)
-        payment_layout.setHorizontalSpacing(15)
-        payment_layout.setContentsMargins(15, 15, 15, 15)
+        payment_layout.setVerticalSpacing(9)
+        payment_layout.setHorizontalSpacing(10)
+        payment_layout.setContentsMargins(12, 10, 12, 10)
 
         # Amount
         self.amount_input = QDoubleSpinBox()
@@ -141,7 +142,7 @@ class CreditPaymentDialog(QDialog):
 
         # Note
         self.note = QTextEdit()
-        self.note.setMaximumHeight(80)
+        self.note.setMaximumHeight(64)
         self.note.setPlaceholderText("Payment note (optional)")
         self.note.setStyleSheet(self._get_text_edit_style(colors))
         payment_layout.addRow(self._create_label("📝 Note:"), self.note)
@@ -176,7 +177,7 @@ class CreditPaymentDialog(QDialog):
         self._update_table_style(colors)
         
         # Row height
-        self.invoice_table.verticalHeader().setDefaultSectionSize(45)
+        self.invoice_table.verticalHeader().setDefaultSectionSize(40)
         self.invoice_table.verticalHeader().setVisible(False)
         
         header = self.invoice_table.horizontalHeader()
@@ -200,8 +201,8 @@ class CreditPaymentDialog(QDialog):
         btn_frame.setStyleSheet(self._get_button_frame_style(colors))
         
         btn_layout = QHBoxLayout(btn_frame)
-        btn_layout.setSpacing(12)
-        btn_layout.setContentsMargins(15, 8, 15, 8)
+        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(12, 6, 12, 6)
         
         # Total outstanding summary
         self.total_summary_label = QLabel("Total Outstanding: 0")

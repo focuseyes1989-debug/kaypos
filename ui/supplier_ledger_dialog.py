@@ -15,6 +15,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.design_system.dialog_styles import modern_table_stylesheet
+from ui.responsive_utils import fit_dialog_to_available_screen
 import os
 
 
@@ -29,7 +30,7 @@ class SupplierLedgerDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle(f"Supplier Ledger - {supplier_name}" if supplier_name else "Supplier Ledger")
-        self.setMinimumSize(1000, 650)
+        fit_dialog_to_available_screen(self, 1000, 620, 900, 520)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -37,8 +38,8 @@ class SupplierLedgerDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(14, 14, 14, 14)
 
         # Filter section with DateRangeWidget and ModernButton
         filter_frame = QFrame()
@@ -47,8 +48,8 @@ class SupplierLedgerDialog(QDialog):
         filter_frame.setStyleSheet(self._get_filter_frame_style(colors))
         
         filter_layout = QHBoxLayout(filter_frame)
-        filter_layout.setSpacing(12)
-        filter_layout.setContentsMargins(15, 8, 15, 8)
+        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(12, 6, 12, 6)
         
         # Date Range Widget
         date_label = QLabel("📅 Date:")
@@ -78,7 +79,7 @@ class SupplierLedgerDialog(QDialog):
 
         # Summary cards - Using SummaryCardWidget with SVG icons
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(8)
         
         # ✅ Total Purchases Card
         self.total_purchases_card = SummaryCardWidget(
@@ -146,8 +147,8 @@ class SupplierLedgerDialog(QDialog):
         button_frame.setStyleSheet(self._get_button_frame_style(colors))
         
         btn_layout = QHBoxLayout(button_frame)
-        btn_layout.setSpacing(12)
-        btn_layout.setContentsMargins(15, 8, 15, 8)
+        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(12, 6, 12, 6)
         
         # ✅ Print button with SVG icon
         self.btn_print = ModernButton(" Print Report", ModernButton.SECONDARY)

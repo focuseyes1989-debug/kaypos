@@ -148,4 +148,13 @@ Implemented on 2026-09-10.
 - Tightened Print, Restaurant, Regional, Users, and Database settings forms and action rows.
 - Kept settings content scrollable while making key Save/action buttons less likely to fall below the visible area.
 
-Phase 6 should do visual QA at 1366x768 and target any remaining page-specific clipping found during manual testing.
+## Phase 6 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Re-scanned fixed sizes after the compact passes and targeted remaining high-risk secondary dialogs.
+- Made Expense Budget, Credit Payment, Supplier Ledger, and Outstanding Debts dialogs use available-screen-aware sizing.
+- Tightened internal spacing, form margins, summary card gaps, note height, and table row heights in those dialogs.
+- Reduced Current Stock thumbnail and image-column sizing so compact stock rows do not clip image cells.
+
+Next QA should be a manual 1366x768 run through Sales, Products, Inventory, Customers, Receipts, Expense, and Settings to catch any real-device edge cases.
