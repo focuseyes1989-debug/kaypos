@@ -1,4 +1,4 @@
-const CACHE = 'kay-pos-touch-w9-v153';
+const CACHE = 'kay-pos-touch-w10-v154';
 const SHELL = [
   '/static/touch_pos/touch-locations.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-suppliers.js?v=20260910-cart-footer-panel1',
@@ -6,7 +6,7 @@ const SHELL = [
   '/static/touch_pos/touch-dashboard.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-scanner.js?v=20260910-cart-footer-panel1',
   '/touch-pos/',
-  '/static/touch_pos/touch-pos.css?v=20260910-phase8-touch-density',
+  '/static/touch_pos/touch-pos.css?v=20260910-phase10-price-fit',
   '/static/touch_pos/touch-pos.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-settings.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-receipt.js?v=20260910-cart-footer-panel1',

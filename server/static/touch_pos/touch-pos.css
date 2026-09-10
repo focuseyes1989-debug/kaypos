@@ -3039,3 +3039,51 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   border-color:#60a5fa;
   color:#eff6ff;
 }
+
+/* Phase 10: keep product prices fully visible in maximized desktop windows. */
+@media screen and (min-width:1366px){
+  .catalog .product-card{
+    min-height:190px;
+    grid-template-rows:88px minmax(102px,auto);
+  }
+  .catalog .product-info{
+    align-content:start;
+    gap:4px;
+    min-height:102px;
+    padding:8px 8px 12px;
+  }
+  .catalog .product-name{
+    min-height:32px;
+  }
+  .catalog .product-category{
+    flex:0 0 auto;
+  }
+  .catalog .product-price{
+    align-self:end;
+    min-height:20px;
+    padding-right:24px;
+    padding-bottom:1px;
+    line-height:1.35;
+    white-space:nowrap;
+  }
+}
+
+@media screen and (min-width:1920px){
+  .catalog .product-card{
+    min-height:198px;
+    grid-template-rows:94px minmax(104px,auto);
+  }
+  .catalog .product-info{
+    min-height:104px;
+  }
+}
+
+@media screen and (min-width:2560px){
+  .catalog .product-card{
+    min-height:204px;
+    grid-template-rows:98px minmax(106px,auto);
+  }
+  .catalog .product-info{
+    min-height:106px;
+  }
+}

@@ -11,9 +11,9 @@ class TouchPosPhaseW9Tests(unittest.TestCase):
     def test_service_worker_caches_current_touch_css(self):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         worker = (STATIC / "service-worker.js").read_text(encoding="utf-8")
-        self.assertIn("touch-pos.css?v=20260910-phase8-touch-density", html)
-        self.assertIn("touch-pos.css?v=20260910-phase8-touch-density", worker)
-        self.assertIn("kay-pos-touch-w9", worker)
+        self.assertIn("touch-pos.css?v=20260910-phase10-price-fit", html)
+        self.assertIn("touch-pos.css?v=20260910-phase10-price-fit", worker)
+        self.assertIn("kay-pos-touch-w10", worker)
 
     def test_touch_catalog_has_dense_breakpoints(self):
         css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")
@@ -30,6 +30,13 @@ class TouchPosPhaseW9Tests(unittest.TestCase):
         self.assertIn(".topbar #fullscreen[data-icon]::before", css)
         self.assertIn("transform:translate(-50%,-50%)!important", css)
         self.assertIn(".cart.open .totals", css)
+
+    def test_maximized_desktop_product_prices_have_room(self):
+        css = (STATIC / "touch-pos.css").read_text(encoding="utf-8")
+        self.assertIn("Phase 10: keep product prices fully visible", css)
+        self.assertIn("grid-template-rows:88px minmax(102px,auto)", css)
+        self.assertIn("padding:8px 8px 12px", css)
+        self.assertIn("white-space:nowrap", css)
 
 
 if __name__ == "__main__":
