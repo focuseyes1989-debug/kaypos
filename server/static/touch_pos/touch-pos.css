@@ -2310,8 +2310,8 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
   #fullscreen{display:inline-flex}
   .topbar .top-actions{gap:8px}
   .topbar :is(#fullscreen,#headerAddExpense){
-    height:48px;
-    min-height:48px;
+    height:40px;
+    min-height:40px;
     border-radius:10px;
     background:#243550;
     border-color:#61708a;
@@ -2324,9 +2324,11 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media screen and (max-width:760px){
   .topbar .top-actions{gap:6px}
   #fullscreen{
-    flex:0 0 40px!important;
-    width:40px!important;
-    min-width:40px;
+    flex:0 0 36px!important;
+    width:36px!important;
+    min-width:36px;
+    height:36px!important;
+    min-height:36px!important;
     padding:0!important;
     overflow:hidden;
     font-size:0!important;
@@ -2335,8 +2337,8 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
     flex:0 0 auto!important;
     width:auto!important;
     min-width:132px;
-    height:44px;
-    min-height:44px;
+    height:36px;
+    min-height:36px;
   }
   #fullscreen[data-icon]::before{
     width:18px;
@@ -2443,8 +2445,8 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .side-menu-button{width:42px;height:42px;border-radius:11px;background:#fff}
   .top-actions{gap:7px}
   #app:not([data-touch-view="sales"]) #headerAddExpense{display:none!important}
-  #fullscreen{width:42px!important;min-width:42px;height:42px;min-height:42px;border-radius:11px}
-  #headerAddExpense{min-width:130px;height:42px;min-height:42px;border-radius:11px;font-size:13px}
+  #fullscreen{width:36px!important;min-width:36px;height:36px;min-height:36px;border-radius:10px}
+  #headerAddExpense{min-width:124px;height:36px;min-height:36px;border-radius:10px;font-size:13px}
   .workspace,.touch-receipts,.touch-dashboard,.touch-settings,.product-manager{padding:var(--mobile-pad);gap:var(--mobile-gap);overflow:auto}
   .panel,.catalog,.cart,.receipt-results,.receipt-detail,.customer-list,.customer-detail,.settings-panel,.settings-card,.expense-metric,.expense-ledger{border-radius:var(--mobile-radius);box-shadow:0 4px 14px rgba(20,33,61,.06)}
   .panel-heading,.receipt-page-head,.dashboard-header,.settings-heading{padding:16px;gap:12px}
