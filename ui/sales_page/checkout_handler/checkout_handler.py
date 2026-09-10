@@ -741,6 +741,9 @@ class CheckoutHandler(QObject):
 
     def _show_completion_dialog(self, sale_id, invoice_no, grand_total, payment, change, discount, is_credit_sale):
         """Show completion dialog"""
+        if hasattr(self.parent_widget, "show_sale_completion"):
+            self.parent_widget.show_sale_completion(sale_id, invoice_no, grand_total, payment, change)
+            return
         dialog = CompletionDialog(
             self.parent_widget, sale_id, invoice_no, grand_total, payment, change, discount, is_credit_sale
         )

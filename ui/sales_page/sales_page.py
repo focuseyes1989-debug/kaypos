@@ -2,7 +2,7 @@
 import ctypes
 import json
 from PyQt6 import sip
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QMessageBox, QApplication, QComboBox, QLabel, QDialog, QCheckBox, QDoubleSpinBox, QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox, QScrollArea, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QMessageBox, QApplication, QComboBox, QLabel, QDialog, QCheckBox, QDoubleSpinBox, QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox, QScrollArea, QFrame, QToolButton, QMenu
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtPrintSupport import QPrinterInfo
@@ -70,7 +70,7 @@ class SalesPage(QWidget):
         self.totals_widget.grand_total_changed.connect(lambda _total: self.cart_widget.update_change())
         self.payment_widget.payment_amount_changed.connect(self.totals_widget.update_change_display)
         self.payment_widget.payment_amount_changed.connect(lambda _amount: self.cart_widget.update_change())
-        self.payment_widget.checkout_requested.connect(self.checkout_handler.checkout)
+        self.payment_widget.checkout_requested.connect(self.request_checkout)
         
         self.options_widget.payment_type_changed.connect(self.checkout_handler.on_payment_type_changed)
         
@@ -96,7 +96,9 @@ class SalesPage(QWidget):
         right_layout.setContentsMargins(10, 10, 10, 10)
 
         self.setup_customer_section()
-        right_layout.addLayout(self.customer_layout)
+        self.checkout_controls = QWidget(self)
+        checkout_controls_layout = QVBoxLayout(self.checkout_controls)
+        checkout_controls_layout.addLayout(self.customer_layout)
 
         right_layout.addWidget(self.cart_widget, stretch=1)
         
@@ -125,7 +127,7 @@ class SalesPage(QWidget):
         detail_buttons_layout.setSpacing(8)
         detail_buttons_layout.addWidget(self.btn_toggle_details, 1)
         detail_buttons_layout.addWidget(self.btn_add_expense, 1)
-        right_layout.addLayout(detail_buttons_layout)
+        checkout_controls_layout.addLayout(detail_buttons_layout)
 
         self.details_panel = QWidget(self)
         self.details_panel.setObjectName("saleDetailsHiddenHolder")
@@ -139,12 +141,19 @@ class SalesPage(QWidget):
         self.details_panel.setFixedSize(0, 0)
         self.details_panel.setVisible(False)
 
-        action_layout = QHBoxLayout()
+        action_layout = QVBoxLayout()
         action_layout.setSpacing(8)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.addWidget(self.payment_widget, 1)
         action_layout.addWidget(self.checkout_handler.action_group, 2)
-        right_layout.addLayout(action_layout)
+        self.checkout_handler.btn_hold_sale.hide()
+        self.checkout_handler.btn_resume_sale.hide()
+        checkout_controls_layout.addLayout(action_layout)
+        self.checkout_controls.hide()
+        self.checkout_handler.btn_checkout.clicked.disconnect(self.checkout_handler.checkout)
+        self.checkout_handler.btn_checkout.clicked.connect(self.confirm_checkout)
+        self._checkout_dialog = None
+        self._install_cart_actions()
 
         content_layout.addWidget(self.right_container, stretch=2)
         main_layout.addLayout(content_layout, stretch=1)
@@ -356,6 +365,189 @@ class SalesPage(QWidget):
             self.details_layout.addWidget(widget)
             widget.hide()
 
+    def _install_cart_actions(self):
+        cart = self.cart_widget
+        cart.footer.hide()
+        cart.clear_btn.hide()
+        more = QToolButton(cart.header)
+        more.setIcon(get_icon("settings"))
+        more.setToolTip("Sale actions")
+        more.setFixedSize(32, 32)
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(more)
+        menu.addAction("Sale Details", self.open_sale_details_dialog)
+        menu.addAction("Hold", self.checkout_handler.hold_sale)
+        menu.addAction("Resume", self.checkout_handler.resume_sale)
+        more.setMenu(menu)
+        cart.header.layout().addWidget(more)
+        footer = QWidget(cart)
+        self.cart_actions_footer = footer
+        footer.setObjectName("cartActionsFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        footer.setFixedHeight(128)
+        layout = QVBoxLayout(footer)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+        self.cart_subtotal = QLabel()
+        self.cart_total = QLabel()
+        for title, value in (("Subtotal", self.cart_subtotal), ("Total", self.cart_total)):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(title))
+            row.addStretch()
+            value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(value)
+            layout.addLayout(row)
+        actions = QHBoxLayout()
+        self.cart_clear = QPushButton("Clear")
+        self.cart_clear.clicked.connect(self.checkout_handler.clear_cart)
+        self.cart_checkout = QPushButton("Checkout (F4)")
+        self.cart_checkout.setIcon(get_icon("shopping_cart"))
+        self.cart_checkout.clicked.connect(self.request_checkout)
+        for button in (self.cart_clear, self.cart_checkout):
+            button.setFixedHeight(44)
+            actions.addWidget(button)
+        layout.addLayout(actions)
+        cart.layout().addWidget(footer)
+        cart.cart_changed.connect(self._update_cart_summary)
+        self.totals_widget.grand_total_changed.connect(self._update_cart_summary)
+        self._update_cart_summary()
+        self._style_cart_actions()
+
+    def _style_cart_actions(self):
+        if not hasattr(self, "cart_actions_footer"):
+            return
+        colors = get_theme_colors()
+        background = colors.get("card_bg", "#ffffff")
+        border = colors.get("border", "#d7deea")
+        self.cart_actions_footer.setStyleSheet(
+            f"QWidget#cartActionsFooter {{ background: {background}; border-top: 1px solid {border}; }}"
+            "QLabel { background: transparent; border: none; }"
+        )
+
+    def _update_cart_summary(self, *_):
+        symbol = get_currency_symbol()
+        self.cart_subtotal.setText(format_money(self.cart_widget.compute_subtotal(), symbol))
+        self.cart_total.setText(format_money(self.totals_widget.get_current_grand_total(), symbol))
+        enabled = bool(self.cart_widget.get_cart())
+        self.cart_clear.setEnabled(enabled)
+        self.cart_checkout.setEnabled(enabled)
+
+    def request_checkout(self):
+        if self._checkout_dialog is not None:
+            self.payment_widget.payment_input.setFocus()
+            return
+        if not self.cart_widget.get_cart():
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Checkout")
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        total = QLabel("Total: " + format_money(self.totals_widget.get_current_grand_total(), get_currency_symbol()))
+        layout.addWidget(total)
+        layout.addWidget(self.checkout_controls)
+        self.checkout_controls.show()
+        self.checkout_handler.btn_checkout.setText("Complete Sale")
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(dialog.reject)
+        layout.addWidget(cancel)
+        self._checkout_dialog = dialog
+        amount = self.payment_widget.get_payment_amount()
+        manual = self.payment_widget.payment_manual_override
+        payment_index = self.payment_widget.payment_combo.currentIndex()
+        self.payment_widget.change_label_title.show()
+        self.payment_widget.change_label.show()
+        self.payment_widget.setMinimumHeight(130)
+        self.payment_widget.layout().setSpacing(8)
+        self.payment_widget.layout().setContentsMargins(10, 8, 10, 8)
+        self.payment_widget.update_change()
+        fit_dialog_to_available_screen(dialog, preferred_width=520, preferred_height=430, min_width=420, min_height=400)
+        self.payment_widget.payment_input.setFocus()
+        self.payment_widget.payment_input.selectAll()
+        try:
+            dialog.exec()
+        finally:
+            self.checkout_controls.hide()
+            self.checkout_controls.setParent(self)
+            self._checkout_dialog = None
+            self.checkout_handler.btn_checkout.setText("Checkout")
+            if dialog.result() != QDialog.DialogCode.Accepted:
+                self.payment_widget.payment_combo.setCurrentIndex(payment_index)
+                self.payment_widget.payment_input.setValue(amount)
+                self.payment_widget.payment_manual_override = manual
+            dialog.deleteLater()
+
+    def confirm_checkout(self):
+        if getattr(self, "_checkout_busy", False):
+            return
+        if self._checkout_dialog is None:
+            self.request_checkout()
+            return
+        self.checkout_handler.btn_checkout.setEnabled(False)
+        self._checkout_busy = True
+        try:
+            result = self.checkout_handler.checkout()
+            if result:
+                self._checkout_dialog.accept()
+        finally:
+            self._checkout_busy = False
+            self.checkout_handler.btn_checkout.setEnabled(True)
+
+    def show_sale_completion(self, sale_id, invoice_no, grand_total, payment, change):
+        from ui.sales_page.checkout_handler.checkout_utils import print_receipt, open_cash_drawer
+
+        if self._checkout_dialog is not None:
+            self._checkout_dialog.hide()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Sale Complete")
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.addWidget(QLabel("Sale Complete"))
+        layout.addWidget(QLabel("Invoice: " + invoice_no))
+        for title, value in (("Total", grand_total), ("Received", payment), ("Change", change)):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(title))
+            row.addStretch()
+            row.addWidget(QLabel(format_money(value, get_currency_symbol())))
+            layout.addLayout(row)
+        status = QLabel("")
+        status.setWordWrap(True)
+        layout.addWidget(status)
+        actions = QHBoxLayout()
+        done = QPushButton("New Sale")
+        done.clicked.connect(dialog.accept)
+        print_button = QPushButton("Receipt Print")
+
+        def print_sale():
+            print_button.setEnabled(False)
+            try:
+                if print_receipt(self, sale_id):
+                    status.setText("Receipt sent to printer.")
+                else:
+                    status.setText("Receipt not printed. Retry or print from Receipts.")
+                    print_button.setEnabled(True)
+            except Exception as exc:
+                logger.exception("Receipt printing failed after sale completion")
+                status.setText("Sale saved. Print failed: " + str(exc))
+                print_button.setEnabled(True)
+
+        print_button.clicked.connect(print_sale)
+        for button in (done, print_button):
+            button.setFixedHeight(38)
+            actions.addWidget(button)
+        layout.addLayout(actions)
+        if self.options_widget.is_open_drawer_enabled():
+            try:
+                open_cash_drawer(self)
+            except Exception:
+                logger.exception("Cash drawer failed after sale completion")
+                status.setText("Sale saved. Cash drawer could not be opened.")
+        fit_dialog_to_available_screen(dialog, preferred_width=450, preferred_height=300, min_width=380, min_height=280)
+        dialog.exec()
+        dialog.deleteLater()
+
     def open_sale_details_dialog(self):
         """Open optional sale controls in a dialog instead of expanding inline."""
         self._hide_original_details_widgets()
@@ -533,14 +725,14 @@ class SalesPage(QWidget):
         self._add_shortcut("F2", self.product_grid.focus_search)
         self._add_shortcut("Ctrl+F", self.product_grid.focus_search)
         self._add_shortcut("F3", self.focus_customer)
-        self._add_shortcut("F4", self.focus_payment_amount)
+        self._add_shortcut("F4", self.request_checkout)
         self._add_shortcut("F6", self.focus_payment_type)
         self._add_shortcut("F7", self.toggle_discount)
         self._add_shortcut("F8", self.focus_discount)
         self._add_shortcut("F9", self.set_cash_sale)
         self._add_shortcut("F10", self.set_credit_sale)
         self._add_shortcut("Ctrl+E", self.open_expense_dialog)
-        self._add_shortcut("F12", self.checkout_handler.checkout)
+        self._add_shortcut("F12", self.request_checkout)
         self._add_shortcut("Ctrl+Backspace", self.checkout_handler.clear_cart)
         self._add_shortcut("Ctrl+Delete", self.remove_selected_cart_item)
         self.update_shortcut_tooltips()
@@ -642,6 +834,7 @@ class SalesPage(QWidget):
             logger.info("Sales page product grid categories refreshed")
 
     def update_theme(self):
+        self._style_cart_actions()
         """Refresh sales page widgets that keep their own stylesheet."""
         self._apply_root_theme_style()
         if hasattr(self, 'product_grid'):
