@@ -435,15 +435,13 @@ class GridViewWidget(QScrollArea):
                 self.product_selected.emit(prod_id, name, price, stock)
     
     def _show_service_price_dialog(self, product_name: str) -> Tuple[float, bool]:
-        return get_numeric_input_value(
-            self,
-            "Service Price",
-            f"Enter price for {product_name}:",
-            0,
-            decimals=2,
-            minimum=0,
-            maximum=999999999,
-        )
+        from ui.sales_page.service_price_dialog import ServicePriceDialog
+        dialog = ServicePriceDialog(product_name, self)
+        try:
+            accepted = dialog.exec() == dialog.DialogCode.Accepted
+            return dialog.value(), accepted
+        finally:
+            dialog.deleteLater()
     
     def _show_message(self, title: str, text: str, icon: QMessageBox.Icon = QMessageBox.Icon.Information) -> None:
         is_dark = is_dark_theme()

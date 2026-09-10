@@ -29,6 +29,38 @@ class SalesTouchStyleTests(unittest.TestCase):
             self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
         card.deleteLater()
 
+    def test_service_keypad_input_and_blur_cleanup(self):
+        from ui.sales_page.service_price_dialog import ServicePriceDialog
+        from PyQt6.QtWidgets import QGraphicsBlurEffect
+        parent = QWidget()
+        parent.resize(900, 650)
+        parent.show()
+        self.app.processEvents()
+        dialog = ServicePriceDialog("Car Border Pass", parent)
+        for accepted in (False, True):
+            def inspect(widget):
+                widget.show()
+                self.app.processEvents()
+                effects = parent.findChildren(QGraphicsBlurEffect)
+                self.assertTrue(any(effect.parent().isVisible() for effect in effects))
+                widget._handle_key("C")
+                for key in ("1", "2", ".", "5"):
+                    widget._handle_key(key)
+                self.assertEqual(widget.value(), 12.5)
+                for button in widget.findChildren(QPushButton):
+                    self.assertTrue(widget.rect().contains(button.geometry()))
+                output = os.environ.get("DESKTOP_QA_OUTPUT")
+                if output:
+                    widget.grab().save(str(Path(output) / "service-keypad.png"))
+                widget.accept() if accepted else widget.reject()
+                return widget.result()
+            with patch.object(QDialog, "exec", inspect):
+                self.assertEqual(dialog.exec(), QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected)
+            self.assertFalse(any(effect.parent().isVisible() for effect in parent.findChildren(QGraphicsBlurEffect)))
+        dialog.deleteLater()
+        parent.close()
+        parent.deleteLater()
+
     def test_product_name_is_one_line_with_full_tooltip(self):
         for name in ("Tea", "A very long product name that cannot fit in a single card"):
             with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
