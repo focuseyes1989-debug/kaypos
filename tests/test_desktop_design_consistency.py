@@ -93,13 +93,13 @@ class DesignConsistencyTests(unittest.TestCase):
         self.addCleanup(self.app.setStyleSheet, previous)
         apply_design_system(self.app, "Light")
         box = QMessageBox(QMessageBox.Icon.Information, "ZKTeco Sync",
-                          "Sync complete.\nNew punches: 74", QMessageBox.StandardButton.Ok)
+                          "Sync complete.\nNew punches: 74\nAttendance days updated: 12", QMessageBox.StandardButton.Ok)
         box.show()
         self.app.processEvents()
         self.app.processEvents()
         label = box.findChild(QLabel, "qt_msgbox_label")
         self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
-        self.assertGreaterEqual(label.height(), label.fontMetrics().lineSpacing() * 2)
+        self.assertGreaterEqual(label.height(), label.fontMetrics().lineSpacing() * 3)
         output = os.environ.get("DESKTOP_QA_OUTPUT")
         if output:
             box.grab().save(str(Path(output) / "message-multiline.png"))

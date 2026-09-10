@@ -97,7 +97,17 @@ class ModernMessageBoxFilter(QObject):
             # Reserve wrapped line height as well as width; Qt's compact
             # native message geometry can otherwise clip subsequent lines.
             text_width = max(label.minimumWidth(), label.width())
-            label.setMinimumHeight(max(label.fontMetrics().lineSpacing(), label.heightForWidth(text_width)) + 4)
+            required_height = max(
+                label.fontMetrics().lineSpacing() * max(1, len(lines)) + 16,
+                label.heightForWidth(text_width),
+            )
+            # Apply the constraint in QSS too: a later theme polish can reset
+            # QWidget.minimumHeight to the global message-label rule (20px).
+            label.setStyleSheet(
+                f"min-height: {required_height}px; max-height: 16777215px;"
+                "padding: 0px; background: transparent;"
+            )
+            label.setMinimumHeight(required_height)
 
         # Reserve enough room for icon, text and margins before first paint.
         # Qt retains responsibility for wrapping genuinely long messages.
