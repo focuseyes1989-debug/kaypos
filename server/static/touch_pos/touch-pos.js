@@ -1238,6 +1238,7 @@
       const button = document.createElement('button'); button.type = 'button'; button.className = `category${name === selectedCategory ? ' active' : ''}`;
       const label = name || 'All products';
       button.title = label;
+      button.dataset.categoryTone = categoryTone(label);
       button.innerHTML = `<span class="category-name">${escapeHtml(label)}</span>`;
       button.setAttribute('aria-pressed', String(name === selectedCategory));
       button.addEventListener('click', () => { selectedCategory = name; renderCategories(); loadProducts(); }); root.appendChild(button);
