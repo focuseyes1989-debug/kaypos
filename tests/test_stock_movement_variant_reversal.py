@@ -54,6 +54,41 @@ class VariantMovementReversalTests(unittest.TestCase):
         )
         connection.close()
 
+    def test_stock_in_reversal_uses_only_safe_current_variant_when_original_was_recreated(self):
+        connection = sqlite3.connect(":memory:")
+        connection.executescript("""
+            CREATE TABLE products (id INTEGER PRIMARY KEY, stock REAL, last_updated TEXT);
+            CREATE TABLE product_variants (
+                id INTEGER PRIMARY KEY, product_id INTEGER, stock REAL, active INTEGER, updated_at TEXT
+            );
+            CREATE TABLE product_locations (
+                product_id INTEGER, location TEXT, quantity REAL,
+                UNIQUE(product_id, location)
+            );
+            CREATE TABLE stock_movements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, type TEXT,
+                quantity REAL, old_stock REAL, new_stock REAL, reason TEXT,
+                reference TEXT, created_by TEXT, notes TEXT, location TEXT,
+                supplier_id INTEGER, variant_id INTEGER
+            );
+            INSERT INTO products VALUES (1, 17, NULL);
+            INSERT INTO product_variants VALUES (30, 1, 17, 1, NULL);
+            INSERT INTO product_locations VALUES (1, 'Shop', 17);
+            INSERT INTO stock_movements
+                (id, product_id, type, quantity, old_stock, new_stock, reason,
+                 reference, created_by, notes, location, supplier_id, variant_id)
+            VALUES (5, 1, 'in', 17, 0, 17, 'Stock In', 'SIN-5', 'user', '', 'Shop', NULL, 10);
+        """)
+        with patch("models.database.queries.DBContext", return_value=_Context(connection)):
+            result = reverse_stock_movement(5, created_by="tester")
+        self.assertTrue(result["success"])
+        self.assertEqual(connection.execute("SELECT stock FROM products WHERE id=1").fetchone()[0], 0)
+        self.assertEqual(connection.execute("SELECT stock FROM product_variants WHERE id=30").fetchone()[0], 0)
+        self.assertEqual(
+            connection.execute("SELECT variant_id FROM stock_movements WHERE id<>5").fetchone()[0], 30
+        )
+        connection.close()
+
 
 if __name__ == "__main__":
     unittest.main()

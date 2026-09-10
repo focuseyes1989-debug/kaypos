@@ -856,18 +856,41 @@ def reverse_stock_movement(movement_id: int, reason: str = "Correction", created
             """, (new_stock_after, product_id))
 
             batch_reversed = False
-            # Variant movements must be reversed at the same inventory level.
+            # Variant movements should use the original variant. Older product
+            # edits recreated variants, so fall back only when there is a single
+            # safe current variant to apply the correction to.
             if variant_id:
-                batch_reversed = variant_batches.reverse_change(cursor,movement_id,product_id,variant_id)
                 cursor.execute(
                     "SELECT stock FROM product_variants WHERE id = ? AND product_id = ?",
                     (variant_id, product_id),
                 )
                 variant_row = cursor.fetchone()
                 if not variant_row:
-                    conn.rollback()
-                    return {'success': False, 'message': 'The movement variant no longer exists'}
-                variant_stock = variant_row[0] or 0
+                    cursor.execute(
+                        """
+                        SELECT id, COALESCE(stock, 0)
+                        FROM product_variants
+                        WHERE product_id = ? AND COALESCE(active, 1) = 1
+                        ORDER BY id
+                        """,
+                        (product_id,),
+                    )
+                    candidates = [(int(row[0]), row[1] or 0) for row in cursor.fetchall()]
+                    if mov_type == 'in':
+                        candidates = [row for row in candidates if row[1] >= quantity]
+                    if len(candidates) != 1:
+                        conn.rollback()
+                        return {
+                            'success': False,
+                            'message': (
+                                'The movement variant no longer exists. Edit the product so only the target '
+                                'variant is active, then retry the reversal.'
+                            ),
+                        }
+                    variant_id, variant_stock = candidates[0]
+                else:
+                    variant_stock = variant_row[0] or 0
+                batch_reversed = variant_batches.reverse_change(cursor,movement_id,product_id,variant_id)
                 if mov_type == 'in':
                     variant_stock_after = variant_stock - quantity
                     if variant_stock_after < 0:
