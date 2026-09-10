@@ -151,7 +151,8 @@
     const root = document.querySelector('#cartItems');
     document.querySelector('#cartCount').textContent = String(count);
     document.querySelector('#mobileCartCount').textContent = String(count);
-    document.querySelector('#sideCartBadge').textContent = String(count);
+    const sideCartBadge = document.querySelector('#sideCartBadge');
+    if (sideCartBadge) sideCartBadge.textContent = String(count);
     document.querySelector('#cartSubtotal').textContent = `${money(subtotal)} Ks`;
     document.querySelector('#cartTotal').textContent = `${money(total)} Ks`;
     document.querySelector('#clearCart').disabled = count === 0;
@@ -1355,7 +1356,7 @@
     else if (action === 'product-page') showProductManager();
     else if (action === 'category-page') showProductManager('categories');
     else if (action === 'cart') setCartOpen(true);
-    else if (action === 'fullscreen') fullscreen.click();
+    else if (action === 'fullscreen' && fullscreen) fullscreen.click();
     else if (action === 'refresh') loadCatalog();
   }
   openCart.addEventListener('click', () => setCartOpen(true));
@@ -1539,8 +1540,10 @@
     catch (_) { setConnection(false); }
   }
   function updateClock() { clock.textContent = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date()); }
-  fullscreen.addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (_) {} });
-  document.addEventListener('fullscreenchange', () => { fullscreen.textContent = document.fullscreenElement ? 'Exit Full Screen' : 'Full Screen'; });
+  if (fullscreen) {
+    fullscreen.addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (_) {} });
+    document.addEventListener('fullscreenchange', () => { fullscreen.textContent = document.fullscreenElement ? 'Exit Full Screen' : 'Full Screen'; });
+  }
   window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; install.hidden = false; });
   install.addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; install.hidden = true; });
   if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/touch-pos/service-worker.js', {scope: '/touch-pos/'}).catch(() => {});
