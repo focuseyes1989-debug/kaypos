@@ -28,8 +28,8 @@ class CurrentStockTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(12)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
 
         # Top button layout
         btn_layout = QHBoxLayout()
@@ -83,8 +83,8 @@ class CurrentStockTab(QWidget):
 
         # Filter section with SearchWidget
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(10)
-        filter_layout.setContentsMargins(0, 8, 0, 8)
+        filter_layout.setSpacing(6)
+        filter_layout.setContentsMargins(0, 4, 0, 4)
         
         # ✅ Use SearchWidget with SVG icon
         self.search_widget = SearchWidget(
@@ -99,7 +99,7 @@ class CurrentStockTab(QWidget):
         filter_layout.addWidget(QLabel("Category:"))
         self.category_filter = QComboBox()
         self.category_filter.setMinimumWidth(170)
-        self.category_filter.setFixedHeight(38)
+        self.category_filter.setFixedHeight(34)
         self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.category_filter, 1)
@@ -108,7 +108,7 @@ class CurrentStockTab(QWidget):
         filter_layout.addWidget(QLabel("Status:"))
         self.status_filter = QComboBox()
         self.status_filter.setMinimumWidth(170)
-        self.status_filter.setFixedHeight(38)
+        self.status_filter.setFixedHeight(34)
         self.status_filter.addItems(["All Status", "In Stock", "Low Stock", "Out of Stock"])
         self.status_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.status_filter, 1)
@@ -119,8 +119,8 @@ class CurrentStockTab(QWidget):
         self.stock_table = QTableWidget()
         self.stock_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stock_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.stock_table.verticalHeader().setDefaultSectionSize(58)
-        self.stock_table.verticalHeader().setMinimumSectionSize(54)
+        self.stock_table.verticalHeader().setDefaultSectionSize(50)
+        self.stock_table.verticalHeader().setMinimumSectionSize(46)
         self.stock_table.verticalHeader().setVisible(False)
         self.stock_table.setAlternatingRowColors(True)
         self.stock_table.setShowGrid(False)

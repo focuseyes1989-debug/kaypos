@@ -29,12 +29,12 @@ class RefundTab(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         
         # ====== Search and Filters ======
         top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
-        top_layout.setContentsMargins(0, 8, 0, 8)
+        top_layout.setSpacing(6)
+        top_layout.setContentsMargins(0, 4, 0, 4)
         
         self.search_widget = SearchWidget(
             placeholder="Search by invoice no or customer...",

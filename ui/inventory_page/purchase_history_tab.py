@@ -24,14 +24,14 @@ class PurchaseHistoryTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
         # ============================================================
         # ✅ FILTER ROW - All in one horizontal line
         # ============================================================
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(10)
-        filter_layout.setContentsMargins(0, 8, 0, 8)
+        filter_layout.setSpacing(6)
+        filter_layout.setContentsMargins(0, 4, 0, 4)
         
         # 1. SearchWidget (expands to fill available space)
         self.search_widget = SearchWidget(

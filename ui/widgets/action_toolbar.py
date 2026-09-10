@@ -16,15 +16,15 @@ class ActionToolbar(QWidget):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(8)
+        self.layout.setSpacing(6)
         self.more_button = QToolButton(self)
         self.more_button.setText("More")
         self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.more_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.more_menu = QMenu(self.more_button)
         self.more_button.setMenu(self.more_menu)
-        self.more_button.setFixedHeight(38)
-        self.more_button.setMinimumWidth(84)
+        self.more_button.setFixedHeight(34)
+        self.more_button.setMinimumWidth(76)
         self._more_added = False
         self._action_icons: dict[QAction, str] = {}
         self._apply_style()
@@ -42,7 +42,7 @@ class ActionToolbar(QWidget):
         if icon:
             button.set_icon(icon, size=(16, 16))
         button.set_dense(True)
-        button.setFixedHeight(38)
+        button.setFixedHeight(34)
         if width:
             button.setMinimumWidth(width)
             button.setMaximumWidth(width)  # ✅ Also set maximum width
@@ -104,7 +104,7 @@ class ActionToolbar(QWidget):
                 color: {text};
                 border: 1px solid {border};
                 border-radius: 8px;
-                padding: 3px 12px 3px 14px;
+                padding: 2px 10px 2px 12px;
                 font-weight: 600;
                 font-size: 9pt;
             }}

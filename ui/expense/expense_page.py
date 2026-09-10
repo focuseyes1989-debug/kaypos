@@ -81,8 +81,8 @@ class ExpensePage(QWidget):
             QTabWidget#expenseTabs QTabBar::tab {{
                 background-color: transparent;
                 color: {colors['text_secondary']};
-                padding: 10px 18px;
-                margin: 0 4px 7px 0;
+                padding: 7px 14px;
+                margin: 0 4px 5px 0;
                 border: none;
                 border-radius: 8px;
                 font-weight: 600;
@@ -162,11 +162,11 @@ class ExpensePage(QWidget):
         self.setObjectName("expensePage")
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(15)
+        layout.setSpacing(8)
         
         # ========== Cards (Using SummaryCardWidget with SVG icons) ==========
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(8)
         
         # âœ… Total Expenses Card - with SVG icon
         self.total_card = SummaryCardWidget(
@@ -204,8 +204,8 @@ class ExpensePage(QWidget):
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("expenseToolbarCard")
         toolbar_layout = QHBoxLayout(self.toolbar_card)
-        toolbar_layout.setContentsMargins(14, 10, 14, 10)
-        toolbar_layout.setSpacing(8)
+        toolbar_layout.setContentsMargins(12, 7, 12, 7)
+        toolbar_layout.setSpacing(6)
         
         # âœ… DateRangeWidget
         self.date_range = DateRangeWidget()
@@ -239,7 +239,7 @@ class ExpensePage(QWidget):
         self.tab_widget.setDocumentMode(True)
         self.tab_widget.setUsesScrollButtons(True)
         self.tab_widget.setTabPosition(QTabWidget.TabPosition.North)
-        self.tab_widget.setMinimumHeight(450)
+        self.tab_widget.setMinimumHeight(400)
         
         # âœ… Tab names for retranslation
         self.tab_names = {
@@ -259,12 +259,12 @@ class ExpensePage(QWidget):
         self.table_tab = QWidget()
         table_layout = QVBoxLayout(self.table_tab)
         table_layout.setContentsMargins(0, 0, 0, 0)
-        table_layout.setSpacing(12)  # âœ… Increased spacing
+        table_layout.setSpacing(8)  # âœ… Increased spacing
         
         # âœ… Filter row inside List Tab - Compact layout with more padding
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(8)
-        filter_layout.setContentsMargins(0, 8, 0, 8)  # âœ… Added top/bottom margin
+        filter_layout.setSpacing(6)
+        filter_layout.setContentsMargins(0, 4, 0, 4)  # âœ… Added top/bottom margin
         
         # SearchWidget - stretching 2 parts
         self.search_widget = SearchWidget(

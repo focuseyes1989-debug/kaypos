@@ -42,12 +42,12 @@ class ReceiptsTab(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(6)
 
         # ====== Top bar: Search and Filters ======
         top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
-        top_layout.setContentsMargins(0, 8, 0, 8)
+        top_layout.setSpacing(6)
+        top_layout.setContentsMargins(0, 4, 0, 4)
         
         # SearchWidget - ရှာဖွေမှုကို invoice_no, customer_name, payment_type အားလုံးနဲ့ ရှာနိုင်အောင်
         self.search_widget = SearchWidget(
@@ -104,8 +104,8 @@ class ReceiptsTab(QWidget):
         self.table.setAlternatingRowColors(True)
         
         # Set row height to accommodate buttons
-        self.table.verticalHeader().setDefaultSectionSize(52)
-        self.table.verticalHeader().setMinimumSectionSize(48)
+        self.table.verticalHeader().setDefaultSectionSize(46)
+        self.table.verticalHeader().setMinimumSectionSize(42)
 
         # ✅ NO custom table style
         # self._update_table_style(colors)  <-- ဒီ line ကို ဖယ်ရှားပါ
@@ -493,7 +493,7 @@ class ReceiptsTab(QWidget):
                 btn_refund = ModernButton("Refund" if lang != "my" else "ပြန်အမ်းမည်", ModernButton.PRIMARY)
                 btn_refund.set_icon("currency_exchange", size=(14, 14))
                 btn_refund.set_compact(True)
-                btn_refund.setFixedSize(104, 36)
+                btn_refund.setFixedSize(96, 32)
                 btn_refund.clicked.connect(lambda _, sid=sale_id: self.refund_sale(sid))
                 self.table.setCellWidget(row, 8, self._centered_cell_widget(btn_refund))
 
@@ -501,7 +501,7 @@ class ReceiptsTab(QWidget):
                 btn_print = ModernButton("Print" if lang != "my" else "ထုတ်မည်", ModernButton.SECONDARY)
                 btn_print.set_icon("print", size=(14, 14))
                 btn_print.set_compact(True)
-                btn_print.setFixedSize(96, 36)
+                btn_print.setFixedSize(88, 32)
                 btn_print.clicked.connect(lambda _, sid=sale_id: self.print_receipt(sid))
                 self.table.setCellWidget(row, 9, self._centered_cell_widget(btn_print))
                 

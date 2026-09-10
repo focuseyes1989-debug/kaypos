@@ -41,7 +41,7 @@ class ReceiptsPage(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(8)
         main_layout.setContentsMargins(4, 4, 4, 4)
 
         self.toast = ToastNotificationWidget(self)
@@ -50,8 +50,8 @@ class ReceiptsPage(QWidget):
         self.filter_card = QFrame()
         self.filter_card.setObjectName("receiptsFilterCard")
         filter_layout = QHBoxLayout(self.filter_card)
-        filter_layout.setContentsMargins(14, 10, 14, 10)
-        filter_layout.setSpacing(10)
+        filter_layout.setContentsMargins(12, 7, 12, 7)
+        filter_layout.setSpacing(8)
 
         self.date_range = DateRangeWidget()
         self.date_range.date_range_changed.connect(self.on_date_range_changed)
@@ -61,7 +61,8 @@ class ReceiptsPage(QWidget):
         
         self.btn_export_excel = ModernButton(" Export Excel", ModernButton.PRIMARY)
         self.btn_export_excel.set_icon("file_export", size=(16, 16))
-        self.btn_export_excel.set_compact(False)
+        self.btn_export_excel.set_dense(True)
+        self.btn_export_excel.setFixedHeight(34)
         self.btn_export_excel.clicked.connect(self.export_all_tabs)
         filter_layout.addWidget(self.btn_export_excel)
 
@@ -69,7 +70,7 @@ class ReceiptsPage(QWidget):
 
         # ========== Summary Cards ==========
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(12)
+        card_layout.setSpacing(8)
 
         self.total_receipts_card = SummaryCardWidget(
             title="Total Receipts",
@@ -240,8 +241,8 @@ class ReceiptsPage(QWidget):
             QTabWidget#receiptsTabs QTabBar::tab {{
                 background-color: transparent;
                 color: {colors['text_secondary']};
-                padding: 10px 18px;
-                margin: 0 4px 7px 0;
+                padding: 7px 14px;
+                margin: 0 4px 5px 0;
                 border: none;
                 border-radius: 8px;
                 font-weight: 600;

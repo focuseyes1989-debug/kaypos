@@ -80,7 +80,7 @@ class ProductsPage(QWidget):
         self.setObjectName("productsPage")
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(14)
+        main_layout.setSpacing(8)
 
         # Cards
         self.cards = ProductCards(self)
@@ -90,8 +90,8 @@ class ProductsPage(QWidget):
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("productsToolbarCard")
         top_layout = QHBoxLayout(self.toolbar_card)
-        top_layout.setContentsMargins(14, 10, 14, 10)
-        top_layout.setSpacing(10)
+        top_layout.setContentsMargins(12, 7, 12, 7)
+        top_layout.setSpacing(8)
         
         # âœ… ProductFilters - stretch á€™á€•á€±á€¸á€á€±á€¬á€·á€•á€«
         self.filters = ProductFilters(self)
@@ -99,11 +99,11 @@ class ProductsPage(QWidget):
         top_layout.addWidget(self.filters)  # âœ… stretch á€–á€šá€ºá€œá€­á€¯á€€á€ºá€•á€«
 
         self.action_toolbar = ActionToolbar(self)
-        self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=112)
-        self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_product, "edit", ModernButton.SECONDARY, width=86)
+        self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=104)
+        self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_product, "edit", ModernButton.SECONDARY, width=78)
         self.btn_ai_chat = self.action_toolbar.add_primary(
             " AI Assistant", self.toggle_ai_chat, "smart_toy",
-            ModernButton.SECONDARY, width=126
+            ModernButton.SECONDARY, width=116
         )
         self.btn_ai_chat.setCheckable(False)
         self.btn_ai_chat.setAutoExclusive(False)

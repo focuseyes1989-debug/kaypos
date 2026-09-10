@@ -54,14 +54,14 @@ class InventoryPage(QWidget):
         self.setObjectName("inventoryPage")
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(14)
+        layout.setSpacing(8)
 
         # Export and Location button row - ✅ Buttons on the right side
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("inventoryToolbarCard")
         btn_layout = QHBoxLayout(self.toolbar_card)
-        btn_layout.setContentsMargins(14, 10, 14, 10)
-        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(12, 7, 12, 7)
+        btn_layout.setSpacing(6)
         
         # ✅ Add stretch to push buttons to the right
         btn_layout.addStretch()
@@ -69,14 +69,16 @@ class InventoryPage(QWidget):
         # ✅ Export Excel button with SVG icon
         self.btn_export_excel = ModernButton(" Export Excel", ModernButton.SECONDARY)
         self.btn_export_excel.set_icon("file_export", size=(16, 16))
-        self.btn_export_excel.set_compact(False)
+        self.btn_export_excel.set_dense(True)
+        self.btn_export_excel.setFixedHeight(34)
         self.btn_export_excel.clicked.connect(self.export_to_excel)
         btn_layout.addWidget(self.btn_export_excel)
         
         # ✅ Manage Locations button with SVG icon
         self.btn_manage_locations = ModernButton(" Manage Locations", ModernButton.SECONDARY)
         self.btn_manage_locations.set_icon("location_on", size=(16, 16))
-        self.btn_manage_locations.set_compact(False)
+        self.btn_manage_locations.set_dense(True)
+        self.btn_manage_locations.setFixedHeight(34)
         self.btn_manage_locations.clicked.connect(self.open_warehouse_dialog)
         btn_layout.addWidget(self.btn_manage_locations)
         
@@ -158,8 +160,8 @@ class InventoryPage(QWidget):
             QTabWidget#inventoryTabs QTabBar::tab {{
                 background-color: transparent;
                 color: {colors['text_secondary']};
-                padding: 10px 14px;
-                margin: 0 3px 7px 0;
+                padding: 7px 12px;
+                margin: 0 3px 5px 0;
                 border: none;
                 border-radius: 8px;
                 font-weight: 600;

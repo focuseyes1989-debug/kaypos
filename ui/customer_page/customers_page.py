@@ -41,14 +41,14 @@ class CustomersPage(QWidget):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(14)
+        layout.setSpacing(8)
 
         # ====== Top Row: Search, Add Button, Action Toolbar (All on left) ======
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("customersToolbarCard")
         top_layout = QHBoxLayout(self.toolbar_card)
-        top_layout.setSpacing(8)
-        top_layout.setContentsMargins(14, 10, 14, 10)
+        top_layout.setSpacing(6)
+        top_layout.setContentsMargins(12, 7, 12, 7)
         
         # ====== Search Widget (Leftmost) ======
         self.search_widget = SearchWidget(
@@ -62,8 +62,8 @@ class CustomersPage(QWidget):
         # ====== Add Customer Button ======
         self.btn_add = ModernButton("", ModernButton.PRIMARY)
         self.btn_add.set_icon("add", size=(16, 16))
-        self.btn_add.setFixedWidth(130)
-        self.btn_add.setFixedHeight(36)
+        self.btn_add.setFixedWidth(118)
+        self.btn_add.setFixedHeight(34)
         self.btn_add.clicked.connect(self.add_customer)
         top_layout.addWidget(self.btn_add)
         
@@ -101,7 +101,7 @@ class CustomersPage(QWidget):
         self.table.setShowGrid(False)
         
         # Row height
-        self.table.verticalHeader().setDefaultSectionSize(55)
+        self.table.verticalHeader().setDefaultSectionSize(46)
         self.table.verticalHeader().setVisible(False)
         
         header = self.table.horizontalHeader()

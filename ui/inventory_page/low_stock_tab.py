@@ -20,7 +20,7 @@ class LowStockTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
         # Top button layout
         btn_layout = QHBoxLayout()
@@ -38,8 +38,8 @@ class LowStockTab(QWidget):
 
         # ✅ Filter section with SearchWidget
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(10)
-        filter_layout.setContentsMargins(0, 8, 0, 8)
+        filter_layout.setSpacing(6)
+        filter_layout.setContentsMargins(0, 4, 0, 4)
         
         # ✅ SearchWidget with SVG icon
         self.search_widget = SearchWidget(

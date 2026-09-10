@@ -128,4 +128,14 @@ Implemented on 2026-09-10.
 - Tightened dialog margins and spacing so primary actions and table/list content fit more comfortably at 1366x768.
 - Reduced Customer Ledger table row height to improve visible rows on shorter screens.
 
-Phase 4 should continue with toolbars, table defaults, and dense secondary pages listed in P2/P3.
+## Phase 4 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Reduced shared `ActionToolbar` height, spacing, and More button width for compact desktop pages.
+- Tightened Products and Customers page toolbar spacing and reduced primary action button widths.
+- Reduced Products and Customers table row heights so more records are visible at 1366x768.
+- Tightened Inventory, Receipts, and Expense page chrome, tab padding, filter row spacing, and summary card gaps.
+- Reduced Receipt list action button sizes and row height so table content gets more vertical space.
+
+Phase 5 should continue with settings and secondary form pages listed in P3.

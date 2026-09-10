@@ -23,12 +23,12 @@ class StockByLocationTab(QWidget):
         self._is_dark = is_dark_theme()
         
         layout = QVBoxLayout()
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
         # Filter section
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(10)
-        filter_layout.setContentsMargins(0, 8, 0, 8)
+        filter_layout.setSpacing(6)
+        filter_layout.setContentsMargins(0, 4, 0, 4)
         
         filter_layout.addWidget(QLabel("Location:"))
         self.location_filter = QComboBox()

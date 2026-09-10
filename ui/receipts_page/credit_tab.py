@@ -31,12 +31,12 @@ class CreditTab(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         
         # ====== Search and Filters (No DateRangeWidget) ======
         top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
-        top_layout.setContentsMargins(0, 8, 0, 8)
+        top_layout.setSpacing(6)
+        top_layout.setContentsMargins(0, 4, 0, 4)
         
         # SearchWidget
         self.search_widget = SearchWidget(

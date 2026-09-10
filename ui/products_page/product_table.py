@@ -201,7 +201,7 @@ class ProductTable(QWidget):
         # ✅ Keep only double click for product detail
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
         
-        self.table.verticalHeader().setDefaultSectionSize(62)
+        self.table.verticalHeader().setDefaultSectionSize(54)
         self.table.verticalHeader().setVisible(False)
 
         header = self.table.horizontalHeader()
@@ -217,7 +217,7 @@ class ProductTable(QWidget):
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)  # Status
 
         # Set column width for image
-        self.table.setColumnWidth(1, 70)
+        self.table.setColumnWidth(1, 58)
         
         # ✅ NO custom scrollbar style - use PyQt6 default
         # self._apply_scrollbar_style()  <-- ဒီ line ကို ဖယ်ရှားပါ
@@ -297,8 +297,8 @@ class ProductTable(QWidget):
             image_label = QLabel()
             image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             image_label.setScaledContents(True)
-            image_label.setFixedSize(50, 50)
-            thumb = load_thumbnail(data['image_path'], 50, data['id'])
+            image_label.setFixedSize(44, 44)
+            thumb = load_thumbnail(data['image_path'], 44, data['id'])
             if thumb:
                 image_label.setPixmap(thumb)
             else:
