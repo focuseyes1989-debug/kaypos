@@ -32,6 +32,9 @@ class SalesTouchStyleTests(unittest.TestCase):
                 grid.populate(rows)
                 self.app.processEvents()
                 small_columns = grid._cols
+                self.assertLessEqual(grid._cards[0].height(), 212)
+                first, second = grid._cards[:2]
+                self.assertLessEqual(second.x() - first.geometry().right(), 10)
                 for card in grid._cards:
                     card.ensurePolished()
                     card.layout().activate()
@@ -84,6 +87,9 @@ class SalesTouchStyleTests(unittest.TestCase):
             page.resize(1100, 580)
             page.show()
             self.app.processEvents()
+            self.assertGreater(page.product_grid.width(), page.right_container.width())
+            self.assertLessEqual(page.right_container.width(), 440)
+            self.assertTrue(page.rect().contains(page.right_container.geometry()))
             self.assertFalse(page.cart_checkout.isEnabled())
             self.assertFalse(page.payment_widget.isVisible())
             self.assertLessEqual(page.cart_actions_footer.height(), 128)

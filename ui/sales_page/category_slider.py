@@ -16,7 +16,7 @@ class CategorySlider(QScrollArea):
     
     category_selected = pyqtSignal(str)
     group_selected = pyqtSignal(str)
-    SLIDER_HEIGHT = 52
+    SLIDER_HEIGHT = 44
     BUTTON_HEIGHT = 34
     
     def __init__(self, parent=None):
@@ -41,7 +41,7 @@ class CategorySlider(QScrollArea):
         # ✅ Left-aligned layout
         self._layout = QHBoxLayout(self._container)
         self._layout.setSpacing(7)
-        self._layout.setContentsMargins(8, 8, 8, 8)
+        self._layout.setContentsMargins(0, 5, 0, 5)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
         self.setWidget(self._container)
@@ -76,8 +76,8 @@ class CategorySlider(QScrollArea):
         self.setStyleSheet(f"""
             QScrollArea#categorySlider {{
                 background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                border: none;
+                border-radius: 0px;
             }}
             QScrollArea#categorySlider QWidget#qt_scrollarea_viewport,
             QWidget#categorySliderContent {{

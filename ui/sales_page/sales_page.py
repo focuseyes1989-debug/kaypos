@@ -4,7 +4,7 @@ import json
 from PyQt6 import sip
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QMessageBox, QApplication, QComboBox, QLabel, QDialog, QCheckBox, QDoubleSpinBox, QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox, QScrollArea, QFrame, QToolButton, QMenu
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtGui import QShortcut, QKeySequence, QFont
 from PyQt6.QtPrintSupport import QPrinterInfo
 from loguru import logger
 
@@ -34,6 +34,7 @@ class SalesPage(QWidget):
         super().__init__()
         self.current_user = current_user or {}
         self.setObjectName("salesPage")
+        self.setFont(QFont("Segoe UI", 10))
         self.shop_name = "ZAY POS"
         self.receipt_header_text = ""
         self.receipt_footer_text = ""
@@ -85,15 +86,17 @@ class SalesPage(QWidget):
         main_layout.setContentsMargins(2, 2, 2, 2)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(10)
+        content_layout.setSpacing(0)
 
-        content_layout.addWidget(self.product_grid, stretch=3)
+        content_layout.addWidget(self.product_grid, stretch=7)
 
         self.right_container = QWidget()
         self.right_container.setObjectName("salesRightContainer")
+        self.right_container.setMinimumWidth(340)
+        self.right_container.setMaximumWidth(440)
         right_layout = QVBoxLayout(self.right_container)
         right_layout.setSpacing(7)
-        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setContentsMargins(8, 0, 0, 0)
 
         self.setup_customer_section()
         self.checkout_controls = QWidget(self)
@@ -155,7 +158,7 @@ class SalesPage(QWidget):
         self._checkout_dialog = None
         self._install_cart_actions()
 
-        content_layout.addWidget(self.right_container, stretch=2)
+        content_layout.addWidget(self.right_container, stretch=3)
         main_layout.addLayout(content_layout, stretch=1)
 
         self.setLayout(main_layout)
@@ -372,6 +375,7 @@ class SalesPage(QWidget):
         more = QToolButton(cart.header)
         more.setIcon(get_icon("settings"))
         more.setToolTip("Sale actions")
+        more.setStyleSheet("QToolButton { border: none; padding: 0; min-width: 0; } QToolButton::menu-indicator { image: none; }")
         more.setFixedSize(32, 32)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(more)
@@ -423,6 +427,17 @@ class SalesPage(QWidget):
             f"QWidget#cartActionsFooter {{ background: {background}; border-top: 1px solid {border}; }}"
             "QLabel { background: transparent; border: none; }"
         )
+        self.cart_total.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {colors['text']};")
+        self.cart_checkout.setStyleSheet(
+            "QPushButton { background: #167c65; color: white; border: none; border-radius: 6px; padding: 0 12px; font-weight: 600; }"
+            "QPushButton:hover { background: #126b56; }"
+            f"QPushButton:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}"
+        )
+        self.cart_checkout.setIcon(get_icon("shopping_cart", color_hex="#ffffff" if self.cart_checkout.isEnabled() else colors['text_secondary']))
+        self.cart_clear.setStyleSheet(
+            f"QPushButton {{ background: {background}; color: {colors['text']}; border: 1px solid {border}; border-radius: 6px; padding: 0 12px; }}"
+            f"QPushButton:disabled {{ color: {colors['text_secondary']}; }}"
+        )
 
     def _update_cart_summary(self, *_):
         symbol = get_currency_symbol()
@@ -431,6 +446,7 @@ class SalesPage(QWidget):
         enabled = bool(self.cart_widget.get_cart())
         self.cart_clear.setEnabled(enabled)
         self.cart_checkout.setEnabled(enabled)
+        self._style_cart_actions()
 
     def request_checkout(self):
         if self._checkout_dialog is not None:
@@ -870,18 +886,23 @@ class SalesPage(QWidget):
                 background-color: {colors['bg']};
                 color: {colors['text']};
             }}
+            QWidget#salesPage QLabel, QWidget#salesPage QPushButton,
+            QWidget#salesPage QComboBox, QWidget#salesPage QLineEdit {{
+                font-family: "Segoe UI";
+            }}
             QWidget#productBrowserPanel, QWidget#salesRightContainer {{
                 background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 8px;
+                border: none;
+                border-radius: 0px;
             }}
         """)
         if self.right_container:
             self.right_container.setStyleSheet(f"""
                 QWidget#salesRightContainer {{
                     background-color: {colors['card_bg']};
-                    border: 1px solid {colors['border']};
-                    border-radius: 8px;
+                    border: none;
+                    border-left: 1px solid {colors['border']};
+                    border-radius: 0px;
                 }}
             """)
         if self.details_panel:

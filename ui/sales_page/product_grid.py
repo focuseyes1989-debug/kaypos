@@ -68,7 +68,7 @@ class ProductGrid(QWidget):
         self._search_filter_timer.timeout.connect(self._apply_search_filter)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(8)
         self.setLayout(layout)
 
@@ -83,7 +83,7 @@ class ProductGrid(QWidget):
         self.search_widget.search_changed.connect(self.schedule_search_filter)
         self.search_widget.search_cleared.connect(self.schedule_search_filter)
         self.search_input = self.search_widget.search_input
-        self.search_input.setMinimumHeight(40)
+        self.search_input.setMinimumHeight(36)
         self.search_input.returnPressed.connect(self.scan_barcode)
 
         combo_class = ComboBoxWidget if self.use_modern_combos else QComboBox
@@ -92,14 +92,14 @@ class ProductGrid(QWidget):
         self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self.on_category_combo_changed)
         self.category_combo.setFixedWidth(160)
-        self.category_combo.setMinimumHeight(40)
+        self.category_combo.setMinimumHeight(36)
 
         self.discount_filter_combo = combo_class("All Products") if self.use_modern_combos else combo_class()
         self.discount_filter_combo.addItem("All Products", "all")
         self.discount_filter_combo.addItem("Discount Products", "discount")
         self.discount_filter_combo.currentIndexChanged.connect(self.on_discount_filter_changed)
-        self.discount_filter_combo.setFixedWidth(136)
-        self.discount_filter_combo.setMinimumHeight(40)
+        self.discount_filter_combo.setFixedWidth(156)
+        self.discount_filter_combo.setMinimumHeight(36)
 
         self.view_label = QLabel("View:")
         self.view_combo = combo_class("View") if self.use_modern_combos else combo_class()
@@ -115,7 +115,6 @@ class ProductGrid(QWidget):
         search_layout.addWidget(self.search_widget, stretch=1)
         search_layout.addWidget(self.category_combo)
         search_layout.addWidget(self.discount_filter_combo)
-        search_layout.addStretch()
         layout.addLayout(search_layout)
 
         # ── Category Slider ──────────────────────────────────

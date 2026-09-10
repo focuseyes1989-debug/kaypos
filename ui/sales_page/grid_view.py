@@ -39,6 +39,7 @@ class GridViewWidget(QScrollArea):
         self.setStyleSheet("""
             QScrollArea {
                 border: none;
+                border-radius: 0px;
                 background: transparent;
             }
             QScrollBar:vertical {
@@ -88,7 +89,7 @@ class GridViewWidget(QScrollArea):
         
         self._grid = QGridLayout(self._container)
         # ✅ Card များ အပေါ်ဘက်သို့ စုစည်းနေစေရန် Alignment ပေးထားပါသည်
-        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         
         self.setWidget(self._container)
 
@@ -157,7 +158,7 @@ class GridViewWidget(QScrollArea):
         """
         # Base dimensions
         if self._card_style == "modern":
-            return 156, 224, 8, 8, 8
+            return 156, 212, 8, 8, 4
         else:
             card_width = max(110, min(160, int(width * 0.15)))
             card_height = int(card_width * 1.15)
@@ -250,7 +251,7 @@ class GridViewWidget(QScrollArea):
 
         # ✅ Stretch Ratio ကို ညီအောင် ထားရှိခြင်း
         for c in range(cols):
-            self._grid.setColumnStretch(c, 1)
+            self._grid.setColumnStretch(c, 0 if self._card_style == "modern" else 1)
 
     def append_rows(self, rows: List[Any]) -> None:
         """Append another product batch without rebuilding existing cards."""
@@ -306,7 +307,7 @@ class GridViewWidget(QScrollArea):
             self._cards.append(card)
 
         for c in range(cols):
-            self._grid.setColumnStretch(c, 1)
+            self._grid.setColumnStretch(c, 0 if self._card_style == "modern" else 1)
 
         self._loading_more = False
 
@@ -896,7 +897,7 @@ class ModernProductCard(QWidget):
 
         self.image_frame = QFrame()
         self.image_frame.setObjectName("modernImageFrame")
-        image_h = 94
+        image_h = 88
         image_w = self._card_width - (pad * 2)
         self.image_frame.setFixedSize(image_w, image_h)
         image_layout = QVBoxLayout(self.image_frame)
@@ -954,7 +955,7 @@ class ModernProductCard(QWidget):
         self.category_label.setToolTip(self._status_text())
         self.category_label.setText(self.category_label.fontMetrics().elidedText(
             self._status_text(), Qt.TextElideMode.ElideRight, self._card_width - 24))
-        layout.addWidget(self.category_label)
+        layout.addWidget(self.category_label, alignment=Qt.AlignmentFlag.AlignLeft)
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 0, 0)
         self.price_label = QLabel(format_money(self._price, get_currency_symbol()))
