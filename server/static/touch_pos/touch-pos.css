@@ -1798,6 +1798,12 @@ html[data-touch-theme=dark] :is(.search,.category-search,.manager-search):focus-
 .touch-settings .settings-form input:not([type=checkbox]),.touch-settings .settings-form select,.touch-settings .settings-form textarea{min-height:48px;line-height:1.6}
 .touch-settings .settings-check{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer}
 .touch-settings .settings-check input{flex:0 0 20px;margin:0}
+.touch-settings .settings-fullscreen{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.touch-settings .settings-fullscreen>div{display:grid;gap:3px;min-width:0}
+.touch-settings .settings-fullscreen strong{font-size:14px}
+.touch-settings .settings-fullscreen small{color:var(--muted);font-size:12px}
+.touch-settings .settings-fullscreen button{flex:0 0 auto;min-width:156px;background:var(--panel,#fff)}
+.touch-settings .settings-fullscreen button[aria-pressed=true]{background:#e6efff;color:#1d4ed8;border-color:#9bb8f4}
 .touch-settings .settings-image{background:var(--bg);padding:14px;min-width:0}
 .touch-settings .settings-image input[type=file]{font-size:12px;padding:8px;background:var(--panel)}
 .touch-settings .settings-image .settings-check{padding:8px 0;border:0}
@@ -1831,6 +1837,8 @@ html[data-touch-theme=dark] .settings-nav-group img{filter:invert(1)}
  .touch-settings .settings-save{bottom:-10px;padding-top:12px;gap:10px}
  .touch-settings .settings-save span{max-width:none;width:100%}
  .touch-settings .settings-save>.settings-primary{width:100%}
+ .touch-settings .settings-fullscreen{display:grid;grid-template-columns:1fr}
+ .touch-settings .settings-fullscreen button{width:100%;min-width:0}
  .touch-settings .settings-record>div:last-child{width:100%}
  .touch-settings .settings-record>div:last-child button{flex:1}
 }

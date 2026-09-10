@@ -3,9 +3,9 @@
   let root, ctx, values={}, section='Appearance', generation=0, busy=false;
   const navigation=[['WORKSPACE',['Appearance','Printer']],['BUSINESS',['Payment Types','Tax and Discount','Business and Branding','Receipt Text']],['ADMINISTRATION',['Regional','Users']]];
   const icons={'Appearance':'theme','Printer':'print','Payment Types':'payments','Tax and Discount':'percent_discount','Business and Branding':'home','Receipt Text':'receipt','Regional':'currency_exchange','Users':'groups'};
-  const groups={Appearance:[['Display preferences',['theme','follow_system_theme']]],Printer:[['Receipt printing',['receipt_paper_size','touch_auto_print_receipt']]],'Tax and Discount':[['Tax',['tax_enabled','tax_rate']],['Discount',['discount_enabled','discount_type','discount_value']]],'Business and Branding':[['Business details',['shop_name','shop_phone','shop_address']],['Branding and payment',['shop_qr_name','shop_logo_image','shop_qr_code_image']]],'Receipt Text':[['Header and customer',['receipt_header','show_customer_name']],['Footer messages',['receipt_footer','shop_footer_message','receipt_thank_you_text']]],Regional:[['Currency and language',['currency','language']]]};
+  const groups={Appearance:[['Display preferences',['theme','follow_system_theme']],['Screen',['fullscreen_control']]],Printer:[['Receipt printing',['receipt_paper_size','touch_auto_print_receipt']]],'Tax and Discount':[['Tax',['tax_enabled','tax_rate']],['Discount',['discount_enabled','discount_type','discount_value']]],'Business and Branding':[['Business details',['shop_name','shop_phone','shop_address']],['Branding and payment',['shop_qr_name','shop_logo_image','shop_qr_code_image']]],'Receipt Text':[['Header and customer',['receipt_header','show_customer_name']],['Footer messages',['receipt_footer','shop_footer_message','receipt_thank_you_text']]],Regional:[['Currency and language',['currency','language']]]};
   const fields={
-    Appearance:[['theme','Theme','select',['Light','Light Gray','Dark']],['follow_system_theme','Follow system theme','checkbox']],
+    Appearance:[['theme','Theme','select',['Light','Light Gray','Dark']],['follow_system_theme','Follow system theme','checkbox'],['fullscreen_control','Full screen','fullscreen']],
     Printer:[['touch_auto_print_receipt','Open print dialog automatically after completing a sale','checkbox'],['receipt_paper_size','Receipt paper','select',[['0','80mm'],['1','58mm'],['2','A4']]]],
     'Tax and Discount':[['tax_enabled','Enable tax','checkbox'],['tax_rate','Tax rate (%)','number'],['discount_enabled','Enable discount','checkbox'],['discount_type','Discount type','select',[['percentage','Percentage'],['fixed','Fixed amount'],['manual','Manual']]],['discount_value','Discount value','number']],
     'Business and Branding':[['shop_name','Business name','text'],['shop_phone','Phone','text'],['shop_address','Address','textarea'],['shop_qr_name','QR payment name','text'],['shop_logo_image','Business logo','image'],['shop_qr_code_image','Payment QR image','image']],
@@ -44,12 +44,36 @@
     const settings=appearanceSettings();
     document.documentElement.dataset.touchTheme=settings.follow_system_theme==='1' ? (systemTheme.matches?'dark':'light') : settings.theme==='Dark'?'dark':settings.theme==='Light Gray'?'gray':'light';
   }
+  function fullscreenLabel() {
+    return document.fullscreenElement ? 'Exit Full Screen' : 'Enter Full Screen';
+  }
+  async function toggleFullscreen(button) {
+    if(!document.fullscreenEnabled){message('Full screen is not available in this browser.');return;}
+    button.disabled=true;
+    try {
+      if(document.fullscreenElement)await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      button.querySelector('span').textContent=fullscreenLabel();
+      button.setAttribute('aria-pressed',String(Boolean(document.fullscreenElement)));
+    } catch(_) {
+      message('Full screen could not be changed. Try from the browser menu.');
+    } finally {
+      button.disabled=false;
+    }
+  }
   systemTheme.addEventListener('change',applyTheme);
   window.addEventListener('storage',event=>{if(event.key===APPEARANCE_KEY || event.key===null)applyTheme();});
+  if(document.addEventListener)document.addEventListener('fullscreenchange',()=>{
+    const button=root?.querySelector('[data-settings-fullscreen]');
+    if(!button)return;
+    button.querySelector('span').textContent=fullscreenLabel();
+    button.setAttribute('aria-pressed',String(Boolean(document.fullscreenElement)));
+  });
   applyTheme();
   function fieldMarkup([key,label,type,options], source=values) {
     const value=source[key] ?? '';
     if(type==='checkbox')return `<label class="settings-check"><input name="${key}" type="checkbox" ${value==='1' || value===true?'checked':''}><span>${esc(label)}</span></label>`;
+    if(type==='fullscreen')return `<div class="settings-fullscreen"><div><strong>${esc(label)}</strong><small>Use the whole screen on this device.</small></div><button type="button" data-settings-fullscreen data-icon="aspect_ratio" aria-pressed="${document.fullscreenElement?'true':'false'}"><span>${esc(fullscreenLabel())}</span></button></div>`;
     if(type==='image')return `<div class="settings-image"><label>${esc(label)}<input type="file" name="${key}" accept="image/png,image/jpeg"></label><img alt="${esc(label)} preview" ${/^data:image\/(png|jpeg);base64,/.test(value)?`src="${esc(value)}"`:'hidden'}><label class="settings-check"><input type="checkbox" name="clear_${key}">Remove image</label></div>`;
     const control=type==='select'?`<select name="${key}">${options.map(o=>{const [v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${String(v)===String(value)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`:type==='textarea'?`<textarea name="${key}" rows="3" maxlength="4000">${esc(value)}</textarea>`:`<input name="${key}" type="${type}" value="${esc(value)}" ${type==='number'?'min="0" step="0.01"':''} maxlength="4000">`;
     return `<label class="settings-field ${type==='textarea' || key==='shop_qr_name'?'settings-wide':''}"><span>${esc(label)}</span>${control}</label>`;
@@ -88,6 +112,7 @@
       if(section==='Printer')values={...values,...window.KayTouchReceipt.settings()};
       content.innerHTML=`<form class="settings-form">${groups[section].map(([title,keys])=>`<fieldset class="settings-card"><legend>${esc(title)}</legend><div class="settings-card-fields">${keys.map(key=>fieldMarkup(fields[section].find(f=>f[0]===key))).join('')}</div></fieldset>`).join('')}<div class="settings-save"><button type="submit" class="settings-primary" data-icon="save">Save changes</button><span>${['Appearance','Printer'].includes(section) ? 'Saved only in this browser on this device.' : 'Changes are saved for all connected apps.'}</span></div></form>`;
       const form=content.querySelector('form');
+      form.querySelector('[data-settings-fullscreen]')?.addEventListener('click',event=>toggleFullscreen(event.currentTarget));
       form.querySelectorAll('input[type=file]').forEach(input=>input.onchange=async()=>{
         try{if(input.files[0]){const img=input.closest('.settings-image').querySelector('img');img.src=await imageValue(input.files[0]);img.hidden=false;form.elements[`clear_${input.name}`].checked=false;}}
         catch(e){input.value='';message(e.message);}
@@ -98,6 +123,7 @@
         try {
           const update={};
           for(const [key,,type] of fields[section]) {
+            if(type==='fullscreen')continue;
             const input=form.elements[key];
             if(type==='image') {
               if(form.elements[`clear_${key}`].checked){update[key]='';update[key==='shop_logo_image'?'shop_logo':'shop_qr_code']='';}
