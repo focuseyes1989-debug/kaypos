@@ -43,10 +43,8 @@ def database_url():
 
 
 def database_fallback_url():
-    enabled = str(os.getenv("ZAY_POS_DATABASE_FAILOVER_ENABLED", "")).strip().lower()
-    if enabled not in {"1", "true", "yes", "on"}:
-        return ""
-    return os.getenv("ZAY_POS_DATABASE_FALLBACK_URL") or os.getenv("ZAY_POS_CLOUD_DATABASE_URL") or ""
+    """Legacy settings cannot enable the retired cloud fallback."""
+    return ""
 
 
 def database_urls():

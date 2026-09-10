@@ -564,8 +564,8 @@ class MainWindowActions:
         self._open_setting_dialog(
             "Database",
             widget,
-            760,
-            520
+            480,
+            420
         )
 
     def open_restaurant_settings_dialog(self) -> None:
