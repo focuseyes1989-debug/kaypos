@@ -269,14 +269,15 @@ class ExpensePage(QWidget):
         # SearchWidget - stretching 2 parts
         self.search_widget = SearchWidget(
             placeholder="Search by description or reference...",
-            show_label=True
+            show_label=False
         )
         self.search_widget.search_changed.connect(self.on_filter_changed)
+        self.search_widget.setMinimumWidth(240)
+        self.search_widget.setMaximumWidth(16777215)
         filter_layout.addWidget(self.search_widget, 2)
         
         # âœ… Category filter - Compact with fixed widths
         category_label = QLabel("Category:")
-        category_label.setFixedWidth(60)
         filter_layout.addWidget(category_label)
         
         self.category_filter = QComboBox()
@@ -286,7 +287,6 @@ class ExpensePage(QWidget):
         self.category_filter.setMinimumWidth(100)
         filter_layout.addWidget(self.category_filter, 1)
         
-        filter_layout.addStretch()
         table_layout.addLayout(filter_layout)
         
         # Table
@@ -339,9 +339,8 @@ class ExpensePage(QWidget):
         self.setStyleSheet(f"""
             QWidget#expensePage {{ background: transparent; }}
             QFrame#expenseToolbarCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background: transparent;
+                border: none;
             }}
         """)
     

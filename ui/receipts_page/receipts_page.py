@@ -268,9 +268,8 @@ class ReceiptsPage(QWidget):
         self.setStyleSheet(f"""
             QWidget#receiptsPage {{ background-color: transparent; }}
             QFrame#receiptsFilterCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background: transparent;
+                border: none;
             }}
         """)
         self._update_tab_widget_style()

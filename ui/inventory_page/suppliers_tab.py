@@ -36,6 +36,8 @@ class SuppliersTab(QWidget):
         )
         self.search_widget.search_changed.connect(self.reset_pagination)
         self.search_widget.search_cleared.connect(self.reset_pagination)
+        self.search_widget.setMinimumWidth(240)
+        self.search_widget.setMaximumWidth(16777215)
         filter_layout.addWidget(self.search_widget, 2)
         
         # Status filter combo box
@@ -50,7 +52,6 @@ class SuppliersTab(QWidget):
         self.status_filter.currentTextChanged.connect(self.reset_pagination)
         filter_layout.addWidget(self.status_filter, 1)
         
-        filter_layout.addStretch()
         layout.addLayout(filter_layout)
 
         # Button layout with SVG icons

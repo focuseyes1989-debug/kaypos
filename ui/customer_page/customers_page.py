@@ -57,12 +57,14 @@ class CustomersPage(QWidget):
         )
         self.search_widget.search_changed.connect(self.reset_and_search)
         self.search_widget.search_cleared.connect(self.reset_and_search)
-        top_layout.addWidget(self.search_widget, 0)  # No stretch, fixed size
+        self.search_widget.setMinimumWidth(240)
+        self.search_widget.setMaximumWidth(16777215)
+        top_layout.addWidget(self.search_widget, 1)
         
         # ====== Add Customer Button ======
         self.btn_add = ModernButton("", ModernButton.PRIMARY)
         self.btn_add.set_icon("add", size=(16, 16))
-        self.btn_add.setFixedWidth(118)
+        self.btn_add.setMinimumWidth(118)
         self.btn_add.setFixedHeight(34)
         self.btn_add.clicked.connect(self.add_customer)
         top_layout.addWidget(self.btn_add)
@@ -85,7 +87,6 @@ class CustomersPage(QWidget):
         top_layout.addWidget(self.action_toolbar)
         
         # Add stretch to push everything to the left (optional, but keeps things left-aligned)
-        top_layout.addStretch()
         
         layout.addWidget(self.toolbar_card)
         
@@ -107,7 +108,8 @@ class CustomersPage(QWidget):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Name
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Phone
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Email
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Email
+        self.table.setColumnWidth(3, 180)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Address
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Total Visit
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Total Spent
@@ -189,9 +191,8 @@ class CustomersPage(QWidget):
         self.setStyleSheet(f"""
             QWidget#customersPage {{ background: transparent; }}
             QFrame#customersToolbarCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background: transparent;
+                border: none;
             }}
             QTableWidget#customersTable {{
                 border: 1px solid {colors['border']};
@@ -437,6 +438,7 @@ class CustomersPage(QWidget):
                         item = QTableWidgetItem(format_money(val, symbol))
                     else:
                         item = QTableWidgetItem(str(val) if val else "")
+                    item.setToolTip(item.text())
                     self.table.setItem(row_idx, col_idx, item)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load customers: {e}")

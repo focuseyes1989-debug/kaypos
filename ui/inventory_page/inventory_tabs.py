@@ -89,6 +89,7 @@ class InventoryPage(QWidget):
         self.tabs.setObjectName("inventoryTabs")
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
         self.tabs.setUsesScrollButtons(True)
+        self.tabs.tabBar().setExpanding(False)
         self.tabs.setDocumentMode(True)
 
         self.current_stock_tab = CurrentStockTab(self)
@@ -147,9 +148,8 @@ class InventoryPage(QWidget):
         self.setStyleSheet(f"""
             QWidget#inventoryPage {{ background: transparent; }}
             QFrame#inventoryToolbarCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background: transparent;
+                border: none;
             }}
             QTabWidget#inventoryTabs::pane {{
                 border: 1px solid {colors['border']};

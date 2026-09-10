@@ -3,7 +3,7 @@ from typing import Callable, Optional
 
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QHBoxLayout, QMenu, QToolButton, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QMenu, QToolButton, QWidget, QSizePolicy
 
 from ui.themes.theme_manager import get_theme_colors, get_themed_icon
 from ui.widgets.modern_button import ModernButton
@@ -19,6 +19,8 @@ class ActionToolbar(QWidget):
         self.layout.setSpacing(6)
         self.more_button = QToolButton(self)
         self.more_button.setText("More")
+        self.more_button.setToolTip("More actions")
+        self.more_button.setAccessibleName("More actions")
         self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.more_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.more_menu = QMenu(self.more_button)
@@ -45,7 +47,7 @@ class ActionToolbar(QWidget):
         button.setFixedHeight(34)
         if width:
             button.setMinimumWidth(width)
-            button.setMaximumWidth(width)  # ✅ Also set maximum width
+            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         button.clicked.connect(callback)
         
         # ✅ Add to layout with stretch control
@@ -110,6 +112,9 @@ class ActionToolbar(QWidget):
             }}
             QToolButton:hover {{
                 background-color: {hover};
+            }}
+            QToolButton:focus {{
+                border-color: {colors.get('progress_bg', '#6675f5')};
             }}
             QToolButton::menu-indicator {{
                 width: 12px;

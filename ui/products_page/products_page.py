@@ -89,7 +89,7 @@ class ProductsPage(QWidget):
         # Top bar: filters and buttons
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("productsToolbarCard")
-        top_layout = QHBoxLayout(self.toolbar_card)
+        top_layout = QVBoxLayout(self.toolbar_card)
         top_layout.setContentsMargins(12, 7, 12, 7)
         top_layout.setSpacing(8)
         
@@ -148,18 +148,17 @@ class ProductsPage(QWidget):
         self.setStyleSheet(f"""
             QWidget#productsPage {{ background: transparent; }}
             QFrame#productsToolbarCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background: transparent;
+                border: none;
             }}
             QWidget#productsTableCard {{
                 background-color: {colors['card_bg']};
                 border: 1px solid {colors['border']};
-                border-radius: 12px;
+                border-radius: 8px;
             }}
             QWidget#productsTableCard QTableWidget {{
                 border: none;
-                border-radius: 11px;
+                border-radius: 8px;
             }}
         """)
 

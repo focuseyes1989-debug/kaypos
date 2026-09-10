@@ -27,9 +27,9 @@ class ProductFilters(QWidget):
         self.search_widget = ModernSearchWidget("Search by name / barcode / SKU...")
         self.search_widget.search_changed.connect(self._on_filter_changed)
         self.search_widget.search_cleared.connect(self._on_filter_changed)
-        self.search_widget.setMinimumWidth(280)
-        self.search_widget.setMaximumWidth(420)
-        layout.addWidget(self.search_widget)
+        self.search_widget.setMinimumWidth(240)
+        self.search_widget.setMaximumWidth(16777215)
+        layout.addWidget(self.search_widget, 1)
 
         # ✅ Category Container
         category_container = QWidget()
@@ -56,7 +56,6 @@ class ProductFilters(QWidget):
         category_layout.addWidget(self.category_combo)
 
         layout.addWidget(category_container)
-        layout.addStretch()
 
         # ✅ Connect theme change
         theme_manager.theme_changed.connect(self._on_theme_changed)

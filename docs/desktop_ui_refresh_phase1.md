@@ -151,3 +151,24 @@ offscreen maximum-amount rendering was also inspected. As in Phase 2,
 offscreen font rendering is incomplete. Live checkout, receipt printing,
 restaurant order settlement and the resolution matrix remain unverified;
 no completed sale is claimed from these layout checks.
+
+## Phase 4 Implementation
+
+- Products filters and actions use separate rows, removing their combined
+  horizontal minimum-width pressure. Product search expands with the workspace.
+- Customers, Expense and Suppliers searches can expand beyond their former
+  fixed 250px width. Expense filters use a consistent single baseline.
+- Customer email columns are user-resizable rather than growing to fit the
+  longest address. Customer cells expose complete text as tooltips.
+- Products, Customers, Inventory, Expense and Receipts toolbar sections are
+  unframed. Inventory tabs retain scrolling and no longer stretch equally.
+- Shared ActionToolbar treats requested widths as minimums, allowing longer
+  labels to fit. More actions has a tooltip, accessible name and focus border.
+  Discounts also uses this shared toolbar. Employees has its own controls and
+  has not received a page-specific visual migration in this pass.
+
+Verification: management widget tests verify expanding search geometry, category
+control containment, long action labels and primary/menu callbacks. Compilation
+and whitespace checks passed. Full populated management-page visual QA, CRUD,
+pagination, permission combinations and Windows scaling remain pending; these
+component checks do not complete the Phase 4 live acceptance gate.
