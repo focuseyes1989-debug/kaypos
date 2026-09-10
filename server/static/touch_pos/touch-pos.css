@@ -2501,7 +2501,7 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
 
 /* Large desktop and high-resolution support, from 1366x768 upward. */
 @media screen and (min-width:1366px){
-  :root{--touch-wide-max:1680px;--touch-wide-pad:14px;--touch-wide-gap:14px}
+  :root{--touch-wide-max:100%;--touch-wide-pad:14px;--touch-wide-gap:14px}
   .app-shell{grid-template-rows:60px minmax(0,1fr) 28px}
   .topbar{min-height:60px;padding:8px 18px;gap:18px}
   .workspace{
@@ -2517,8 +2517,8 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .category{min-height:54px}
   .catalog>.catalog-search{margin:14px 16px}
   .product-grid{padding:18px}
-  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
-  .catalog .product-card{min-height:210px;grid-template-rows:124px minmax(82px,auto)}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .catalog .product-card{min-height:198px;grid-template-rows:112px minmax(86px,auto)}
   .catalog .product-info{align-content:start;gap:5px;padding:10px}
   .cart-items{padding:12px}
   .touch-dashboard,.touch-receipts,.touch-settings,.product-manager,#touchCustomers,#touchSuppliers,#touchLocations,#touchInventory{
@@ -2533,10 +2533,10 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
 }
 
 @media screen and (min-width:1600px){
-  :root{--touch-wide-max:1840px;--touch-wide-pad:16px;--touch-wide-gap:16px}
+  :root{--touch-wide-max:100%;--touch-wide-pad:16px;--touch-wide-gap:16px}
   .workspace{grid-template-columns:clamp(200px,13vw,240px) minmax(0,1fr) clamp(360px,22vw,420px)}
-  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:14px}
-  .catalog .product-card{min-height:228px;grid-template-rows:140px minmax(88px,auto)}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px}
+  .catalog .product-card{min-height:204px;grid-template-rows:116px minmax(88px,auto)}
   #touchDashboard .dashboard-cards:not(.dashboard-credit-cards),#touchDashboard .dashboard-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
   #touchDashboard .dashboard-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .receipt-workspace{grid-template-columns:minmax(560px,1.15fr) minmax(440px,1fr)}
@@ -2547,7 +2547,7 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
 }
 
 @media screen and (min-width:1920px){
-  :root{--touch-wide-max:1960px;--touch-wide-pad:18px;--touch-wide-gap:18px}
+  :root{--touch-wide-max:100%;--touch-wide-pad:18px;--touch-wide-gap:18px}
   body{font-size:15px}
   .app-shell{grid-template-rows:64px minmax(0,1fr) 30px}
   .topbar{min-height:64px}
@@ -2556,17 +2556,17 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .panel-heading strong{font-size:16px}
   .panel-heading small{font-size:12px}
   .category{min-height:58px;padding:10px 14px}
-  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:16px}
-  .catalog .product-card{min-height:250px;grid-template-rows:158px minmax(92px,auto)}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:16px}
+  .catalog .product-card{min-height:216px;grid-template-rows:124px minmax(92px,auto)}
   .product-name{font-size:15px}
   .product-price{font-size:16px}
 }
 
 @media screen and (min-width:2560px){
-  :root{--touch-wide-max:2100px;--touch-wide-pad:20px;--touch-wide-gap:20px}
+  :root{--touch-wide-max:100%;--touch-wide-pad:20px;--touch-wide-gap:20px}
   .workspace{grid-template-columns:250px minmax(0,1fr) 430px}
-  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
-  .catalog .product-card{min-height:270px;grid-template-rows:174px minmax(96px,auto)}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:18px}
+  .catalog .product-card{min-height:228px;grid-template-rows:132px minmax(96px,auto)}
   .touch-receipts,.touch-dashboard,.touch-settings,.product-manager{padding:22px}
   .receipt-workspace{grid-template-columns:minmax(680px,1.2fr) minmax(520px,1fr)}
   #touchInventory .receipt-workspace{grid-template-columns:minmax(620px,1fr) minmax(620px,1fr)}
