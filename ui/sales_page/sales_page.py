@@ -517,29 +517,67 @@ class SalesPage(QWidget):
 
     def show_sale_completion(self, sale_id, invoice_no, grand_total, payment, change):
         from ui.sales_page.checkout_handler.checkout_utils import print_receipt, open_cash_drawer
+        from ui.themes.theme_manager import get_icon_with_color
 
         if self._checkout_dialog is not None:
             self._checkout_dialog.hide()
         dialog = QDialog(self)
         dialog.setWindowTitle("Sale Complete")
+        colors = get_theme_colors()
+        dialog.setStyleSheet(f"""
+            QDialog {{ background: {colors['card_bg']}; }}
+            QLabel {{ background: transparent; color: {colors['text']}; font-size: 13px; }}
+            QLabel#completionTitle {{ font-size: 22px; font-weight: 700; color: #16805d; }}
+            QLabel#completionInvoice {{ color: {colors['text_secondary']}; }}
+            QFrame#completionSummary {{ background: transparent; border: 1px solid {colors['border']}; border-radius: 8px; }}
+            QPushButton {{ background: {colors['card_bg']}; color: {colors['text']};
+                border: 1px solid {colors['border']}; border-radius: 8px;
+                min-height: 44px; max-height: 44px; min-width: 0; padding: 0 12px; font-size: 14px; }}
+            QPushButton:hover {{ background: {colors['bg_hover']}; }}
+            QPushButton#completionPrint {{ background: #2563eb; color: white; border-color: #2563eb; }}
+            QPushButton#completionPrint:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; border-color: {colors['border']}; }}
+        """)
         layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
-        layout.addWidget(QLabel("Sale Complete"))
-        layout.addWidget(QLabel("Invoice: " + invoice_no))
+        heading = QLabel("Sale complete")
+        heading.setObjectName("completionTitle")
+        layout.addWidget(heading)
+        invoice = QLabel("Invoice: " + invoice_no)
+        invoice.setObjectName("completionInvoice")
+        invoice.setWordWrap(True)
+        invoice.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(invoice)
+        summary = QFrame()
+        summary.setObjectName("completionSummary")
+        summary_layout = QVBoxLayout(summary)
+        summary_layout.setContentsMargins(12, 6, 12, 6)
+        summary_layout.setSpacing(0)
         for title, value in (("Total", grand_total), ("Received", payment), ("Change", change)):
             row = QHBoxLayout()
-            row.addWidget(QLabel(title))
+            label = QLabel(title)
+            label.setMinimumHeight(40)
+            row.addWidget(label)
             row.addStretch()
-            row.addWidget(QLabel(format_money(value, get_currency_symbol())))
-            layout.addLayout(row)
+            amount = QLabel(format_money(value, get_currency_symbol()))
+            amount.setObjectName("completion" + title)
+            amount.setStyleSheet("font-size: 18px; font-weight: 700;" if title == "Change" else "font-size: 15px; font-weight: 600;")
+            row.addWidget(amount)
+            summary_layout.addLayout(row)
+        layout.addWidget(summary)
         status = QLabel("")
+        status.setObjectName("completionStatus")
         status.setWordWrap(True)
+        status.setMinimumHeight(20)
         layout.addWidget(status)
         actions = QHBoxLayout()
         done = QPushButton("New Sale")
+        done.setAutoDefault(False)
         done.clicked.connect(dialog.accept)
         print_button = QPushButton("Receipt Print")
+        print_button.setObjectName("completionPrint")
+        print_button.setIcon(get_icon_with_color("print", "#ffffff", (18, 18)))
+        print_button.setDefault(True)
 
         def print_sale():
             print_button.setEnabled(False)
@@ -556,7 +594,7 @@ class SalesPage(QWidget):
 
         print_button.clicked.connect(print_sale)
         for button in (done, print_button):
-            button.setFixedHeight(38)
+            button.setFixedHeight(46)
             actions.addWidget(button)
         layout.addLayout(actions)
         if self.options_widget.is_open_drawer_enabled():
@@ -565,7 +603,8 @@ class SalesPage(QWidget):
             except Exception:
                 logger.exception("Cash drawer failed after sale completion")
                 status.setText("Sale saved. Cash drawer could not be opened.")
-        fit_dialog_to_available_screen(dialog, preferred_width=450, preferred_height=300, min_width=380, min_height=280)
+        fit_dialog_to_available_screen(dialog, preferred_width=480, preferred_height=360, min_width=400, min_height=340)
+        print_button.setFocus()
         dialog.exec()
         dialog.deleteLater()
 
