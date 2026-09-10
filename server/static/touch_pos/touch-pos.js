@@ -65,14 +65,21 @@
   }
   function setTouchView(view) {
     appView.dataset.touchView = view;
+    const activeAction = {
+      sales: 'products',
+      products: 'product-page',
+      categories: 'category-page',
+      receipts: 'receipts',
+      inventory: 'inventory',
+      dashboard: 'dashboard',
+      expenses: 'expenses',
+      settings: 'settings',
+      customers: 'customers',
+      suppliers: 'suppliers',
+      locations: 'locations'
+    }[view];
     document.querySelectorAll('[data-side-action]').forEach(button => {
-      const action = button.dataset.sideAction;
-      const active =
-        action === view ||
-        (view === 'sales' && action === 'products') ||
-        (view === 'products' && action === 'product-page') ||
-        (view === 'categories' && action === 'category-page');
-      button.toggleAttribute('aria-current', active);
+      button.toggleAttribute('aria-current', button.dataset.sideAction === activeAction);
     });
   }
   function categoryTone(category) {

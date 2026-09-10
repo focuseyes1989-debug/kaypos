@@ -2295,6 +2295,7 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
   min-height:44px;
   grid-template-columns:34px minmax(0,1fr) auto;
   gap:10px;
+  margin-inline:4px;
   padding:0 10px;
   border-radius:11px;
   color:var(--ink);
