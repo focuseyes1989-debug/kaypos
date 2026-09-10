@@ -311,16 +311,14 @@ class Header(QFrame):
         if is_dark:
             self.setStyleSheet("""
                 QFrame#header {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #5664df, stop:1 #4654c7);
+                    background: #202936;
                     border-bottom: none;
                 }
             """)
         else:
             self.setStyleSheet("""
                 QFrame#header {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #6675f5, stop:1 #5362dc);
+                    background: #28394b;
                     border-bottom: none;
                 }
             """)

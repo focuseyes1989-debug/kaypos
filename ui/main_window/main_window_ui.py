@@ -24,6 +24,7 @@ from ui.main_window.header import Header
 from ui.main_window.status_bar import StatusBar
 from ui.widgets.loading_overlay import LoadingOverlay
 from ui.responsive_utils import (
+    DESKTOP_MIN_CLIENT_WIDTH, DESKTOP_MIN_CLIENT_HEIGHT,
     DESKTOP_COMPACT_CONTENT_MARGINS,
     DESKTOP_COMPACT_CONTENT_SPACING,
     DESKTOP_MIN_HEIGHT,
@@ -96,7 +97,7 @@ class MainWindowUI(QMainWindow):
             x = screen_geometry.x() + max(0, (screen_width - window_width) // 2)
             y = screen_geometry.y() + max(0, (screen_height - window_height) // 2)
             self.move(x, y)
-        self.setMinimumSize(min(DESKTOP_MIN_WIDTH, window_width), min(DESKTOP_MIN_HEIGHT, window_height))
+        self.setMinimumSize(min(DESKTOP_MIN_CLIENT_WIDTH, window_width), min(DESKTOP_MIN_CLIENT_HEIGHT, window_height))
         
         # Theme colors
         colors = get_theme_colors()
@@ -758,16 +759,15 @@ class MainWindowUI(QMainWindow):
         if not self.header or not hasattr(self.header, 'menu_bar_clock'):
             return
 
-        colors = get_theme_colors(theme_name)
-        self.header.menu_bar_clock.setStyleSheet(f"""
-            QLabel {{
-                color: {colors.get('text', '#212529')};
+        self.header.menu_bar_clock.setStyleSheet("""
+            QLabel {
+                color: #ffffff;
                 font-size: 9pt;
                 font-weight: 500;
                 padding: 2px 0px;
                 background-color: transparent;
                 border: none;
-            }}
+            }
         """)
 
     def on_theme_manager_changed(self, theme_name: str) -> None:

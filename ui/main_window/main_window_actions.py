@@ -748,7 +748,8 @@ class MainWindowActions:
             else:
                 self.resize(width, height)
 
-            self.setMinimumSize(min(1366, width), min(768, height))
+            from ui.responsive_utils import DESKTOP_MIN_CLIENT_WIDTH, DESKTOP_MIN_CLIENT_HEIGHT
+            self.setMinimumSize(min(DESKTOP_MIN_CLIENT_WIDTH, width), min(DESKTOP_MIN_CLIENT_HEIGHT, height))
             logger.info(f"Applied window resolution: {width}x{height}")
         except Exception as e:
             logger.error(f"Failed to apply window resolution: {e}")

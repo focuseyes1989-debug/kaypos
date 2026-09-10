@@ -17,6 +17,7 @@ class ActionToolbar(QWidget):
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(6)
+        self.layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.more_button = QToolButton(self)
         self.more_button.setText("More")
         self.more_button.setToolTip("More actions")
