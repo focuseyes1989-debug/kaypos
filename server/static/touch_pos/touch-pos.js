@@ -1536,8 +1536,15 @@
   document.querySelector('#barcodeQty').addEventListener('input', refreshBarcodePrintArea);
   document.querySelector('#printBarcodeButton').addEventListener('click', () => { refreshBarcodePrintArea(); window.print(); });
   async function checkServer() {
-    try { const response = await fetch('/health', {cache: 'no-store'}), value = await response.json(); setConnection(response.ok && value.ok === true); }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch('/health', {cache: 'no-store', signal: controller.signal});
+      const value = await response.json();
+      setConnection(response.ok && value.ok === true);
+    }
     catch (_) { setConnection(false); }
+    finally { clearTimeout(timeout); }
   }
   function updateClock() { clock.textContent = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date()); }
   if (fullscreen) {
