@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 from ui.themes.theme_manager import get_theme_colors, get_icon_with_color
 from utils.currency import format_money, get_currency_symbol
+from ui.widgets.dialog_backdrop import exec_with_blurred_backdrop
 
 
 class CheckoutDialog(QDialog):
@@ -101,7 +102,7 @@ class CheckoutDialog(QDialog):
         grid.setSpacing(8)
         for i, text in enumerate(("1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", ".")):
             button = QPushButton(text)
-            button.setFixedHeight(48)
+            button.setFixedHeight(64)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(lambda checked=False, key=text: self._key(key))
             grid.addWidget(button, i // 3, i % 3)
@@ -112,7 +113,7 @@ class CheckoutDialog(QDialog):
         back.setToolTip("Backspace")
         back.clicked.connect(lambda: self._key("back"))
         for button in (clear, back):
-            button.setFixedHeight(44)
+            button.setFixedHeight(52)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         grid.addWidget(clear, 4, 0, 1, 2)
         grid.addWidget(back, 4, 2)
@@ -124,7 +125,7 @@ class CheckoutDialog(QDialog):
         self.exact.clicked.connect(lambda: self.page.payment_widget.payment_input.setValue(self.total))
         self.rounded.clicked.connect(lambda: self.page.payment_widget.payment_input.setValue(self.next_amount))
         for button in (self.exact, self.rounded):
-            button.setFixedHeight(44)
+            button.setFixedHeight(52)
             quick.addWidget(button)
         keypad.addLayout(quick)
         keypad.addStretch()
@@ -151,6 +152,9 @@ class CheckoutDialog(QDialog):
         page.options_widget.payment_type_changed.connect(self.refresh)
         page.customer_combo.currentIndexChanged.connect(self.refresh)
         self.refresh()
+
+    def exec(self):
+        return exec_with_blurred_backdrop(self)
 
     def _borrow(self, widget):
         def find(layout):

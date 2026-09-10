@@ -254,6 +254,11 @@ class SalesTouchStyleTests(unittest.TestCase):
             def cancel(dialog):
                 dialog.show()
                 self.app.processEvents()
+                from PyQt6.QtWidgets import QGraphicsBlurEffect
+                self.assertTrue(any(effect.parent().isVisible() for effect in page.findChildren(QGraphicsBlurEffect)))
+                for button in dialog.findChildren(QPushButton):
+                    if button.text().isdigit():
+                        self.assertEqual(button.height(), 64)
                 self.assertTrue(page.payment_widget.payment_input.isVisible())
                 dialog._key("clear")
                 self.assertFalse(dialog.save.isEnabled())
@@ -284,6 +289,8 @@ class SalesTouchStyleTests(unittest.TestCase):
             with patch.object(QDialog, "exec", cancel):
                 page.request_checkout()
             core.assert_not_called()
+            from PyQt6.QtWidgets import QGraphicsBlurEffect
+            self.assertFalse(any(effect.parent().isVisible() for effect in page.findChildren(QGraphicsBlurEffect)))
             self.assertEqual(page.payment_widget.get_payment_amount(), 2000)
             self.assertFalse(page.totals_widget.discount_checkbox.isChecked())
             self.assertEqual(page.totals_widget.discount_input.value(), 0)

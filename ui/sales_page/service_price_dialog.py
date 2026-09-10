@@ -1,11 +1,11 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import (
-    QDialog, QGraphicsBlurEffect, QGridLayout, QHBoxLayout, QLabel,
+    QGridLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QVBoxLayout,
 )
 
 from ui.widgets.numeric_keypad_dialog import NumericKeypadDialog
+from ui.widgets.dialog_backdrop import exec_with_blurred_backdrop
 from ui.themes.theme_manager import get_theme_colors, get_icon_with_color
 
 
@@ -86,26 +86,4 @@ class ServicePriceDialog(NumericKeypadDialog):
         """)
 
     def exec(self):
-        window = self.parentWidget().window() if self.parentWidget() else None
-        overlay = None
-        try:
-            if window and window.isVisible():
-                snapshot = window.grab()
-                painter = QPainter(snapshot)
-                painter.fillRect(snapshot.rect(), QColor(0, 0, 0, 85))
-                painter.end()
-                overlay = QLabel(window)
-                overlay.setPixmap(snapshot)
-                overlay.setScaledContents(True)
-                overlay.setGeometry(window.rect())
-                blur = QGraphicsBlurEffect(overlay)
-                blur.setBlurRadius(10)
-                overlay.setGraphicsEffect(blur)
-                overlay.show()
-                overlay.raise_()
-                self.move(window.mapToGlobal(window.rect().center()) - self.rect().center())
-            return QDialog.exec(self)
-        finally:
-            if overlay:
-                overlay.hide()
-                overlay.deleteLater()
+        return exec_with_blurred_backdrop(self)
