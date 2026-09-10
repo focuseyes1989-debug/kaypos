@@ -82,6 +82,10 @@ class ThemeManager(QObject):
         if theme_name in THEMES:
             _current_theme = theme_name
             self._current_theme = theme_name
+            from ui.design_system.scrollbars import install_scrollbar_style
+            scrollbar_app = app or QApplication.instance()
+            if scrollbar_app:
+                install_scrollbar_style(scrollbar_app, get_theme_colors(theme_name))
             
             if app:
                 apply_font()

@@ -12,6 +12,8 @@ DIALOG_PADDING = 16
 GAP = 8
 TABLE_ROW_HEIGHT = 38
 ICON_SIZE = 16
+SCROLLBAR_WIDTH = 10
+SCROLLBAR_MIN_HANDLE = 28
 
 
 def button_metrics_stylesheet(selector="QPushButton", *, compact=False):

@@ -51,6 +51,7 @@ def main():
                 "tests.test_desktop_settings_integration",
                 "tests.test_desktop_design_consistency",
                 "tests.test_desktop_sales_touch_style",
+                "tests.test_desktop_scrollbars",
             ]
             if args.shell:
                 modules.append("tests.test_desktop_live_shell")
