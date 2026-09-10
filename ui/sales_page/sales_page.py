@@ -2,7 +2,7 @@
 import ctypes
 import json
 from PyQt6 import sip
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QMessageBox, QApplication, QComboBox, QLabel, QDialog, QCheckBox, QDoubleSpinBox, QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QMessageBox, QApplication, QComboBox, QLabel, QDialog, QCheckBox, QDoubleSpinBox, QSpinBox, QRadioButton, QButtonGroup, QDialogButtonBox, QScrollArea, QFrame
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence
 from PyQt6.QtPrintSupport import QPrinterInfo
@@ -19,6 +19,7 @@ from ui.sales_page.checkout_handler import CheckoutHandler
 # âœ… Import ModernButton
 from ui.widgets.modern_button import ModernButton
 from ui.design_system.icon import get_icon
+from ui.responsive_utils import fit_dialog_to_available_screen
 
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
@@ -366,7 +367,7 @@ class SalesPage(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Sale Details")
         dialog.setModal(True)
-        dialog.resize(420, 520)
+        fit_dialog_to_available_screen(dialog, 460, 560, 360, 360)
         colors = get_theme_colors()
         dialog.setStyleSheet(f"""
             QDialog {{
@@ -375,9 +376,17 @@ class SalesPage(QWidget):
             }}
         """)
 
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
+        outer_layout = QVBoxLayout(dialog)
+        outer_layout.setContentsMargins(12, 12, 12, 12)
+        scroll = QScrollArea(dialog)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        body = QWidget()
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(8)
+        scroll.setWidget(body)
+        outer_layout.addWidget(scroll, 1)
 
         discount_group = QGroupBox("Discount")
         discount_layout = QVBoxLayout(discount_group)
@@ -441,7 +450,7 @@ class SalesPage(QWidget):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
+        outer_layout.addWidget(buttons)
 
         self._details_dialog = dialog
         try:

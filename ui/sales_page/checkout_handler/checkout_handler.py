@@ -191,7 +191,7 @@ class CheckoutHandler(QObject):
             gradient_colors=["#27c992", "#15966d"],
             hover_gradient_colors=["#35dca4", "#1eaa7e"]
         )
-        self.btn_checkout.setFixedHeight(88)
+        self.btn_checkout.setFixedHeight(44)
         self.btn_checkout.clicked.connect(self.checkout)
         
         # Clear Cart Button (Red Gradient)

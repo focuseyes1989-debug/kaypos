@@ -56,7 +56,7 @@ class PaymentWidget(QGroupBox):
         self.payment_type_label = QLabel("Type:")
         pt_layout.addWidget(self.payment_type_label)
         self.payment_combo = QComboBox()
-        self.payment_combo.setFixedWidth(180)
+        self.payment_combo.setMinimumWidth(170)
         pt_layout.addWidget(self.payment_combo)
         layout.addLayout(pt_layout)
 
@@ -67,7 +67,7 @@ class PaymentWidget(QGroupBox):
         self.payment_input = MoneyInput()
         # ✅ FIXED: max value increased from 1,000,000 to 999,999,999
         self.payment_input.setFixedHeight(44)
-        self.payment_input.setFixedWidth(180)
+        self.payment_input.setMinimumWidth(170)
         self.payment_input.valueChanged.connect(self.on_payment_changed)
         self.payment_input.returnPressed.connect(self.apply_received_amount)
         self._setup_received_keypad_action()
@@ -126,7 +126,7 @@ class PaymentWidget(QGroupBox):
                 border: 2px solid {border};
                 border-radius: 6px;
                 padding: 6px 30px 6px 10px;
-                font-size: 17pt;
+                font-size: 14pt;
                 font-weight: 700;
                 selection-background-color: {selection};
                 selection-color: white;
@@ -140,6 +140,10 @@ class PaymentWidget(QGroupBox):
                 border: 1px solid rgba(128, 128, 128, 0.36);
             }}
         """)
+        # Reserve space for the largest accepted amount and the keypad action.
+        self.payment_input.ensurePolished()
+        amount_width = self.payment_input.fontMetrics().horizontalAdvance("999999999")
+        self.payment_input.setMinimumWidth(amount_width + 70)
 
     def open_received_keypad(self):
         dialog = NumericKeypadDialog(
@@ -310,7 +314,7 @@ class PaymentWidget(QGroupBox):
                 padding: 4px 6px;
             }}
             QLineEdit {{
-                font-size: 17pt;
+                font-size: 14pt;
                 font-weight: 700;
                 padding: 6px 10px;
             }}

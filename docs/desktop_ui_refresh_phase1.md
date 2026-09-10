@@ -136,3 +136,18 @@ font rendering, so it does not establish text readability in the live app.
 Full shell verification at 1366x768 and Full HD, Windows scaling, and actual
 application font initialization remain pending. This pass does not claim
 completion of that visual acceptance gate or of page-local style migration.
+
+## Phase 3 Implementation
+
+Sales checkout now uses a 44px action instead of 88px. Payment fields can
+expand instead of being fixed at 180px. The received amount uses 14pt type
+and reserves measured space for all nine accepted digits plus the keypad.
+Sales and Restaurant Sale Details dialogs fit available geometry and scroll
+their form body independently of the OK/Cancel footer. Existing acceptance
+and cancellation handlers are retained.
+
+Verification: Python compilation and the payment geometry regression test;
+offscreen maximum-amount rendering was also inspected. As in Phase 2,
+offscreen font rendering is incomplete. Live checkout, receipt printing,
+restaurant order settlement and the resolution matrix remain unverified;
+no completed sale is claimed from these layout checks.
