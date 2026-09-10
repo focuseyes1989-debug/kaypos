@@ -2,7 +2,7 @@
 
 Widgets are imported lazily so optional integrations do not block unrelated
 settings dialogs. For example, opening Database settings should not require the
-Telegram dependencies to be installed.
+Optional integration dependencies to be installed.
 """
 
 _EXPORTS = {
@@ -14,12 +14,10 @@ _EXPORTS = {
     "BackupResetSettingWidget": ("ui.settings.backup_reset_setting", "BackupResetSettingWidget"),
     "UsersSettingWidget": ("ui.settings.users_setting", "UsersSettingWidget"),
     "UpdateSettingWidget": ("ui.settings.update_setting", "UpdateSettingWidget"),
-    "TelegramSettingWidget": ("ui.settings.telegram_setting", "TelegramSettingWidget"),
     "DatabaseConnectionSettingWidget": (
         "ui.settings.database_connection_setting",
         "DatabaseConnectionSettingWidget",
     ),
-    "YouTubeSettingWidget": ("ui.settings.youtube_setting", "YouTubeSettingWidget"),
     "PerformanceSettingWidget": ("ui.settings.performance_setting", "PerformanceSettingWidget"),
     "SettingsCenterWidget": ("ui.settings.settings_center", "SettingsCenterWidget"),
     "SettingsPage": ("ui.settings.settings_center", "SettingsPage"),
@@ -46,9 +44,7 @@ __all__ = [
     'BackupResetSettingWidget',
     'UsersSettingWidget',
     'UpdateSettingWidget',  # New export
-    'TelegramSettingWidget',
     'DatabaseConnectionSettingWidget',
-    'YouTubeSettingWidget',
     'PerformanceSettingWidget',
     'SettingsCenterWidget',
     'SettingsPage'

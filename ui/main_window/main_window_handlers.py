@@ -83,8 +83,6 @@ class MainWindowHandlers:
     print_settings_action: Optional[Any] = None
     regional_settings_action: Optional[Any] = None
     update_settings_action: Optional[Any] = None
-    telegram_settings_action: Optional[Any] = None
-    youtube_settings_action: Optional[Any] = None
     performance_settings_action: Optional[Any] = None
     backup_reset_settings_action: Optional[Any] = None
     users_settings_action: Optional[Any] = None
@@ -402,10 +400,6 @@ class MainWindowHandlers:
                 self.regional_settings_action.setText("Regional Settings")
             if hasattr(self, 'update_settings_action') and self.update_settings_action:
                 self.update_settings_action.setText("Update")
-            if hasattr(self, 'telegram_settings_action') and self.telegram_settings_action:
-                self.telegram_settings_action.setText("Telegram")
-            if hasattr(self, 'youtube_settings_action') and self.youtube_settings_action:
-                self.youtube_settings_action.setText("YouTube")
             if hasattr(self, 'performance_settings_action') and self.performance_settings_action:
                 self.performance_settings_action.setText("Performance")
             if hasattr(self, 'backup_reset_settings_action') and self.backup_reset_settings_action:

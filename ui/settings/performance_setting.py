@@ -54,12 +54,10 @@ class PerformanceSettingWidget(QWidget):
         self.thumbnail_quality_combo.addItem("Normal", "normal")
         form.addRow("Image quality:", self.thumbnail_quality_combo)
 
-        self.youtube_enabled_check = QCheckBox("Enable YouTube in Customer Display")
-        form.addRow("", self.youtube_enabled_check)
 
         note = QLabel(
             "Low-end mode reduces product cards per page, delays search while typing, "
-            "uses smaller thumbnails, and lets you disable WebEngine-heavy YouTube playback."
+            "and uses smaller thumbnails."
         )
         note.setWordWrap(True)
         form.addRow("", note)
@@ -76,7 +74,6 @@ class PerformanceSettingWidget(QWidget):
             self.page_size_spin.setValue(25)
             self.debounce_spin.setValue(600)
             self.thumbnail_quality_combo.setCurrentIndex(self.thumbnail_quality_combo.findData("low"))
-            self.youtube_enabled_check.setChecked(False)
 
     def load_settings(self):
         conn = connect_db()
@@ -86,7 +83,6 @@ class PerformanceSettingWidget(QWidget):
             "performance_product_page_size",
             "performance_search_debounce_ms",
             "performance_thumbnail_quality",
-            "performance_customer_display_youtube_enabled",
         )
         cursor.execute(
             f"SELECT key, value FROM settings WHERE key IN ({','.join(['?'] * len(keys))})",
@@ -105,7 +101,6 @@ class PerformanceSettingWidget(QWidget):
         quality = "low" if low_end else (values.get("performance_thumbnail_quality") or "normal")
         quality_index = self.thumbnail_quality_combo.findData(quality)
         self.thumbnail_quality_combo.setCurrentIndex(max(0, quality_index))
-        self.youtube_enabled_check.setChecked(values.get("performance_customer_display_youtube_enabled", "0") == "1")
 
     def save_settings(self):
         values = {
@@ -113,7 +108,6 @@ class PerformanceSettingWidget(QWidget):
             "performance_product_page_size": str(self.page_size_spin.value()),
             "performance_search_debounce_ms": str(self.debounce_spin.value()),
             "performance_thumbnail_quality": self.thumbnail_quality_combo.currentData() or "normal",
-            "performance_customer_display_youtube_enabled": "1" if self.youtube_enabled_check.isChecked() else "0",
         }
         conn = connect_db()
         cursor = conn.cursor()

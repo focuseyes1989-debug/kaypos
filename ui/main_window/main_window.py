@@ -46,7 +46,6 @@ class MainWindow(MainWindowUI):
     follow_system_theme: bool
     auto_backup_manager: Optional[Any] = None
     cloud_sync_manager: Optional[Any] = None
-    telegram_command_listener: Optional[Any] = None
     customer_display_server: Optional[Any] = None
     expense_notification_checker: Optional[Any] = None
     clock_timer: Optional[QTimer] = None
@@ -119,10 +118,6 @@ class MainWindow(MainWindowUI):
         self.auto_backup_manager = None
         self.cloud_sync_manager = None
         
-        # ------------------------------------------------------------
-        # ၆. Telegram Service ကို စတင်ခြင်း
-        # ------------------------------------------------------------
-        self.telegram_command_listener = None
         
         # ------------------------------------------------------------
         # ၇. Customer Display Server ကို စတင်ခြင်း
@@ -133,17 +128,6 @@ class MainWindow(MainWindowUI):
         if hasattr(self, "sales_page") and self.sales_page and hasattr(self.sales_page, 'publish_customer_display_state'):
             getattr(self.sales_page, 'publish_customer_display_state')()
         
-        # ------------------------------------------------------------
-        # ၈. Telegram Listener Watchdog (၁ မိနစ်တိုင်း စစ်ဆေးခြင်း)
-        # ------------------------------------------------------------
-        self.telegram_listener_watchdog = QTimer(self)
-        self.telegram_listener_watchdog.timeout.connect(self.ensure_telegram_listener)
-        
-        # ------------------------------------------------------------
-        # ၉. Background Activity Timer (၇၅၀ မီလီစက္ကန့်တိုင်း)
-        # ------------------------------------------------------------
-        self.background_activity_timer = QTimer(self)
-        self.background_activity_timer.timeout.connect(self.update_background_activity_status)
 
         # Local executive digests are generated for completed periods only.
         self.dashboard_digest_timer = QTimer(self)
@@ -230,10 +214,8 @@ class MainWindow(MainWindowUI):
 
             from utils.customer_display_server import start_customer_display_server
             from utils.expense_notification_checker import ExpenseNotificationChecker
-            from utils.telegram_service import start_telegram_command_listener
             from services.cloud_sync_service import start_cloud_sync_manager
 
-            self.telegram_command_listener = start_telegram_command_listener()
             self.customer_display_server = start_customer_display_server()
             self.cloud_sync_manager = start_cloud_sync_manager()
             self._show_customer_display_server_status()
@@ -241,7 +223,6 @@ class MainWindow(MainWindowUI):
             if hasattr(self, "sales_page") and self.sales_page and hasattr(self.sales_page, 'publish_customer_display_state'):
                 getattr(self.sales_page, 'publish_customer_display_state')()
 
-            self.telegram_listener_watchdog.start(60000)
 
             self.expense_notification_checker = ExpenseNotificationChecker(self)
             self.expense_notification_checker.alert_triggered.connect(self.show_expense_alert)
@@ -313,34 +294,6 @@ class MainWindow(MainWindowUI):
             logger.debug(f"Could not show customer display server status: {exc}")
 
     # ================================================================
-    # TELEGRAM LISTENER
-    # ================================================================
-
-    def ensure_telegram_listener(self) -> None:
-        """
-        Telegram Listener ကို လည်ပတ်နေစေရန် စစ်ဆေးခြင်း (Watchdog)
-        """
-        try:
-            from utils.telegram_service import ensure_telegram_command_listener_running
-
-            self.telegram_command_listener = ensure_telegram_command_listener_running()
-        except Exception as exc:
-            logger.warning(f"Telegram listener watchdog failed: {exc}")
-
-    def update_background_activity_status(self) -> None:
-        """
-        Background Activity ၏ အခြေအနေကို ပြန်လည်ဆန်းသစ်ခြင်း
-        """
-        try:
-            message = ""
-            if hasattr(self, "telegram_command_listener") and self.telegram_command_listener:
-                status = self.telegram_command_listener.status()
-                message = status.get("active_task", "")
-            self.set_background_activity("telegram", message)
-        except Exception as exc:
-            logger.debug(f"Could not update background activity status: {exc}")
-
-    # ================================================================
     # BACKGROUND ACTIVITY - Delegated to StatusBar
     # ================================================================
 
@@ -392,10 +345,6 @@ class MainWindow(MainWindowUI):
             if hasattr(self, "update_loading"):
                 self.update_loading("Stopping background timers...", 70)
 
-            if hasattr(self, "telegram_listener_watchdog"):
-                self.telegram_listener_watchdog.stop()
-            if hasattr(self, "background_activity_timer"):
-                self.background_activity_timer.stop()
             if hasattr(self, "blink_timer") and self.blink_timer:
                 self.blink_timer.stop()
 
@@ -499,10 +448,6 @@ class MainWindow(MainWindowUI):
             if self.logout_triggered and hasattr(self, "update_loading"):
                 self.update_loading("Stopping background timers...", 70)
             # 1. Stop all timers
-            if hasattr(self, "telegram_listener_watchdog"):
-                self.telegram_listener_watchdog.stop()
-            if hasattr(self, "background_activity_timer"):
-                self.background_activity_timer.stop()
             if hasattr(self, "blink_timer") and self.blink_timer:
                 self.blink_timer.stop()
             clock_timer = self.clock_timer
@@ -523,16 +468,6 @@ class MainWindow(MainWindowUI):
                 self.cloud_sync_manager = None
             
             if not self.logout_triggered:
-                # 3. Stop Telegram listener on real application exit only. This can
-                # wait up to a few seconds, so keep logout fast and let the login
-                # loop reuse/restart integrations as needed.
-                try:
-                    from utils.telegram_service import stop_telegram_command_listener
-
-                    stop_telegram_command_listener()
-                except Exception as exc:
-                    logger.warning(f"Error stopping telegram listener: {exc}")
-
                 # 4. Stop customer display server on real application exit only.
                 try:
                     from utils.customer_display_server import stop_customer_display_server

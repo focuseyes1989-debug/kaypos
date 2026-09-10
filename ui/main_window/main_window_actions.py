@@ -609,29 +609,6 @@ class MainWindowActions:
             540
         )
 
-    def open_telegram_settings_dialog(self) -> None:
-        from ui.settings import TelegramSettingWidget
-
-        widget = TelegramSettingWidget()
-        self._open_setting_dialog(
-            self._settings_dialog_title("telegram", "Telegram"),
-            widget,
-            760,
-            560
-        )
-
-    def open_youtube_settings_dialog(self) -> None:
-        from ui.settings import YouTubeSettingWidget
-
-        widget = YouTubeSettingWidget()
-        widget.youtube_settings_changed.connect(self.refresh_customer_display_youtube)
-        self._open_setting_dialog(
-            "YouTube",
-            widget,
-            640,
-            220
-        )
-
     def open_performance_settings_dialog(self) -> None:
         from ui.settings import PerformanceSettingWidget
 
@@ -657,28 +634,9 @@ class MainWindowActions:
         product_grid = getattr(sales_page, "product_grid", None) if sales_page else None
         if product_grid and hasattr(product_grid, "apply_performance_settings"):
             product_grid.apply_performance_settings(settings)
-        self.refresh_customer_display_youtube()
         if getattr(self, "status_bar", None):
             mode = "Low-end PC mode" if settings.low_end_mode else "Performance settings"
             self.status_bar.showMessage(f"{mode} applied", 3000)
-
-    def refresh_customer_display_youtube(self) -> None:
-        displays = []
-        sales_page = getattr(self, "sales_page", None)
-        if sales_page and getattr(sales_page, "customer_display", None):
-            displays.append(sales_page.customer_display)
-
-        cashier_window = getattr(self, "_cashier_window", None)
-        cashier_display = getattr(cashier_window, "_customer_display", None) if cashier_window else None
-        if cashier_display:
-            displays.append(cashier_display)
-
-        for display in displays:
-            try:
-                if hasattr(display, "load_youtube_player"):
-                    display.load_youtube_player()
-            except RuntimeError:
-                continue
 
     def open_backup_reset_settings_dialog(self) -> None:
         from ui.settings import BackupResetSettingWidget

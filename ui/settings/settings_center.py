@@ -25,10 +25,8 @@ from ui.settings.print_setting import PrintSettingWidget
 from ui.settings.receipt_setting import ReceiptSettingWidget
 from ui.settings.regional_setting import RegionalSettingWidget
 from ui.settings.restaurant_setting import RestaurantSettingWidget
-from ui.settings.telegram_setting import TelegramSettingWidget
 from ui.settings.update_setting import UpdateSettingWidget
 from ui.settings.users_setting import UsersSettingWidget
-from ui.settings.youtube_setting import YouTubeSettingWidget
 from ui.settings.zkteco_setting import ZKTecoSettingWidget
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
 from utils.language import lang
@@ -269,11 +267,7 @@ class SettingsCenterWidget(QWidget):
         self.update_tab = UpdateSettingWidget(user_id=self.user_id)
         self.add_page("update", "Update", "version update launcher release", self.update_tab)
 
-        self.telegram_tab = TelegramSettingWidget()
-        self.add_page("telegram", "Telegram", "telegram bot token chat notification", self.telegram_tab)
 
-        self.youtube_tab = YouTubeSettingWidget()
-        self.add_page("youtube", "YouTube", "youtube customer display video", self.youtube_tab)
 
         self.performance_tab = PerformanceSettingWidget()
         self.add_page("performance", "Performance", "performance low end page size thumbnails debounce", self.performance_tab)
@@ -405,7 +399,7 @@ class SettingsCenterWidget(QWidget):
         read_only_keys = [
             "general_payments", "general_tax_discount", "general_loyalty", "general_appearance",
             "receipt_branding", "receipt_text", "receipt_template",
-            "print", "restaurant", "regional", "telegram", "youtube", "performance", "database",
+            "print", "restaurant", "regional", "performance", "database",
         ]
         for key in read_only_keys:
             widget = self.page_widgets.get(key)
@@ -532,8 +526,6 @@ class SettingsCenterWidget(QWidget):
             ("restaurant_tab", ["load_settings", "load_tables"]),
             ("regional_tab", ["load_currency_setting", "load_language_setting"]),
             ("update_tab", ["load_current_version"]),
-            ("telegram_tab", ["load_settings"]),
-            ("youtube_tab", ["load_settings"]),
             ("performance_tab", ["load_settings"]),
             ("database_connection_tab", ["load_settings"]),
         ]

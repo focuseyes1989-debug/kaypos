@@ -25,8 +25,6 @@ class MainWindowMenus:
     open_outstanding_report: Any
     open_role_management: Any
     open_auto_backup: Any
-    open_telegram_settings_dialog: Any
-    open_youtube_settings_dialog: Any
     open_performance_settings_dialog: Any
     open_update_settings_dialog: Any
     open_budget_settings: Any
@@ -161,7 +159,7 @@ class MainWindowMenus:
             self.admin_menu.addAction(self.activity_log_action)
 
     def _create_tools_menu(self) -> None:
-        """Create Tools menu items - Auto Backup, Telegram, YouTube, Update"""
+        """Create Tools menu items - Auto Backup, Performance, Update"""
         main_window = self._qmainwindow()
         user_id = self.current_user["id"]
         can_edit_settings = PermissionManager.user_has_permission(user_id, Permission.EDIT_SETTINGS)
@@ -174,21 +172,6 @@ class MainWindowMenus:
             self.tools_menu.addAction(self.auto_backup_action)
             self.tools_menu.addSeparator()
         
-        # Telegram Settings (requires EDIT_SETTINGS permission)
-        self.telegram_settings_action = QAction("Telegram", main_window)  # ✅ တိုက်ရိုက်ပြောင်း
-        self.telegram_settings_action.triggered.connect(self.open_telegram_settings_dialog)
-        self.telegram_settings_action.setEnabled(can_edit_settings)
-        if not can_edit_settings:
-            self.telegram_settings_action.setToolTip(edit_tooltip)
-        self.tools_menu.addAction(self.telegram_settings_action)
-
-        self.youtube_settings_action = QAction("YouTube", main_window)
-        self.youtube_settings_action.triggered.connect(self.open_youtube_settings_dialog)
-        self.youtube_settings_action.setEnabled(can_edit_settings)
-        if not can_edit_settings:
-            self.youtube_settings_action.setToolTip(edit_tooltip)
-        self.tools_menu.addAction(self.youtube_settings_action)
-
         self.performance_settings_action = QAction("Performance", main_window)
         self.performance_settings_action.triggered.connect(self.open_performance_settings_dialog)
         self.performance_settings_action.setEnabled(can_edit_settings)
