@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QStackedWidget,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -41,8 +42,15 @@ class SettingsOverviewCard(QPushButton):
         self.value_label = value
         self.action_label = action_text
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setMinimumHeight(78)
+        self.content_label = QLabel(self)
+        self.content_label.setWordWrap(True)
+        self.content_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.content_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        content_layout = QVBoxLayout(self)
+        content_layout.setContentsMargins(14, 12, 14, 12)
+        content_layout.addWidget(self.content_label)
         self._apply_text()
         self.update_theme()
 
@@ -66,6 +74,8 @@ class SettingsOverviewCard(QPushButton):
                 border-color: {colors.get('border', '#d9dee7')};
                 color: {colors.get('text_secondary', '#6b7280')};
             }}
+            QLabel {{ background: transparent; color: {colors.get('text', '#1f2937')}; }}
+            QPushButton:focus {{ border-color: {colors.get('border_hover', '#4a6cf7')}; }}
         """)
 
     def set_value(self, value):
@@ -73,7 +83,10 @@ class SettingsOverviewCard(QPushButton):
         self._apply_text()
 
     def _apply_text(self):
-        self.setText(f"{self.title_label}\n{self.value_label}\n{self.action_label}")
+        text = f"{self.title_label}\n{self.value_label}\n{self.action_label}"
+        self.content_label.setText(text)
+        self.setAccessibleName(text)
+        self.setToolTip(text)
 
 
 class SettingsCenterWidget(QWidget):
@@ -122,6 +135,7 @@ class SettingsCenterWidget(QWidget):
 
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Search settings...")
+        self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self.filter_pages)
         sidebar_layout.addWidget(self.search_edit)
 
@@ -343,7 +357,11 @@ class SettingsCenterWidget(QWidget):
             grid.addWidget(card, index // 2, index % 2)
         page_layout.addLayout(grid)
         page_layout.addStretch()
-        return page
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(page)
+        return scroll
 
     def select_page(self, key):
         item = self.nav_items.get(key)

@@ -172,3 +172,20 @@ control containment, long action labels and primary/menu callbacks. Compilation
 and whitespace checks passed. Full populated management-page visual QA, CRUD,
 pagination, permission combinations and Windows scaling remain pending; these
 component checks do not complete the Phase 4 live acceptance gate.
+
+## Phase 5 Implementation
+
+- Settings overview cards wrap long values and expose their full text through
+  accessible names/tooltips. The overview scrolls independently of navigation.
+  Settings search now has a clear button.
+- Top Items chart scrolls vertically and reserves height for up to twenty rows,
+  instead of silently omitting rows below the viewport. Empty charts release
+  unnecessary height.
+- Dashboard discounted/refunded-sale dialogs and Sales Summary receipt history
+  use available-screen fitting and compact margins.
+
+Verification: two Qt tests passed for chart scrolling/empty state and settings
+card text/action behavior; affected modules compile and whitespace checks pass.
+Full Dashboard/AI page migration, every Settings form, live Myanmar font
+rendering, permission states and the Windows resolution/scaling matrix have
+not been verified by this pass. Overall Phase 5 visual acceptance remains open.

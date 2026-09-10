@@ -1,5 +1,5 @@
 # ui/sales_summary/top_items_tab.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget, QScrollArea, QFrame
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QFont, QPainter, QColor, QPen
 from models.database import connect_db
@@ -29,7 +29,11 @@ class TopItemsTab(QWidget):
         self.figure = None
         self.canvas = None
         self.chart_widget = _TopItemsBarChart(self)
-        chart_layout.addWidget(self.chart_widget)
+        self.chart_scroll = QScrollArea()
+        self.chart_scroll.setWidgetResizable(True)
+        self.chart_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.chart_scroll.setWidget(self.chart_widget)
+        chart_layout.addWidget(self.chart_scroll)
         self.chart_tab.setLayout(chart_layout)
         self.view_tabs.addTab(self.chart_tab, "Chart")
         
@@ -167,10 +171,11 @@ class _TopItemsBarChart(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data = []
-        self.setMinimumHeight(420)
+        self.setMinimumHeight(180)
 
     def set_data(self, data):
         self._data = [(str(name or ""), float(value or 0)) for name, value in data]
+        self.setMinimumHeight(max(180, 76 + min(20, len(self._data)) * 32))
         self.update()
 
     def paintEvent(self, event):
@@ -202,7 +207,7 @@ class _TopItemsBarChart(QWidget):
             return
 
         max_value = max(value for _, value in self._data) or 1
-        row_height = max(24, min(38, chart_rect.height() // max(1, len(self._data))))
+        row_height = max(24, min(38, chart_rect.height() // max(1, min(20, len(self._data)))))
         label_width = min(260, max(150, chart_rect.width() // 3))
         bar_area_left = chart_rect.left() + label_width + 12
         bar_area_width = max(80, chart_rect.right() - bar_area_left - 100)

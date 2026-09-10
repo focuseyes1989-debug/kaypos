@@ -13,6 +13,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import get_theme_colors, get_icon_with_color, theme_manager
 from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
 from loguru import logger
+from ui.responsive_utils import fit_dialog_to_available_screen
 
 
 class ItemsTab(QWidget):
@@ -222,12 +223,11 @@ class ItemsTab(QWidget):
             view_header = "View"
             close_text = "Close"
         
-        dialog.resize(820, 520)
-        dialog.setMinimumSize(720, 460)
+        fit_dialog_to_available_screen(dialog, 820, 520, 640, 360)
         
         layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(24, 22, 24, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         header_card = QFrame()
         header_card.setObjectName("receiptHistoryHeader")

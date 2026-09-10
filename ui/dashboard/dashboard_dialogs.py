@@ -7,6 +7,7 @@ from utils.currency import format_money
 from ui.receipt_detail_dialog import ReceiptDetailDialog
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
+from ui.responsive_utils import fit_dialog_to_available_screen
 
 
 def _apply_sales_dialog_theme(dialog):
@@ -23,11 +24,11 @@ class DiscountedSalesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Discounted Sales")
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
-        self.setMinimumSize(700, 500)
+        fit_dialog_to_available_screen(self, 860, 560, 640, 360)
         self.setModal(True)
         layout = QVBoxLayout()
-        layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         info = QLabel(f"Sales with discount from {from_date} to {to_date}")
         layout.addWidget(info)
         self.table = QTableWidget()
@@ -93,11 +94,11 @@ class RefundedSalesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Refunded Sales")
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
-        self.setMinimumSize(700, 500)
+        fit_dialog_to_available_screen(self, 860, 560, 640, 360)
         self.setModal(True)
         layout = QVBoxLayout()
-        layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         info = QLabel(f"Refunded sales from {from_date} to {to_date}")
         layout.addWidget(info)
         self.table = QTableWidget()
