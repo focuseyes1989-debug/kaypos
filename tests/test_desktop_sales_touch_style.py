@@ -254,7 +254,7 @@ class SalesTouchStyleTests(unittest.TestCase):
             def cancel(dialog):
                 dialog.show()
                 self.app.processEvents()
-                self.assertTrue(page.payment_widget.isVisible())
+                self.assertTrue(page.payment_widget.payment_input.isVisible())
                 dialog._key("clear")
                 self.assertFalse(dialog.save.isEnabled())
                 dialog.exact.click()
@@ -266,9 +266,17 @@ class SalesTouchStyleTests(unittest.TestCase):
                 self.assertEqual(page.payment_widget.get_payment_amount(), 3000)
                 page.payment_widget.payment_input.setValue(3000)
                 self.app.processEvents()
-                self.assertGreaterEqual(page.payment_widget.change_label.width(), page.payment_widget.change_label.sizeHint().width())
+                self.assertIn("1,000", dialog.values["Change"].text())
+                page.totals_widget.discount_checkbox.setChecked(True)
+                page.totals_widget.discount_input.setValue(10)
+                self.app.processEvents()
+                field = page.payment_widget.payment_input
+                self.assertGreaterEqual(dialog.status.y(), field.geometry().bottom())
+                self.assertTrue(dialog.rect().contains(dialog.save.geometry()))
                 output = os.environ.get("DESKTOP_QA_OUTPUT")
                 if output:
+                    dialog.resize(1040, 600)
+                    self.app.processEvents()
                     dialog.grab().save(str(Path(output) / "sales-checkout.png"))
                 dialog.reject()
                 return QDialog.DialogCode.Rejected
@@ -277,6 +285,8 @@ class SalesTouchStyleTests(unittest.TestCase):
                 page.request_checkout()
             core.assert_not_called()
             self.assertEqual(page.payment_widget.get_payment_amount(), 2000)
+            self.assertFalse(page.totals_widget.discount_checkbox.isChecked())
+            self.assertEqual(page.totals_widget.discount_input.value(), 0)
             self.assertEqual(len(page.cart_widget.get_cart()), 1)
             self.assertFalse(page.checkout_controls.isVisible())
 

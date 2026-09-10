@@ -454,6 +454,10 @@ class SalesPage(QWidget):
             return
         if not self.cart_widget.get_cart():
             return
+        customer_index = self.customer_combo.currentIndex()
+        sale_type = self.options_widget.get_payment_type()
+        discount_enabled = self.totals_widget.discount_checkbox.isChecked()
+        discount_value = self.totals_widget.discount_input.value()
         from ui.sales_page.checkout_dialog import CheckoutDialog
         dialog = CheckoutDialog(self)
         self._checkout_dialog = dialog
@@ -466,12 +470,13 @@ class SalesPage(QWidget):
         self.payment_widget.layout().setSpacing(8)
         self.payment_widget.layout().setContentsMargins(10, 8, 10, 8)
         self.payment_widget.update_change()
-        fit_dialog_to_available_screen(dialog, preferred_width=1000, preferred_height=530, min_width=900, min_height=500)
+        fit_dialog_to_available_screen(dialog, preferred_width=1040, preferred_height=600, min_width=900, min_height=500)
         self.payment_widget.payment_input.setFocus()
         self.payment_widget.payment_input.selectAll()
         try:
             dialog.exec()
         finally:
+            dialog.restore_controls()
             self.checkout_controls.hide()
             self.checkout_controls.setParent(self)
             self._restore_details_widgets()
@@ -481,6 +486,10 @@ class SalesPage(QWidget):
             self._checkout_dialog = None
             self.checkout_handler.btn_checkout.setText("Checkout")
             if dialog.result() != QDialog.DialogCode.Accepted:
+                self.customer_combo.setCurrentIndex(customer_index)
+                self.options_widget.set_payment_type(sale_type)
+                self.totals_widget.discount_checkbox.setChecked(discount_enabled)
+                self.totals_widget.discount_input.setValue(discount_value)
                 self.payment_widget.payment_combo.setCurrentIndex(payment_index)
                 self.payment_widget.payment_input.setValue(amount)
                 self.payment_widget.payment_manual_override = manual
