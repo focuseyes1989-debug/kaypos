@@ -42,7 +42,7 @@ class SettingsOverviewCard(QPushButton):
         self.action_label = action_text
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(92)
+        self.setMinimumHeight(78)
         self._apply_text()
         self.update_theme()
 
@@ -111,10 +111,10 @@ class SettingsCenterWidget(QWidget):
 
         sidebar = QFrame()
         sidebar.setObjectName("settingsCenterSidebar")
-        sidebar.setFixedWidth(260)
+        sidebar.setFixedWidth(232)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(14, 14, 14, 14)
-        sidebar_layout.setSpacing(10)
+        sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        sidebar_layout.setSpacing(8)
 
         self.title_label = QLabel("Settings")
         self.title_label.setObjectName("settingsCenterTitle")
@@ -168,7 +168,7 @@ class SettingsCenterWidget(QWidget):
             }}
             QLabel#settingsCenterTitle {{
                 color: {text};
-                font-size: 18pt;
+                font-size: 16pt;
                 font-weight: 800;
                 background: transparent;
             }}
@@ -194,8 +194,8 @@ class SettingsCenterWidget(QWidget):
                 outline: none;
             }}
             QListWidget#settingsCenterNav::item {{
-                min-height: 38px;
-                padding: 8px 10px;
+                min-height: 32px;
+                padding: 6px 8px;
                 border-radius: 6px;
                 color: {text};
             }}
@@ -319,15 +319,15 @@ class SettingsCenterWidget(QWidget):
     def create_overview_page(self):
         page = QWidget()
         page_layout = QVBoxLayout(page)
-        page_layout.setContentsMargins(24, 20, 24, 24)
-        page_layout.setSpacing(14)
+        page_layout.setContentsMargins(16, 14, 16, 16)
+        page_layout.setSpacing(10)
 
         self.overview_header = QLabel("Settings Overview")
         page_layout.addWidget(self.overview_header)
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
         cards = [
             ("receipt_branding", "Receipt", "Logo, QR, template", "Open Receipt"),
             ("print", "Print", "Printer not selected", "Open Print"),

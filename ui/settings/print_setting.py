@@ -29,12 +29,12 @@ class PrintSettingWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(12)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
         self.printer_group = QGroupBox("Printer")
         printer_layout = QFormLayout()
-        printer_layout.setVerticalSpacing(12)
+        printer_layout.setVerticalSpacing(8)
 
         self.printer_mode_combo = QComboBox()
         self.printer_mode_combo.addItem("Local Windows printer", "local")
@@ -46,7 +46,7 @@ class PrintSettingWidget(QWidget):
         self.receipt_printer_label = QLabel()
         self.printer_combo = QComboBox()
         printer_row.addWidget(self.printer_combo, 1)
-        self.btn_refresh_printers = self._create_action_button("Refresh", "refresh", min_width=104)
+        self.btn_refresh_printers = self._create_action_button("Refresh", "refresh", min_width=96)
         self.btn_refresh_printers.clicked.connect(lambda: self.load_printers())
         printer_row.addWidget(self.btn_refresh_printers)
         printer_layout.addRow(self.receipt_printer_label, printer_row)
@@ -63,7 +63,7 @@ class PrintSettingWidget(QWidget):
         network_row = QHBoxLayout()
         self.network_printer_combo = QComboBox()
         network_row.addWidget(self.network_printer_combo, 1)
-        self.btn_refresh_network_printers = self._create_action_button("Refresh Network", "refresh", min_width=138)
+        self.btn_refresh_network_printers = self._create_action_button("Refresh Network", "refresh", min_width=126)
         self.btn_refresh_network_printers.clicked.connect(lambda: self.load_network_printers(silent=False))
         network_row.addWidget(self.btn_refresh_network_printers)
         printer_layout.addRow("Network Printer:", network_row)
@@ -96,12 +96,12 @@ class PrintSettingWidget(QWidget):
 
         footer = QFrame()
         footer_layout = QHBoxLayout(footer)
-        footer_layout.setContentsMargins(0, 8, 0, 0)
+        footer_layout.setContentsMargins(0, 6, 0, 0)
         footer_layout.addStretch()
 
         self.btn_save = self._create_action_button("", "save", ModernButton.PRIMARY, min_width=180)
         self.btn_save.clicked.connect(self.save_settings)
-        self.btn_save.setMinimumHeight(36)
+        self.btn_save.setMinimumHeight(34)
         footer_layout.addWidget(self.btn_save)
         layout.addWidget(footer)
 

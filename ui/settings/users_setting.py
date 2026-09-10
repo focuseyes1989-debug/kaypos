@@ -18,10 +18,10 @@ class UserDialog(QDialog):
         super().__init__(parent)
         self.user_data = user_data
         self.current_user_id = current_user_id
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(420)
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 22, 24, 22)
-        root.setSpacing(16)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(10)
         self.dialog_title = QLabel()
         self.dialog_title.setObjectName("dialogTitle")
         self.dialog_subtitle = QLabel("Set account details and workspace access.")
@@ -32,8 +32,8 @@ class UserDialog(QDialog):
         self.form_card = QWidget()
         self.form_card.setObjectName("formCard")
         self.form_layout = QFormLayout(self.form_card)
-        self.form_layout.setContentsMargins(18, 18, 18, 18)
-        self.form_layout.setVerticalSpacing(13)
+        self.form_layout.setContentsMargins(14, 14, 14, 14)
+        self.form_layout.setVerticalSpacing(9)
 
         self.username_edit = QLineEdit()
         self.password_edit = QLineEdit()
@@ -75,9 +75,9 @@ class UserDialog(QDialog):
             QLabel#dialogTitle {{ font-size: 20px; font-weight: 700; }}
             QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
             QWidget#formCard {{ background-color: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 12px; }}
-            QLineEdit, QComboBox {{ min-height: 38px; padding: 0 12px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QLineEdit, QComboBox {{ min-height: 34px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
             QLineEdit:focus, QComboBox:focus {{ border-color: {colors['border_hover']}; }}
-            QPushButton {{ min-height: 36px; padding: 0 18px; border-radius: 8px; }}
+            QPushButton {{ min-height: 32px; padding: 0 16px; border-radius: 8px; }}
         """)
 
     def load_roles(self):

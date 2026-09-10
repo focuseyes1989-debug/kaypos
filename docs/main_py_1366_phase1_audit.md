@@ -138,4 +138,14 @@ Implemented on 2026-09-10.
 - Tightened Inventory, Receipts, and Expense page chrome, tab padding, filter row spacing, and summary card gaps.
 - Reduced Receipt list action button sizes and row height so table content gets more vertical space.
 
-Phase 5 should continue with settings and secondary form pages listed in P3.
+## Phase 5 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Reduced Settings Center sidebar width, navigation item height, title size, and overview card spacing for 1366x768.
+- Tightened General settings columns, payment table height, and save button sizing.
+- Reduced Receipt settings column minimum widths, preview box heights, text field heights, template preview height, and footer spacing.
+- Tightened Print, Restaurant, Regional, Users, and Database settings forms and action rows.
+- Kept settings content scrollable while making key Save/action buttons less likely to fall below the visible area.
+
+Phase 6 should do visual QA at 1366x768 and target any remaining page-specific clipping found during manual testing.

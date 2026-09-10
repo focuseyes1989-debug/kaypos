@@ -66,25 +66,25 @@ class GeneralSettingWidget(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(12)
 
         # Main two-column layout with equal width distribution
         columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(20)
+        columns_layout.setSpacing(12)
 
         left_column = QWidget()
         self.left_column = left_column
         left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(15)
+        left_layout.setSpacing(10)
 
         right_column = QWidget()
         self.right_column = right_column
         right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(15)
+        right_layout.setSpacing(10)
 
         # Payment Types (left)
         self.payment_group = QGroupBox()
@@ -98,8 +98,8 @@ class GeneralSettingWidget(QWidget):
         self.payment_table.setColumnHidden(0, True)
         self.payment_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.payment_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.payment_table.setMinimumHeight(200)
-        self.payment_table.setMaximumHeight(300)
+        self.payment_table.setMinimumHeight(160)
+        self.payment_table.setMaximumHeight(240)
         self.payment_table.cellClicked.connect(self.select_payment)
         self.payment_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         payment_layout.addWidget(self.payment_table)
@@ -266,8 +266,8 @@ class GeneralSettingWidget(QWidget):
         # Save button
         self.btn_save = QPushButton()
         self.btn_save.clicked.connect(self.save_settings)
-        self.btn_save.setMinimumWidth(200)
-        self.btn_save.setMaximumWidth(300)
+        self.btn_save.setMinimumWidth(180)
+        self.btn_save.setMaximumWidth(260)
         content_layout.addWidget(self.btn_save, alignment=Qt.AlignmentFlag.AlignCenter)
         content_layout.addStretch()
 

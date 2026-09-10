@@ -40,37 +40,37 @@ class ReceiptSettingWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(16)
+        content_layout.setContentsMargins(2, 2, 2, 2)
+        content_layout.setSpacing(10)
         columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(16)
+        columns_layout.setSpacing(10)
         left_column = QWidget()
         right_column = QWidget()
         self.left_column = left_column
         self.right_column = right_column
-        left_column.setMinimumWidth(440)
-        right_column.setMinimumWidth(440)
+        left_column.setMinimumWidth(400)
+        right_column.setMinimumWidth(400)
         left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         left_layout = QVBoxLayout(left_column)
         right_layout = QVBoxLayout(right_column)
         left_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(20)
-        right_layout.setSpacing(20)
+        left_layout.setSpacing(12)
+        right_layout.setSpacing(12)
 
         # ========== BUSINESS INFORMATION GROUP ==========
         business_group = QGroupBox("Business Information")
         self.business_group = business_group
         business_layout = QFormLayout()
-        business_layout.setVerticalSpacing(15)
+        business_layout.setVerticalSpacing(10)
 
         # Shop Name
         self.shop_name_label = QLabel()
@@ -100,11 +100,11 @@ class ReceiptSettingWidget(QWidget):
         logo_group = QGroupBox("Logo & QR Code")
         self.logo_group = logo_group
         logo_layout = QVBoxLayout()
-        logo_layout.setSpacing(12)
+        logo_layout.setSpacing(8)
         
         # Logo & QR section (side by side)
         logo_section = QHBoxLayout()
-        logo_section.setSpacing(20)
+        logo_section.setSpacing(10)
         logo_section.setAlignment(Qt.AlignmentFlag.AlignTop)  # ✅ Align to top
         
         # ===== LOGO (Left) =====
@@ -120,8 +120,8 @@ class ReceiptSettingWidget(QWidget):
         
         # ✅ Fixed size container for logo
         self.logo_preview_container = QFrame()
-        self.logo_preview_container.setMinimumWidth(220)
-        self.logo_preview_container.setFixedHeight(120)
+        self.logo_preview_container.setMinimumWidth(180)
+        self.logo_preview_container.setFixedHeight(96)
         self.logo_preview_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.logo_preview_container.setStyleSheet("""
             border: 1px solid #ced4da; 
@@ -134,15 +134,15 @@ class ReceiptSettingWidget(QWidget):
         
         self.logo_preview = QLabel()
         self.logo_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.logo_preview.setMinimumSize(200, 100)
-        self.logo_preview.setMaximumSize(200, 100)
+        self.logo_preview.setMinimumSize(170, 76)
+        self.logo_preview.setMaximumSize(180, 82)
         self.logo_preview.setStyleSheet("background-color: transparent;")
         self.logo_preview.setText("No logo")
         logo_preview_layout.addWidget(self.logo_preview)
         
         logo_widget_layout.addWidget(self.logo_preview_container)
         logo_name_spacer = QWidget()
-        logo_name_spacer.setFixedHeight(28)
+        logo_name_spacer.setFixedHeight(24)
         logo_widget_layout.addWidget(logo_name_spacer)
         
         # Logo path and browse button
@@ -182,8 +182,8 @@ class ReceiptSettingWidget(QWidget):
         
         # ✅ Fixed size container for QR
         self.qr_preview_container = QFrame()
-        self.qr_preview_container.setMinimumWidth(220)
-        self.qr_preview_container.setFixedHeight(120)
+        self.qr_preview_container.setMinimumWidth(180)
+        self.qr_preview_container.setFixedHeight(96)
         self.qr_preview_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.qr_preview_container.setStyleSheet("""
             border: 1px solid #ced4da; 
@@ -196,8 +196,8 @@ class ReceiptSettingWidget(QWidget):
         
         self.qr_preview = QLabel()
         self.qr_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.qr_preview.setMinimumSize(200, 100)
-        self.qr_preview.setMaximumSize(200, 100)
+        self.qr_preview.setMinimumSize(170, 76)
+        self.qr_preview.setMaximumSize(180, 82)
         self.qr_preview.setStyleSheet("background-color: transparent;")
         self.qr_preview.setText("No QR code")
         qr_preview_layout.addWidget(self.qr_preview)
@@ -238,12 +238,12 @@ class ReceiptSettingWidget(QWidget):
         receipt_group = QGroupBox("Header & Footer")
         self.receipt_group = receipt_group
         receipt_layout = QFormLayout()
-        receipt_layout.setVerticalSpacing(12)
+        receipt_layout.setVerticalSpacing(8)
 
         # Receipt Header
         self.header_label = QLabel()
         self.receipt_header = QTextEdit()
-        self.receipt_header.setMaximumHeight(80)
+        self.receipt_header.setMaximumHeight(64)
         self.receipt_header.setPlaceholderText("Header message (e.g., Thank you for shopping!)")
         self.receipt_header.textChanged.connect(self.update_template_preview)
         receipt_layout.addRow(self.header_label, self.receipt_header)
@@ -251,7 +251,7 @@ class ReceiptSettingWidget(QWidget):
         # Footer Message
         self.footer_label = QLabel()
         self.receipt_footer = QTextEdit()
-        self.receipt_footer.setMaximumHeight(80)
+        self.receipt_footer.setMaximumHeight(64)
         self.receipt_footer.setPlaceholderText("Footer message (e.g., Visit us again!)")
         self.receipt_footer.textChanged.connect(self.update_template_preview)
         receipt_layout.addRow(self.footer_label, self.receipt_footer)
@@ -310,7 +310,7 @@ class ReceiptSettingWidget(QWidget):
 
         self.template_preview = QTextEdit()
         self.template_preview.setReadOnly(True)
-        self.template_preview.setMinimumHeight(220)
+        self.template_preview.setMinimumHeight(170)
         self.template_preview.setFontFamily("Courier New")
         self.template_preview.setStyleSheet("QTextEdit { background: #ffffff; color: #111111; }")
         template_layout.addWidget(QLabel("Live Preview:"))
@@ -336,13 +336,13 @@ class ReceiptSettingWidget(QWidget):
         footer = QFrame()
         footer.setObjectName("receiptSettingsFooter")
         footer_layout = QHBoxLayout(footer)
-        footer_layout.setContentsMargins(0, 8, 0, 0)
+        footer_layout.setContentsMargins(0, 6, 0, 0)
         footer_layout.addStretch()
 
         # Save button
         self.btn_save = self._create_action_button("", "save", ModernButton.PRIMARY, min_width=200)
         self.btn_save.clicked.connect(self.save_settings)
-        self.btn_save.setMinimumHeight(36)
+        self.btn_save.setMinimumHeight(34)
         footer_layout.addWidget(self.btn_save)
 
         layout.addWidget(footer)

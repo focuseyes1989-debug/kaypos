@@ -24,7 +24,7 @@ class RegionalSettingWidget(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(10)
 
         # Currency group
         self.currency_group = QGroupBox()

@@ -55,15 +55,15 @@ class DatabaseConnectionSettingWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(14)
+        layout.setSpacing(8)
 
         columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(14)
+        columns_layout.setSpacing(10)
 
         self.connection_group = QGroupBox("PostgreSQL Server")
-        self.connection_group.setMinimumWidth(320)
+        self.connection_group.setMinimumWidth(300)
         form = QFormLayout()
-        form.setSpacing(10)
+        form.setSpacing(8)
 
         self.host_edit = QLineEdit()
         self.host_edit.setPlaceholderText("192.168.100.130")
@@ -87,9 +87,9 @@ class DatabaseConnectionSettingWidget(QWidget):
         self.connection_group.setLayout(form)
 
         self.cloud_group = QGroupBox("Cloud Sync (Aiven PostgreSQL)")
-        self.cloud_group.setMinimumWidth(360)
+        self.cloud_group.setMinimumWidth(330)
         cloud_form = QFormLayout()
-        cloud_form.setSpacing(10)
+        cloud_form.setSpacing(8)
 
         self.cloud_enabled_check = QCheckBox("Enable cloud sync on this PC")
         cloud_form.addRow("", self.cloud_enabled_check)
@@ -156,11 +156,14 @@ class DatabaseConnectionSettingWidget(QWidget):
         layout.addLayout(columns_layout, stretch=1)
 
         button_row = QHBoxLayout()
+        button_row.setSpacing(6)
         self.btn_test = QPushButton("Test Connection")
         self.btn_test_cloud = QPushButton("Test Cloud")
         self.btn_sync_now = QPushButton("Sync Now")
         self.btn_pull_cloud = QPushButton("Pull from Cloud")
         self.btn_save = QPushButton("Save")
+        for button in (self.btn_test, self.btn_test_cloud, self.btn_sync_now, self.btn_pull_cloud, self.btn_save):
+            button.setFixedHeight(32)
         self.btn_test.clicked.connect(self.test_connection)
         self.btn_test_cloud.clicked.connect(self.test_cloud_connection)
         self.btn_sync_now.clicked.connect(self.sync_cloud_now)

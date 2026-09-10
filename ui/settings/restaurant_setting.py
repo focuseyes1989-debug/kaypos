@@ -41,22 +41,22 @@ class RestaurantSettingWidget(QWidget):
 
     def setup_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(10)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(14)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(8)
 
         options_group = QFrame()
         options_group.setObjectName("restaurantSettingsPanel")
         options_layout = QVBoxLayout(options_group)
-        options_layout.setContentsMargins(12, 12, 12, 12)
-        options_layout.setSpacing(8)
+        options_layout.setContentsMargins(10, 8, 10, 8)
+        options_layout.setSpacing(6)
         title = QLabel("Restaurant Options")
         title.setObjectName("restaurantSettingsTitle")
         self.auto_preview_check = QCheckBox("Open kitchen ticket preview after Send Kitchen")
@@ -68,8 +68,8 @@ class RestaurantSettingWidget(QWidget):
         table_group = QFrame()
         table_group.setObjectName("restaurantSettingsPanel")
         table_layout = QVBoxLayout(table_group)
-        table_layout.setContentsMargins(12, 12, 12, 12)
-        table_layout.setSpacing(8)
+        table_layout.setContentsMargins(10, 8, 10, 8)
+        table_layout.setSpacing(6)
 
         header = QHBoxLayout()
         table_title = QLabel("Tables")
@@ -104,6 +104,8 @@ class RestaurantSettingWidget(QWidget):
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(34)
+        self.table.verticalHeader().setMinimumSectionSize(30)
         self.table.setAlternatingRowColors(True)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -141,7 +143,6 @@ class RestaurantSettingWidget(QWidget):
                 if col == 5 and not row[6]:
                     item.setForeground(Qt.GlobalColor.red)
                 self.table.setItem(row_idx, col, item)
-        self.table.resizeRowsToContents()
 
     def selected_row(self):
         selected = self.table.selectionModel().selectedRows()
