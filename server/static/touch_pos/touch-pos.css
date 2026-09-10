@@ -2480,6 +2480,22 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   footer{position:sticky;bottom:0;z-index:20;background:#eef3fa;border-top:1px solid #dce4ef;padding:0 12px;font-size:11px}
 }
 
+/* Small tablet portrait reports phone-like CSS width; use a denser catalog. */
+@media screen and (min-width:600px) and (max-width:760px) and (orientation:portrait){
+  :root{--mobile-pad:10px;--mobile-gap:10px}
+  .categories nav{gap:8px}
+  .category{min-width:126px;min-height:54px}
+  .catalog .panel-heading{padding:14px}
+  .catalog-actions{grid-template-columns:minmax(180px,1fr) auto 46px}
+  .product-grid{padding:10px}
+  .product-grid.loaded{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .catalog .product-card{min-height:176px;grid-template-rows:84px minmax(92px,auto)}
+  .catalog .product-info{align-content:start;gap:4px;padding:8px}
+  .catalog .product-category{min-height:17px;max-width:100%;padding:1px 5px;font-size:9px;line-height:1.7}
+  .product-name{font-size:12px!important;line-height:1.25}
+  .product-price{font-size:13px}
+}
+
 /* Tablet landscape follows the PC web workspace instead of the phone layout. */
 @media screen and (min-width:761px) and (max-width:1099px) and (orientation:landscape){
   body{font-size:13px}
