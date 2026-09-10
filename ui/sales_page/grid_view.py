@@ -92,6 +92,9 @@ class GridViewWidget(QScrollArea):
         self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         
         self.setWidget(self._container)
+        # QScrollArea enables background filling on its viewport/content by default.
+        self._container.setAutoFillBackground(False)
+        self.viewport().setAutoFillBackground(False)
 
         self._cards: List[QWidget] = []
         self._cols = 5

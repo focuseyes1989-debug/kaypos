@@ -29,6 +29,23 @@ class SalesTouchStyleTests(unittest.TestCase):
             self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
         card.deleteLater()
 
+    def test_grid_background_shows_parent_surface(self):
+        parent = QWidget()
+        parent.setStyleSheet("background-color: #d8eedb;")
+        parent.resize(500, 350)
+        grid = GridViewWidget(parent, card_style="modern")
+        grid.setGeometry(10, 10, 480, 330)
+        parent.show()
+        self.app.processEvents()
+        self.assertFalse(grid.viewport().autoFillBackground())
+        self.assertFalse(grid._container.autoFillBackground())
+        rendered = parent.grab().toImage()
+        self.assertEqual(rendered.pixelColor(240, 250), QColor("#d8eedb"))
+        grid._resize_timer.stop()
+        parent.close()
+        from PyQt6 import sip
+        sip.delete(parent)
+
     def test_service_keypad_input_and_blur_cleanup(self):
         from ui.sales_page.service_price_dialog import ServicePriceDialog
         from PyQt6.QtWidgets import QGraphicsBlurEffect
