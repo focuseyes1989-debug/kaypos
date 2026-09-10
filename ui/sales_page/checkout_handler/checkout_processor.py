@@ -53,37 +53,32 @@ class CheckoutProcessor:
                     continue
                 total = item["price"] * qty
                 wholesale_savings = (wholesale_regular_price - item_price) * qty if wholesale_applied else 0
-                try:
-                    cursor.execute("""
-                        INSERT INTO sale_items (
-                            sale_id, product_id, product_name, qty, price, total,
-                            variant_id, location_id, location, batch_no, expire_date,
-                            wholesale_regular_price, wholesale_savings,
-                            wholesale_tier_min_qty, wholesale_unit_label
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        sale_id,
-                        allocation.get("product_id") or item.get("id"),
-                        product_name,
-                        qty,
-                        item["price"],
-                        total,
-                        allocation.get("variant_id") or item.get("variant_id"),
-                        allocation.get("location_id"),
-                        allocation.get("location") or "",
-                        allocation.get("batch_no") or "",
-                        allocation.get("expire_date") or "",
-                        wholesale_regular_price if wholesale_applied else 0,
-                        wholesale_savings,
-                        item.get("wholesale_min_qty") if wholesale_applied else None,
-                        item.get("wholesale_unit_label") or "",
-                    ))
-                except Exception:
-                    cursor.execute("""
-                        INSERT INTO sale_items (sale_id, product_name, qty, price, total)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (sale_id, product_name, qty, item["price"], total))
+                # Refunds require this identity; let checkout roll back on failure.
+                cursor.execute("""
+                    INSERT INTO sale_items (
+                        sale_id, product_id, product_name, qty, price, total,
+                        variant_id, location_id, location, batch_no, expire_date,
+                        wholesale_regular_price, wholesale_savings,
+                        wholesale_tier_min_qty, wholesale_unit_label
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    sale_id,
+                    allocation.get("product_id") or item.get("id"),
+                    product_name,
+                    qty,
+                    item["price"],
+                    total,
+                    allocation.get("variant_id") or item.get("variant_id"),
+                    allocation.get("location_id"),
+                    allocation.get("location") or "",
+                    allocation.get("batch_no") or "",
+                    allocation.get("expire_date") or "",
+                    wholesale_regular_price if wholesale_applied else 0,
+                    wholesale_savings,
+                    item.get("wholesale_min_qty") if wholesale_applied else None,
+                    item.get("wholesale_unit_label") or "",
+                ))
     
     def process_credit_sale(self, conn, cursor, invoice_no, grand_total, sale_id):
         """Process credit sale"""

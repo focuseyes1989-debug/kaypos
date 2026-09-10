@@ -9,6 +9,8 @@ from uuid import uuid4
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox, QWidget
 from models.database import connect_db
+from models import variant_batches
+from services.credit_service import CreditService
 from ui.sales_page.checkout_handler.checkout_handler import CheckoutHandler
 from ui.sales_page.checkout_handler.checkout_helpers import CheckoutHelpers
 from ui.sales_page.checkout_handler.checkout_processor import CheckoutProcessor
@@ -86,6 +88,71 @@ class DesktopWorkflowTests(unittest.TestCase):
         self.handler._reset_after_checkout.assert_not_called()
         self.delete_backup.assert_not_called()
         self.warning.assert_called_once()
+
+    def test_metadata_write_failure_cannot_fall_back_to_anonymous_item(self):
+        before = self.conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
+        # A persistent trigger is visible to the checkout connection as well.
+        self.conn.execute("""CREATE TRIGGER qa_reject_metadata BEFORE INSERT ON sale_items
+            WHEN NEW.product_id IS NOT NULL BEGIN SELECT RAISE(ABORT, 'QA metadata rejected'); END""")
+        self.conn.commit()
+        try:
+            self.assertIsNone(CheckoutHandler.checkout(self.handler))
+            self.assertEqual(self.stock(), 17)
+            self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0], before)
+            self.delete_backup.assert_not_called()
+            self.critical.assert_called_once()
+        finally:
+            self.conn.execute("DROP TRIGGER qa_reject_metadata")
+            self.conn.commit()
+
+    def test_variant_sale_refund_restores_both_original_batches(self):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT INTO product_variants (product_id, size, stock) VALUES (?,'PVC',17)", (self.product_id,))
+        variant_id = cursor.lastrowid
+        variant_batches.receive(cursor, self.product_id, variant_id, 1, "Shop", "A", "2098-01-01")
+        variant_batches.receive(cursor, self.product_id, variant_id, 16, "Warehouse", "B", "2099-01-01")
+        original = variant_batches.list_batches(cursor, self.product_id)
+        self.conn.commit()
+        self.cart[0].pop("location_id")
+        self.cart[0]["variant_id"] = variant_id
+        result = CheckoutHandler.checkout(self.handler)
+        self.assertIsNotNone(result)
+        rows = self.conn.execute("SELECT variant_id, qty, location, batch_no FROM sale_items WHERE sale_id=? ORDER BY batch_no", (result["sale_id"],)).fetchall()
+        self.assertEqual([tuple(row) for row in rows], [(variant_id, 1, "Shop", "A"), (variant_id, 1, "Warehouse", "B")])
+        self.assertEqual(self.stock(), 15)
+        receipt = SimpleNamespace(user_id=None, get_lang=lambda: "en", window=lambda: None, parent=lambda: None, load_sales=Mock())
+        ReceiptsTab.refund_sale(receipt, result["sale_id"])
+        self.critical.assert_not_called()
+        self.assertEqual(self.stock(), 17)
+        self.assertEqual(self.conn.execute("SELECT stock FROM product_variants WHERE id=?", (variant_id,)).fetchone()[0], 17)
+        self.assertEqual(variant_batches.list_batches(cursor, self.product_id), original)
+        self.conn.commit()
+
+    def test_credit_checkout_partial_and_final_payment(self):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT INTO customers (name, current_balance) VALUES (?,0)", (f"QA-credit-{uuid4()}",))
+        customer_id = cursor.lastrowid
+        self.conn.commit()
+        self.handler.selected_customer_id = customer_id
+        self.handler.check_credit_limit = Mock(return_value=True)
+        self.page.options_widget.is_credit_sale.return_value = True
+        result = CheckoutHandler.checkout(self.handler)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["payment_type"], "Credit")
+        self.assertEqual(result["payment"], 0)
+        credit_id = self.conn.execute("SELECT id FROM credit_sales WHERE sale_id=?", (result["sale_id"],)).fetchone()[0]
+        service = CreditService()
+        partial = service.make_payment(credit_id, 75)
+        self.assertTrue(partial["success"])
+        self.assertEqual(partial["new_balance"], 125)
+        self.assertEqual(partial["status"], "partial")
+        self.assertFalse(service.make_payment(credit_id, 126)["success"])
+        final = service.make_payment(credit_id, 125)
+        self.assertTrue(final["success"])
+        self.assertEqual(final["status"], "paid")
+        self.assertEqual(self.conn.execute("SELECT current_balance FROM customers WHERE id=?", (customer_id,)).fetchone()[0], 0)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM credit_payments WHERE credit_sale_id=?", (credit_id,)).fetchone()[0], 2)
+        self.assertEqual(self.stock(), 15)
 
     def test_failed_sale_item_write_rolls_back_sale_and_stock(self):
         before = self.conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]

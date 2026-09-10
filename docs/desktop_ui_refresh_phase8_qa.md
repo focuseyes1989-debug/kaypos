@@ -61,4 +61,6 @@ performed. Database tests used temporary files; network printing was mocked.
 - [ ] Backup archive with product images restored to a disposable app installation.
 - [ ] Representative shop-sized data, searches, paging, and prolonged use.
 
-Phase 9 should address issues found in these checks and record release acceptance.
+Phase 9 continues source-only QA and fixes; EXE/release work is excluded per the
+user's updated scope. See `desktop_ui_refresh_phase9_qa.md` for results and the
+remaining manual checks.
