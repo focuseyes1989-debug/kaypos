@@ -217,6 +217,27 @@ class CartWidget(CashierCartWidget):
         self.table = _CartSelectionProxy(self)
         self.subtotal_label.setText("Grand Total")
 
+    def _apply_theme(self):
+        super()._apply_theme()
+        colors = get_theme_colors()
+        surface = colors['card_bg']
+        text = colors['text']
+        muted = colors['text_secondary']
+        border = colors['border']
+        for widget in (self.header, self.empty_widget, self.items_container, self.footer):
+            widget.setStyleSheet(f"background-color: {surface}; border: none;")
+        self.scroll_area.setStyleSheet(f"QScrollArea {{ background-color: {surface}; border: none; }}")
+        self.sep.setStyleSheet(f"background-color: {border}; border: none;")
+        self.title_label.setStyleSheet(f"font-size: 12pt; font-weight: 600; color: {text}; background: transparent;")
+        self.empty_label.setStyleSheet(f"font-size: 12pt; font-weight: 600; color: {text}; background: transparent;")
+        self.empty_sub_label.setStyleSheet(f"font-size: 9pt; color: {muted}; background: transparent;")
+        self.empty_action_btn.hide()
+        self.count_badge.setStyleSheet(f"color: {text}; background: {colors['bg_hover']}; border: none; border-radius: 6px; padding: 1px 6px;")
+        self.clear_btn.set_button_style(self.clear_btn.SECONDARY)
+        self.clear_btn.setStyleSheet(f"QPushButton {{ min-width: 0px; min-height: 0px; padding: 0px; border: 1px solid {border}; border-radius: 6px; background: {surface}; }} QPushButton:hover {{ background: {colors['bg_hover']}; }}")
+        self.clear_btn.set_icon("delete", (16, 16))
+        self.subtotal_value.setStyleSheet(f"font-size: 13pt; font-weight: 600; color: {text}; background: transparent;")
+
     def select_row(self, row: int) -> None:
         self.selected_row = row if 0 <= row < len(self.cart) else -1
 

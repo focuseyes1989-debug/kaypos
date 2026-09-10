@@ -156,7 +156,7 @@ class ProductGrid(QWidget):
         self.stack.addWidget(QWidget())
 
         # Grid view
-        self.grid_view = GridViewWidget()
+        self.grid_view = GridViewWidget(card_style="modern")
         self.grid_view.product_selected.connect(self.product_selected)
         self.grid_view.service_selected.connect(self.service_selected)
         self.grid_view.favourite_toggled.connect(self.on_favourite_toggled)

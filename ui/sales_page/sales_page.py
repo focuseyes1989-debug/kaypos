@@ -680,7 +680,7 @@ class SalesPage(QWidget):
             QWidget#productBrowserPanel, QWidget#salesRightContainer {{
                 background-color: {colors['card_bg']};
                 border: 1px solid {colors['border']};
-                border-radius: 16px;
+                border-radius: 8px;
             }}
         """)
         if self.right_container:
@@ -688,7 +688,7 @@ class SalesPage(QWidget):
                 QWidget#salesRightContainer {{
                     background-color: {colors['card_bg']};
                     border: 1px solid {colors['border']};
-                    border-radius: 16px;
+                    border-radius: 8px;
                 }}
             """)
         if self.details_panel:

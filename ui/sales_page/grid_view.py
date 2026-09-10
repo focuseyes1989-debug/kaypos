@@ -157,8 +157,7 @@ class GridViewWidget(QScrollArea):
         """
         # Base dimensions
         if self._card_style == "modern":
-            card_width = max(150, min(178, int(width * 0.17)))
-            card_height = int(card_width * 1.14)
+            return 156, 224, 8, 8, 8
         else:
             card_width = max(110, min(160, int(width * 0.15)))
             card_height = int(card_width * 1.15)
@@ -179,7 +178,7 @@ class GridViewWidget(QScrollArea):
         card_width, _, h_spacing, _, margins = self._get_responsive_sizes(width)
         available_width = width - (margins * 2)
         
-        cols = max(1, available_width // (card_width + h_spacing))
+        cols = max(1, (available_width + h_spacing) // (card_width + h_spacing))
         return int(cols)
 
     def _update_responsive_layout(self, width: int) -> None:
@@ -878,10 +877,11 @@ class ModernProductCard(QWidget):
         self._is_dark = is_dark
         self._card_width = card_width
         self._card_height = card_height
-        self._card_radius = max(14, int(self._card_width * 0.08))
-        self._image_radius = max(12, int(self._card_width * 0.07))
+        self._card_radius = 8
+        self._image_radius = 6
 
         self.setObjectName("ModernProductCard")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedSize(card_width, card_height)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
@@ -890,13 +890,13 @@ class ModernProductCard(QWidget):
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
-        pad = max(10, int(self._card_width * 0.06))
+        pad = 8
         layout.setContentsMargins(pad, pad, pad, pad)
-        layout.setSpacing(7)
+        layout.setSpacing(4)
 
         self.image_frame = QFrame()
         self.image_frame.setObjectName("modernImageFrame")
-        image_h = int(self._card_width * 0.72)
+        image_h = 94
         image_w = self._card_width - (pad * 2)
         self.image_frame.setFixedSize(image_w, image_h)
         image_layout = QVBoxLayout(self.image_frame)
@@ -940,13 +940,33 @@ class ModernProductCard(QWidget):
         self.fav_label.clicked.connect(self._toggle_favourite)
         self._update_favourite_display()
 
-        name_font = max(11, min(14, self._card_width // 14))
+        name_font = 12
         self.name_label = QLabel(self._name)
+        self.name_label.setToolTip(self._name)
         self.name_label.setWordWrap(True)
         self.name_label.setFixedHeight(name_font * 2 + 12)
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.name_label.setStyleSheet(f"font-size: {name_font}px; font-weight: 600; background: transparent; border: none;")
         layout.addWidget(self.name_label)
+
+        self.category_label = QLabel(self._status_text())
+        self.category_label.setFixedHeight(20)
+        self.category_label.setToolTip(self._status_text())
+        self.category_label.setText(self.category_label.fontMetrics().elidedText(
+            self._status_text(), Qt.TextElideMode.ElideRight, self._card_width - 24))
+        layout.addWidget(self.category_label)
+        footer = QHBoxLayout()
+        footer.setContentsMargins(0, 0, 0, 0)
+        self.price_label = QLabel(format_money(self._price, get_currency_symbol()))
+        self.price_label.setToolTip(self.price_label.text())
+        self.price_label.setFixedHeight(24)
+        footer.addWidget(self.price_label, 1)
+        self.quantity_label = QLabel(str(self._stock))
+        self.quantity_label.setFixedHeight(22)
+        self.quantity_label.setVisible(str(self._sold_by or "").lower() not in ("service", "restaurant"))
+        footer.addWidget(self.quantity_label)
+        layout.addLayout(footer)
+        layout.addStretch(1)
 
         self._apply_shadow()
 
@@ -1025,6 +1045,9 @@ class ModernProductCard(QWidget):
             }}
         """)
         self.name_label.setStyleSheet(self.name_label.styleSheet() + f" color: {text};")
+        self.category_label.setStyleSheet(f"color: {stock_text}; background: {image_bg}; border: none; border-radius: 3px; font-size: 10px; padding: 0px 3px;")
+        self.price_label.setStyleSheet(f"color: {text}; background: transparent; border: none; font-size: 12px; font-weight: 600;")
+        self.quantity_label.setStyleSheet(f"color: {stock_text}; background: transparent; border: 1px solid {card_border}; border-radius: 4px; font-size: 10px; padding: 1px 3px;")
         if self._is_out_of_stock():
             muted = colors.get("text_secondary", "#6c757d")
             self.name_label.setStyleSheet(self.name_label.styleSheet() + f" color: {muted};")
@@ -1032,12 +1055,7 @@ class ModernProductCard(QWidget):
         self._apply_shadow()
 
     def _apply_shadow(self) -> None:
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(18 if not self._is_dark else 22)
-        shadow.setXOffset(0)
-        shadow.setYOffset(7)
-        shadow.setColor(QColor(0, 0, 0, 26 if not self._is_dark else 84))
-        self.setGraphicsEffect(shadow)
+        self.setGraphicsEffect(None)
 
     def _rounded_pixmap(self, pixmap: QPixmap, width: int, height: int) -> QPixmap:
         rounded = QPixmap(width, height)
@@ -1048,12 +1066,13 @@ class ModernProductCard(QWidget):
         path = QPainterPath()
         path.addRoundedRect(0, 0, width, height, self._image_radius, self._image_radius)
         painter.setClipPath(path)
-        painter.drawPixmap(0, 0, pixmap.scaled(
+        scaled = pixmap.scaled(
             width,
             height,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation
-        ))
+        )
+        painter.drawPixmap((width - scaled.width()) // 2, (height - scaled.height()) // 2, scaled)
         if self._is_out_of_stock():
             painter.fillRect(0, 0, width, height, QColor(255, 255, 255, 165) if not self._is_dark else QColor(0, 0, 0, 150))
         painter.end()
