@@ -1281,21 +1281,6 @@ class RestaurantPage(QWidget):
                 background-color: {colors['progress_bg']};
                 color: white;
             }}
-            QTabWidget::pane {{
-                border: none;
-                background: transparent;
-            }}
-            QTabBar::tab {{
-                background-color: {colors['input_bg']};
-                color: {colors['text']};
-                border: 1px solid {colors['border']};
-                padding: 7px 10px;
-                min-width: 70px;
-            }}
-            QTabBar::tab:selected {{
-                background-color: {colors['progress_bg']};
-                color: white;
-            }}
             QFrame#kitchenTicketCard {{
                 background-color: transparent;
                 border: 1px solid {colors['text_secondary']};
@@ -1374,6 +1359,8 @@ class RestaurantPage(QWidget):
                 background: transparent;
             }}
         """
+        from ui.design_system.tabs import tab_stylesheet
+        restaurant_style += tab_stylesheet(colors)
         self.setStyleSheet(restaurant_style)
         if self._kitchen_dialog:
             self._kitchen_dialog.setStyleSheet(restaurant_style)

@@ -500,31 +500,10 @@ class EmployeeManagementPage(QWidget):
                 font-weight: 700;
                 padding: 4px 2px;
             }}
-            QTabWidget#employeeTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#employeeTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 10px 14px;
-                margin: 0 3px 7px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#employeeTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#employeeTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
         """)
+
+        from ui.design_system.tabs import tab_stylesheet
+        self.tabs.setStyleSheet(tab_stylesheet(colors, "employeeTabs"))
 
     def apply_ai_filters(self,tab_name,filters=None):
         """Select an authorized tab and apply read-only filters from AI Chat."""

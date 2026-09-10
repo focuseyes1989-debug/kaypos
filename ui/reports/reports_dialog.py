@@ -52,32 +52,8 @@ class ReportsDialog(BaseReportDialog):
         colors = get_theme_colors()
         self.tabs.setDocumentMode(True)
         self.tabs.setUsesScrollButtons(True)
-        self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 10px 18px;
-                margin: 0 4px 7px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
-        """)
+        from ui.design_system.tabs import tab_stylesheet
+        self.tabs.setStyleSheet(tab_stylesheet(colors, ""))
     
     def _load_colored_tab_icon(self, index):
         """Load SVG icon with color based on theme for tabs"""

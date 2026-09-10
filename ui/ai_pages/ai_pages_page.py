@@ -164,32 +164,8 @@ class AIPagesPage(QWidget):
     def _apply_tab_style(self):
         """Apply tab bar style based on theme"""
         colors = get_theme_colors()
-        self.tabs.setStyleSheet(f"""
-            QTabWidget#aiPagesTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#aiPagesTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 10px 18px;
-                margin: 0 4px 7px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#aiPagesTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#aiPagesTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
-        """)
+        from ui.design_system.tabs import tab_stylesheet
+        self.tabs.setStyleSheet(tab_stylesheet(colors, "aiPagesTabs"))
     
     def _on_theme_changed(self, theme_name):
         """Handle theme change"""
@@ -346,10 +322,11 @@ class AIPagesPage(QWidget):
         return widget
 
     def _create_analytics_metric_card(self, key, title, value, accent):
+        from ui.design_system.metrics import CARD_HEIGHT, CARD_PADDING
         colors = get_theme_colors()
         frame = QFrame()
         frame.setObjectName("analyticsMetricCard")
-        frame.setMinimumHeight(92)
+        frame.setMinimumHeight(CARD_HEIGHT)
         frame.setStyleSheet(f"""
             QFrame#analyticsMetricCard {{
                 background-color: {colors.get('card_bg', '#ffffff')};
@@ -360,7 +337,7 @@ class AIPagesPage(QWidget):
         """)
 
         card_layout = QVBoxLayout(frame)
-        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setContentsMargins(*([CARD_PADDING] * 4))
         card_layout.setSpacing(6)
 
         value_label = QLabel(value)

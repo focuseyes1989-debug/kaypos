@@ -303,65 +303,8 @@ class ProfitReportDialog(QDialog):
         """
 
     def _apply_tab_style(self):
-        """Apply tab style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    background-color: #2f3136;
-                }
-                QTabBar::tab {
-                    background-color: #2f3136;
-                    color: #b9bbbe;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #40444b;
-                    color: #ffffff;
-                }
-                QTabBar::tab:hover {
-                    background-color: #36393f;
-                    color: #ffffff;
-                }
-                QTabBar::tab:!selected {
-                    background-color: #202225;
-                    color: #72767d;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    background-color: #ffffff;
-                }
-                QTabBar::tab {
-                    background-color: #f8f9fa;
-                    color: #495057;
-                    padding: 8px 16px;
-                    margin-right: 2px;
-                    border-top-left-radius: 4px;
-                    border-top-right-radius: 4px;
-                    border: 1px solid #dee2e6;
-                    border-bottom: none;
-                }
-                QTabBar::tab:selected {
-                    background-color: #ffffff;
-                    color: #212529;
-                    border-bottom: 2px solid #5865f2;
-                }
-                QTabBar::tab:hover {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-            """)
+        from ui.design_system.tabs import tab_stylesheet
+        self.tabs.setStyleSheet(tab_stylesheet(get_theme_colors()))
 
     def on_theme_changed(self, theme_name):
         """Handle theme change"""
@@ -558,77 +501,10 @@ class ProfitReportDialog(QDialog):
         return widget
 
     def _apply_table_style(self, table):
-        """Apply theme-aware table styling"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 8px 12px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 8px 12px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
-        table.setStyleSheet(table_style)
+        from ui.design_system.dialog_styles import modern_table_stylesheet
+        from ui.design_system.metrics import TABLE_ROW_HEIGHT
+        table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        table.verticalHeader().setDefaultSectionSize(TABLE_ROW_HEIGHT)
 
     def load_summary_tab(self, from_date, to_date):
         symbol = get_currency_symbol()

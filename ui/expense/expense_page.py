@@ -71,32 +71,8 @@ class ExpensePage(QWidget):
     def _apply_tab_bar_style(self):
         """Apply the shared launcher-style tab treatment."""
         colors = get_theme_colors()
-        self.tab_widget.setStyleSheet(f"""
-            QTabWidget#expenseTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#expenseTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 7px 14px;
-                margin: 0 4px 5px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#expenseTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#expenseTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
-        """)
+        from ui.design_system.tabs import tab_stylesheet
+        self.tab_widget.setStyleSheet(tab_stylesheet(colors, "expenseTabs"))
         
         # âœ… Update tab icons color
         self._update_tab_icons_color()

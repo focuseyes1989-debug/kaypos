@@ -30,11 +30,28 @@ an old dashboard-card palette; both were moved to theme-aware colors.
 
 This is the shared-component migration, not an assertion that every historical
 screen is visually identical. Per-widget styles override application QSS in Qt.
-Remaining local tab styles include Employees, Expense, AI, Restaurant, and report
-dialogs; specialized login, payment keypad, and print dialogs also require
-individual visual review. Do not globally erase their styles or fixed geometry:
+The follow-up migrates Employees, Expense, AI pages/assistant, Restaurant,
+Category Form, and report dialogs to the shared tab stylesheet. Specialized
+login, payment keypad, and print dialogs still require individual visual review.
+Do not globally erase their styles or fixed geometry:
 that would remove semantic states and can clip specialized controls.
 
 New screens should use the shared components and helpers. Existing local styles
 should migrate screen by screen with long Myanmar labels, theme switching,
 keyboard actions, and 1366x768 client-area checks before being marked complete.
+
+## Follow-Up Results
+
+- Removed duplicated tab QSS rather than stacking a second style over it.
+- Profit Report tables now use the shared legacy table helper and 38px rows.
+- Base report Close action is bottom-right, with shared outer padding.
+- Removed the report-only 85px fixed summary-card height. Report cards use the
+  shared minimum size and flat theme surface; AI metric cards use the same
+  minimum height and padding. Chart and kitchen ticket dimensions remain distinct.
+- Native Windows isolated suite: 40 tests passed. Offscreen at 125%: 39 passed.
+- Theme-refresh tests compare migrated page styles in Light/Dark/Light order.
+  A real base report dialog checks footer placement, card height, and Close.
+  Style-method tests use lightweight widget fixtures, not full report workers.
+- Light/Dark report previews were inspected. Existing shell checks cover 11
+  pages; a full restaurant kitchen workflow is not included in that shell suite.
+- No database schema, business logic, EXE packaging, or release changes.

@@ -242,46 +242,8 @@ def get_progress_style():
 
 
 def get_tab_style():
-    """Get tab widget style - Integrated with theme_manager"""
-    colors = get_theme_colors()
-    is_dark = get_current_theme() == "Dark"
-    
-    if is_dark:
-        bg = colors.get('bg', '#2f3136')
-        text = colors.get('text', '#dcddde')
-        text_secondary = colors.get('text_secondary', '#b9bbbe')
-    else:
-        bg = colors.get('bg', '#f8f9fa')
-        text = colors.get('text', '#212529')
-        text_secondary = colors.get('text_secondary', '#6c757d')
-    
-    return f"""
-        QTabWidget#dashboardAITabs::pane {{
-            border: 1px solid {colors.get('border', '#293348')};
-            border-radius: 10px;
-            background: {colors.get('input_bg', '#0f1520')};
-            top: -1px;
-        }}
-        QTabWidget#dashboardAITabs QTabBar::tab {{
-            padding: 9px 14px;
-            margin: 0 3px 7px 0;
-            border: none;
-            border-radius: 8px;
-            font-size: 9pt;
-            font-weight: 600;
-            color: {text_secondary};
-            background: transparent;
-        }}
-        QTabWidget#dashboardAITabs QTabBar::tab:selected {{
-            background: {colors.get('bg_hover', '#1c2535')};
-            color: {text};
-            border-bottom: 2px solid {colors.get('progress_bg', '#6675f5')};
-        }}
-        QTabWidget#dashboardAITabs QTabBar::tab:hover:!selected {{
-            background: {colors.get('card_hover', '#192232')};
-            color: {text};
-        }}
-    """
+    from ui.design_system.tabs import tab_stylesheet
+    return tab_stylesheet(get_theme_colors(), "dashboardAITabs")
 
 
 def get_scroll_area_style():

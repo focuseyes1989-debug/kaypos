@@ -17,6 +17,7 @@ from ui.widgets import (
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 from ui.responsive_utils import fit_dialog_to_available_screen
+from ui.design_system.metrics import DIALOG_PADDING, GAP
 from datetime import datetime
 from loguru import logger
 import csv
@@ -70,7 +71,8 @@ class BaseReportDialog(QDialog):
         
         # Main layout
         self.main_layout = QVBoxLayout()
-        self.main_layout.setSpacing(8)
+        self.main_layout.setSpacing(GAP)
+        self.main_layout.setContentsMargins(*([DIALOG_PADDING] * 4))
         
         # ========== Date Range and Export Button Row ==========
         date_export_layout = QHBoxLayout()
@@ -102,14 +104,13 @@ class BaseReportDialog(QDialog):
         btn_layout.setSpacing(10)
         
         # Close button with SVG icon
-        self.btn_close = ModernButton(" Close", ModernButton.TERTIARY)
+        self.btn_close = ModernButton(" Close", ModernButton.SECONDARY)
+        self.btn_close.setMinimumWidth(112)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
         self.btn_close.clicked.connect(self.accept)
-        btn_layout.addWidget(self.btn_close)
-        
         btn_layout.addStretch()
-        self.main_layout.addLayout(btn_layout)
+        btn_layout.addWidget(self.btn_close)
         
         # ========== Loading Spinner ==========
         self.spinner = LoadingSpinnerWidget("Loading...")
@@ -121,7 +122,8 @@ class BaseReportDialog(QDialog):
         
         # Tab widget
         self.tabs = QTabWidget()
-        self.main_layout.addWidget(self.tabs)
+        self.main_layout.addWidget(self.tabs, 1)
+        self.main_layout.addLayout(btn_layout)
         
         # Setup tabs
         self.setup_tabs()
@@ -148,22 +150,8 @@ class BaseReportDialog(QDialog):
             }}
         """)
         
-        self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{
-                border: 1px solid {colors['border']}; border-radius: 12px;
-                background-color: {colors['card_bg']};
-            }}
-            QTabBar::tab {{
-                background: transparent; color: {colors['text_secondary']};
-                padding: 9px 14px; margin-right: 3px;
-                border: none; border-bottom: 2px solid transparent;
-                font-weight: 600;
-            }}
-            QTabBar::tab:selected {{
-                color: {colors['text']}; border-bottom-color: {colors['border_hover']};
-            }}
-            QTabBar::tab:hover {{ background-color: {colors['bg_hover']}; color: {colors['text']}; }}
-        """)
+        from ui.design_system.tabs import tab_stylesheet
+        self.tabs.setStyleSheet(tab_stylesheet(colors, ""))
     
     def on_theme_changed(self, theme_name):
         """Handle theme change"""
@@ -218,15 +206,13 @@ class BaseReportDialog(QDialog):
             value=value,
             icon=icon,
             color=color,
-            icon_is_svg=icon_is_svg
+            icon_is_svg=icon_is_svg,
+            flat=True,
         )
         # Set SVG icon if provided
         if icon_is_svg and icon:
             card.set_icon(icon, is_svg=True, size=(24, 24))
         
-        # Compact size
-        card.card.setFixedHeight(85)
-        card.card.setMinimumWidth(130)
         return card
     
     def update_summary_card(self, card, value, symbol=None):

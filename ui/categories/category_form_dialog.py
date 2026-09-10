@@ -171,30 +171,6 @@ class CategoryFormDialog(QDialog):
             QFrame#separator {{
                 background-color: {colors['border']};
             }}
-            QTabWidget::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 8px;
-                padding: 12px;
-                background: {colors['card_bg']};
-            }}
-            QTabBar::tab {{
-                padding: 8px 16px;
-                border: 1px solid {colors['border']};
-                border-bottom: none;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                background: {colors['card_bg']};
-                margin-right: 2px;
-                font-weight: 500;
-                color: {colors['text']};
-            }}
-            QTabBar::tab:selected {{
-                background: {colors['card_bg']};
-                border-bottom: 2px solid #5865f2;
-            }}
-            QTabBar::tab:hover {{
-                background: {colors['bg_hover']};
-            }}
             QScrollArea {{
                 background: transparent;
                 border: none;
@@ -217,9 +193,12 @@ class CategoryFormDialog(QDialog):
             }}
         """)
     
+        self.tabs.setStyleSheet(self._tab_style())
+
     def _tab_style(self):
         """Get tab style - will be applied in _apply_theme_styles"""
-        return ""
+        from ui.design_system.tabs import tab_stylesheet
+        return tab_stylesheet(get_theme_colors())
     
     def setup_basic_tab(self):
         """Setup the basic info tab"""
