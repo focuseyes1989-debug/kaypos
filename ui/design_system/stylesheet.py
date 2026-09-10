@@ -82,7 +82,12 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
 
         QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus,
         QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {{
-            border: 2px solid {colors.input_focus};
+            border-color: {colors.input_focus};
+        }}
+
+        QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeEdit {{
+            min-height: 22px;
+            padding: 6px {_px(spacing.input_padding_x)};
         }}
 
         QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled,
@@ -97,8 +102,8 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             color: {colors.text};
             border: 1px solid {colors.input_border};
             border-radius: {_px(radius.input)};
-            padding: {_px(spacing.input_padding_y)} 34px {_px(spacing.input_padding_y)} {_px(spacing.input_padding_x)};
-            min-height: 20px;
+            padding: 6px 34px 6px {_px(spacing.input_padding_x)};
+            min-height: 22px;
             selection-background-color: {colors.primary};
             selection-color: {colors.text_light};
         }}
@@ -108,7 +113,7 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QComboBox:focus {{
-            border: 2px solid {colors.input_focus};
+            border-color: {colors.input_focus};
         }}
 
         QComboBox::drop-down {{
@@ -148,8 +153,8 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             color: {colors.text};
             border: 1px solid {colors.border};
             border-radius: {_px(radius.button)};
-            padding: {_px(spacing.button_padding_y)} {_px(spacing.button_padding_x)};
-            min-height: 28px;
+            padding: 6px {_px(spacing.button_padding_x)};
+            min-height: 22px;
             min-width: 72px;
             font-weight: {typo.weight_medium};
         }}
@@ -161,6 +166,10 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
 
         QPushButton:pressed {{
             background-color: {colors.bg_active};
+        }}
+
+        QPushButton:focus {{
+            border-color: {colors.border_focus};
         }}
 
         QPushButton:disabled {{
@@ -286,7 +295,7 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         QDialogButtonBox QPushButton,
         QMessageBox QPushButton {{
             min-width: 86px;
-            min-height: 38px;
+            min-height: 26px;
             padding: 4px 16px;
             border-radius: {_px(radius.button)};
             font-weight: {typo.weight_semibold};

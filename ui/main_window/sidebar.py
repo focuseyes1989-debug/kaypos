@@ -9,7 +9,7 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QVBoxLayout, QLabel, QSizePolicy,
-    QPushButton, QWidget, QSpacerItem
+    QPushButton, QWidget, QSpacerItem, QScrollArea
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from ui.responsive_utils import DESKTOP_COMPACT_SIDEBAR_COLLAPSED, DESKTOP_COMPACT_SIDEBAR_EXPANDED
@@ -207,7 +207,14 @@ class Sidebar(QFrame):
         
         self.nav_layout.addWidget(self.collapse_container)
         
-        self.main_layout.addWidget(self.nav_container)
+        self.nav_scroll = QScrollArea()
+        self.nav_scroll.setObjectName("sidebarNavigation")
+        self.nav_scroll.setWidgetResizable(True)
+        self.nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_scroll.setStyleSheet("QScrollArea#sidebarNavigation { background: transparent; border: none; }")
+        self.nav_scroll.setWidget(self.nav_container)
+        self.main_layout.addWidget(self.nav_scroll, 1)
         
         # ============ BOTTOM SECTION ============
         self.bottom_container = QWidget()

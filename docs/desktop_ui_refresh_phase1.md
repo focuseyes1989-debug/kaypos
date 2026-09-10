@@ -115,3 +115,24 @@ For each implementation phase, record changed surfaces, checks performed,
 remaining visual limitations and commit ID. Commit/push completed changes.
 Phase 1 is documentation only: no runtime appearance change is claimed and no
 live application or database workflow was exercised during this source audit.
+
+## Phase 2 Implementation
+
+Implemented the shell/control pass on 2026-09-10:
+
+- Header uses a solid, restrained background in both themes, retaining the
+  existing 56px height and white foreground.
+- Sidebar navigation scrolls when vertical space is insufficient. Theme and
+  logout controls remain outside the scrolling region.
+- Shared single-line inputs, combos and buttons use compact padding and a
+  36px minimum outer target. Dialog buttons use the same outer target.
+- Input/combo focus changes border color without changing border thickness;
+  ordinary buttons now have an explicit focus border.
+
+Verification: existing desktop layout tests (3) and Light/Dark Qt control
+geometry test (1) passed. An offscreen 232x550 sidebar rendered with a 33px
+scroll range and its footer inside the widget. The preview lacked Myanmar
+font rendering, so it does not establish text readability in the live app.
+Full shell verification at 1366x768 and Full HD, Windows scaling, and actual
+application font initialization remain pending. This pass does not claim
+completion of that visual acceptance gate or of page-local style migration.
