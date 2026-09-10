@@ -25,6 +25,7 @@ from ui.categories.category_list_actions import CategoryListActions
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
+from ui.responsive_utils import fit_dialog_to_available_screen
 from utils.translations import tr
 from utils.language import lang
 from utils.excel_exporter import ExcelExporter
@@ -54,9 +55,7 @@ class CategoryListDialog(QDialog):
         # Setup window
         self.setWindowTitle("Manage Categories")
         self.setModal(True)
-        self.resize(950, 720)
-        self.setMinimumWidth(800)
-        self.setMinimumHeight(550)
+        fit_dialog_to_available_screen(self, 940, 640, 780, 520)
         
         # Enable minimize/maximize buttons
         self.setWindowFlags(

@@ -5,6 +5,7 @@ from PyQt6.QtGui import QIcon
 from ui.products_page.manage_category_groups_ui import CategoryGroupsUI
 from ui.products_page.manage_category_groups_handlers import CategoryGroupsHandlers
 from ui.themes.theme_manager import register_theme_callback, theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from utils.language import lang
 
 
@@ -15,8 +16,7 @@ class ManageCategoryGroupsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Manage Category Groups")
         self.setModal(True)
-        self.resize(920, 680)
-        self.setMinimumSize(780, 580)
+        fit_dialog_to_available_screen(self, 900, 640, 760, 520)
         
         # Set window icon
         try:

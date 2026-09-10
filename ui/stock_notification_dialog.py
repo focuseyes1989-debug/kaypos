@@ -13,6 +13,7 @@ from utils.excel_exporter import ExcelExporter
 from utils.translations import tr
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.product_detail_dialog import ProductDetailDialog  # ✅ Import ProductDetailDialog
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 
@@ -21,7 +22,7 @@ class StockNotificationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("stock_alerts_title"))
-        self.setMinimumSize(900, 550)
+        fit_dialog_to_available_screen(self, 900, 560, 780, 500)
         self.setModal(False)
         
         # Pagination variables

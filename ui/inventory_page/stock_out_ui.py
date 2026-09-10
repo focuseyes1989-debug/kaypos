@@ -9,6 +9,7 @@ from PyQt6.QtGui import QPixmap, QIcon
 from ui.widgets.modern_button import ModernButton
 from ui.inventory_page.stock_out_widgets import HeaderFrame
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import os
 
@@ -117,20 +118,18 @@ class StockOutUI:
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Stock Out")
-        dialog.resize(950, 720)
-        dialog.setMinimumWidth(900)
-        dialog.setMinimumHeight(650)
+        fit_dialog_to_available_screen(dialog, 940, 640, 820, 540)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(14, 14, 14, 14)
         
         # Setup header
         self._setup_header(main_layout)
         
         # Setup content (left panel + right panel)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
+        content_layout.setSpacing(12)
         
         left_panel = self._setup_left_panel(dialog, colors)
         right_panel = self._setup_right_panel(dialog, colors)

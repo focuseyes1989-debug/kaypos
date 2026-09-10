@@ -13,6 +13,7 @@ from utils.translations import tr
 from utils.speech_to_text import SpeechButton
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors
+from ui.responsive_utils import fit_dialog_to_available_screen
 from loguru import logger
 
 
@@ -23,14 +24,13 @@ class ManageCategoriesDialog(QDialog):
         super().__init__(parent)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setWindowTitle(tr("manage_categories"))
-        self.resize(760, 720)
-        self.setMinimumSize(680, 600)
+        fit_dialog_to_available_screen(self, 760, 640, 640, 520)
         self.all_categories = []
         self.all_groups = []
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
 
         self.header_frame = QFrame()
         self.header_frame.setObjectName("categoryHeader")

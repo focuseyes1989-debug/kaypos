@@ -12,6 +12,7 @@ from utils.currency import get_currency_symbol, format_money
 from ui.widgets import DateRangeWidget, ToastNotificationWidget, SummaryCardWidget
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import csv
 import os
@@ -21,7 +22,7 @@ class ProfitReportDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Profit & Loss Report")
-        self.setMinimumSize(1100, 750)
+        fit_dialog_to_available_screen(self, 1080, 660, 940, 560)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setWindowFlags(
             self.windowFlags()
@@ -40,7 +41,7 @@ class ProfitReportDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(15)
+        layout.setSpacing(8)
 
         # ========== FILTER SECTION ==========
         filter_group = QGroupBox("Report Filters")
@@ -48,7 +49,7 @@ class ProfitReportDialog(QDialog):
         filter_group.setStyleSheet(self._get_groupbox_style(colors))
         
         filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(15)
+        filter_layout.setSpacing(10)
 
         # DateRangeWidget
         self.date_range = DateRangeWidget()

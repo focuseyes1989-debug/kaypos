@@ -13,6 +13,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.products_page.product_form_ui_panels import ProductFormUIPanels
 from ui.products_page.product_form_ui_styles import ProductFormUIStyles
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 import os
 
 
@@ -60,10 +61,7 @@ class ProductFormUI(ProductFormUIPanels):
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Add Product" if product_id is None else "Edit Product")
-        dialog.resize(900, 680)
-        dialog.setMinimumWidth(820)
-        dialog.setMinimumHeight(620)
-        dialog.setMaximumHeight(760)
+        fit_dialog_to_available_screen(dialog, 900, 640, 780, 540)
         
         main_layout = QVBoxLayout()
         main_layout.setSpacing(8)

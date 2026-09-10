@@ -16,6 +16,7 @@ from ui.widgets import (
 )
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 import csv
@@ -48,7 +49,7 @@ class BaseReportDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(1000, 700)
+        fit_dialog_to_available_screen(self, 1000, 640, 880, 540)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setWindowFlags(
             self.windowFlags()
@@ -69,7 +70,7 @@ class BaseReportDialog(QDialog):
         
         # Main layout
         self.main_layout = QVBoxLayout()
-        self.main_layout.setSpacing(15)
+        self.main_layout.setSpacing(8)
         
         # ========== Date Range and Export Button Row ==========
         date_export_layout = QHBoxLayout()

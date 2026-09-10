@@ -157,4 +157,13 @@ Implemented on 2026-09-10.
 - Tightened internal spacing, form margins, summary card gaps, note height, and table row heights in those dialogs.
 - Reduced Current Stock thumbnail and image-column sizing so compact stock rows do not clip image cells.
 
-Next QA should be a manual 1366x768 run through Sales, Products, Inventory, Customers, Receipts, Expense, and Settings to catch any real-device edge cases.
+## Phase 7 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Re-scanned remaining fixed dialog sizes after the first QA passes.
+- Made Profit Report, Profit/Loss Report, shared report dialogs, Product Form, Category Management, Category Groups, Stock Alerts, Stock In, Stock Out, and Stock Transfer dialogs screen-aware.
+- Tightened spacing in report and inventory action dialogs so filters, content, and buttons remain reachable on 1366x768.
+- Reduced category management margins to preserve table/list space on shorter desktop screens.
+
+Next QA should be a real 1366x768 run through all primary workflows, followed by targeted visual fixes from screenshots.
