@@ -1,6 +1,6 @@
 """Global adapter that gives every QMessageBox modern semantic buttons."""
 
-from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
 from ui.design_system.metrics import CONTROL_HEIGHT
 
@@ -35,7 +35,19 @@ class ModernMessageBoxFilter(QObject):
             QEvent.Type.Show,
         ):
             self._modernize(watched)
+            if event.type() == QEvent.Type.Show:
+                QTimer.singleShot(0, lambda: self._refit_visible(watched))
         return super().eventFilter(watched, event)
+
+    @classmethod
+    def _refit_visible(cls, box):
+        try:
+            if box.isVisible():
+                cls._fit_message_text(box)
+                box.layout().activate()
+                box.adjustSize()
+        except RuntimeError:
+            pass  # The user may have already dismissed a short-lived message.
 
     @classmethod
     def _modernize(cls, box: QMessageBox) -> None:
@@ -81,6 +93,11 @@ class ModernMessageBoxFilter(QObject):
             line_width = max(label.fontMetrics().horizontalAdvance(line) for line in lines)
             longest_line = max(longest_line, line_width)
             label.setMinimumWidth(max(260, min(520, line_width + 24)))
+            label.setWordWrap(True)
+            # Reserve wrapped line height as well as width; Qt's compact
+            # native message geometry can otherwise clip subsequent lines.
+            text_width = max(label.minimumWidth(), label.width())
+            label.setMinimumHeight(max(label.fontMetrics().lineSpacing(), label.heightForWidth(text_width)) + 4)
 
         # Reserve enough room for icon, text and margins before first paint.
         # Qt retains responsibility for wrapping genuinely long messages.

@@ -85,6 +85,27 @@ class DesignConsistencyTests(unittest.TestCase):
         box.button(QMessageBox.StandardButton.Cancel).click()
         self.assertEqual(box.result(), QMessageBox.StandardButton.Cancel)
 
+    def test_multiline_message_is_not_clipped(self):
+        from PyQt6.QtWidgets import QLabel
+        from ui.design_system.message_box import install_modern_message_boxes
+        install_modern_message_boxes(self.app)
+        previous = self.app.styleSheet()
+        self.addCleanup(self.app.setStyleSheet, previous)
+        apply_design_system(self.app, "Light")
+        box = QMessageBox(QMessageBox.Icon.Information, "ZKTeco Sync",
+                          "Sync complete.\nNew punches: 74", QMessageBox.StandardButton.Ok)
+        box.show()
+        self.app.processEvents()
+        self.app.processEvents()
+        label = box.findChild(QLabel, "qt_msgbox_label")
+        self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+        self.assertGreaterEqual(label.height(), label.fontMetrics().lineSpacing() * 2)
+        output = os.environ.get("DESKTOP_QA_OUTPUT")
+        if output:
+            box.grab().save(str(Path(output) / "message-multiline.png"))
+        box.button(QMessageBox.StandardButton.Ok).click()
+        box.deleteLater()
+
     def test_legacy_tab_styles_match_after_theme_refresh(self):
         self.addCleanup(set_current_theme, get_current_theme())
         methods = [
