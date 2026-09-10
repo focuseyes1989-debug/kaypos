@@ -74,6 +74,30 @@ class SalesTouchStyleTests(unittest.TestCase):
             grid.close()
             grid.deleteLater()
 
+    def test_responsive_grid_fits_five_cards_and_uses_available_width(self):
+        grid = GridViewWidget(card_style="modern")
+        rows = [(i, "Example product", 32000, 7, 2, "Each", "", False, "General") for i in range(30)]
+        try:
+            with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
+                for width in (740, 1000, 520, 1600, 740):
+                    grid.resize(width, 500)
+                    grid.show()
+                    self.app.processEvents()
+                    grid.populate(rows)
+                    self.app.processEvents()
+                    QTest.qWait(200)
+                    self.app.processEvents()
+                    if width == 740:
+                        self.assertEqual(grid._cols, 5)
+                    right = grid._cards[grid._cols - 1].geometry().right() + 1
+                    self.assertLessEqual(grid.viewport().width() - right, 4 + grid._cols)
+                    self.assertGreaterEqual(grid.viewport().width() - right, 0)
+                    self.assertEqual(grid.horizontalScrollBar().maximum(), 0)
+        finally:
+            grid._resize_timer.stop()
+            grid.close()
+            grid.deleteLater()
+
     def test_grid_keeps_price_and_category_visible_and_adds_columns(self):
         self.addCleanup(set_current_theme, get_current_theme())
         thumbnail = QPixmap(120, 80)

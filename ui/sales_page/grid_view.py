@@ -158,7 +158,10 @@ class GridViewWidget(QScrollArea):
         """
         # Base dimensions
         if self._card_style == "modern":
-            return 156, 184, 8, 8, 4
+            available = max(1, width - 8)
+            columns = max(1, (available + 8) // (136 + 8))
+            card_width = max(1, (available - (columns - 1) * 8) // columns)
+            return card_width, 184, 8, 8, 4
         else:
             card_width = max(110, min(160, int(width * 0.15)))
             card_height = int(card_width * 1.15)
