@@ -24,8 +24,8 @@ class DashboardCharts:
 
     def setup(self, colors):
         charts_container = QFrame()
-        charts_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        charts_container.setFixedHeight(612)
+        charts_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        charts_container.setMinimumHeight(540)
         charts_container.setStyleSheet("background-color: transparent;")
 
         charts_layout = QVBoxLayout(charts_container)

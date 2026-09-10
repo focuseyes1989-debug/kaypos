@@ -14,6 +14,7 @@ from ui.dashboard.ai_assistant import AIAssistantWidget
 from ui.dashboard.dashboard_table import DashboardTable
 from ui.dashboard.dashboard_backup import DashboardBackupStatus
 from ui.widgets import DateRangeWidget
+from ui.widgets.wrapping_toolbar import WrappingToolbar
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from loguru import logger
 import os
@@ -230,7 +231,7 @@ class DashboardPage(QWidget):
         
         # 2. Cards (2 rows x 5 cards) - Using SummaryCardWidget
         # Row 1: Today Cards
-        today_layout = QHBoxLayout()
+        today_layout = WrappingToolbar(minimum_item_width=180)
         today_layout.setSpacing(8)
         
         self.today_sales_card = SummaryCardWidget(
@@ -281,10 +282,9 @@ class DashboardPage(QWidget):
         self.today_discount_card.clicked.connect(self.go_to_discounted_tab)
         today_layout.addWidget(self.today_discount_card, 1)
         
-        left_layout.addLayout(today_layout)
         
         # Row 2: Other Cards
-        other_layout = QHBoxLayout()
+        other_layout = today_layout
         other_layout.setSpacing(8)
         
         self.outstanding_card = SummaryCardWidget(
@@ -409,7 +409,12 @@ class DashboardPage(QWidget):
         right_layout.addWidget(self.ai_assistant, 1)
         
         # ---------- Add to Splitter ----------
-        self.splitter.addWidget(self.left_widget)
+        self.left_scroll = QScrollArea()
+        self.left_scroll.setWidgetResizable(True)
+        self.left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.table_widget.setMinimumHeight(240)
+        self.left_scroll.setWidget(self.left_widget)
+        self.splitter.addWidget(self.left_scroll)
         self.splitter.addWidget(self.right_widget)
         # ✅ 4:1 Ratio - Left 80%, Right 20%
         self.splitter.setSizes([800, 200])

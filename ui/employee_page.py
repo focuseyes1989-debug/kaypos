@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QDoubleSpinBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QFileDialog, QGroupBox, QMessageBox, QProgressBar, QPushButton, QSpinBox, QTabWidget, QTableWidget,
-    QTableWidgetItem, QTextEdit, QTimeEdit, QVBoxLayout, QWidget,
+    QTableWidgetItem, QTextEdit, QTimeEdit, QVBoxLayout, QWidget, QScrollArea, QFrame,
 )
 
 from services import employee_service as service
@@ -18,6 +18,8 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.search_widget import ModernSearchWidget
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.date_range_widget import DateRangeWidget
+from ui.widgets.wrapping_toolbar import WrappingToolbar
+from ui.responsive_utils import fit_dialog_to_available_screen
 from ui.design_system.icon import load_svg_icon
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 
@@ -122,8 +124,7 @@ class EmployeeDialog(QDialog):
         super().__init__(parent)
         self.employee = employee or {}
         self.setWindowTitle("Employee Profile")
-        self.resize(900, 620)
-        self.setMinimumSize(760, 560)
+        fit_dialog_to_available_screen(self, 900, 620, 700, 360)
 
         left_group = QGroupBox("Personal & Work Information")
         left_form = QFormLayout(left_group)
@@ -199,7 +200,17 @@ class EmployeeDialog(QDialog):
         self.notes=QTextEdit(self.employee.get("notes") or ""); self.notes.setMaximumHeight(82); right_form.addRow("Notes",self.notes)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel); buttons.accepted.connect(self.accept); buttons.rejected.connect(self.reject)
         columns=QHBoxLayout(); columns.setSpacing(14); columns.addWidget(left_group,1); columns.addWidget(right_group,1)
-        layout=QVBoxLayout(self); layout.setContentsMargins(14,14,14,12); layout.setSpacing(12); layout.addLayout(columns,1); layout.addWidget(buttons)
+        body = QWidget()
+        body.setLayout(columns)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(body)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 12)
+        layout.setSpacing(8)
+        layout.addWidget(scroll, 1)
+        layout.addWidget(buttons)
     def accept(self):
         if not self.fields["employee_no"].text().strip() or not self.fields["full_name"].text().strip(): QMessageBox.warning(self,"Required","Employee ID and full name are required."); return
         super().accept()
@@ -221,7 +232,7 @@ class EmployeeDialog(QDialog):
 class EmployeesTab(QWidget):
     data_changed = pyqtSignal()
     def __init__(self, can_manage=True):
-        super().__init__(); self.can_manage=can_manage; self.rows=[]; top=QHBoxLayout(); self.search=ModernSearchWidget("Search by name, employee ID or phone..."); self.status=QComboBox(); self.status.addItems(["All","Active","On Leave","Resigned"]); all_rows=service.list_employees(); self.position=QComboBox(); self.department=QComboBox(); self.branch=QComboBox(); self.position.addItem("All Positions");self.department.addItem("All Departments");self.branch.addItem("All Branches");[self.position.addItem(x) for x in sorted({str(e.get('position') or '') for e in all_rows if e.get('position')})];[self.department.addItem(x) for x in sorted({str(e.get('department') or '') for e in all_rows if e.get('department')})];[self.branch.addItem(x) for x in sorted({str(e.get('branch') or '') for e in all_rows if e.get('branch')})]; top.addWidget(self.search,1); top.addWidget(self.status);top.addWidget(self.position);top.addWidget(self.department);top.addWidget(self.branch); top.addWidget(_button("Add Employee",self.add,True)) if can_manage else None
+        super().__init__(); self.can_manage=can_manage; self.rows=[]; top=WrappingToolbar(); self.search=ModernSearchWidget("Search by name, employee ID or phone..."); self.status=QComboBox(); self.status.addItems(["All","Active","On Leave","Resigned"]); all_rows=service.list_employees(); self.position=QComboBox(); self.department=QComboBox(); self.branch=QComboBox(); self.position.addItem("All Positions");self.department.addItem("All Departments");self.branch.addItem("All Branches");[self.position.addItem(x) for x in sorted({str(e.get('position') or '') for e in all_rows if e.get('position')})];[self.department.addItem(x) for x in sorted({str(e.get('department') or '') for e in all_rows if e.get('department')})];[self.branch.addItem(x) for x in sorted({str(e.get('branch') or '') for e in all_rows if e.get('branch')})]; top.addWidget(self.search,1); top.addWidget(self.status);top.addWidget(self.position);top.addWidget(self.department);top.addWidget(self.branch); top.addWidget(_button("Add Employee",self.add,True)) if can_manage else None
         self.table=_table(["Profile","Employee ID","Name","Position","Phone","Branch","Tenure","POS Account","Status"]); self.table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); self.table.doubleClicked.connect(self.edit); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.search.search_changed.connect(lambda _text:self.refresh()); self.status.currentTextChanged.connect(lambda _status:self.refresh());self.position.currentTextChanged.connect(lambda _text:self.refresh());self.department.currentTextChanged.connect(lambda _text:self.refresh());self.branch.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
         rows=service.list_employees(self.search.get_text(),self.status.currentText());position=self.position.currentText();department=self.department.currentText();branch=self.branch.currentText();self.rows=[x for x in rows if (position=="All Positions" or str(x.get('position') or '')==position) and (department=="All Departments" or str(x.get('department') or '')==department) and (branch=="All Branches" or str(x.get('branch') or '')==branch)]; self.table.setRowCount(len(self.rows))
@@ -313,7 +324,7 @@ class AttendanceSyncWorker(QObject):
 
 class AttendanceTab(QWidget):
     def __init__(self,user_id,can_manage):
-        super().__init__(); self.user_id=user_id; self.can_manage=can_manage; self.rows=[]; self._sync_thread=None; self._sync_worker=None; self._sync_progress=None; top=QHBoxLayout(); self.date_range=DateRangeWidget(); self.search=ModernSearchWidget("Search employee or ID..."); self.employee_filter=QComboBox();self.employee_filter.addItem("All Employees",None);[self.employee_filter.addItem(f"{e['employee_no']} — {e['full_name']}",e['id']) for e in service.list_employees(status='Active')];self.issue=QComboBox();self.issue.addItems(["All Records","Missing Check-in","Missing Check-out","Check-in before Shift","Check-in after Shift"]); self.category=QComboBox(); self.category.addItems(["All Statuses","Present","Late","Incomplete","Absent","Half-day","Leave"]); top.addWidget(self.date_range,1); top.addWidget(self.search,1);top.addWidget(self.employee_filter);top.addWidget(self.issue); top.addWidget(self.category); top.addStretch(); self.sync_button=_button("Sync",self.sync_k20,True) if can_manage else None; top.addWidget(self.sync_button) if self.sync_button else None; top.addWidget(_button("Add / Correct",self.record)) if can_manage else None
+        super().__init__(); self.user_id=user_id; self.can_manage=can_manage; self.rows=[]; self._sync_thread=None; self._sync_worker=None; self._sync_progress=None; top=WrappingToolbar(); self.date_range=DateRangeWidget(); self.search=ModernSearchWidget("Search employee or ID..."); self.employee_filter=QComboBox();self.employee_filter.addItem("All Employees",None);[self.employee_filter.addItem(f"{e['employee_no']} — {e['full_name']}",e['id']) for e in service.list_employees(status='Active')];self.issue=QComboBox();self.issue.addItems(["All Records","Missing Check-in","Missing Check-out","Check-in before Shift","Check-in after Shift"]); self.category=QComboBox(); self.category.addItems(["All Statuses","Present","Late","Incomplete","Absent","Half-day","Leave"]); top.addWidget(self.date_range,1); top.addWidget(self.search,1);top.addWidget(self.employee_filter);top.addWidget(self.issue); top.addWidget(self.category); top.addStretch(); self.sync_button=_button("Sync",self.sync_k20,True) if can_manage else None; top.addWidget(self.sync_button) if self.sync_button else None; top.addWidget(_button("Add / Correct",self.record)) if can_manage else None
         self.total_count=QLabel("Total Records: 0"); self.total_count.setStyleSheet("font-size: 14px; font-weight: 600; padding: 4px 2px;")
         self.table=_table(["Date","Employee ID","Name","Check in","Check out","Status","Late (min)","Notes","Correction reason"]); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.total_count); layout.addWidget(self.table); self.date_range.date_range_changed.connect(lambda _from,_to:self.refresh()); self.search.search_changed.connect(lambda _text:self.refresh());self.employee_filter.currentIndexChanged.connect(lambda _index:self.refresh());self.issue.currentTextChanged.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
@@ -368,7 +379,7 @@ class AttendanceTab(QWidget):
 
 class ShiftsTab(QWidget):
     def __init__(self,can_manage):
-        super().__init__(); self.can_manage=can_manage; self.rows=[]; self.assignment_rows=[]; top=QHBoxLayout(); self.search=ModernSearchWidget("Search shift or employee..."); self.category=QComboBox(); self.category.addItems(["All Types","Day Shift","Overnight"]); top.addWidget(self.search,1); top.addWidget(self.category); top.addStretch(); top.addWidget(_button("New Shift",self.add_shift)) if can_manage else None; top.addWidget(_button("Assign Shift",self.assign,True)) if can_manage else None; self.table=_table(["Shift","Start","End","Break (min)","Overnight"]); self.assignment_table=_table(["Employee ID","Employee","Assigned Shift","Hours","Effective From","Effective To","Weekly Off"]); assignment_header=QHBoxLayout();assignment_header.addWidget(QLabel("Employee Shift Assignments"));assignment_header.addStretch();assignment_header.addWidget(_button("Edit Assignment",self.edit_assignment)) if can_manage else None;assignment_header.addWidget(_button("Delete Assignment",self.delete_assignment)) if can_manage else None; layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(QLabel("Shift Definitions")); layout.addWidget(self.table,1); layout.addLayout(assignment_header); layout.addWidget(self.assignment_table,1); self.assignment_table.doubleClicked.connect(self.edit_assignment) if can_manage else None; self.search.search_changed.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
+        super().__init__(); self.can_manage=can_manage; self.rows=[]; self.assignment_rows=[]; top=WrappingToolbar(); self.search=ModernSearchWidget("Search shift or employee..."); self.category=QComboBox(); self.category.addItems(["All Types","Day Shift","Overnight"]); top.addWidget(self.search,1); top.addWidget(self.category); top.addStretch(); top.addWidget(_button("New Shift",self.add_shift)) if can_manage else None; top.addWidget(_button("Assign Shift",self.assign,True)) if can_manage else None; self.table=_table(["Shift","Start","End","Break (min)","Overnight"]); self.assignment_table=_table(["Employee ID","Employee","Assigned Shift","Hours","Effective From","Effective To","Weekly Off"]); assignment_header=QHBoxLayout();assignment_header.addWidget(QLabel("Employee Shift Assignments"));assignment_header.addStretch();assignment_header.addWidget(_button("Edit Assignment",self.edit_assignment)) if can_manage else None;assignment_header.addWidget(_button("Delete Assignment",self.delete_assignment)) if can_manage else None; layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(QLabel("Shift Definitions")); layout.addWidget(self.table,1); layout.addLayout(assignment_header); layout.addWidget(self.assignment_table,1); self.assignment_table.doubleClicked.connect(self.edit_assignment) if can_manage else None; self.search.search_changed.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
         rows=service.list_shifts();term=self.search.get_text().lower();category=self.category.currentText();self.rows=[x for x in rows if (not term or term in str(x.get("name") or "").lower()) and (category=="All Types" or (category=="Overnight" and x.get("is_overnight")) or (category=="Day Shift" and not x.get("is_overnight")))]; self.table.setRowCount(len(self.rows))
         for r,item in enumerate(self.rows):
@@ -430,7 +441,7 @@ class ShiftsTab(QWidget):
 
 class PayrollTab(QWidget):
     def __init__(self,user,can_manage):
-        super().__init__(); self.user=user; self.can_manage=can_manage; self.rows=[]; top=QHBoxLayout(); self.period=QLineEdit(date.today().strftime("%Y-%m")); self.period.setMaximumWidth(110); self.search=ModernSearchWidget("Search employee or payroll no..."); self.category=QComboBox(); self.category.addItems(["All Statuses","Draft","Paid"]); top.addWidget(QLabel("Month:")); top.addWidget(self.period); top.addWidget(self.search,1); top.addWidget(self.category); top.addStretch(); top.addWidget(_button("Create Payroll",self.create,True)) if can_manage else None; top.addWidget(_button("Mark Paid",self.pay)) if can_manage else None; self.table=_table(["Payroll No","Employee","Month","Basic","Additions","Deductions","Net Salary","Status","Paid Date"]); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.period.textChanged.connect(lambda _text:self.refresh()); self.search.search_changed.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
+        super().__init__(); self.user=user; self.can_manage=can_manage; self.rows=[]; top=WrappingToolbar(); self.period=QLineEdit(date.today().strftime("%Y-%m")); self.period.setMaximumWidth(110); self.search=ModernSearchWidget("Search employee or payroll no..."); self.category=QComboBox(); self.category.addItems(["All Statuses","Draft","Paid"]); top.addWidget(QLabel("Month:")); top.addWidget(self.period); top.addWidget(self.search,1); top.addWidget(self.category); top.addStretch(); top.addWidget(_button("Create Payroll",self.create,True)) if can_manage else None; top.addWidget(_button("Mark Paid",self.pay)) if can_manage else None; self.table=_table(["Payroll No","Employee","Month","Basic","Additions","Deductions","Net Salary","Status","Paid Date"]); layout=QVBoxLayout(self); layout.addLayout(top); layout.addWidget(self.table); self.period.textChanged.connect(lambda _text:self.refresh()); self.search.search_changed.connect(lambda _text:self.refresh()); self.category.currentTextChanged.connect(lambda _text:self.refresh()); self.refresh()
     def refresh(self):
         rows=service.list_payrolls(self.period.text().strip());term=self.search.get_text().lower();status=self.category.currentText();self.rows=[x for x in rows if (not term or term in str(x.get("full_name") or "").lower() or term in str(x.get("employee_no") or "").lower() or term in str(x.get("payroll_no") or "").lower()) and (status=="All Statuses" or x.get("status")==status)]; self.table.setRowCount(len(self.rows))
         for r,x in enumerate(self.rows):

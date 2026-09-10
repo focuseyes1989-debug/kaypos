@@ -318,7 +318,14 @@ class SettingsCenterWidget(QWidget):
         self.nav_items[key] = item
         self.pages.append({"key": key, "title": title, "keywords": keywords, "widget": widget})
         self.page_widgets[key] = widget
-        self.stack.addWidget(widget)
+        if isinstance(widget, QScrollArea) or widget.findChild(QScrollArea) is not None:
+            self.stack.addWidget(widget)
+        else:
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setWidget(widget)
+            self.stack.addWidget(scroll)
 
     def create_general_section(self, sections):
         widget = GeneralSettingWidget()

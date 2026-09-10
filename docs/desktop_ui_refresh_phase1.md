@@ -189,3 +189,38 @@ card text/action behavior; affected modules compile and whitespace checks pass.
 Full Dashboard/AI page migration, every Settings form, live Myanmar font
 rendering, permission states and the Windows resolution/scaling matrix have
 not been verified by this pass. Overall Phase 5 visual acceptance remains open.
+
+## Follow-up: Remaining Layout Work
+
+Implemented after Phase 5:
+
+- Employee, Attendance, Shifts and Payroll toolbar controls wrap onto another
+  row when required. Employee Profile has an internally scrolling form and
+  a separate Save/Cancel footer, sized against available screen geometry.
+- Dashboard summary cards share a wrapping layout with equal-width targets;
+  its main column scrolls while retaining space for the performance table.
+- AI Dashboard chart containers use a minimum height rather than a fixed
+  612px height, allowing font/layout growth inside the existing page scroller.
+- Settings Center wraps pages without an existing QScrollArea, preserving page
+  indices and original widget references used for signals and permissions.
+
+Verification evidence:
+
+- Loaded bundled assets/fonts/mmrtext.ttf in the Qt test application. The
+  previous missing-glyph preview was caused by the test font setup; Myanmar
+  text rendered in the subsequent Dashboard preview.
+- 13 tests passed across desktop geometry, controls, payment, management,
+  reports, wrapping, Settings navigation and Dashboard card containment.
+- Nine component tests also passed with QT_SCALE_FACTOR=1.25 and 2 before
+  the additional Dashboard geometry test was introduced.
+- Attendance tested at 900, 1100 and 1600 logical-pixel workspace widths;
+  Dashboard at 1100 and 1660. Screenshot previews inspected in tmp/.
+- Attendance data refresh, Dashboard data refresh and its AI assistant were
+  stubbed for layout tests. Settings wrapping uses a test form, not a live
+  Save operation. Imports still initialize the existing database utilities.
+
+Remaining release checks: these are offscreen Qt tests, not a full main.py
+session. Physical Windows scaling/taskbar behavior, all populated settings,
+role-specific workflows, sale/stock writes, receipt printers and AI network
+responses are not certified. Earlier live acceptance gates remain open; do
+not describe the full application refresh as completely QA-approved yet.
