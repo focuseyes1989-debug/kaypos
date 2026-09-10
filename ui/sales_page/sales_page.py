@@ -454,20 +454,8 @@ class SalesPage(QWidget):
             return
         if not self.cart_widget.get_cart():
             return
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Checkout")
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        total = QLabel("Total: " + format_money(self.totals_widget.get_current_grand_total(), get_currency_symbol()))
-        layout.addWidget(total)
-        layout.addWidget(self.checkout_controls)
-        self.checkout_controls.show()
-        self.checkout_handler.btn_checkout.setText("Complete Sale")
-        cancel = QPushButton("Cancel")
-        cancel.clicked.connect(dialog.reject)
-        layout.addWidget(cancel)
+        from ui.sales_page.checkout_dialog import CheckoutDialog
+        dialog = CheckoutDialog(self)
         self._checkout_dialog = dialog
         amount = self.payment_widget.get_payment_amount()
         manual = self.payment_widget.payment_manual_override
@@ -478,7 +466,7 @@ class SalesPage(QWidget):
         self.payment_widget.layout().setSpacing(8)
         self.payment_widget.layout().setContentsMargins(10, 8, 10, 8)
         self.payment_widget.update_change()
-        fit_dialog_to_available_screen(dialog, preferred_width=520, preferred_height=430, min_width=420, min_height=400)
+        fit_dialog_to_available_screen(dialog, preferred_width=1000, preferred_height=530, min_width=900, min_height=500)
         self.payment_widget.payment_input.setFocus()
         self.payment_widget.payment_input.selectAll()
         try:
@@ -486,6 +474,10 @@ class SalesPage(QWidget):
         finally:
             self.checkout_controls.hide()
             self.checkout_controls.setParent(self)
+            self._restore_details_widgets()
+            self._hide_original_details_widgets()
+            self.btn_add_expense.show()
+            self.checkout_handler.btn_checkout.show()
             self._checkout_dialog = None
             self.checkout_handler.btn_checkout.setText("Checkout")
             if dialog.result() != QDialog.DialogCode.Accepted:
