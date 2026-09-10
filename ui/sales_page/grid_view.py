@@ -13,6 +13,7 @@ from ui.sales_page.product_utils import clear_layout_widgets, get_effective_stoc
 from ui.themes.theme_manager import is_dark_theme, get_theme_colors
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from utils.currency import get_currency_symbol, format_money
+from ui.sales_page.category_colors import category_badge_colors
 from typing import List, Tuple, Any
 from loguru import logger
 
@@ -1073,7 +1074,8 @@ class ModernProductCard(QWidget):
             }}
         """)
         self.name_label.setStyleSheet(self.name_label.styleSheet() + f" color: {text};")
-        self.category_label.setStyleSheet(f"color: {stock_text}; background: {image_bg}; border: none; border-radius: 3px; font-size: 10px; padding: 0px 3px;")
+        category_bg, category_text = category_badge_colors(self._category_name, self._is_dark)
+        self.category_label.setStyleSheet(f"color: {category_text}; background: {category_bg}; border: none; border-radius: 3px; font-size: 10px; padding: 0px 3px;")
         self.price_label.setStyleSheet(f"color: {text}; background: transparent; border: none; font-size: 12px; font-weight: 600;")
         self.quantity_label.setStyleSheet(f"color: {stock_text}; background: transparent; border: 1px solid {card_border}; border-radius: 4px; font-size: 10px; padding: 1px 3px;")
         if self._is_out_of_stock():

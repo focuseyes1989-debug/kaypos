@@ -29,6 +29,20 @@ class SalesTouchStyleTests(unittest.TestCase):
             self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
         card.deleteLater()
 
+    def test_category_badges_match_touch_palette(self):
+        from ui.sales_page.category_colors import category_badge_colors, LIGHT, DARK
+        for index, name in enumerate(("f", "a", "b", "c", "d", "e")):
+            self.assertEqual(category_badge_colors(name), LIGHT[index])
+            self.assertEqual(category_badge_colors(name, True), DARK[index])
+        self.assertEqual(category_badge_colors(" Services "), category_badge_colors("services"))
+        for dark in (False, True):
+            with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
+                card = ModernProductCard(1, "Example", 1000, 10, 2, "Each", "", category_name="Services", is_dark=dark)
+            background, foreground = category_badge_colors("Services", dark)
+            self.assertIn(background, card.category_label.styleSheet())
+            self.assertIn(foreground, card.category_label.styleSheet())
+            card.deleteLater()
+
     def test_grid_background_shows_parent_surface(self):
         parent = QWidget()
         parent.setStyleSheet("background-color: #d8eedb;")
