@@ -63,6 +63,9 @@
     const item = document.querySelector('#workspaceToast'); item.textContent = message; item.classList.add('show'); clearTimeout(toastTimer);
     toastTimer = setTimeout(() => item.classList.remove('show'), 2200);
   }
+  function setTouchView(view) {
+    appView.dataset.touchView = view;
+  }
   function categoryTone(category) {
     let hash = 0;
     for (const char of String(category || 'No category').trim().toLowerCase()) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
@@ -794,11 +797,13 @@
     if (receiptsRequest === refreshRequest && !document.querySelector('#touchReceipts').hidden) await openTouchReceipt(id);
   }
   function showTouchLocations() {
+    setTouchView('locations');
     window.KayTouchSuppliers?.hide();window.KayTouchCustomers?.hide();window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
     document.querySelector('#workspaceStatus').textContent='Locations';window.KayTouchLocations.show({api,escapeHtml,toast,onExit:showSalesView});
   }
   function showTouchSuppliers() {
+    setTouchView('suppliers');
     window.KayTouchLocations?.hide();
     window.KayTouchCustomers?.hide();window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
     document.querySelector('#touchReceipts').hidden=true;document.querySelector('#productManager').hidden=true;document.querySelector('.workspace').hidden=true;
@@ -806,6 +811,7 @@
     window.KayTouchSuppliers.show({api,escapeHtml,toast,onExit:showSalesView});
   }
   function showTouchCustomers() {
+    setTouchView('customers');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchDashboard?.hide();window.KayTouchSettings?.hide();window.KayTouchExpenses?.hide();hideInventory();receiptsRequest++;
@@ -814,6 +820,7 @@
     window.KayTouchCustomers.show({api,escapeHtml,toast,onExit:showSalesView});
   }
   function showTouchDashboard() {
+    setTouchView('dashboard');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
@@ -825,6 +832,7 @@
     window.KayTouchDashboard.show({api,escapeHtml,onExit:showSalesView});
   }
   function showTouchExpenses(addNew = false) {
+    setTouchView('expenses');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
@@ -837,6 +845,7 @@
     window.KayTouchExpenses.show({api,escapeHtml,toast,onExit:showSalesView}, addNew);
   }
   function showTouchSettings() {
+    setTouchView('settings');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
@@ -850,6 +859,7 @@
     window.KayTouchSettings.show({api, escapeHtml, toast, onExit:showSalesView});
   }
   function showSalesView() {
+    setTouchView('sales');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
@@ -866,6 +876,7 @@
     document.querySelector('#workspaceStatus').textContent = 'Phase W7 · Receipt print';
   }
   async function showProductManager(page = 'products') {
+    setTouchView(page === 'categories' ? 'categories' : 'products');
     window.KayTouchLocations?.hide();
     window.KayTouchSuppliers?.hide();
     window.KayTouchCustomers?.hide();
@@ -1211,6 +1222,7 @@
     appView.hidden = true; loginView.hidden = false; setTimeout(() => username.focus(), 0);
   }
   function showApp(user) {
+    setTouchView('sales');
     const name = user.full_name || user.username;
     document.querySelector('#sideMenuInitials').textContent = initials(user);
     document.querySelector('#sideMenuUser').textContent = `${name} · ${user.role || 'Staff'}`;

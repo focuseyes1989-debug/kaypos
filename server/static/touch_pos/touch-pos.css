@@ -2432,3 +2432,39 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
 #touchLocations button.sign-in{width:auto;margin:0;padding:0 16px;background:var(--blue);border:1px solid var(--blue);color:#fff;font-weight:600}
 #touchLocations .customer-dialog footer{align-items:center}
 #touchLocations .customer-dialog footer button{min-width:100px;flex:0 0 auto}
+
+/* Mobile portrait refinement across the full Touch POS project. */
+@media screen and (max-width:760px) and (orientation:portrait){
+  :root{--mobile-pad:12px;--mobile-radius:14px;--mobile-gap:12px}
+  body{background:#f3f6fb}
+  .app-shell{grid-template-rows:auto minmax(0,1fr) 26px}
+  .topbar{position:sticky;top:0;z-index:25;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 12px;background:#14213d;box-shadow:0 1px 0 rgba(255,255,255,.08)}
+  .brand{gap:8px}.brand img{width:30px;height:30px}.brand strong{max-width:116px;font-size:13px;line-height:1.2}.brand span{display:none}
+  .side-menu-button{width:42px;height:42px;border-radius:11px;background:#fff}
+  .top-actions{gap:7px}
+  #app:not([data-touch-view="sales"]) #headerAddExpense{display:none!important}
+  #fullscreen{width:42px!important;min-width:42px;height:42px;min-height:42px;border-radius:11px}
+  #headerAddExpense{min-width:130px;height:42px;min-height:42px;border-radius:11px;font-size:13px}
+  .workspace,.touch-receipts,.touch-dashboard,.touch-settings,.product-manager{padding:var(--mobile-pad);gap:var(--mobile-gap);overflow:auto}
+  .panel,.catalog,.cart,.receipt-results,.receipt-detail,.customer-list,.customer-detail,.settings-panel,.settings-card,.expense-metric,.expense-ledger{border-radius:var(--mobile-radius);box-shadow:0 4px 14px rgba(20,33,61,.06)}
+  .panel-heading,.receipt-page-head,.dashboard-header,.settings-heading{padding:16px;gap:12px}
+  .panel-heading strong,.receipt-page-head strong,.receipt-page-head h2,.dashboard-header h2,.settings-heading h1{font-size:22px;line-height:1.25}
+  .panel-heading small,.receipt-page-head p,.dashboard-header p,.settings-heading p{font-size:13px;line-height:1.7}
+  .categories{display:grid;gap:10px}.categories nav{gap:8px;padding-bottom:2px}.category{min-width:132px;min-height:58px;border-radius:12px;padding:8px 12px}
+  .catalog .panel-heading{gap:12px}.catalog-actions{grid-template-columns:minmax(150px,1fr) auto 46px;gap:8px}.catalog-actions .checkout-open,.catalog-actions .count,.catalog-actions #refreshProducts{min-height:46px;border-radius:12px}
+  .catalog>.catalog-search,.category-search,.manager-search{height:48px;border-radius:12px;margin:0}
+  .product-grid{padding:10px}.product-grid.loaded{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.product-card{min-height:188px;border-radius:13px;grid-template-rows:104px minmax(0,1fr)}.product-info{padding:9px}.product-name{font-size:14px!important}.product-price{font-size:14px}
+  .cart{inset:10px;width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:16px}.cart-items{padding:12px}.cart-row{border-radius:12px}.qty-controls button,.qty-controls output{min-height:42px}
+  .touch-expenses .settings-heading{display:grid;grid-template-columns:1fr;align-items:start}.touch-expenses .settings-heading .expense-head-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.touch-expenses .settings-heading .expense-head-actions button{width:100%;margin:0}
+  .expense-metrics{display:grid!important;grid-template-columns:1fr 1fr;gap:12px}.expense-metrics .expense-metric:first-child{grid-column:1/-1}.expense-metric{min-height:126px;padding:18px}.expense-metric strong{font-size:28px;line-height:1.2;overflow-wrap:anywhere}
+  .expense-ledger{padding:18px}.expense-ledger-heading{display:grid;gap:14px}.expense-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.expense-presets button{width:100%;padding:0 8px}
+  .touch-expenses .expense-filters.settings-form,#inventoryFilters,.dashboard-filters,.customer-search,.product-manager-filters{grid-template-columns:1fr!important;gap:12px;padding:14px}
+  .touch-expenses :is(input,select,textarea),.touch-receipts :is(input,select,textarea),.touch-dashboard :is(input,select,textarea),.touch-customers :is(input,select,textarea),.touch-settings :is(input,select,textarea){min-height:50px;border-radius:12px;font-size:15px}
+  .receipt-summary,.dashboard-cards,.dashboard-credit-cards{grid-template-columns:1fr!important}.receipt-toolbar,.receipt-presets{display:grid;grid-template-columns:1fr;gap:10px}.receipt-tabs{display:grid;grid-template-columns:1fr 1fr;width:100%}.receipt-workspace,.customer-workspace,#touchInventory .receipt-workspace,#touchSuppliers .customer-workspace{grid-template-columns:1fr!important}
+  .receipt-history-row,.touch-expenses .expense-entry,.customer-row,.touch-customers .customer-select,#touchSuppliers .customer-select,#touchLocations .customer-row{min-height:76px;border-radius:12px;padding:12px}
+  .customer-detail-actions{grid-template-columns:1fr}.customer-financials,#touchCustomers .customer-financials{grid-template-columns:1fr!important}
+  .product-manager{grid-template-rows:auto minmax(0,1fr)}.product-manager-head{border-radius:var(--mobile-radius);padding:16px}.manager-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}.manager-actions button{width:100%;min-width:0}.manager-grid{gap:12px}.manager-products,.manager-categories{min-height:0}.manager-row-actions{flex-wrap:wrap}.category-page-tools{display:grid;grid-template-columns:1fr;gap:10px}
+  .touch-settings .settings-layout nav{gap:8px;padding-bottom:4px}.touch-settings .settings-layout nav button{min-height:44px;border-radius:12px}.touch-settings .settings-heading{display:grid;grid-template-columns:1fr}.touch-settings .settings-heading button{width:100%}.touch-settings .settings-save{position:static;display:grid;grid-template-columns:1fr;gap:10px}.touch-settings .settings-save>.settings-primary{width:100%;order:0}
+  .modal-backdrop,#itemModal{padding:0}.receipt-modal,.checkout-modal,.choice-modal,.manager-modal,.customer-dialog,.expense-dialog,.inventory-movement-dialog{width:100vw!important;height:100dvh!important;max-height:none!important;border-radius:0!important}.receipt-actions,.checkout-actions{padding:12px;gap:8px}
+  footer{position:sticky;bottom:0;z-index:20;background:#eef3fa;border-top:1px solid #dce4ef;padding:0 12px;font-size:11px}
+}
