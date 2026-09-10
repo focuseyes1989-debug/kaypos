@@ -252,9 +252,15 @@ class SalesTouchStyleTests(unittest.TestCase):
             page.checkout_handler.checkout = core
 
             def cancel(dialog):
+                original_style = self.app.styleSheet()
+                self.addCleanup(self.app.setStyleSheet, original_style)
+                self.app.setStyleSheet(original_style + "\nQPushButton { min-height: 22px; padding: 6px; }")
                 dialog.show()
                 self.app.processEvents()
                 from PyQt6.QtWidgets import QGraphicsBlurEffect
+                from PyQt6.QtWidgets import QScrollArea
+                self.assertFalse(dialog.findChildren(QScrollArea))
+                self.assertLessEqual(dialog.height(), 600)
                 self.assertTrue(any(effect.parent().isVisible() for effect in page.findChildren(QGraphicsBlurEffect)))
                 for button in dialog.findChildren(QPushButton):
                     if button.text().isdigit():

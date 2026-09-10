@@ -3,7 +3,7 @@
 import math
 
 from PyQt6.QtCore import Qt, QEvent
-from PyQt6.QtWidgets import QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QVBoxLayout, QWidget
 from ui.themes.theme_manager import get_theme_colors, get_icon_with_color
 from utils.currency import format_money, get_currency_symbol
 from ui.widgets.dialog_backdrop import exec_with_blurred_backdrop
@@ -69,7 +69,7 @@ class CheckoutDialog(QDialog):
         rows.setColumnStretch(1, 1)
         body.addWidget(summary, 2)
         form_content = QWidget()
-        form_content.setMinimumHeight(480)
+        form_content.setObjectName("checkoutForm")
         form = QVBoxLayout(form_content)
         form.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         form.setContentsMargins(0, 0, 6, 0)
@@ -98,14 +98,8 @@ class CheckoutDialog(QDialog):
         self.status.setWordWrap(True)
         form.addWidget(self.status)
         form.addStretch()
-        form_scroll = QScrollArea()
-        form_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        form_scroll.setWidgetResizable(True)
-        form_scroll.setWidget(form_content)
-        form_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         form_content.setAutoFillBackground(False)
-        form_scroll.viewport().setAutoFillBackground(False)
-        body.addWidget(form_scroll, 3)
+        body.addWidget(form_content, 3)
         review.addLayout(body, 1)
         actions = QHBoxLayout()
         cancel = QPushButton("Cancel")
@@ -115,10 +109,12 @@ class CheckoutDialog(QDialog):
         self.save.clicked.connect(self._save)
         for button in (cancel, self.save):
             button.setFixedHeight(44)
+            button.setProperty("checkoutSize", "action")
             actions.addWidget(button)
         review.addLayout(actions)
         root.addLayout(review, 5)
         keypad_content = QWidget()
+        keypad_content.setObjectName("checkoutKeypad")
         keypad = QVBoxLayout(keypad_content)
         keypad.setContentsMargins(0, 0, 4, 0)
         self.keypad_title = QLabel("Keypad - Received")
@@ -128,6 +124,7 @@ class CheckoutDialog(QDialog):
         for i, text in enumerate(("1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", ".")):
             button = QPushButton(text)
             button.setFixedHeight(72)
+            button.setProperty("checkoutSize", "digit")
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(lambda checked=False, key=text: self._key(key))
             grid.addWidget(button, i // 3, i % 3)
@@ -139,6 +136,7 @@ class CheckoutDialog(QDialog):
         back.clicked.connect(lambda: self._key("back"))
         for button in (clear, back):
             button.setFixedHeight(56)
+            button.setProperty("checkoutSize", "clear")
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         grid.addWidget(clear, 4, 0, 1, 2)
         grid.addWidget(back, 4, 2)
@@ -150,30 +148,30 @@ class CheckoutDialog(QDialog):
         self.rounded = QPushButton()
         self.suggestions = [self.exact, self.rounded] + [QPushButton() for _ in range(4)]
         for index, button in enumerate(self.suggestions):
-            button.setFixedHeight(48)
+            button.setFixedHeight(36)
+            button.setProperty("checkoutSize", "quick")
             button.clicked.connect(lambda checked=False, item=button: self._quick_received(item.property("amount")))
             quick.addWidget(button, index // 2, index % 2)
         keypad.addLayout(quick)
         keypad.addStretch()
-        keypad_scroll = QScrollArea()
-        keypad_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        keypad_scroll.setWidgetResizable(True)
-        keypad_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        keypad_scroll.setWidget(keypad_content)
         keypad_content.setAutoFillBackground(False)
-        keypad_scroll.viewport().setAutoFillBackground(False)
-        root.addWidget(keypad_scroll, 2)
+        root.addWidget(keypad_content, 2)
         colors = get_theme_colors()
         self.setStyleSheet(f"""
             QDialog {{ background: {colors['card_bg']}; }}
+            QWidget#checkoutForm, QWidget#checkoutKeypad {{ background: transparent; }}
             QLabel {{ background: transparent; color: {colors['text']}; font-family: 'Segoe UI'; font-size: 13px; }}
             QFrame#checkoutSummary {{ border: 1px solid {colors['border']}; border-radius: 8px; }}
             QPushButton {{ background: {colors['card_bg']}; color: {colors['text']}; border: 1px solid {colors['border']};
                 border-radius: 8px; min-width: 0; padding: 0 8px; font-size: 14px; }}
             QPushButton:hover {{ background: {colors['bg_hover']}; }}
+            QPushButton[checkoutSize="digit"] {{ min-height: 70px; max-height: 70px; padding: 0; font-size: 18px; }}
+            QPushButton[checkoutSize="clear"] {{ min-height: 54px; max-height: 54px; padding: 0; }}
+            QPushButton[checkoutSize="quick"] {{ min-height: 34px; max-height: 34px; padding: 0; }}
+            QPushButton[checkoutSize="action"] {{ min-height: 42px; max-height: 42px; padding: 0; }}
             QComboBox, QDoubleSpinBox {{ background: {colors['card_bg']}; color: {colors['text']};
                 border: 1px solid {colors['border']}; border-radius: 6px; min-height: 28px; padding: 2px 6px; }}
-            QPushButton#saveSale {{ background: #2563eb; color: white; border: none; }}
+            QPushButton#saveSale {{ background: #2563eb; color: white; border: 1px solid #2563eb; }}
             QPushButton#saveSale:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}
         """)
         page.payment_widget.payment_input.setStyleSheet(
