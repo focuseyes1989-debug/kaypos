@@ -216,6 +216,26 @@
   width:100%;
   min-height:42px;
 }
+
+/* Phone cart modal: keep the totals footer bright above the dimmed page backdrop. */
+@media screen and (max-width:760px){
+  .cart{
+    isolation:isolate;
+    background:var(--panel);
+  }
+  .cart>.panel-heading,
+  .cart-items,
+  .totals{
+    position:relative;
+    z-index:1;
+    background:var(--panel);
+  }
+  .cart-items{background:#f8fafc}
+  .totals{
+    border-top-color:var(--line);
+    box-shadow:0 -1px 0 rgba(15,23,42,.03);
+  }
+}
 .choice-modal{
   width:min(440px,100%);
   max-height:min(620px,92dvh);
