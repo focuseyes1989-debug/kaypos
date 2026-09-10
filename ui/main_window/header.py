@@ -6,6 +6,7 @@ Main Window Header Component with SVG Icons
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QWidget, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from ui.responsive_utils import DESKTOP_COMPACT_HEADER_HEIGHT
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from loguru import logger
 import os
@@ -33,7 +34,7 @@ class Header(QFrame):
         is_dark = is_dark_theme()
         
         self.setObjectName("header")
-        self.setFixedHeight(56)
+        self.setFixedHeight(DESKTOP_COMPACT_HEADER_HEIGHT)
         
         if is_dark:
             self.setStyleSheet("""

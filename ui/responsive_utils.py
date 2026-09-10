@@ -1,16 +1,40 @@
 # ui/responsive_utils.py
 """Helpers for keeping the UI usable on smaller laptop displays."""
 
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from PyQt6.QtWidgets import QApplication
+
+
+DESKTOP_MIN_WIDTH = 1366
+DESKTOP_MIN_HEIGHT = 768
+DESKTOP_COMPACT_HEADER_HEIGHT = 56
+DESKTOP_COMPACT_CONTENT_MARGINS = (12, 10, 12, 10)
+DESKTOP_COMPACT_CONTENT_SPACING = 8
+DESKTOP_COMPACT_SIDEBAR_EXPANDED = 232
+DESKTOP_COMPACT_SIDEBAR_COLLAPSED = 72
+DESKTOP_COMPACT_STATUSBAR_MAX_HEIGHT = 30
+
+
+def get_desktop_compact_metrics() -> Dict[str, object]:
+    """Return the shared 1366x768 desktop layout contract."""
+    return {
+        "min_width": DESKTOP_MIN_WIDTH,
+        "min_height": DESKTOP_MIN_HEIGHT,
+        "header_height": DESKTOP_COMPACT_HEADER_HEIGHT,
+        "content_margins": DESKTOP_COMPACT_CONTENT_MARGINS,
+        "content_spacing": DESKTOP_COMPACT_CONTENT_SPACING,
+        "sidebar_expanded": DESKTOP_COMPACT_SIDEBAR_EXPANDED,
+        "sidebar_collapsed": DESKTOP_COMPACT_SIDEBAR_COLLAPSED,
+        "statusbar_max_height": DESKTOP_COMPACT_STATUSBAR_MAX_HEIGHT,
+    }
 
 
 def get_responsive_window_size(
     screen_width: int,
     screen_height: int,
-    preferred_width: int = 1366,
-    preferred_height: int = 768,
+    preferred_width: int = DESKTOP_MIN_WIDTH,
+    preferred_height: int = DESKTOP_MIN_HEIGHT,
     min_width: int = 1024,
     min_height: int = 600,
 ) -> Tuple[int, int]:
@@ -38,8 +62,8 @@ def get_responsive_window_size(
 def get_supported_resolution_options(
     screen_width: int,
     screen_height: int,
-    min_width: int = 1366,
-    min_height: int = 768,
+    min_width: int = DESKTOP_MIN_WIDTH,
+    min_height: int = DESKTOP_MIN_HEIGHT,
 ) -> List[Tuple[str, int, int]]:
     """Return common app window resolutions that fit the available screen."""
     presets = [
@@ -80,7 +104,11 @@ def get_supported_resolution_options(
     return options
 
 
-def parse_resolution(value: str, fallback_width: int = 1366, fallback_height: int = 768) -> Tuple[int, int]:
+def parse_resolution(
+    value: str,
+    fallback_width: int = DESKTOP_MIN_WIDTH,
+    fallback_height: int = DESKTOP_MIN_HEIGHT,
+) -> Tuple[int, int]:
     """Parse a saved resolution string such as 1366x768."""
     try:
         width_text, height_text = (value or "").lower().split("x", 1)

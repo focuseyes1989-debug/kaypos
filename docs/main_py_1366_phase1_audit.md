@@ -167,3 +167,12 @@ Implemented on 2026-09-10.
 - Reduced category management margins to preserve table/list space on shorter desktop screens.
 
 Next QA should be a real 1366x768 run through all primary workflows, followed by targeted visual fixes from screenshots.
+
+## Phase 10 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Added shared desktop compact layout constants for the 1366x768 contract.
+- Connected the main shell, header, and sidebar to those constants so future UI changes do not silently drift away from the compact baseline.
+- Added Phase 10 tests for minimum resolution, header height, content margins, sidebar widths, navigation heights, and resolution helper behavior.
+- Kept the existing compact UI behavior intact while making the final QA target easier to verify automatically.

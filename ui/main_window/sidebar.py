@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QWidget, QSpacerItem
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
+from ui.responsive_utils import DESKTOP_COMPACT_SIDEBAR_COLLAPSED, DESKTOP_COMPACT_SIDEBAR_EXPANDED
 from ui.main_window.modern_button import ModernButton
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from utils.translations import tr
@@ -23,8 +24,8 @@ class Sidebar(QFrame):
     """Main Window Sidebar - Menu Bar Style with Collapsible Support"""
     
     # Sidebar width constants - Collapsed width increased
-    WIDTH_EXPANDED = 232
-    WIDTH_COLLAPSED = 72
+    WIDTH_EXPANDED = DESKTOP_COMPACT_SIDEBAR_EXPANDED
+    WIDTH_COLLAPSED = DESKTOP_COMPACT_SIDEBAR_COLLAPSED
     NAV_HEIGHT_EXPANDED = 32
     NAV_HEIGHT_COLLAPSED = 38
     NAV_ICON_EXPANDED = 18

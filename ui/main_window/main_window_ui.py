@@ -23,7 +23,13 @@ from ui.main_window.sidebar import Sidebar
 from ui.main_window.header import Header
 from ui.main_window.status_bar import StatusBar
 from ui.widgets.loading_overlay import LoadingOverlay
-from ui.responsive_utils import parse_resolution
+from ui.responsive_utils import (
+    DESKTOP_COMPACT_CONTENT_MARGINS,
+    DESKTOP_COMPACT_CONTENT_SPACING,
+    DESKTOP_MIN_HEIGHT,
+    DESKTOP_MIN_WIDTH,
+    parse_resolution,
+)
 from models.database import connect_db
 from utils.sale_mode import get_sale_mode, is_sale_page_enabled
 from utils.db_compat import is_postgres_backend
@@ -90,7 +96,7 @@ class MainWindowUI(QMainWindow):
             x = screen_geometry.x() + max(0, (screen_width - window_width) // 2)
             y = screen_geometry.y() + max(0, (screen_height - window_height) // 2)
             self.move(x, y)
-        self.setMinimumSize(min(1366, window_width), min(768, window_height))
+        self.setMinimumSize(min(DESKTOP_MIN_WIDTH, window_width), min(DESKTOP_MIN_HEIGHT, window_height))
         
         # Theme colors
         colors = get_theme_colors()
@@ -137,8 +143,8 @@ class MainWindowUI(QMainWindow):
             }}
         """)
         content_layout = QVBoxLayout(self.content_area)
-        content_layout.setContentsMargins(12, 10, 12, 10)
-        content_layout.setSpacing(8)
+        content_layout.setContentsMargins(*DESKTOP_COMPACT_CONTENT_MARGINS)
+        content_layout.setSpacing(DESKTOP_COMPACT_CONTENT_SPACING)
         
         # Page header is kept as a hidden compatibility object; page titles are
         # not shown so content gets more vertical room.
