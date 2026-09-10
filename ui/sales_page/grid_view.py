@@ -158,7 +158,7 @@ class GridViewWidget(QScrollArea):
         """
         # Base dimensions
         if self._card_style == "modern":
-            return 156, 212, 8, 8, 4
+            return 156, 184, 8, 8, 4
         else:
             card_width = max(110, min(160, int(width * 0.15)))
             card_height = int(card_width * 1.15)
@@ -887,7 +887,7 @@ class ModernProductCard(QWidget):
                  discount_percent: float = 0,
                  discount_type: str = "percentage", manual_price: float = 0,
                  is_favourite: bool = False, is_dark: bool = False,
-                 card_width: int = 220, card_height: int = 300, parent=None):
+                 card_width: int = 220, card_height: int = 184, parent=None):
         super().__init__(parent)
         self._prod_id = prod_id
         self._name = name
@@ -991,7 +991,6 @@ class ModernProductCard(QWidget):
         self.quantity_label.setVisible(str(self._sold_by or "").lower() not in ("service", "restaurant"))
         footer.addWidget(self.quantity_label)
         layout.addLayout(footer)
-        layout.addStretch(1)
 
         self._apply_shadow()
 

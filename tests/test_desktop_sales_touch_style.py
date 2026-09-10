@@ -89,13 +89,14 @@ class SalesTouchStyleTests(unittest.TestCase):
                 grid.populate(rows)
                 self.app.processEvents()
                 small_columns = grid._cols
-                self.assertLessEqual(grid._cards[0].height(), 212)
+                self.assertEqual(grid._cards[0].height(), 184)
                 first, second = grid._cards[:2]
                 self.assertLessEqual(second.x() - first.geometry().right(), 10)
                 for card in grid._cards:
                     card.ensurePolished()
                     card.layout().activate()
                     self.assertTrue(card.rect().contains(card.price_label.geometry()))
+                    self.assertLessEqual(card.height() - card.price_label.geometry().bottom(), 12)
                     self.assertTrue(card.rect().contains(card.category_label.geometry()))
                     self.assertGreater(card.name_label.y(), card.image_frame.geometry().bottom())
                     self.assertGreaterEqual(card.price_label.width(), card.price_label.fontMetrics().horizontalAdvance(card.price_label.text()))
