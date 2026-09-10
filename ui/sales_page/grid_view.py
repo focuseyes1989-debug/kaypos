@@ -1157,11 +1157,16 @@ class ModernProductCard(QWidget):
             color = "#7a7f86" if not self._is_dark else "#d7dbe3"
         self.fav_label.setText(star)
         self.fav_label.setStyleSheet(f"""
+            QLabel {{
             font-size: {font_size}px;
             color: {color};
             background: transparent;
             border: none;
+            }}
+            QLabel:hover {{ color: #e97808; background: rgba(255, 190, 70, 0.18); border-radius: 5px; }}
         """)
+        self.fav_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.fav_label.setToolTip("Remove from favorites" if self._is_favourite else "Add to favorites")
 
     def _toggle_favourite(self) -> None:
         self._is_favourite = not self._is_favourite
