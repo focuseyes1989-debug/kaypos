@@ -46,23 +46,27 @@ class CheckoutDialog(QDialog):
         body.setSpacing(20)
         summary = QFrame()
         summary.setObjectName("checkoutSummary")
-        rows = QVBoxLayout(summary)
-        rows.setContentsMargins(12, 8, 12, 8)
+        rows = QGridLayout(summary)
+        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setSpacing(0)
+        colors = get_theme_colors()
         self.values = {}
         self.summary_labels = {}
-        for title in ("Items", "Subtotal", "Discount", "Tax", "Total", "Received", "Change"):
-            row = QHBoxLayout()
+        for index, title in enumerate(("Items", "Subtotal", "Discount", "Tax", "Total", "Received", "Change")):
             label = QLabel(title)
             self.summary_labels[title] = label
-            row.addWidget(label)
             value = QLabel()
             value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            value.setStyleSheet("font-weight: 600;")
-            if title == "Total":
-                value.setStyleSheet("font-size: 19px; font-weight: 700;")
-            row.addWidget(value)
-            rows.addLayout(row)
+            background = colors['bg_hover'] if title == "Total" else "transparent"
+            cell_style = f"background: {background}; padding: 10px; border: none; border-bottom: 1px solid {colors['border']};"
+            label.setStyleSheet(cell_style + f"border-right: 1px solid {colors['border']};")
+            value.setStyleSheet(cell_style + ("font-size: 18px; font-weight: 700;" if title == "Total" else "font-weight: 600;"))
+            rows.addWidget(label, index, 0)
+            rows.addWidget(value, index, 1)
+            rows.setRowStretch(index, 1)
             self.values[title] = value
+        rows.setColumnStretch(0, 1)
+        rows.setColumnStretch(1, 1)
         body.addWidget(summary, 2)
         form_content = QWidget()
         form_content.setMinimumHeight(480)
@@ -114,14 +118,16 @@ class CheckoutDialog(QDialog):
             actions.addWidget(button)
         review.addLayout(actions)
         root.addLayout(review, 5)
-        keypad = QVBoxLayout()
+        keypad_content = QWidget()
+        keypad = QVBoxLayout(keypad_content)
+        keypad.setContentsMargins(0, 0, 4, 0)
         self.keypad_title = QLabel("Keypad - Received")
         keypad.addWidget(self.keypad_title)
         grid = QGridLayout()
         grid.setSpacing(8)
         for i, text in enumerate(("1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", ".")):
             button = QPushButton(text)
-            button.setFixedHeight(64)
+            button.setFixedHeight(72)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(lambda checked=False, key=text: self._key(key))
             grid.addWidget(button, i // 3, i % 3)
@@ -132,7 +138,7 @@ class CheckoutDialog(QDialog):
         back.setToolTip("Backspace")
         back.clicked.connect(lambda: self._key("back"))
         for button in (clear, back):
-            button.setFixedHeight(52)
+            button.setFixedHeight(56)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         grid.addWidget(clear, 4, 0, 1, 2)
         grid.addWidget(back, 4, 2)
@@ -144,12 +150,19 @@ class CheckoutDialog(QDialog):
         self.rounded = QPushButton()
         self.suggestions = [self.exact, self.rounded] + [QPushButton() for _ in range(4)]
         for index, button in enumerate(self.suggestions):
-            button.setFixedHeight(44)
+            button.setFixedHeight(48)
             button.clicked.connect(lambda checked=False, item=button: self._quick_received(item.property("amount")))
             quick.addWidget(button, index // 2, index % 2)
         keypad.addLayout(quick)
         keypad.addStretch()
-        root.addLayout(keypad, 2)
+        keypad_scroll = QScrollArea()
+        keypad_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        keypad_scroll.setWidgetResizable(True)
+        keypad_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        keypad_scroll.setWidget(keypad_content)
+        keypad_content.setAutoFillBackground(False)
+        keypad_scroll.viewport().setAutoFillBackground(False)
+        root.addWidget(keypad_scroll, 2)
         colors = get_theme_colors()
         self.setStyleSheet(f"""
             QDialog {{ background: {colors['card_bg']}; }}

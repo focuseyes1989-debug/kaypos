@@ -258,7 +258,7 @@ class SalesTouchStyleTests(unittest.TestCase):
                 self.assertTrue(any(effect.parent().isVisible() for effect in page.findChildren(QGraphicsBlurEffect)))
                 for button in dialog.findChildren(QPushButton):
                     if button.text().isdigit():
-                        self.assertEqual(button.height(), 64)
+                        self.assertEqual(button.height(), 72)
                 self.assertTrue(page.payment_widget.payment_input.isVisible())
                 dialog._key("clear")
                 self.assertFalse(dialog.save.isEnabled())

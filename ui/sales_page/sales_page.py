@@ -472,7 +472,7 @@ class SalesPage(QWidget):
         self.payment_widget.layout().setSpacing(8)
         self.payment_widget.layout().setContentsMargins(10, 8, 10, 8)
         self.payment_widget.update_change()
-        fit_dialog_to_available_screen(dialog, preferred_width=1040, preferred_height=600, min_width=900, min_height=500)
+        fit_dialog_to_available_screen(dialog, preferred_width=1040, preferred_height=660, min_width=900, min_height=500)
         self.payment_widget.payment_input.setFocus()
         self.payment_widget.payment_input.selectAll()
         try:
