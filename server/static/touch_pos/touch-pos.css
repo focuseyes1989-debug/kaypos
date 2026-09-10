@@ -2244,6 +2244,152 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 }
 [data-touch-theme="dark"] .topbar .side-menu-button span{background:#e6edf7}
 
+/* Polished responsive navigation drawer. */
+.side-menu-overlay{background:rgba(15,23,42,.42);backdrop-filter:blur(2px)}
+.side-menu{
+  width:min(312px,calc(100vw - 24px));
+  max-height:calc(100dvh - 24px);
+  margin:12px 0 12px 12px;
+  padding:0;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 24px 70px rgba(15,23,42,.24);
+}
+.side-menu-head{
+  grid-template-columns:42px minmax(0,1fr) 38px;
+  gap:10px;
+  padding:16px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#fff,#f8fafc);
+}
+.side-menu-head strong{font-size:15px!important;line-height:1.2}
+.side-menu-head small{font-size:11px;line-height:1.35}
+.side-menu-head button{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+}
+.side-menu-nav{
+  gap:2px;
+  padding:10px;
+  scrollbar-width:thin;
+}
+.side-menu-section{
+  gap:5px;
+  padding:10px 0;
+  border-top:1px solid var(--line);
+}
+.side-menu-section:first-child{padding-top:0}
+.side-menu-label{
+  margin:0 8px 4px;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:700;
+}
+.side-menu-nav button,
+.side-menu-signout{
+  min-height:44px;
+  grid-template-columns:34px minmax(0,1fr) auto;
+  gap:10px;
+  padding:0 10px;
+  border-radius:11px;
+  color:var(--ink);
+}
+.side-menu-nav button:hover,
+.side-menu-nav button[aria-current],
+.side-menu-signout:hover{
+  background:#eef4ff;
+  color:#174ba7;
+}
+.side-menu-nav button[aria-current]{
+  box-shadow:inset 3px 0 #2563eb;
+  font-weight:750;
+}
+.side-menu-icon{
+  width:22px;
+  height:22px;
+  justify-self:center;
+}
+.side-menu-signout{
+  margin:0;
+  border-top:1px solid var(--line);
+  border-radius:0;
+  min-height:52px;
+  padding:0 20px;
+  color:#b42318;
+}
+
+@media screen and (min-width:1100px){
+  .side-menu{
+    width:300px;
+    max-height:calc(100dvh - 32px);
+    margin:16px 0 16px 16px;
+    border-radius:16px;
+  }
+}
+
+@media screen and (min-width:761px) and (max-width:1099px){
+  .side-menu{
+    width:min(304px,46vw);
+    max-height:calc(100dvh - 20px);
+    margin:10px 0 10px 10px;
+    border-radius:15px;
+  }
+  .side-menu-nav button,
+  .side-menu-signout{min-height:46px}
+}
+
+@media screen and (max-width:760px) and (orientation:portrait){
+  .side-menu{
+    inset:0 auto 0 0;
+    width:min(320px,88vw);
+    max-height:none;
+    height:100dvh;
+    margin:0;
+    border-radius:0 18px 18px 0;
+  }
+  .side-menu-head{padding:18px 16px}
+  .side-menu-nav{padding:10px 12px}
+  .side-menu-nav button,
+  .side-menu-signout{min-height:48px;font-size:14px}
+}
+
+@media screen and (max-width:760px) and (orientation:landscape){
+  .side-menu{
+    width:min(360px,58vw);
+    max-height:calc(100dvh - 12px);
+    margin:6px 0 6px 6px;
+    border-radius:14px;
+  }
+  .side-menu-head{
+    grid-template-columns:34px minmax(0,1fr) 34px;
+    padding:10px 12px;
+  }
+  .side-menu-avatar{width:34px;height:34px}
+  .side-menu-head button{width:34px;height:34px}
+  .side-menu-nav{padding:6px 8px}
+  .side-menu-section{padding:6px 0;gap:3px}
+  .side-menu-label{margin-bottom:2px;font-size:9px}
+  .side-menu-nav button,
+  .side-menu-signout{
+    min-height:36px;
+    grid-template-columns:28px minmax(0,1fr) auto;
+    border-radius:9px;
+    font-size:12px;
+  }
+  .side-menu-icon{width:18px;height:18px}
+  .side-menu-signout{min-height:40px}
+}
+
+[data-touch-theme="dark"] .side-menu-head{background:linear-gradient(180deg,#1c283b,#172238)}
+[data-touch-theme="dark"] .side-menu-nav button:hover,
+[data-touch-theme="dark"] .side-menu-nav button[aria-current],
+[data-touch-theme="dark"] .side-menu-signout:hover{background:#244773;color:#eff6ff}
+
 .customer-row .customer-actions{flex-wrap:wrap;justify-content:flex-end}.customer-row [data-delete]{color:var(--bad)}
 .customer-ledger{width:min(960px,94vw);padding:20px}.customer-collection{display:grid;grid-template-columns:1fr 1fr;gap:12px}.customer-collection label{display:grid;gap:6px}.customer-collection input,.customer-collection select{min-height:48px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px;width:100%}
 @media(max-width:900px){.customer-row{flex-wrap:wrap}.customer-row .customer-actions{width:100%}.customer-collection{grid-template-columns:1fr}}

@@ -65,6 +65,15 @@
   }
   function setTouchView(view) {
     appView.dataset.touchView = view;
+    document.querySelectorAll('[data-side-action]').forEach(button => {
+      const action = button.dataset.sideAction;
+      const active =
+        action === view ||
+        (view === 'sales' && action === 'products') ||
+        (view === 'products' && action === 'product-page') ||
+        (view === 'categories' && action === 'category-page');
+      button.toggleAttribute('aria-current', active);
+    });
   }
   function categoryTone(category) {
     let hash = 0;
