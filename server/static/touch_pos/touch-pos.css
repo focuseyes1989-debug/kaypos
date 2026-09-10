@@ -2041,7 +2041,7 @@ button[data-icon="shopping_cart"]{--touch-icon:url("/assets/icons/shopping_cart.
 button[data-icon="swap_horiz"]{--touch-icon:url("/assets/icons/swap_horiz.svg")}
 button[data-icon="today"]{--touch-icon:url("/assets/icons/today.svg")}
 button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
-@media(max-width:760px){#fullscreen[data-icon]::before{display:none}}
+@media(max-width:760px){#fullscreen[data-icon]::before{display:inline-block;margin-inline-end:0}}
 
 /* Dark side navigation stays plain, matching the light theme. */
 @media screen{
@@ -2301,6 +2301,23 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 /* Equal header action sizes on desktop and tablets. */
 .topbar :is(#headerAddExpense,#fullscreen){box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 116px;width:116px;height:40px;min-height:40px;padding:0 10px;margin:0;border-radius:9px;font-size:12px;line-height:1;white-space:nowrap}
 @media(max-width:480px){.topbar :is(#headerAddExpense,#fullscreen){flex-basis:100px;width:100px;padding:0 6px;font-size:11px}}
+
+/* Full screen is a touch convenience, so keep it out of the desktop header. */
+#fullscreen{display:none}
+@media screen and (max-width:1099px){
+  #fullscreen{display:inline-flex}
+}
+@media screen and (max-width:760px){
+  #fullscreen{
+    flex:0 0 40px!important;
+    width:40px!important;
+    min-width:40px;
+    padding:0!important;
+    overflow:hidden;
+    font-size:0!important;
+  }
+  #fullscreen::after{content:none!important}
+}
 
 /* Product management and editor: compact records and clear pricing groups. */
 #productManager .manager-header,#productManager>.panel{box-shadow:none;border-radius:14px}

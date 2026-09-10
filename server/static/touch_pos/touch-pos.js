@@ -1549,7 +1549,11 @@
   function updateClock() { clock.textContent = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date()); }
   if (fullscreen) {
     fullscreen.addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (_) {} });
-    document.addEventListener('fullscreenchange', () => { fullscreen.textContent = document.fullscreenElement ? 'Exit Full Screen' : 'Full Screen'; });
+    document.addEventListener('fullscreenchange', () => {
+      const label = document.fullscreenElement ? 'Exit Full Screen' : 'Full Screen';
+      fullscreen.textContent = label;
+      fullscreen.setAttribute('aria-label', label);
+    });
   }
   window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; install.hidden = false; });
   install.addEventListener('click', async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; install.hidden = true; });
