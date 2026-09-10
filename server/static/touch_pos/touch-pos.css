@@ -2532,6 +2532,28 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .cart.open:before{display:none}.cart-close{display:none}.cart-items{padding:10px}.totals{grid-template-columns:1fr;padding:13px}.cart-actions{grid-template-columns:1fr 1.4fr}
 }
 
+/* Keep the icon-only fullscreen action optically centered on phone and tablet headers. */
+@media screen and (max-width:760px),
+       screen and (min-width:761px) and (max-width:1099px) and (orientation:landscape){
+  .topbar #fullscreen{
+    display:grid!important;
+    place-items:center;
+    gap:0!important;
+    line-height:1!important;
+    text-align:center;
+  }
+  .topbar #fullscreen[data-icon]::before{
+    display:block!important;
+    flex:0 0 auto!important;
+    width:18px!important;
+    height:18px!important;
+    margin:0!important;
+    vertical-align:0!important;
+    justify-self:center;
+    align-self:center;
+  }
+}
+
 /* Tablet product cards: keep images useful while preserving readable details. */
 @media screen and (min-width:761px) and (max-width:1099px) and (orientation:portrait){
   .workspace{grid-template-columns:150px minmax(0,1fr);gap:10px;padding:10px}
