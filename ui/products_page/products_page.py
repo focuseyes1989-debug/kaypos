@@ -101,12 +101,6 @@ class ProductsPage(QWidget):
         self.action_toolbar = ActionToolbar(self)
         self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=104)
         self.btn_edit = self.action_toolbar.add_primary(" Edit", self.edit_product, "edit", ModernButton.SECONDARY, width=78)
-        self.btn_ai_chat = self.action_toolbar.add_primary(
-            " AI Assistant", self.toggle_ai_chat, "smart_toy",
-            ModernButton.SECONDARY, width=116
-        )
-        self.btn_ai_chat.setCheckable(False)
-        self.btn_ai_chat.setAutoExclusive(False)
         self.action_delete = self.action_toolbar.add_more_action("Delete", self.delete_product, "delete")
         self.action_toolbar.add_separator()
         self.action_manage_cat = self.action_toolbar.add_more_action("Manage Categories", self.open_manage_categories, "category")
@@ -162,51 +156,18 @@ class ProductsPage(QWidget):
             }}
         """)
 
-    def toggle_ai_chat(self):
-        """Show or hide the floating Products AI assistant."""
-        self._ensure_ai_chat()
-        if self.ai_chat_dialog.isVisible():
-            self.hide_ai_chat()
-            return
-        self._position_ai_dialog()
-        self.ai_chat_dialog.show()
-        self.ai_chat_dialog.raise_()
-        self.ai_chat_dialog.activateWindow()
-        self.ai_chat_panel.chat.input_field.setFocus()
-
-    def _ensure_ai_chat(self):
-        if hasattr(self, "ai_chat_dialog"):
-            return
-        from ui.products_page.product_ai_chat_panel import ProductAIChatDialog
-        self.ai_chat_dialog = ProductAIChatDialog(
-            self,
-            user_id=self.user_id,
-            can_view_sensitive=self._can_view_sensitive_ai_data(),
-        )
-        self.ai_chat_panel = self.ai_chat_dialog.panel
-        self.ai_chat_panel.product_action_requested.connect(self._handle_ai_product_action)
-        self.ai_chat_panel.audit_event.connect(self._handle_ai_audit_event)
-        self.ai_chat_dialog.visibility_changed.connect(self._on_ai_dialog_visibility_changed)
-        self.ai_chat_dialog.hide()
-        self._sync_ai_context()
-
-    def hide_ai_chat(self):
-        if hasattr(self, "ai_chat_dialog"):
-            self.ai_chat_dialog.hide()
-
-    def _on_ai_dialog_visibility_changed(self, visible):
-        self.btn_ai_chat.setText(" Hide AI" if visible else " AI Assistant")
-
-    def _position_ai_dialog(self):
-        anchor = self.mapToGlobal(self.rect().bottomRight())
-        screen = QApplication.screenAt(anchor) or QApplication.primaryScreen()
-        available = screen.availableGeometry() if screen else None
-        x = anchor.x() - self.ai_chat_dialog.width() - 18
-        y = anchor.y() - self.ai_chat_dialog.height() - 18
-        if available:
-            x = max(available.left() + 8, min(x, available.right() - self.ai_chat_dialog.width() - 8))
-            y = max(available.top() + 8, min(y, available.bottom() - self.ai_chat_dialog.height() - 8))
-        self.ai_chat_dialog.move(x, y)
+    def create_ai_panel(self, parent=None):
+        """Host the assistant on AI page, retaining product actions and context."""
+        if not hasattr(self, "ai_chat_panel"):
+            from ui.products_page.product_ai_chat_panel import ProductAIChatPanel
+            self.ai_chat_panel = ProductAIChatPanel(
+                parent, user_id=self.user_id,
+                can_view_sensitive=self._can_view_sensitive_ai_data(),
+            )
+            self.ai_chat_panel.product_action_requested.connect(self._handle_ai_product_action)
+            self.ai_chat_panel.audit_event.connect(self._handle_ai_audit_event)
+            self._sync_ai_context()
+        return self.ai_chat_panel
 
     def _set_button_icon(self, button, icon_name, size=18):
         """Set SVG icon for a button"""
@@ -258,10 +219,6 @@ class ProductsPage(QWidget):
             if not PermissionManager.user_has_permission(self.user_id, Permission.ADD_PRODUCT):
                 self.btn_add.setEnabled(False)
                 self.btn_add.setToolTip("You don't have permission to add products")
-            if not PermissionManager.user_has_permission(self.user_id, Permission.VIEW_AI_PAGES):
-                self.btn_ai_chat.setEnabled(False)
-                self.btn_ai_chat.setToolTip("You don't have permission to use AI features")
-                self.hide_ai_chat()
 
     def _can_view_sensitive_ai_data(self):
         if not self.user_id:

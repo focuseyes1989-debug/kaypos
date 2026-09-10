@@ -408,6 +408,19 @@ class MainWindowUI(QMainWindow):
         from ui.ai_pages import AIPagesPage
         page=AIPagesPage(current_user=self.current_user)
         page.chat_room.navigation_requested.connect(self.handle_ai_navigation)
+        def attach_products():
+            if self.products_page is not None:
+                page.attach_product_assistant(self.products_page)
+                return
+            lazy = self._lazy_widgets.get(2)
+            if lazy is not None:
+                try:
+                    lazy.page_loaded.disconnect(page.attach_product_assistant)
+                except (TypeError, RuntimeError):
+                    pass
+                lazy.page_loaded.connect(page.attach_product_assistant)
+                self.preload_page(2)
+        page.product_assistant_requested.connect(attach_products)
         return page
     
     def _build_inventory_page(self) -> QWidget:

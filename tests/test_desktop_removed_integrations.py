@@ -3,12 +3,36 @@
 from pathlib import Path
 import unittest
 import os
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from PyQt6.QtWidgets import QApplication
 
 
 class RemovedIntegrationsTests(unittest.TestCase):
+    def test_moved_assistants_are_lazy_and_product_actions_stay_bound(self):
+        from PyQt6.QtWidgets import QWidget
+        from PyQt6.QtCore import pyqtSignal
+        from ui.ai_pages.ai_pages_page import AIPagesPage
+        class Panel(QWidget):
+            close_requested = pyqtSignal()
+        app = QApplication.instance() or QApplication([])
+        page = AIPagesPage()
+        panel = Panel()
+        products = Mock()
+        products.create_ai_panel.return_value = panel
+        self.assertEqual(page.product_assistant_tab.layout().count(), 0)
+        page.attach_product_assistant(products)
+        page.attach_product_assistant(products)
+        products.create_ai_panel.assert_called_once_with(page.product_assistant_tab)
+        self.assertEqual(page.product_assistant_tab.layout().count(), 1)
+        products._sync_ai_context.assert_called()
+        with patch("ui.dashboard.ai_assistant.AIAssistantWidget", QWidget):
+            page.tabs.setCurrentWidget(page.dashboard_assistant_tab)
+            self.assertEqual(page.dashboard_assistant_tab.layout().count(), 1)
+        page.close()
+        page.deleteLater()
+        app.processEvents()
+
     def test_combo_popup_expands_without_resizing_control(self):
         from ui.widgets.combo_box_widget import ComboBoxWidget
         app = QApplication.instance() or QApplication([])

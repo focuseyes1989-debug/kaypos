@@ -28,6 +28,8 @@ class AIPagesPage(QWidget):
     AI Pages - AI ဆိုင်ရာ စာမျက်နှာများ
     """
     
+    product_assistant_requested = pyqtSignal()
+
     def __init__(self, parent=None, current_user=None):
         super().__init__(parent)
         self.current_user = current_user or {}
@@ -77,12 +79,41 @@ class AIPagesPage(QWidget):
         self.tools_tab = self._create_tools_tab()
         tools_icon = self._load_colored_icon("smart_toy")
         self.tabs.addTab(self.tools_tab, tools_icon, "AI Tools")
+        self.dashboard_assistant_tab = QWidget()
+        QVBoxLayout(self.dashboard_assistant_tab).setContentsMargins(0, 0, 0, 0)
+        self.tabs.addTab(self.dashboard_assistant_tab, "Dashboard Assistant")
+        self.product_assistant_tab = QWidget()
+        QVBoxLayout(self.product_assistant_tab).setContentsMargins(0, 0, 0, 0)
+        self.tabs.addTab(self.product_assistant_tab, "Products Assistant")
+        if self.current_user.get("id"):
+            from utils.permissions import PermissionManager, Permission
+            for tab, permission in ((self.dashboard_assistant_tab, Permission.VIEW_DASHBOARD),
+                                    (self.product_assistant_tab, Permission.VIEW_PRODUCTS)):
+                self.tabs.setTabEnabled(self.tabs.indexOf(tab), PermissionManager.user_has_permission(self.current_user["id"], permission))
+        self.tabs.currentChanged.connect(self._load_moved_assistant)
         
         main_layout.addWidget(self.tabs)
         
         # Connect theme change
         from ui.themes.theme_manager import theme_manager
         theme_manager.theme_changed.connect(self._on_theme_changed)
+
+    def _load_moved_assistant(self, index):
+        if not self.tabs.isTabEnabled(index):
+            return
+        tab = self.tabs.widget(index)
+        if tab is self.dashboard_assistant_tab and not tab.layout().count():
+            from ui.dashboard.ai_assistant import AIAssistantWidget
+            tab.layout().addWidget(AIAssistantWidget())
+        elif tab is self.product_assistant_tab:
+            self.product_assistant_requested.emit()
+
+    def attach_product_assistant(self, products):
+        if not self.product_assistant_tab.layout().count():
+            panel = products.create_ai_panel(self.product_assistant_tab)
+            self.product_assistant_tab.layout().addWidget(panel)
+            panel.close_requested.connect(lambda: self.tabs.setCurrentIndex(0))
+        products._sync_ai_context()
 
     def _format_ks(self, value):
         try:

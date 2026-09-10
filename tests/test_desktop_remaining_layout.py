@@ -80,8 +80,10 @@ class RemainingLayoutTests(unittest.TestCase):
 
     def test_dashboard_cards_fit_without_overlap(self):
         from ui.dashboard.dashboard_page import DashboardPage
-        with patch("ui.dashboard.dashboard_page.AIAssistantWidget", QWidget), patch.object(DashboardPage, "refresh_dashboard"), patch.object(DashboardPage, "retranslateUi"):
+        with patch.object(DashboardPage, "refresh_dashboard"), patch.object(DashboardPage, "retranslateUi"):
             widget = DashboardPage()
+            self.assertFalse(hasattr(widget, "ai_assistant"))
+            self.assertEqual(widget.splitter.count(), 1)
             for width in (1100, 1660):
                 widget.resize(width, 620)
                 widget.show()

@@ -10,7 +10,6 @@ from models.database import connect_db
 from utils.currency import format_money
 from utils.language import lang
 from ui.widgets.summary_card_widget import SummaryCardWidget
-from ui.dashboard.ai_assistant import AIAssistantWidget
 from ui.dashboard.dashboard_table import DashboardTable
 from ui.dashboard.dashboard_backup import DashboardBackupStatus
 from ui.widgets import DateRangeWidget
@@ -396,18 +395,6 @@ class DashboardPage(QWidget):
         backup_layout.addStretch()
         left_layout.addWidget(backup_container)
         
-        # ---------- RIGHT COLUMN (AI Assistant - 20%) ----------
-        self.right_widget = QFrame()
-        self.right_widget.setObjectName("dashboardAIColumn")
-        right_layout = QVBoxLayout(self.right_widget)
-        right_layout.setSpacing(12)
-        right_layout.setContentsMargins(1, 1, 1, 1)
-        
-        # ✅ AI Assistant - Live Data Analysis
-        self.ai_assistant = AIAssistantWidget()
-        self.ai_assistant.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        right_layout.addWidget(self.ai_assistant, 1)
-        
         # ---------- Add to Splitter ----------
         self.left_scroll = QScrollArea()
         self.left_scroll.setWidgetResizable(True)
@@ -415,9 +402,8 @@ class DashboardPage(QWidget):
         self.table_widget.setMinimumHeight(240)
         self.left_scroll.setWidget(self.left_widget)
         self.splitter.addWidget(self.left_scroll)
-        self.splitter.addWidget(self.right_widget)
         # ✅ 4:1 Ratio - Left 80%, Right 20%
-        self.splitter.setSizes([800, 200])
+        self.splitter.setSizes([1000])
         
         main_layout.addWidget(self.splitter, 1)
         self.setLayout(main_layout)
