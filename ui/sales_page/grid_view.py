@@ -962,7 +962,7 @@ class ModernProductCard(QWidget):
         self.price_label.setToolTip(self.price_label.text())
         self.price_label.setFixedHeight(24)
         footer.addWidget(self.price_label, 1)
-        self.quantity_label = QLabel(str(self._stock))
+        self.quantity_label = QLabel(str(self._stock), self)
         self.quantity_label.setFixedHeight(22)
         self.quantity_label.setVisible(str(self._sold_by or "").lower() not in ("service", "restaurant"))
         footer.addWidget(self.quantity_label)

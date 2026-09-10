@@ -3,10 +3,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch, Mock
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QObject, QEvent
 from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtTest import QSignalSpy, QTest
-from PyQt6.QtWidgets import QApplication, QDialog, QPushButton
+from PyQt6.QtWidgets import QApplication, QDialog, QPushButton, QWidget
 from ui.sales_page.grid_view import GridViewWidget, ModernProductCard
 from ui.sales_page.cart_widget import CartWidget
 from ui.themes.theme_manager import get_current_theme, set_current_theme
@@ -28,6 +28,34 @@ class SalesTouchStyleTests(unittest.TestCase):
                 self.assertEqual(rendered.pixelColor(x, y), QColor("#358a75"))
             self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
         card.deleteLater()
+
+    def test_grid_loading_never_shows_a_separate_window(self):
+        shown_windows = []
+
+        class ShowObserver(QObject):
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Type.Show and isinstance(obj, QWidget) and obj.isWindow():
+                    shown_windows.append(type(obj).__name__)
+                return False
+
+        grid = GridViewWidget(card_style="modern")
+        grid.resize(520, 500)
+        grid.show()
+        self.app.processEvents()
+        observer = ShowObserver()
+        self.app.installEventFilter(observer)
+        try:
+            rows = [(1, "Example", 1000, 7, 2, "Each", "", False, "General")]
+            with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
+                grid.populate(rows)
+                grid.append_rows([(2, "Second", 2000, 2, 1, "Each", "", False, "General")])
+                self.app.processEvents()
+            self.assertEqual(shown_windows, [])
+        finally:
+            self.app.removeEventFilter(observer)
+            grid._resize_timer.stop()
+            grid.close()
+            grid.deleteLater()
 
     def test_grid_keeps_price_and_category_visible_and_adds_columns(self):
         self.addCleanup(set_current_theme, get_current_theme())
