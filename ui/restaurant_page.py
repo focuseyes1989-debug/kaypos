@@ -32,6 +32,7 @@ from ui.sales_page.payment_widget import PaymentWidget
 from ui.sales_page.product_grid import ProductGrid
 from ui.sales_page.totals_widget import TotalsWidget
 from ui.themes import get_theme_colors, is_dark_theme, theme_manager
+from ui.responsive_utils import fit_dialog_to_available_screen
 from ui.widgets.modern_button import ModernButton
 from utils.currency import format_money, get_currency_symbol
 from utils.customer_utils import load_customers
@@ -446,11 +447,10 @@ class RestaurantPage(QWidget):
         dialog = QDialog(self)
         dialog.setObjectName("kitchenQueueDialog")
         dialog.setWindowTitle("Kitchen Queue")
-        dialog.resize(980, 760)
-        dialog.setMinimumSize(860, 620)
+        fit_dialog_to_available_screen(dialog, 920, 620, 760, 500)
         layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
 
         header = QHBoxLayout()
         title = QLabel("Kitchen Queue")
@@ -472,7 +472,7 @@ class RestaurantPage(QWidget):
         holder = QWidget()
         self.kitchen_list = QVBoxLayout(holder)
         self.kitchen_list.setContentsMargins(4, 4, 4, 4)
-        self.kitchen_list.setSpacing(14)
+        self.kitchen_list.setSpacing(10)
         scroll.setWidget(holder)
         layout.addWidget(scroll, 1)
 

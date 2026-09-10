@@ -3,6 +3,8 @@
 
 from typing import List, Tuple
 
+from PyQt6.QtWidgets import QApplication
+
 
 def get_responsive_window_size(
     screen_width: int,
@@ -114,6 +116,39 @@ def get_responsive_dialog_size(
     if height > screen_height:
         height = screen_height
 
+    return width, height
+
+
+def fit_dialog_to_available_screen(
+    dialog,
+    preferred_width: int,
+    preferred_height: int,
+    min_width: int,
+    min_height: int,
+    margin: int = 56,
+) -> Tuple[int, int]:
+    """Resize a dialog so it stays inside the usable screen area."""
+    screen = None
+    parent = dialog.parentWidget() if hasattr(dialog, "parentWidget") else None
+    if parent:
+        center = parent.mapToGlobal(parent.rect().center())
+        screen = QApplication.screenAt(center)
+    if screen is None:
+        screen = QApplication.primaryScreen()
+
+    if screen is None:
+        dialog.setMinimumSize(min_width, min_height)
+        dialog.resize(preferred_width, preferred_height)
+        return preferred_width, preferred_height
+
+    available = screen.availableGeometry()
+    max_width = max(360, available.width() - margin)
+    max_height = max(360, available.height() - margin)
+
+    width = min(preferred_width, max_width)
+    height = min(preferred_height, max_height)
+    dialog.setMinimumSize(min(min_width, width), min(min_height, height))
+    dialog.resize(width, height)
     return width, height
 
 

@@ -119,4 +119,13 @@ Implemented on 2026-09-10.
 - Tightened Sales page spacing, right-panel padding, and secondary action button heights.
 - Reduced Sales product filter control widths so the product search row has more usable space at 1366px width.
 
-Phase 3 should continue with the high-risk dialogs listed in P1.
+## Phase 3 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Added a reusable dialog fitter that sizes dialogs against the active screen's available geometry.
+- Reduced oversized minimum heights on Customer Ledger, Stock Adjustment, Stock Movements, Expense Comparison, and Kitchen Queue dialogs.
+- Tightened dialog margins and spacing so primary actions and table/list content fit more comfortably at 1366x768.
+- Reduced Customer Ledger table row height to improve visible rows on shorter screens.
+
+Phase 4 should continue with toolbars, table defaults, and dense secondary pages listed in P2/P3.

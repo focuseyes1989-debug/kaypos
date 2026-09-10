@@ -12,6 +12,7 @@ from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 import os
@@ -27,7 +28,7 @@ class CustomerLedgerDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle(f"Ledger - {customer_name}")
-        self.setMinimumSize(1100, 800)
+        fit_dialog_to_available_screen(self, 1080, 660, 960, 560)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -35,12 +36,12 @@ class CustomerLedgerDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(14, 14, 14, 14)
 
         # ========== TOP ROW: Customer Information Cards (SummaryCardWidget) ==========
         info_layout = QHBoxLayout()
-        info_layout.setSpacing(12)
+        info_layout.setSpacing(8)
         
         # ✅ Customer Name Card with SVG icon
         self.customer_card = SummaryCardWidget(
@@ -91,7 +92,7 @@ class CustomerLedgerDialog(QDialog):
 
         # ========== SECOND ROW: Summary Cards (for totals) ==========
         summary_layout = QHBoxLayout()
-        summary_layout.setSpacing(12)
+        summary_layout.setSpacing(8)
         
         # ✅ Total Debit Card with SVG icon
         self.total_debit_card = SummaryCardWidget(
@@ -147,8 +148,8 @@ class CustomerLedgerDialog(QDialog):
         filter_frame.setStyleSheet(self._get_filter_frame_style(colors))
         
         filter_layout = QHBoxLayout(filter_frame)
-        filter_layout.setSpacing(12)
-        filter_layout.setContentsMargins(15, 8, 15, 8)
+        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(12, 6, 12, 6)
         
         # Date Range Widget
         date_label = QLabel("📅 Date Range:")
@@ -191,7 +192,7 @@ class CustomerLedgerDialog(QDialog):
         self._update_table_style(colors)
         
         # Row height
-        self.table.verticalHeader().setDefaultSectionSize(50)
+        self.table.verticalHeader().setDefaultSectionSize(42)
         self.table.verticalHeader().setVisible(False)
         
         header = self.table.horizontalHeader()
@@ -210,8 +211,8 @@ class CustomerLedgerDialog(QDialog):
         button_frame.setStyleSheet(self._get_button_frame_style(colors))
         
         btn_layout = QHBoxLayout(button_frame)
-        btn_layout.setSpacing(12)
-        btn_layout.setContentsMargins(15, 8, 15, 8)
+        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(12, 6, 12, 6)
         
         # ✅ Print button with SVG icon
         self.btn_print = ModernButton(" Print Report", ModernButton.SECONDARY)

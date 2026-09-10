@@ -20,6 +20,7 @@ from ui.widgets import (
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 from ui.design_system.dialog_styles import modern_table_stylesheet
+from ui.responsive_utils import fit_dialog_to_available_screen
 import os
 
 
@@ -32,7 +33,7 @@ class ExpenseComparisonDialog(QDialog):
             Qt.WindowType.WindowMinimizeButtonHint | 
             Qt.WindowType.WindowMaximizeButtonHint
         )
-        self.setMinimumSize(1000, 700)
+        fit_dialog_to_available_screen(self, 1000, 640, 900, 540)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         self._is_dark = is_dark_theme()
@@ -41,8 +42,8 @@ class ExpenseComparisonDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+        layout.setContentsMargins(14, 14, 14, 14)
 
         # ========== COMPARISON TYPE SELECTION ==========
         type_group = QGroupBox("Comparison Type")
@@ -71,8 +72,8 @@ class ExpenseComparisonDialog(QDialog):
         self.custom_group = QGroupBox("Custom Period")
         self.custom_group.setStyleSheet(self._get_groupbox_style(colors))
         custom_layout = QVBoxLayout()
-        custom_layout.setSpacing(12)
-        custom_layout.setContentsMargins(15, 15, 15, 15)
+        custom_layout.setSpacing(8)
+        custom_layout.setContentsMargins(12, 10, 12, 10)
 
         # ===== Period 1 (Current) =====
         period1_layout = QHBoxLayout()
@@ -125,7 +126,7 @@ class ExpenseComparisonDialog(QDialog):
 
         # ========== SUMMARY CARDS (Using SummaryCardWidget with SVG icons) ==========
         summary_layout = QHBoxLayout()
-        summary_layout.setSpacing(15)
+        summary_layout.setSpacing(10)
 
         # ✅ Current Period Card
         self.current_card = SummaryCardWidget(
@@ -164,7 +165,7 @@ class ExpenseComparisonDialog(QDialog):
 
         # ========== BEST/WORST CATEGORIES ==========
         best_worst_layout = QHBoxLayout()
-        best_worst_layout.setSpacing(15)
+        best_worst_layout.setSpacing(10)
 
         # Best Categories (Most decreased)
         best_group = QGroupBox("Biggest Decreases (Savings)")

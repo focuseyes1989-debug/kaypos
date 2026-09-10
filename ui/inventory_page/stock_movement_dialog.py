@@ -15,6 +15,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.status_badge_widget import StatusBadgeWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import os
 
@@ -32,8 +33,7 @@ class StockMovementDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle("Stock Movements")
-        self.setMinimumSize(1000, 650)
-        self.resize(1120, 720)
+        fit_dialog_to_available_screen(self, 1080, 640, 940, 540)
         self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
         self.setModal(True)
         
@@ -42,8 +42,8 @@ class StockMovementDialog(QDialog):
         
         # Main layout
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(28, 24, 28, 22)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(18, 16, 18, 14)
         
         # Setup header
         self._setup_header(main_layout)
@@ -289,8 +289,8 @@ class StockMovementDialog(QDialog):
         filter_frame.setStyleSheet(self._get_filter_frame_style(colors))
         
         filter_layout = QHBoxLayout(filter_frame)
-        filter_layout.setSpacing(12)
-        filter_layout.setContentsMargins(16, 12, 16, 12)
+        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(12, 8, 12, 8)
         
         # Type filter
         type_label = QLabel("Type")
@@ -365,8 +365,8 @@ class StockMovementDialog(QDialog):
         button_frame.setStyleSheet(self._get_button_frame_style(colors))
         
         button_layout = QHBoxLayout(button_frame)
-        button_layout.setSpacing(12)
-        button_layout.setContentsMargins(15, 8, 15, 8)
+        button_layout.setSpacing(8)
+        button_layout.setContentsMargins(12, 6, 12, 6)
         
         # ✅ Reverse button with SVG icon (red)
         self.btn_reverse = ModernButton("Reverse Selected", ModernButton.DANGER)
