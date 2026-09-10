@@ -1070,10 +1070,10 @@ class ModernProductCard(QWidget):
         scaled = pixmap.scaled(
             width,
             height,
-            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
-        painter.drawPixmap((width - scaled.width()) // 2, (height - scaled.height()) // 2, scaled)
+        painter.drawPixmap(0, 0, scaled)
         if self._is_out_of_stock():
             painter.fillRect(0, 0, width, height, QColor(255, 255, 255, 165) if not self._is_dark else QColor(0, 0, 0, 150))
         painter.end()

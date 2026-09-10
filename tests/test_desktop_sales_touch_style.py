@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QColor
 from PyQt6.QtTest import QSignalSpy, QTest
 from PyQt6.QtWidgets import QApplication, QDialog, QPushButton
-from ui.sales_page.grid_view import GridViewWidget
+from ui.sales_page.grid_view import GridViewWidget, ModernProductCard
 from ui.sales_page.cart_widget import CartWidget
 from ui.themes.theme_manager import get_current_theme, set_current_theme
 
@@ -16,6 +16,18 @@ class SalesTouchStyleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_product_image_stretches_to_fill_frame(self):
+        with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
+            card = ModernProductCard(1, "Example", 1000, 10, 2, "Each", "")
+        for width, height in ((40, 120), (160, 40)):
+            source = QPixmap(width, height)
+            source.fill(QColor("#358a75"))
+            rendered = card._rounded_pixmap(source, 140, 88).toImage()
+            for x, y in ((2, 44), (137, 44), (70, 2), (70, 85)):
+                self.assertEqual(rendered.pixelColor(x, y), QColor("#358a75"))
+            self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
+        card.deleteLater()
 
     def test_grid_keeps_price_and_category_visible_and_adds_columns(self):
         self.addCleanup(set_current_theme, get_current_theme())
