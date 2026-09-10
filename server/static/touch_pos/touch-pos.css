@@ -2536,18 +2536,22 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
 @media screen and (max-width:760px),
        screen and (min-width:761px) and (max-width:1099px) and (orientation:landscape){
   .topbar #fullscreen{
-    display:grid!important;
-    place-items:center;
+    position:relative;
+    display:inline-block!important;
     gap:0!important;
     line-height:1!important;
     text-align:center;
   }
   .topbar #fullscreen[data-icon]::before{
     display:block!important;
+    position:absolute;
+    left:50%;
+    top:50%;
     flex:0 0 auto!important;
     width:18px!important;
     height:18px!important;
     margin:0!important;
+    transform:translate(-50%,-50%) translateY(1px);
     vertical-align:0!important;
     justify-self:center;
     align-self:center;
