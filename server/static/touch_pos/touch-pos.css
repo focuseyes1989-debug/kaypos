@@ -2016,6 +2016,7 @@ html[data-touch-theme=dark] .stock-ok{background:#163f3a;color:#99f6e4}html[data
  .touch-search-icon{display:inline-block!important;width:18px;height:18px;flex:0 0 18px;background:currentColor;mask:url('/assets/icons/search.svg') center/contain no-repeat;-webkit-mask:url('/assets/icons/search.svg') center/contain no-repeat}
 }
 button[data-icon="add"]{--touch-icon:url("/assets/icons/add.svg")}
+button[data-icon="aspect_ratio"]{--touch-icon:url("/assets/icons/aspect_ratio.svg")}
 button[data-icon="arrow_circle_down"]{--touch-icon:url("/assets/icons/arrow_circle_down.svg")}
 button[data-icon="arrow_circle_left"]{--touch-icon:url("/assets/icons/arrow_circle_left.svg")}
 button[data-icon="arrow_circle_right"]{--touch-icon:url("/assets/icons/arrow_circle_right.svg")}
@@ -2307,8 +2308,21 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 @media screen and (max-width:1099px){
   #install{display:none!important}
   #fullscreen{display:inline-flex}
+  .topbar .top-actions{gap:8px}
+  .topbar :is(#fullscreen,#headerAddExpense){
+    height:48px;
+    min-height:48px;
+    border-radius:10px;
+    background:#243550;
+    border-color:#61708a;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    font-size:13px;
+  }
+  .topbar #fullscreen{flex-basis:142px;width:142px}
+  .topbar #headerAddExpense{flex-basis:136px;width:136px}
 }
 @media screen and (max-width:760px){
+  .topbar .top-actions{gap:6px}
   #fullscreen{
     flex:0 0 40px!important;
     width:40px!important;
@@ -2316,6 +2330,13 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
     padding:0!important;
     overflow:hidden;
     font-size:0!important;
+  }
+  #headerAddExpense{
+    flex:0 0 auto!important;
+    width:auto!important;
+    min-width:132px;
+    height:44px;
+    min-height:44px;
   }
   #fullscreen[data-icon]::before{
     width:18px;
