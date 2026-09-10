@@ -2305,6 +2305,7 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
 /* Full screen is a touch convenience, so keep it out of the desktop header. */
 #fullscreen{display:none}
 @media screen and (max-width:1099px){
+  #install{display:none!important}
   #fullscreen{display:inline-flex}
 }
 @media screen and (max-width:760px){
@@ -2315,6 +2316,11 @@ button[data-icon="undo"]{--touch-icon:url("/assets/icons/undo.svg")}
     padding:0!important;
     overflow:hidden;
     font-size:0!important;
+  }
+  #fullscreen[data-icon]::before{
+    width:18px;
+    height:18px;
+    margin:0;
   }
   #fullscreen::after{content:none!important}
 }
