@@ -601,12 +601,14 @@ def _restore_database_file(backup_path, db_path=DB_PATH):
     if not os.path.exists(backup_path):
         raise FileNotFoundError("Backup file not found.")
     
-    # Validate backup - allow empty
+    # Reject corruption before closing connections or touching the current DB.
+    validation = sqlite3.connect(backup_path, timeout=5)
     try:
-        _validate_database_file(backup_path, allow_empty=True)
-    except Exception as e:
-        logger.warning(f"Backup validation warning: {e}")
-        # Continue anyway - try to restore
+        results = validation.execute("PRAGMA integrity_check").fetchall()
+        if results != [("ok",)]:
+            raise sqlite3.DatabaseError("Backup integrity check failed")
+    finally:
+        validation.close()
     
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
