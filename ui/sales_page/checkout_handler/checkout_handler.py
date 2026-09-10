@@ -573,6 +573,9 @@ class CheckoutHandler(QObject):
         
         # Handle credit selected without customer
         if self.parent_widget.options_widget.is_credit_sale() and not self.selected_customer_id:
+            if getattr(self.parent_widget, "_touch_checkout_active", False) is True:
+                QMessageBox.warning(self.parent_widget, "Customer Required", "Select a customer for credit sale.")
+                return None
             lang_code = lang.get_current()
             if lang_code == "my":
                 msg = "အကြွေးရောင်းချရန်အတွက် ဝယ်ယူသူတစ်ဦးကို ရွေးချယ်ရန် လိုအပ်ပါသည်။ ငွေသားဖြင့် ဆက်လက်မည်။"
@@ -587,9 +590,12 @@ class CheckoutHandler(QObject):
         
         # Handle credit sale
         if is_credit_sale:
-            if not self.check_credit_limit(grand_total):
+            payment = self.parent_widget.payment_widget.get_payment_amount() if getattr(self.parent_widget, "_touch_checkout_active", False) is True else 0
+            if payment < 0 or payment > grand_total:
+                QMessageBox.warning(self.parent_widget, "Invalid payment", "Credit received amount cannot exceed total.")
                 return None
-            payment = 0
+            if not self.check_credit_limit(grand_total - payment):
+                return None
             change = 0
             payment_type = "Credit"
         else:
@@ -602,7 +608,7 @@ class CheckoutHandler(QObject):
             payment_type = self.parent_widget.payment_widget.get_selected_payment_type()
 
         # Generate invoice
-        invoice_no = datetime.now().strftime("INV%Y%m%d%H%M%S")
+        invoice_no = datetime.now().strftime("INV%Y%m%d%H%M%S%f")
         local_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Calculate totals
@@ -659,7 +665,7 @@ class CheckoutHandler(QObject):
 
             # Process credit or cash sale
             if is_credit_sale:
-                self.processor.process_credit_sale(conn, cursor, invoice_no, grand_total, sale_id)
+                self.processor.process_credit_sale(conn, cursor, invoice_no, grand_total, sale_id, paid_amount=payment)
             else:
                 self.processor.process_cash_sale(conn, cursor, grand_total, invoice_no)
 

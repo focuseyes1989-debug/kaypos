@@ -458,12 +458,14 @@ class SalesPage(QWidget):
         sale_type = self.options_widget.get_payment_type()
         discount_enabled = self.totals_widget.discount_checkbox.isChecked()
         discount_value = self.totals_widget.discount_input.value()
-        from ui.sales_page.checkout_dialog import CheckoutDialog
-        dialog = CheckoutDialog(self)
-        self._checkout_dialog = dialog
+        points_enabled = self.totals_widget.points_use_check.isChecked()
+        points_value = self.totals_widget.points_spin.value()
         amount = self.payment_widget.get_payment_amount()
         manual = self.payment_widget.payment_manual_override
         payment_index = self.payment_widget.payment_combo.currentIndex()
+        from ui.sales_page.checkout_dialog import CheckoutDialog
+        dialog = CheckoutDialog(self)
+        self._checkout_dialog = dialog
         self.payment_widget.change_label_title.show()
         self.payment_widget.change_label.show()
         self.payment_widget.setMinimumHeight(130)
@@ -490,6 +492,8 @@ class SalesPage(QWidget):
                 self.options_widget.set_payment_type(sale_type)
                 self.totals_widget.discount_checkbox.setChecked(discount_enabled)
                 self.totals_widget.discount_input.setValue(discount_value)
+                self.totals_widget.points_use_check.setChecked(points_enabled)
+                self.totals_widget.points_spin.setValue(points_value)
                 self.payment_widget.payment_combo.setCurrentIndex(payment_index)
                 self.payment_widget.payment_input.setValue(amount)
                 self.payment_widget.payment_manual_override = manual

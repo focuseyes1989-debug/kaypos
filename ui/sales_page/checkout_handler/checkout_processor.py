@@ -80,14 +80,14 @@ class CheckoutProcessor:
                     item.get("wholesale_unit_label") or "",
                 ))
     
-    def process_credit_sale(self, conn, cursor, invoice_no, grand_total, sale_id):
+    def process_credit_sale(self, conn, cursor, invoice_no, grand_total, sale_id, paid_amount=0):
         """Process credit sale"""
         credit_service = CreditService()
         result = credit_service.create_credit_sale(
             customer_id=self.handler.selected_customer_id,
             invoice_no=invoice_no,
             total_amount=grand_total,
-            paid_amount=0,
+            paid_amount=paid_amount,
             sale_id=sale_id,
             notes="POS credit sale",
             cursor=cursor,

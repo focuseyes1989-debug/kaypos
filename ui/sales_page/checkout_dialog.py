@@ -1,6 +1,8 @@
 """Touch-style payment review with an always-available received keypad."""
 
-from PyQt6.QtCore import Qt
+import math
+
+from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtWidgets import QComboBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 from ui.themes.theme_manager import get_theme_colors, get_icon_with_color
 from utils.currency import format_money, get_currency_symbol
@@ -13,6 +15,25 @@ class CheckoutDialog(QDialog):
         self.page = page
         self._borrowed = []
         self._saving = False
+        self.target = page.payment_widget.payment_input
+        self._replace = True
+        totals = page.totals_widget
+        discount = totals.compute_regular_discount(page.cart_widget.compute_subtotal())
+        field = totals.discount_input
+        self._discount_config = (totals.discount_type, field.minimum(), field.maximum(), field.decimals(), field.suffix())
+        self._received_decimals = page.payment_widget.payment_input.validator().decimals()
+        page._touch_checkout_active = True
+        totals.discount_type = "fixed"
+        field.setRange(0, 999999999)
+        field.setDecimals(2)
+        field.setSuffix("")
+        totals.discount_checkbox.setChecked(True)
+        field.setValue(discount)
+        totals.points_use_check.setChecked(False)
+        page.payment_widget.payment_input.validator().setDecimals(2)
+        totals.update_totals()
+        page.payment_widget.payment_input.setValue(totals.get_current_grand_total())
+        page.payment_widget.payment_manual_override = True
         self.setWindowTitle("Checkout")
         root = QHBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
@@ -28,9 +49,12 @@ class CheckoutDialog(QDialog):
         rows = QVBoxLayout(summary)
         rows.setContentsMargins(12, 8, 12, 8)
         self.values = {}
+        self.summary_labels = {}
         for title in ("Items", "Subtotal", "Discount", "Tax", "Total", "Received", "Change"):
             row = QHBoxLayout()
-            row.addWidget(QLabel(title))
+            label = QLabel(title)
+            self.summary_labels[title] = label
+            row.addWidget(label)
             value = QLabel()
             value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             value.setStyleSheet("font-weight: 600;")
@@ -47,20 +71,18 @@ class CheckoutDialog(QDialog):
         form.setContentsMargins(0, 0, 6, 0)
         form.setSpacing(6)
         self.sale_type = QComboBox()
-        self.sale_type.addItems(["Cash", "Credit"])
-        self.sale_type.setCurrentText(page.options_widget.get_payment_type())
-        self.sale_type.currentTextChanged.connect(page.options_widget.set_payment_type)
-        for title, field in (("Customer", page.customer_combo), ("Sale type", self.sale_type),
-                             ("Payment method", page.payment_widget.payment_combo)):
+        self.sale_type.addItems(list(dict.fromkeys(["Cash"] + [page.payment_widget.payment_combo.itemText(i) for i in range(page.payment_widget.payment_combo.count())] + ["Credit"])))
+        self.sale_type.setCurrentText("Cash")
+        self.sale_type.currentTextChanged.connect(self._mode_changed)
+        self._mode_changed("Cash")
+        for title, field in (("Customer", page.customer_combo), ("Sale type", self.sale_type)):
             form.addWidget(QLabel(title))
             if field is not self.sale_type:
                 self._borrow(field)
             field.setMinimumWidth(0)
             form.addWidget(field)
             field.show()
-        self._borrow(page.totals_widget.discount_checkbox)
-        form.addWidget(page.totals_widget.discount_checkbox)
-        page.totals_widget.discount_checkbox.show()
+        form.addWidget(QLabel("Discount"))
         self._borrow(page.totals_widget.discount_input)
         form.addWidget(page.totals_widget.discount_input)
         page.totals_widget.discount_input.show()
@@ -71,10 +93,6 @@ class CheckoutDialog(QDialog):
         self.status = QLabel()
         self.status.setWordWrap(True)
         form.addWidget(self.status)
-        details = QPushButton("Sale Details")
-        details.setFixedHeight(32)
-        details.clicked.connect(page.open_sale_details_dialog)
-        form.addWidget(details)
         form.addStretch()
         form_scroll = QScrollArea()
         form_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -97,7 +115,8 @@ class CheckoutDialog(QDialog):
         review.addLayout(actions)
         root.addLayout(review, 5)
         keypad = QVBoxLayout()
-        keypad.addWidget(QLabel("Keypad - Received"))
+        self.keypad_title = QLabel("Keypad - Received")
+        keypad.addWidget(self.keypad_title)
         grid = QGridLayout()
         grid.setSpacing(8)
         for i, text in enumerate(("1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", ".")):
@@ -119,14 +138,15 @@ class CheckoutDialog(QDialog):
         grid.addWidget(back, 4, 2)
         keypad.addLayout(grid)
         keypad.addWidget(QLabel("Quick received"))
-        quick = QHBoxLayout()
+        quick = QGridLayout()
+        quick.setSpacing(8)
         self.exact = QPushButton()
         self.rounded = QPushButton()
-        self.exact.clicked.connect(lambda: self.page.payment_widget.payment_input.setValue(self.total))
-        self.rounded.clicked.connect(lambda: self.page.payment_widget.payment_input.setValue(self.next_amount))
-        for button in (self.exact, self.rounded):
-            button.setFixedHeight(52)
-            quick.addWidget(button)
+        self.suggestions = [self.exact, self.rounded] + [QPushButton() for _ in range(4)]
+        for index, button in enumerate(self.suggestions):
+            button.setFixedHeight(44)
+            button.clicked.connect(lambda checked=False, item=button: self._quick_received(item.property("amount")))
+            quick.addWidget(button, index // 2, index % 2)
         keypad.addLayout(quick)
         keypad.addStretch()
         root.addLayout(keypad, 2)
@@ -151,7 +171,39 @@ class CheckoutDialog(QDialog):
         page.payment_widget.payment_amount_changed.connect(self.refresh)
         page.options_widget.payment_type_changed.connect(self.refresh)
         page.customer_combo.currentIndexChanged.connect(self.refresh)
+        for field in (page.payment_widget.payment_input, page.totals_widget.discount_input, page.totals_widget.discount_input.lineEdit()):
+            field.installEventFilter(self)
         self.refresh()
+
+    def _mode_changed(self, mode):
+        options = self.page.options_widget
+        blocked = options.blockSignals(True)
+        try:
+            options.set_payment_type("Credit" if mode == "Credit" else "Cash")
+        finally:
+            options.blockSignals(blocked)
+        combo = self.page.payment_widget.payment_combo
+        if mode != "Credit":
+            combo.setCurrentText(mode)
+        if hasattr(self, "save"):
+            self.refresh()
+
+    def _quick_received(self, amount):
+        field = self.page.payment_widget.payment_input
+        field.setValue(amount)
+        field.setFocus()
+        field.selectAll()
+        self.target = field
+        self._replace = True
+        self.keypad_title.setText("Keypad - Received")
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.FocusIn:
+            self.target = obj.lineEdit() if obj is self.page.totals_widget.discount_input else obj
+            self._replace = True
+            self.target.selectAll()
+            self.keypad_title.setText("Keypad - Received" if obj is self.page.payment_widget.payment_input else "Keypad - Discount")
+        return super().eventFilter(obj, event)
 
     def exec(self):
         return exec_with_blurred_backdrop(self)
@@ -174,6 +226,14 @@ class CheckoutDialog(QDialog):
         self._borrowed.append((*location, widget, widget.isHidden(), widget.minimumWidth(), widget.styleSheet()))
 
     def restore_controls(self):
+        totals = self.page.totals_widget
+        kind, low, high, decimals, suffix = self._discount_config
+        totals.discount_type = kind
+        totals.discount_input.setRange(low, high)
+        totals.discount_input.setDecimals(decimals)
+        totals.discount_input.setSuffix(suffix)
+        self.page.payment_widget.payment_input.validator().setDecimals(self._received_decimals)
+        self.page._touch_checkout_active = False
         for layout, index, widget, hidden, minimum_width, stylesheet in reversed(self._borrowed):
             layout.insertWidget(index, widget)
             widget.setMinimumWidth(minimum_width)
@@ -182,17 +242,26 @@ class CheckoutDialog(QDialog):
         self._borrowed.clear()
 
     def _key(self, key):
-        field = self.page.payment_widget.payment_input
+        field = self.target
         if not field.isEnabled():
             return
         if key == "clear":
-            field.setValue(0)
+            field.setText("")
         elif key == "back":
-            field.backspace()
+            if self._replace:
+                field.clear()
+            else:
+                field.backspace()
         else:
-            if field.text() == "0":
+            if self._replace or field.text() == "0":
                 field.selectAll()
             field.insert(key)
+        self._replace = False
+        if field is not self.page.payment_widget.payment_input:
+            typed = field.text()
+            self.page.totals_widget.discount_input.setValue(float(typed) if typed not in ("", ".") else 0)
+            field.setText(typed)
+            field.setCursorPosition(len(typed))
         field.setFocus()
 
     def refresh(self, *_):
@@ -203,28 +272,30 @@ class CheckoutDialog(QDialog):
         self.total = totals.get_current_grand_total()
         received = page.payment_widget.get_payment_amount()
         credit = page.options_widget.get_payment_type() == "Credit"
-        self.sale_type.blockSignals(True)
-        self.sale_type.setCurrentText("Credit" if credit else "Cash")
-        self.sale_type.blockSignals(False)
-        page.payment_widget.payment_input.setEnabled(not credit)
-        page.payment_widget.payment_combo.setEnabled(not credit)
-        if credit:
-            received = 0
+        page.payment_widget.payment_input.setEnabled(True)
         self.values['Items'].setText(str(sum(item['qty'] for item in page.cart_widget.get_cart())))
         for title, value in (("Subtotal", subtotal), ("Discount", discount), ("Tax", self.total - max(0, subtotal - discount)),
-                             ("Total", self.total), ("Received", received), ("Change", max(0, received - self.total))):
+                             ("Total", self.total), ("Received", received), ("Change", max(0, self.total - received) if credit else max(0, received - self.total))):
             self.values[title].setText(format_money(value, get_currency_symbol()))
-        self.next_amount = min(999999999, (int(self.total // 5000) + 1) * 5000)
-        self.exact.setText(format_money(self.total, get_currency_symbol()))
-        self.rounded.setText(format_money(self.next_amount, get_currency_symbol()))
-        self.exact.setEnabled(not credit)
-        self.rounded.setEnabled(not credit)
-        ready = bool(page.customer_combo.currentData()) if credit else received >= self.total
+        self.summary_labels['Change'].setText("Credit Balance" if credit else "Change")
+        step = 1000 if self.total < 5000 else 5000 if self.total < 10000 else 10000
+        suggestions = sorted(amount for amount in {self.total, math.ceil(self.total / step) * step, 500, 1000, 5000, 10000} if self.total <= amount <= 999999999)
+        self.next_amount = suggestions[1] if len(suggestions) > 1 else suggestions[0] if suggestions else 999999999
+        for index, button in enumerate(self.suggestions):
+            button.setVisible(index < len(suggestions))
+            if index < len(suggestions):
+                button.setProperty("amount", suggestions[index])
+                button.setText(format_money(suggestions[index], get_currency_symbol()))
+        ready = (bool(page.customer_combo.currentData()) and received <= self.total) if credit else received >= self.total
+        excessive_discount = totals.discount_input.value() > subtotal
+        ready = ready and not excessive_discount
         self.save.setEnabled(ready and bool(page.cart_widget.get_cart()) and not self._saving)
         if credit:
-            self.status.setText("Balance due: " + format_money(self.total, get_currency_symbol()) if ready else "Select a customer for a credit sale.")
+            self.status.setText("Ready to save." if ready else "Select a customer for credit sale." if not page.customer_combo.currentData() else "Credit received amount cannot exceed total.")
         else:
             self.status.setText("Ready to save." if ready else "Amount due: " + format_money(self.total - received, get_currency_symbol()))
+        if excessive_discount:
+            self.status.setText("Discount cannot exceed subtotal.")
         self.status.setStyleSheet("color: #16805d;" if ready else "color: #c43d3d;")
 
     def _save(self):

@@ -154,6 +154,33 @@ class DesktopWorkflowTests(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM credit_payments WHERE credit_sale_id=?", (credit_id,)).fetchone()[0], 2)
         self.assertEqual(self.stock(), 15)
 
+    def test_touch_credit_accepts_deposit_and_records_only_remaining_balance(self):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT INTO customers (name, current_balance) VALUES (?,0)", (f"QA-deposit-{uuid4()}",))
+        customer_id = cursor.lastrowid
+        self.conn.commit()
+        self.handler.selected_customer_id = customer_id
+        self.handler.check_credit_limit = Mock(return_value=True)
+        self.page.options_widget.is_credit_sale.return_value = True
+        self.page._touch_checkout_active = True
+        self.page.payment_widget.get_payment_amount.return_value = 75.5
+        result = CheckoutHandler.checkout(self.handler)
+        self.assertEqual(result["payment"], 75.5)
+        self.handler.check_credit_limit.assert_called_once_with(124.5)
+        row = self.conn.execute("SELECT paid_amount, balance_amount, status FROM credit_sales WHERE sale_id=?", (result["sale_id"],)).fetchone()
+        self.assertEqual(tuple(row), (75.5, 124.5, "partial"))
+        self.assertEqual(self.conn.execute("SELECT current_balance FROM customers WHERE id=?", (customer_id,)).fetchone()[0], 124.5)
+        self.assertEqual(self.stock(), 15)
+
+    def test_touch_credit_overpayment_does_not_change_stock(self):
+        self.page._touch_checkout_active = True
+        self.page.options_widget.is_credit_sale.return_value = True
+        self.handler.selected_customer_id = 1
+        self.page.payment_widget.get_payment_amount.return_value = 201
+        self.assertIsNone(CheckoutHandler.checkout(self.handler))
+        self.assertEqual(self.stock(), 17)
+        self.handler._show_completion_dialog.assert_not_called()
+
     def test_failed_sale_item_write_rolls_back_sale_and_stock(self):
         before = self.conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0]
         with patch.object(self.handler.processor, "create_sale_items", side_effect=RuntimeError("QA write failure")):

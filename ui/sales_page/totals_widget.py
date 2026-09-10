@@ -149,6 +149,10 @@ class TotalsWidget(QObject):
         after_discount = subtotal - total_discount
         tax_amt = self.compute_tax(after_discount)
         grand_total = after_discount + tax_amt
+        if getattr(self.parent, "_touch_checkout_active", False) is True:
+            from decimal import Decimal, ROUND_HALF_UP
+            tax_amt = float(Decimal(str(tax_amt)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            grand_total = float(Decimal(str(after_discount + tax_amt)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
         # ✅ Store current grand total
         self._current_grand_total = grand_total

@@ -31,7 +31,8 @@ class MoneyInput(QLineEdit):
 
     def setValue(self, value: float) -> None:
         clean_value = max(0.0, min(999999999.0, float(value or 0)))
-        self.setText(str(int(round(clean_value))))
+        decimals = self.validator().decimals()
+        self.setText(f"{clean_value:.{decimals}f}" if decimals else str(int(round(clean_value))))
 
     def _emit_value_changed(self) -> None:
         self.valueChanged.emit(self.value())
