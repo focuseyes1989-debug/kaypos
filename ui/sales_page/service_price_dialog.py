@@ -32,8 +32,6 @@ class ServicePriceDialog(NumericKeypadDialog):
         close.clicked.connect(self.reject)
         header.addWidget(close)
         layout.addLayout(header)
-        layout.addWidget(QLabel("Enter service price"))
-        layout.addWidget(QLabel("Price"))
         self.display = QLineEdit("0")
         self.display.setReadOnly(True)
         self.display.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -45,7 +43,7 @@ class ServicePriceDialog(NumericKeypadDialog):
         keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "\u232b"]
         for index, key in enumerate(keys):
             button = QPushButton(key)
-            button.setFixedHeight(42)
+            button.setFixedHeight(52)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(lambda checked=False, value=key: self._handle_key(value))
             grid.addWidget(button, index // 3, index % 3)

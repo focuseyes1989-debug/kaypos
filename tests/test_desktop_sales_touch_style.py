@@ -41,6 +41,11 @@ class SalesTouchStyleTests(unittest.TestCase):
             def inspect(widget):
                 widget.show()
                 self.app.processEvents()
+                from PyQt6.QtWidgets import QLabel
+                self.assertFalse(any(label.text() in ("Enter service price", "Price") for label in widget.findChildren(QLabel)))
+                for key in widget.findChildren(QPushButton):
+                    if key.text().isdigit():
+                        self.assertEqual(key.height(), 52)
                 effects = parent.findChildren(QGraphicsBlurEffect)
                 self.assertTrue(any(effect.parent().isVisible() for effect in effects))
                 widget._handle_key("C")
