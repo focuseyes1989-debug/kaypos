@@ -2518,8 +2518,8 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .catalog>.catalog-search{margin:14px 16px}
   .product-grid{padding:18px}
   .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
-  .product-card{min-height:210px;grid-template-rows:124px minmax(0,1fr)}
-  .product-info{gap:5px;padding:10px}
+  .catalog .product-card{min-height:210px;grid-template-rows:124px minmax(82px,auto)}
+  .catalog .product-info{align-content:start;gap:5px;padding:10px}
   .cart-items{padding:12px}
   .touch-dashboard,.touch-receipts,.touch-settings,.product-manager,#touchCustomers,#touchSuppliers,#touchLocations,#touchInventory{
     width:100%;
@@ -2536,7 +2536,7 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   :root{--touch-wide-max:1840px;--touch-wide-pad:16px;--touch-wide-gap:16px}
   .workspace{grid-template-columns:clamp(200px,13vw,240px) minmax(0,1fr) clamp(360px,22vw,420px)}
   .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:14px}
-  .product-card{min-height:228px;grid-template-rows:140px minmax(0,1fr)}
+  .catalog .product-card{min-height:228px;grid-template-rows:140px minmax(88px,auto)}
   #touchDashboard .dashboard-cards:not(.dashboard-credit-cards),#touchDashboard .dashboard-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
   #touchDashboard .dashboard-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .receipt-workspace{grid-template-columns:minmax(560px,1.15fr) minmax(440px,1fr)}
@@ -2557,7 +2557,7 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .panel-heading small{font-size:12px}
   .category{min-height:58px;padding:10px 14px}
   .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:16px}
-  .product-card{min-height:250px;grid-template-rows:158px minmax(0,1fr)}
+  .catalog .product-card{min-height:250px;grid-template-rows:158px minmax(92px,auto)}
   .product-name{font-size:15px}
   .product-price{font-size:16px}
 }
@@ -2566,7 +2566,7 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   :root{--touch-wide-max:2100px;--touch-wide-pad:20px;--touch-wide-gap:20px}
   .workspace{grid-template-columns:250px minmax(0,1fr) 430px}
   .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
-  .product-card{min-height:270px;grid-template-rows:174px minmax(0,1fr)}
+  .catalog .product-card{min-height:270px;grid-template-rows:174px minmax(96px,auto)}
   .touch-receipts,.touch-dashboard,.touch-settings,.product-manager{padding:22px}
   .receipt-workspace{grid-template-columns:minmax(680px,1.2fr) minmax(520px,1fr)}
   #touchInventory .receipt-workspace{grid-template-columns:minmax(620px,1fr) minmax(620px,1fr)}
