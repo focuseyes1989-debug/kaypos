@@ -12,7 +12,7 @@ from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.search_widget import SearchWidget
-from ui.widgets.combo_box_widget import ComboBoxWidget
+from ui.widgets.combo_box_widget import ComboBoxWidget, ContentWidthComboBox
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.sales_page.product_utils import effective_stock_sql, get_effective_stock, load_thumbnail
@@ -86,7 +86,7 @@ class ProductGrid(QWidget):
         self.search_input.setMinimumHeight(36)
         self.search_input.returnPressed.connect(self.scan_barcode)
 
-        combo_class = ComboBoxWidget if self.use_modern_combos else QComboBox
+        combo_class = ComboBoxWidget if self.use_modern_combos else ContentWidthComboBox
 
         self.category_combo = combo_class("All Categories") if self.use_modern_combos else combo_class()
         self.category_combo.addItem("All Categories")

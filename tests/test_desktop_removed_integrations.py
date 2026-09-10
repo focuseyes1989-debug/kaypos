@@ -28,6 +28,22 @@ class RemovedIntegrationsTests(unittest.TestCase):
         combo.close()
         combo.deleteLater()
 
+    def test_sales_default_category_popup_expands(self):
+        from ui.sales_page.product_grid import ProductGrid
+        app = QApplication.instance() or QApplication([])
+        grid = ProductGrid(autoload=False)
+        combo = grid.category_combo
+        combo.addItem("CCTV Accessories and Replacement Components")
+        grid.resize(800, 500)
+        grid.show()
+        combo.showPopup()
+        app.processEvents()
+        self.assertEqual(combo.width(), 160)
+        self.assertGreater(combo.view().window().width(), 250)
+        combo.hidePopup()
+        grid.close()
+        grid.deleteLater()
+
     def test_category_navigation_and_selection(self):
         from ui.sales_page.category_slider import CategorySlider
         app = QApplication.instance() or QApplication([])
