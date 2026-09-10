@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
 from ui.design_system.icon import get_icon
-from ui.design_system.metrics import CARD_HEIGHT, CARD_MIN_WIDTH
+from ui.design_system.metrics import CARD_HEIGHT, CARD_MIN_WIDTH, CARD_PADDING
 
 class StatCard(QFrame):
     """
@@ -31,6 +31,7 @@ class StatCard(QFrame):
         self._apply_style()
         self.setMinimumHeight(CARD_HEIGHT)
         self.setMinimumWidth(CARD_MIN_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         
         self.setCursor(Qt.CursorShape.PointingHandCursor)
     
@@ -39,7 +40,7 @@ class StatCard(QFrame):
         theme = get_theme()
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(theme.spacing.lg, theme.spacing.lg, theme.spacing.lg, theme.spacing.lg)
+        layout.setContentsMargins(*([CARD_PADDING] * 4))
         layout.setSpacing(theme.spacing.xs)
         
         # Top row: Icon and Trend
@@ -48,7 +49,7 @@ class StatCard(QFrame):
         
         # Icon container
         self._icon_container = QFrame()
-        self._icon_container.setFixedSize(36, 36)
+        self._icon_container.setFixedSize(28, 28)
         self._icon_layout = QVBoxLayout(self._icon_container)
         self._icon_layout.setContentsMargins(0, 0, 0, 0)
         self._icon_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -84,7 +85,7 @@ class StatCard(QFrame):
         self._value_label = QLabel(self._value)
         self._value_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         font = self._value_label.font()
-        font.setPointSize(18)
+        font.setPointSize(16)
         font.setWeight(700)
         self._value_label.setFont(font)
         layout.addWidget(self._value_label)
@@ -96,7 +97,8 @@ class StatCard(QFrame):
         font.setPointSize(9)
         font.setWeight(500)
         self._title_label.setFont(font)
-        layout.addWidget(self._title_label)
+        self._title_label.setWordWrap(True)
+        self._top_layout.insertWidget(1, self._title_label, 1)
     
     def _apply_style(self):
         """Apply theme-aware styling"""

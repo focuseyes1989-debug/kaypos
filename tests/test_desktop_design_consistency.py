@@ -128,6 +128,7 @@ class DesignConsistencyTests(unittest.TestCase):
             self.assertGreater(report.btn_close.y(), report.tabs.geometry().bottom())
             self.assertTrue(report.rect().contains(report.btn_close.geometry()))
             self.assertGreaterEqual(card.card.height(), CARD_HEIGHT)
+            self.assertLessEqual(card.height(), 116)
             output = os.environ.get("DESKTOP_QA_OUTPUT")
             if output:
                 report.grab().save(str(Path(output) / f"report-design-{theme}.png"))

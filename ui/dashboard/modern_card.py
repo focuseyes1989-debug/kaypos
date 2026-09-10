@@ -1,5 +1,5 @@
 # ui/dashboard/modern_card.py
-from PyQt6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPixmap, QPainter
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
@@ -25,6 +25,7 @@ class ModernSummaryCard(QFrame):
         
         self.setMinimumHeight(CARD_HEIGHT)
         self.setMinimumWidth(CARD_MIN_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.NoFrame)
         
@@ -44,7 +45,7 @@ class ModernSummaryCard(QFrame):
         
         # Icon container
         self.icon_container = QFrame()
-        self.icon_container.setFixedSize(36, 36)
+        self.icon_container.setFixedSize(28, 28)
         self.icon_container.setStyleSheet(f"""
             QFrame {{
                 background-color: {self._color}20;
@@ -111,7 +112,8 @@ class ModernSummaryCard(QFrame):
             background: transparent;
             border: none;
         """)
-        bottom_layout.addWidget(self.title_label)
+        self.title_label.setWordWrap(True)
+        top_layout.insertWidget(1, self.title_label, 1)
         
         if self._subtitle:
             self.subtitle_label = QLabel(self._subtitle)
@@ -181,7 +183,7 @@ class ModernSummaryCard(QFrame):
                 background-color: {colors['bg_hover']};
             }}
         """)
-        self.value_label.setStyleSheet(f"color: {colors['text']}; font-size: 18pt; font-weight: 600;")
+        self.value_label.setStyleSheet(f"color: {colors['text']}; font-size: 16pt; font-weight: 600;")
     
     def _on_theme_changed(self, theme_name):
         self._is_dark = is_dark_theme()

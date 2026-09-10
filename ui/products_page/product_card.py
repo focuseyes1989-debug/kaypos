@@ -39,7 +39,7 @@ class ProductCards(QWidget):
                 icon_is_svg=True  # ✅ Use SVG icon
             )
             # Set fixed height for consistency
-            card.card.setFixedHeight(85)
+            # Let wrapped titles and large monetary values grow without clipping.
             card.card.setMinimumWidth(130)
             
             # Store reference

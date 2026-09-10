@@ -6,7 +6,7 @@ Theme-aware - Dark/Light theme နှစ်မျိုးလုံးအတွ�
 WITH PROGRESS BAR
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QProgressBar
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QProgressBar, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QSize
 from PyQt6.QtGui import QColor, QLinearGradient, QBrush, QPainter, QPen, QFont, QPixmap, QIcon
 from loguru import logger
@@ -498,21 +498,22 @@ class SummaryCardWidget(QWidget):
         self.card = ModernGradientCard(self._gradient_colors, self._color, flat=self._flat)
         self.card.setMinimumHeight(CARD_PROGRESS_HEIGHT if self._show_progress else CARD_HEIGHT)
         self.card.setMinimumWidth(CARD_MIN_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.card.setCursor(Qt.CursorShape.PointingHandCursor)
         
         self._apply_theme()
         
         card_layout = QVBoxLayout(self.card)
         card_layout.setSpacing(4)
-        card_layout.setContentsMargins(14, 8, 14, 8)
+        card_layout.setContentsMargins(10, 8, 10, 8)
         
         # Top section: Icon and Title (horizontal layout)
         top_layout = QHBoxLayout()
-        top_layout.setSpacing(10)
+        top_layout.setSpacing(6)
         
         # Icon container
         self.icon_container = QFrame()
-        self.icon_container.setFixedSize(34, 34)
+        self.icon_container.setFixedSize(28, 28)
         self.icon_container.setStyleSheet("""
             QFrame {
                 background-color: rgba(255, 255, 255, 0.16);
@@ -570,7 +571,7 @@ class SummaryCardWidget(QWidget):
         self.value_label.setObjectName("cardValue")
         self.value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.value_label.setWordWrap(True)
-        self.value_label.setMinimumHeight(34)
+        self.value_label.setMinimumHeight(28)
         self.value_label.setStyleSheet("""
             QLabel {
                 color: white;
@@ -648,6 +649,7 @@ class SummaryCardWidget(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.card)
         self.setLayout(main_layout)
+        self._apply_theme()
     
     # Mouse events
     def _on_click(self, event):
