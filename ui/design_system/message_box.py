@@ -2,6 +2,7 @@
 
 from PyQt6.QtCore import QEvent, QObject, Qt
 from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
+from ui.design_system.metrics import CONTROL_HEIGHT
 
 
 class ModernMessageBoxFilter(QObject):
@@ -61,7 +62,7 @@ class ModernMessageBoxFilter(QObject):
             button.setObjectName(f"modernMessage{role}")
             button.setProperty("modernButtonRole", role.lower())
             button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setMinimumHeight(38)
+            button.setMinimumHeight(CONTROL_HEIGHT)
 
     @staticmethod
     def _fit_message_text(box: QMessageBox) -> None:

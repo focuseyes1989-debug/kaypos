@@ -5,7 +5,7 @@ Primary Dialog component with consistent styling
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QSizePolicy
+    QFrame, QSizePolicy, QWidget
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QIcon
@@ -62,6 +62,7 @@ class PrimaryDialog(QDialog):
         # Close button
         self._close_btn = QPushButton()
         self._close_btn.setObjectName("dialog_close")
+        self._close_btn.setToolTip("Close")
         self._close_btn.setFixedSize(28, 28)
         self._close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._close_btn.clicked.connect(self.reject)
@@ -142,6 +143,8 @@ class PrimaryDialog(QDialog):
                 font-size: 14px;
                 font-weight: bold;
                 padding: 0px;
+                min-width: 0px;
+                min-height: 0px;
             }}
             QPushButton#dialog_close:hover {{
                 background: {colors.bg_hover};

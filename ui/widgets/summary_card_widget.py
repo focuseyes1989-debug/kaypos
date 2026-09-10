@@ -12,6 +12,7 @@ from PyQt6.QtGui import QColor, QLinearGradient, QBrush, QPainter, QPen, QFont, 
 from loguru import logger
 import os
 from pathlib import Path
+from ui.design_system.metrics import CARD_HEIGHT, CARD_PROGRESS_HEIGHT, CARD_MIN_WIDTH, CARD_RADIUS
 
 
 class SummaryCardWidget(QWidget):
@@ -495,8 +496,8 @@ class SummaryCardWidget(QWidget):
     def setup_ui(self):
         # Card frame
         self.card = ModernGradientCard(self._gradient_colors, self._color, flat=self._flat)
-        self.card.setFixedHeight(140 if self._show_progress else 120)
-        self.card.setMinimumWidth(140)
+        self.card.setMinimumHeight(CARD_PROGRESS_HEIGHT if self._show_progress else CARD_HEIGHT)
+        self.card.setMinimumWidth(CARD_MIN_WIDTH)
         self.card.setCursor(Qt.CursorShape.PointingHandCursor)
         
         self._apply_theme()
@@ -786,7 +787,7 @@ class ModernGradientCard(QFrame):
         super().__init__(parent)
         self._gradient_colors = gradient_colors
         self._accent_color = accent_color
-        self._radius = 8
+        self._radius = CARD_RADIUS
         self._flat = bool(flat)
         self._surface_color = "#151c2a"
         self._border_color = "#293348"
@@ -814,7 +815,7 @@ class ModernGradientCard(QFrame):
             hovered = bool(getattr(self.parent(), '_is_hovered', False))
             painter.setBrush(QBrush(QColor(self._hover_color if hovered else self._surface_color)))
             painter.setPen(QPen(QColor(self._border_color), 1))
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 11, 11)
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), CARD_RADIUS, CARD_RADIUS)
             painter.setBrush(QBrush(QColor(self._accent_color)))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect.adjusted(12, rect.height() - 4, -12, -1), 2, 2)

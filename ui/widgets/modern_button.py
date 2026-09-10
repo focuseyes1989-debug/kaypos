@@ -11,6 +11,7 @@ from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QSize
 
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.metrics import CONTROL_HEIGHT, CONTROL_RADIUS
 
 
 class ModernButton(QPushButton):
@@ -179,8 +180,8 @@ class ModernButton(QPushButton):
         self.setAutoExclusive(True)
         
         # Default size - normal (slightly reduced)
-        self.setMinimumHeight(38)
-        self.setMaximumHeight(44)
+        self.setMinimumHeight(CONTROL_HEIGHT)
+        self.setMaximumHeight(CONTROL_HEIGHT)
         
         # Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -258,7 +259,7 @@ class ModernButton(QPushButton):
         style_sheet = f"""
             QPushButton {{
                 border: none;
-                border-radius: 9px;
+                border-radius: {CONTROL_RADIUS}px;
                 font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
                 font-weight: 600;
                 text-align: center;
@@ -409,7 +410,7 @@ class ModernButton(QPushButton):
             style_sheet += """
                 QPushButton {
                     padding: 6px 16px;
-                    font-size: 9.5pt;
+                    font-size: 9pt;
                 }
             """
 

@@ -49,6 +49,7 @@ def main():
                 "tests.test_main_py_phase10_desktop_layout",
                 "tests.test_desktop_sale_details",
                 "tests.test_desktop_settings_integration",
+                "tests.test_desktop_design_consistency",
             ]
             if args.shell:
                 modules.append("tests.test_desktop_live_shell")

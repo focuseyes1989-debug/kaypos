@@ -2,8 +2,9 @@
 from PyQt6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPixmap, QPainter
-from ui.themes.theme_manager import theme_manager, is_dark_theme
+from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
 from loguru import logger
+from ui.design_system.metrics import CARD_HEIGHT, CARD_MIN_WIDTH, CARD_RADIUS, CARD_PADDING
 
 
 class ModernSummaryCard(QFrame):
@@ -22,8 +23,8 @@ class ModernSummaryCard(QFrame):
         self._subtitle = subtitle
         self._is_dark = is_dark_theme()
         
-        self.setFixedHeight(110)
-        self.setMinimumWidth(140)
+        self.setMinimumHeight(CARD_HEIGHT)
+        self.setMinimumWidth(CARD_MIN_WIDTH)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.NoFrame)
         
@@ -34,7 +35,7 @@ class ModernSummaryCard(QFrame):
     
     def _setup_ui(self):
         layout = QVBoxLayout()
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(*([CARD_PADDING] * 4))
         layout.setSpacing(4)
         
         # Top row: Icon and Trend
@@ -168,32 +169,19 @@ class ModernSummaryCard(QFrame):
         self.icon_label.setStyleSheet(f"font-size: 16px; color: {self._color};")
     
     def _apply_style(self):
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.setStyleSheet(f"""
-                QFrame {{
-                    background-color: #2f3136;
-                    border: 1px solid #40444b;
-                    border-radius: 10px;
-                }}
-                QFrame:hover {{
-                    border: 1px solid #5865f2;
-                    background-color: #36393f;
-                }}
-            """)
-        else:
-            self.setStyleSheet(f"""
-                QFrame {{
-                    background-color: #ffffff;
-                    border: 1px solid #e9ecef;
-                    border-radius: 10px;
-                }}
-                QFrame:hover {{
-                    border: 1px solid #5865f2;
-                    background-color: #f8f9fa;
-                }}
-            """)
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            ModernSummaryCard {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: {CARD_RADIUS}px;
+            }}
+            ModernSummaryCard:hover {{
+                border-color: {colors['border_hover']};
+                background-color: {colors['bg_hover']};
+            }}
+        """)
+        self.value_label.setStyleSheet(f"color: {colors['text']}; font-size: 18pt; font-weight: 600;")
     
     def _on_theme_changed(self, theme_name):
         self._is_dark = is_dark_theme()

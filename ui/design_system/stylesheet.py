@@ -9,6 +9,8 @@ consistent without first replacing every widget with a custom component.
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ui.design_system.theme import get_theme
+from ui.design_system.metrics import button_metrics_stylesheet
+from ui.design_system.tabs import tab_stylesheet
 
 
 def _px(value: int) -> str:
@@ -190,7 +192,7 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QTableWidget::item, QTableView::item {{
-            padding: 7px 10px;
+            padding: 4px 10px;
             border: none;
         }}
 
@@ -342,6 +344,8 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
 
         QMessageBox QLabel#qt_msgbox_label {{
             padding: 8px 12px;
+            min-height: 20px;
+            font-size: 9pt;
             min-width: 260px;
         }}
 
@@ -418,7 +422,10 @@ def compose_app_stylesheet(base_stylesheet: str = "", theme_name: str = "Light")
     """Combine legacy theme stylesheet with design-system defaults."""
     return "\n".join(
         part.strip()
-        for part in (base_stylesheet, build_design_stylesheet(theme_name))
+        for part in (base_stylesheet, build_design_stylesheet(theme_name),
+                     button_metrics_stylesheet(),
+                     button_metrics_stylesheet("QDialogButtonBox QPushButton, QMessageBox QPushButton"),
+                     tab_stylesheet(vars(get_theme().get_colors(theme_name == "Dark"))))
         if part and part.strip()
     )
 

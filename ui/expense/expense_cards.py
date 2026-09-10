@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from utils.currency import format_money
 from models.database import connect_db
 from PyQt6.QtCore import QDate
+from ui.design_system.metrics import CARD_HEIGHT, CARD_PADDING, GAP
 
 
 class ExpenseCards(QWidget):
@@ -15,7 +16,7 @@ class ExpenseCards(QWidget):
         
     def setup_ui(self):
         card_layout = QHBoxLayout()
-        card_layout.setSpacing(15)
+        card_layout.setSpacing(GAP)
         card_layout.setContentsMargins(0, 0, 0, 0)
         
         self.total_card, self.total_title_label, self.total_amount_label = self._create_card("Total Expenses")
@@ -31,8 +32,9 @@ class ExpenseCards(QWidget):
     def _create_card(self, title):
         card = QFrame()
         card.setObjectName("dashboardCard")
+        card.setMinimumHeight(CARD_HEIGHT)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(15, 10, 15, 10)
+        layout.setContentsMargins(*([CARD_PADDING] * 4))
         layout.setSpacing(5)
 
         title_label = QLabel(title)

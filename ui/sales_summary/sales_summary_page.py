@@ -188,6 +188,7 @@ class SalesSummaryPage(BaseSalesSummary):
     def _apply_tab_bar_style(self):
         """Apply tab bar style based on theme"""
         colors = get_theme_colors()
+        from ui.design_system.tabs import tab_stylesheet
         self.tabs.setStyleSheet(f"""
             QTabWidget#salesSummaryTabs::pane {{
                 border: 1px solid {colors['border']};
@@ -198,8 +199,8 @@ class SalesSummaryPage(BaseSalesSummary):
             QTabWidget#salesSummaryTabs QTabBar::tab {{
                 background-color: transparent;
                 color: {colors['text_secondary']};
-                padding: 10px 14px;
-                margin: 0 3px 7px 0;
+                padding: 8px 12px;
+                margin: 0px 2px 0px 0px;
                 border: none;
                 border-radius: 8px;
                 font-weight: 600;
@@ -215,6 +216,7 @@ class SalesSummaryPage(BaseSalesSummary):
             }}
         """)
         
+        self.tabs.setStyleSheet(self.tabs.styleSheet() + tab_stylesheet(colors, "salesSummaryTabs"))
         self._update_tab_icons_color()
 
     def _update_tab_icons_color(self):

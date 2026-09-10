@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QIcon
 from ui.themes.theme_manager import theme_manager, get_theme_colors
+from ui.design_system.metrics import DIALOG_PADDING, CARD_PADDING, CARD_RADIUS, GAP, button_metrics_stylesheet
 
 class BaseFormDialog(QDialog):
     def __init__(self, title, fields, parent=None, data=None):
@@ -17,8 +18,8 @@ class BaseFormDialog(QDialog):
         self.data = data or {}
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(26, 22, 26, 22)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(*([DIALOG_PADDING] * 4))
+        main_layout.setSpacing(GAP)
 
         self.title_label = QLabel(title)
         self.title_label.setObjectName("baseFormTitle")
@@ -30,7 +31,7 @@ class BaseFormDialog(QDialog):
         self.form_card = QFrame()
         self.form_card.setObjectName("baseFormCard")
         self.layout = QFormLayout(self.form_card)
-        self.layout.setContentsMargins(20, 18, 20, 18)
+        self.layout.setContentsMargins(*([CARD_PADDING] * 4))
         self.layout.setHorizontalSpacing(18)
         self.layout.setVerticalSpacing(11)
         self.layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -54,16 +55,16 @@ class BaseFormDialog(QDialog):
                 background-color: {colors['bg']}; color: {colors['text']};
                 font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
             }}
-            QLabel#baseFormTitle {{ color: {colors['text']}; font-size: 18pt; font-weight: 700; }}
+            QLabel#baseFormTitle {{ color: {colors['text']}; font-size: 14pt; font-weight: 600; }}
             QLabel#baseFormSubtitle {{ color: {colors['text_secondary']}; font-size: 9.5pt; }}
             QFrame#baseFormCard {{
                 background-color: {colors['card_bg']}; border: 1px solid {colors['border']};
-                border-radius: 12px;
+                border-radius: {CARD_RADIUS}px;
             }}
             QFrame#baseFormCard QLabel {{ color: {colors['text_secondary']}; font-weight: 600; }}
             QDialogButtonBox#baseFormButtons {{ background: transparent; border: none; padding: 0px; }}
-            QDialogButtonBox#baseFormButtons QPushButton {{ min-height: 36px; min-width: 96px; border-radius: 8px; }}
-        """)
+            QDialogButtonBox#baseFormButtons QPushButton {{ min-width: 86px; }}
+        """ + button_metrics_stylesheet("QDialogButtonBox#baseFormButtons QPushButton"))
 
     def create_fields(self):
         for field in self.fields:

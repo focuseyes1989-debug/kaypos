@@ -4,9 +4,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout
 
 from ui.widgets.modern_button import ModernButton
+from ui.design_system.metrics import CONTROL_HEIGHT, CARD_RADIUS
 
 
-STANDARD_CLOSE_BUTTON_SIZE = (112, 38)
+STANDARD_CLOSE_BUTTON_SIZE = (112, CONTROL_HEIGHT)
 
 
 def create_standard_close_button(dialog, text="Close"):
@@ -38,12 +39,12 @@ def modern_table_stylesheet(colors, selector="QTableWidget"):
             alternate-background-color: {colors['table_alt']};
             color: {colors['text']};
             border: 1px solid {colors['border']};
-            border-radius: 12px;
+            border-radius: {CARD_RADIUS}px;
             gridline-color: transparent;
             outline: none;
         }}
         {selector}::item {{
-            padding: 8px 12px;
+            padding: 4px 10px;
             border-bottom: 1px solid {colors['border']};
         }}
         {selector}::item:selected, {selector}::item:hover {{
@@ -53,7 +54,7 @@ def modern_table_stylesheet(colors, selector="QTableWidget"):
         QHeaderView::section {{
             background-color: {colors['card_bg']};
             color: {colors['text_secondary']};
-            padding: 10px 12px;
+            padding: 8px 10px;
             border: none;
             border-bottom: 1px solid {colors['border']};
             font-size: 9pt;
@@ -67,6 +68,6 @@ def modern_panel_stylesheet(colors, object_name):
         QFrame#{object_name} {{
             background-color: {colors['card_bg']};
             border: 1px solid {colors['border']};
-            border-radius: 11px;
+            border-radius: {CARD_RADIUS}px;
         }}
     """

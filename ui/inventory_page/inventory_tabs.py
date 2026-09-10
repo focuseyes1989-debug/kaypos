@@ -178,6 +178,8 @@ class InventoryPage(QWidget):
         """)
         
         # ✅ Update tab icons color
+        from ui.design_system.tabs import tab_stylesheet
+        self.setStyleSheet(self.styleSheet() + tab_stylesheet(colors, "inventoryTabs"))
         self._update_tab_icons_color()
 
     def _update_tab_icons_color(self):

@@ -258,6 +258,9 @@ class ReceiptsPage(QWidget):
             }}
         """)
     
+        from ui.design_system.tabs import tab_stylesheet
+        self.tab_widget.setStyleSheet(self.tab_widget.styleSheet() + tab_stylesheet(colors, "receiptsTabs"))
+
     def _on_theme_changed(self, theme_name):
         self._is_dark = is_dark_theme()
         self._apply_theme()

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel
 from PyQt6.QtGui import QColor, QFont
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
+from ui.design_system.metrics import TABLE_ROW_HEIGHT
 
 class ModernTable(QTableWidget):
     """
@@ -56,7 +57,7 @@ class ModernTable(QTableWidget):
                 spacing: 0px;
             }}
             QTableWidget::item {{
-                padding: 8px 12px;
+                padding: 4px 10px;
                 border: none;
                 border-bottom: 1px solid {border};
                 color: {text_color};
@@ -69,16 +70,16 @@ class ModernTable(QTableWidget):
             QTableWidget::item:hover:!selected {{
                 background-color: {hover_bg};
             }}
+            QHeaderView {{ background-color: {header_bg}; }}
             QHeaderView::section {{
                 background-color: {header_bg};
                 color: {header_text};
-                padding: 10px 12px;
+                padding: 8px 10px;
                 border: none;
                 border-bottom: 2px solid {border};
                 font-weight: {theme.typography.weight_semibold};
-                font-size: {theme.typography.size_small}pt;
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
+                font-size: {theme.typography.size_body}pt;
+                letter-spacing: 0px;
                 font-family: {theme.typography.font_family};
             }}
             QHeaderView::section:last {{
@@ -140,7 +141,7 @@ class ModernTable(QTableWidget):
         self.setWordWrap(True)
         
         # Row height
-        self.verticalHeader().setDefaultSectionSize(44)
+        self.verticalHeader().setDefaultSectionSize(TABLE_ROW_HEIGHT)
         self.verticalHeader().setVisible(False)
         
         # Selection tracking

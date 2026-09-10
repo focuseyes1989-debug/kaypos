@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
+from ui.design_system.metrics import CARD_RADIUS, CARD_PADDING, DIALOG_PADDING
 
 @dataclass
 class ThemeColors:
@@ -147,8 +148,8 @@ class ThemeSpacing:
     button_padding_y: int = 8
     input_padding_x: int = 12
     input_padding_y: int = 8
-    card_padding: int = 16
-    dialog_padding: int = 20
+    card_padding: int = CARD_PADDING
+    dialog_padding: int = DIALOG_PADDING
 
 @dataclass
 class ThemeRadius:
@@ -164,7 +165,7 @@ class ThemeRadius:
     # Component specific
     button: int = 6
     input: int = 6
-    card: int = 10
+    card: int = CARD_RADIUS
     dialog: int = 12
     table: int = 6
 

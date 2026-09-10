@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
 from ui.design_system.icon import get_icon
+from ui.design_system.metrics import CARD_HEIGHT, CARD_MIN_WIDTH
 
 class StatCard(QFrame):
     """
@@ -28,6 +29,8 @@ class StatCard(QFrame):
         
         self._setup_ui()
         self._apply_style()
+        self.setMinimumHeight(CARD_HEIGHT)
+        self.setMinimumWidth(CARD_MIN_WIDTH)
         
         self.setCursor(Qt.CursorShape.PointingHandCursor)
     

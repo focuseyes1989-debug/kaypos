@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtProperty, QPropertyAnimation, QEasingCur
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QFont
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
 from ui.design_system.icon import get_icon
+from ui.design_system.metrics import button_metrics_stylesheet
 
 class BaseButton(QPushButton):
     """Base button with hover animation and consistent styling"""
@@ -29,6 +30,14 @@ class BaseButton(QPushButton):
         self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         
         self._setup_style()
+        self.setStyleSheet(self.styleSheet() + button_metrics_stylesheet())
+        from ui.themes.theme_manager import theme_manager
+        theme_manager.theme_changed.connect(self.update_theme)
+
+    def update_theme(self, *_args):
+        self._setup_style()
+        self.setStyleSheet(self.styleSheet() + button_metrics_stylesheet())
+        self._update_icon()
     
     def _setup_style(self):
         """Setup base styles (overridden by subclasses)"""
