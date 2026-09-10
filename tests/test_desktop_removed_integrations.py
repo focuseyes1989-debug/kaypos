@@ -9,6 +9,25 @@ from PyQt6.QtWidgets import QApplication
 
 
 class RemovedIntegrationsTests(unittest.TestCase):
+    def test_combo_popup_expands_without_resizing_control(self):
+        from ui.widgets.combo_box_widget import ComboBoxWidget
+        app = QApplication.instance() or QApplication([])
+        combo = ComboBoxWidget()
+        combo.addItems(["All Categories", "CCTV Accessories and Replacement Components"])
+        combo.setFixedWidth(160)
+        combo.show()
+        combo.showPopup()
+        app.processEvents()
+        self.assertEqual(combo.width(), 160)
+        self.assertGreater(combo.view().window().width(), 250)
+        self.assertLessEqual(combo.view().window().width(), combo.screen().availableGeometry().width())
+        output = os.environ.get("DESKTOP_QA_OUTPUT")
+        if output:
+            combo.view().window().grab().save(str(Path(output) / "combo-popup.png"))
+        combo.hidePopup()
+        combo.close()
+        combo.deleteLater()
+
     def test_category_navigation_and_selection(self):
         from ui.sales_page.category_slider import CategorySlider
         app = QApplication.instance() or QApplication([])

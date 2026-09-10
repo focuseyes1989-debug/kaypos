@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QComboBox, QCompleter, QLineEdit
+from PyQt6.QtWidgets import QComboBox, QCompleter, QLineEdit, QStyleOptionViewItem
 
 from ui.themes.theme_manager import get_icon_with_color, get_theme_colors, is_dark_theme, theme_manager
 
@@ -165,6 +165,17 @@ class ComboBoxWidget(QComboBox):
                 self._clear_action.setIcon(clear_icon)
 
     def showPopup(self):  # noqa: N802
+        view = self.view()
+        option = QStyleOptionViewItem()
+        option.initFrom(view)
+        option.font = view.font()
+        widths = [self.width()]
+        for row in range(self.count()):
+            index = self.model().index(row, self.modelColumn(), self.rootModelIndex())
+            widths.append(view.itemDelegate().sizeHint(option, index).width() + 40)
+        screen = self.screen().availableGeometry()
+        popup_width = min(max(widths), screen.width() - 16)
+        view.setMinimumWidth(popup_width)
         if self.searchable and self.lineEdit():
             self._refresh_completer()
             if self._user_filtering:
@@ -173,6 +184,11 @@ class ComboBoxWidget(QComboBox):
                     completer.complete()
                 return
         super().showPopup()
+        popup = view.window()
+        geometry = popup.geometry()
+        geometry.setWidth(min(max(popup_width, geometry.width()), screen.width() - 16))
+        geometry.moveLeft(max(screen.left() + 8, min(geometry.left(), screen.right() - geometry.width() - 7)))
+        popup.setGeometry(geometry)
 
     def eventFilter(self, obj, event):
         if self.searchable and obj == self.lineEdit():
