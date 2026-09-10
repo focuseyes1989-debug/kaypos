@@ -2500,6 +2500,27 @@ html[data-touch-theme=dark] #touchLocations [data-delete]{color:#fca5a5;border-c
   .cart.open:before{display:none}.cart-close{display:none}.cart-items{padding:10px}.totals{grid-template-columns:1fr;padding:13px}.cart-actions{grid-template-columns:1fr 1.4fr}
 }
 
+/* Tablet product cards: keep images useful while preserving readable details. */
+@media screen and (min-width:761px) and (max-width:1099px) and (orientation:portrait){
+  .workspace{grid-template-columns:150px minmax(0,1fr);gap:10px;padding:10px}
+  .catalog>.catalog-search{height:46px;margin:12px 14px}
+  .product-grid{padding:12px}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+  .catalog .product-card{min-height:198px;grid-template-rows:112px minmax(86px,auto)}
+  .catalog .product-info{align-content:start;gap:5px;padding:10px}
+  .product-name{font-size:13px}
+  .product-price{font-size:14px}
+}
+
+@media screen and (min-width:761px) and (max-width:1365px) and (orientation:landscape){
+  .product-grid{padding:12px}
+  .product-grid.loaded{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .catalog .product-card{min-height:186px;grid-template-rows:104px minmax(82px,auto)}
+  .catalog .product-info{align-content:start;gap:5px;padding:9px}
+  .product-name{font-size:13px}
+  .product-price{font-size:14px}
+}
+
 /* Large desktop and high-resolution support, from 1366x768 upward. */
 @media screen and (min-width:1366px){
   :root{--touch-wide-max:100%;--touch-wide-pad:14px;--touch-wide-gap:14px}
