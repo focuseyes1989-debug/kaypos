@@ -23,10 +23,10 @@ class Sidebar(QFrame):
     """Main Window Sidebar - Menu Bar Style with Collapsible Support"""
     
     # Sidebar width constants - Collapsed width increased
-    WIDTH_EXPANDED = 260
-    WIDTH_COLLAPSED = 84
-    NAV_HEIGHT_EXPANDED = 34
-    NAV_HEIGHT_COLLAPSED = 40
+    WIDTH_EXPANDED = 232
+    WIDTH_COLLAPSED = 72
+    NAV_HEIGHT_EXPANDED = 32
+    NAV_HEIGHT_COLLAPSED = 38
     NAV_ICON_EXPANDED = 18
     NAV_ICON_COLLAPSED = 18
     
@@ -98,7 +98,7 @@ class Sidebar(QFrame):
         
         # Main layout
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(14, 18, 14, 18)
+        self.main_layout.setContentsMargins(10, 12, 10, 12)
         self.main_layout.setSpacing(0)
         
         # ============ HEADER SECTION ============
@@ -147,7 +147,7 @@ class Sidebar(QFrame):
         self.nav_container.setStyleSheet("background: transparent;")
         self.nav_layout = QVBoxLayout(self.nav_container)
         self.nav_layout.setContentsMargins(0, 0, 0, 0)
-        self.nav_layout.setSpacing(3)
+        self.nav_layout.setSpacing(2)
         
         # Create navigation buttons (Menu bar style)
         self._create_sidebar_buttons()
@@ -213,7 +213,7 @@ class Sidebar(QFrame):
         self.bottom_container.setStyleSheet("background: transparent;")
         self.bottom_layout = QVBoxLayout(self.bottom_container)
         self.bottom_layout.setContentsMargins(0, 10, 0, 0)
-        self.bottom_layout.setSpacing(10)
+        self.bottom_layout.setSpacing(8)
 
         self.theme_toggle_container = QWidget()
         self.theme_toggle_container.setObjectName("themeToggle")
@@ -417,9 +417,9 @@ class Sidebar(QFrame):
         collapsed = self._is_collapsed
         if hasattr(self, "nav_layout") and self.nav_layout:
             self.nav_layout.setContentsMargins(0, 0, 0, 0)
-            self.nav_layout.setSpacing(3)
+            self.nav_layout.setSpacing(2)
         if hasattr(self, "bottom_layout") and self.bottom_layout:
-            self.bottom_layout.setContentsMargins(0, 10, 0, 0)
+            self.bottom_layout.setContentsMargins(0, 8, 0, 0)
         for btn in self.sidebar_buttons:
             self._apply_button_metrics(btn, collapsed)
             btn.setStyleSheet(self._nav_button_style(collapsed))

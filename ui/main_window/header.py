@@ -33,7 +33,7 @@ class Header(QFrame):
         is_dark = is_dark_theme()
         
         self.setObjectName("header")
-        self.setFixedHeight(64)
+        self.setFixedHeight(56)
         
         if is_dark:
             self.setStyleSheet("""
@@ -53,7 +53,7 @@ class Header(QFrame):
             """)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(24, 7, 24, 7)
+        layout.setContentsMargins(16, 5, 16, 5)
         
         # Left: Logo and Title
         logo_container = QWidget()
@@ -65,7 +65,7 @@ class Header(QFrame):
         # Logo Label
         self.logo_label = QLabel()
         self.logo_label.setObjectName("logo_label")
-        self.logo_label.setFixedSize(48, 48)
+        self.logo_label.setFixedSize(42, 42)
         self.logo_label.setScaledContents(True)
         self.logo_label.setStyleSheet("""
             background: transparent;
@@ -97,7 +97,7 @@ class Header(QFrame):
         right_widget.setStyleSheet("background: transparent;")
         right_layout = QHBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(15)
+        right_layout.setSpacing(10)
         
         # ============================================================
         # DATE ICON + TEXT (using date.svg)

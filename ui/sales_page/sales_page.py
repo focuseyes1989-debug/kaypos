@@ -81,18 +81,18 @@ class SalesPage(QWidget):
         # Main layout
         main_layout = QVBoxLayout()
         main_layout.setSpacing(0)
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setContentsMargins(2, 2, 2, 2)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(14)
+        content_layout.setSpacing(10)
 
         content_layout.addWidget(self.product_grid, stretch=3)
 
         self.right_container = QWidget()
         self.right_container.setObjectName("salesRightContainer")
         right_layout = QVBoxLayout(self.right_container)
-        right_layout.setSpacing(9)
-        right_layout.setContentsMargins(14, 14, 14, 14)
+        right_layout.setSpacing(7)
+        right_layout.setContentsMargins(10, 10, 10, 10)
 
         self.setup_customer_section()
         right_layout.addLayout(self.customer_layout)
@@ -108,12 +108,12 @@ class SalesPage(QWidget):
         self._make_group_compact(self.checkout_handler.action_group, hide_title=False)
 
         self.btn_toggle_details = QPushButton("Sale Details")
-        self.btn_toggle_details.setFixedHeight(38)
+        self.btn_toggle_details.setFixedHeight(34)
         self.btn_toggle_details.setIconSize(QSize(16, 16))
         self.btn_toggle_details.clicked.connect(self.open_sale_details_dialog)
 
         self.btn_add_expense = QPushButton("Add Expense")
-        self.btn_add_expense.setFixedHeight(38)
+        self.btn_add_expense.setFixedHeight(34)
         self.btn_add_expense.setIconSize(QSize(16, 16))
         self.btn_add_expense.setToolTip("Add Expense (Ctrl+E)")
         self.btn_add_expense.clicked.connect(self.open_expense_dialog)
@@ -139,7 +139,7 @@ class SalesPage(QWidget):
         self.details_panel.setVisible(False)
 
         action_layout = QHBoxLayout()
-        action_layout.setSpacing(10)
+        action_layout.setSpacing(8)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.addWidget(self.payment_widget, 1)
         action_layout.addWidget(self.checkout_handler.action_group, 2)

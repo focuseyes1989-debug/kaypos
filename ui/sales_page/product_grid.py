@@ -68,13 +68,13 @@ class ProductGrid(QWidget):
         self._search_filter_timer.timeout.connect(self._apply_search_filter)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(14, 14, 14, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
         self.setLayout(layout)
 
         # ── Top bar ──────────────────────────────────────────────────────
         search_layout = QHBoxLayout()
-        search_layout.setSpacing(10)
+        search_layout.setSpacing(8)
 
         self.search_widget = SearchWidget("Search by name / barcode / SKU...")
         self.search_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -91,14 +91,14 @@ class ProductGrid(QWidget):
         self.category_combo = combo_class("All Categories") if self.use_modern_combos else combo_class()
         self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self.on_category_combo_changed)
-        self.category_combo.setFixedWidth(180)
+        self.category_combo.setFixedWidth(160)
         self.category_combo.setMinimumHeight(40)
 
         self.discount_filter_combo = combo_class("All Products") if self.use_modern_combos else combo_class()
         self.discount_filter_combo.addItem("All Products", "all")
         self.discount_filter_combo.addItem("Discount Products", "discount")
         self.discount_filter_combo.currentIndexChanged.connect(self.on_discount_filter_changed)
-        self.discount_filter_combo.setFixedWidth(150)
+        self.discount_filter_combo.setFixedWidth(136)
         self.discount_filter_combo.setMinimumHeight(40)
 
         self.view_label = QLabel("View:")
@@ -109,7 +109,7 @@ class ProductGrid(QWidget):
         self.view_combo.addItem("Table", self.VIEW_TABLE)
         self.view_combo.setCurrentIndex(0)
         self.view_combo.currentIndexChanged.connect(self.on_view_changed)
-        self.view_combo.setFixedWidth(140)
+        self.view_combo.setFixedWidth(124)
         self.view_combo.setMinimumHeight(38)
 
         search_layout.addWidget(self.search_widget, stretch=1)

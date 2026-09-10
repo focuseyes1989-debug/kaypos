@@ -137,8 +137,8 @@ class MainWindowUI(QMainWindow):
             }}
         """)
         content_layout = QVBoxLayout(self.content_area)
-        content_layout.setContentsMargins(20, 16, 20, 16)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(12, 10, 12, 10)
+        content_layout.setSpacing(8)
         
         # Page header is kept as a hidden compatibility object; page titles are
         # not shown so content gets more vertical room.

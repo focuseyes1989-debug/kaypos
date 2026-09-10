@@ -107,3 +107,16 @@ Phase 2 should implement the shared 1366x768 shell profile first:
 2. Tune main sidebar/header/content margins for 1366x768.
 3. Apply compact Sales page layout rules.
 4. Verify the app still looks comfortable at 1600x900 and 1920x1080.
+
+## Phase 2 Implementation Notes
+
+Implemented on 2026-09-10.
+
+- Reduced the main sidebar expanded width from 260px to 232px and collapsed width from 84px to 72px.
+- Reduced sidebar navigation height and internal spacing so all primary navigation remains reachable at 768px height.
+- Reduced header height from 64px to 56px and tightened its horizontal margins.
+- Reduced main content margins from 20/16 to 12/10.
+- Tightened Sales page spacing, right-panel padding, and secondary action button heights.
+- Reduced Sales product filter control widths so the product search row has more usable space at 1366px width.
+
+Phase 3 should continue with the high-risk dialogs listed in P1.
