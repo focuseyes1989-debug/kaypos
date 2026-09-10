@@ -852,6 +852,32 @@ class LoyverseProductCard(QWidget):
         self._apply_theme()
 
 
+class _ProductNameLabel(QLabel):
+    def __init__(self, text):
+        super().__init__(text)
+        self._full_name = text
+        self.setToolTip(text)
+        self.setWordWrap(False)
+        self.setMinimumWidth(0)
+
+    def _update_text(self):
+        if hasattr(self, "_full_name"):
+            metrics = self.fontMetrics()
+            extra = max(0, metrics.horizontalAdvance("...") - metrics.horizontalAdvance("\u2026"))
+            text = metrics.elidedText(self._full_name, Qt.TextElideMode.ElideRight,
+                                     max(0, self.contentsRect().width() - extra))
+            self.setText(text.replace("\u2026", "...") if text != self._full_name else text)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_text()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._update_text()
+
+
 class ModernProductCard(QWidget):
     clicked = pyqtSignal(int)
     favourite_toggled = pyqtSignal(int, bool)
@@ -942,11 +968,9 @@ class ModernProductCard(QWidget):
         self._update_favourite_display()
 
         name_font = 12
-        self.name_label = QLabel(self._name)
-        self.name_label.setToolTip(self._name)
-        self.name_label.setWordWrap(True)
-        self.name_label.setFixedHeight(name_font * 2 + 12)
-        self.name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.name_label = _ProductNameLabel(self._name)
+        self.name_label.setFixedHeight(24)
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.name_label.setStyleSheet(f"font-size: {name_font}px; font-weight: 600; background: transparent; border: none;")
         layout.addWidget(self.name_label)
 

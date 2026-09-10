@@ -29,6 +29,23 @@ class SalesTouchStyleTests(unittest.TestCase):
             self.assertEqual(rendered.pixelColor(0, 0).alpha(), 0)
         card.deleteLater()
 
+    def test_product_name_is_one_line_with_full_tooltip(self):
+        for name in ("Tea", "A very long product name that cannot fit in a single card"):
+            with patch("ui.sales_page.grid_view.load_thumbnail", return_value=None):
+                card = ModernProductCard(1, name, 1000, 10, 2, "Each", "", card_width=156, card_height=212)
+            card.show()
+            self.app.processEvents()
+            label = card.name_label
+            self.assertFalse(label.wordWrap())
+            self.assertEqual(label.toolTip(), name)
+            self.assertLessEqual(label.fontMetrics().horizontalAdvance(label.text()), label.contentsRect().width())
+            if name == "Tea":
+                self.assertEqual(label.text(), name)
+            else:
+                self.assertTrue(label.text().endswith("..."))
+            card.close()
+            card.deleteLater()
+
     def test_grid_loading_never_shows_a_separate_window(self):
         shown_windows = []
 
