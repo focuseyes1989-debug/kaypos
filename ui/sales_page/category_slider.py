@@ -1,11 +1,12 @@
 # ui/sales_page/category_slider.py
 from PyQt6.QtWidgets import (
     QWidget, QScrollArea, QHBoxLayout, QPushButton, QSizePolicy, QFrame,
-    QMessageBox
+    QMessageBox, QStyle
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtGui import QWheelEvent
-from ui.themes.theme_manager import get_theme_colors, theme_manager
+from ui.themes.theme_manager import get_theme_colors, theme_manager, is_dark_theme
+from ui.sales_page.category_colors import category_badge_colors
 from ui.widgets.modern_button import ModernButton
 from utils.performance import get_performance_settings
 from loguru import logger
@@ -60,6 +61,17 @@ class CategorySlider(QScrollArea):
         self._scroll_target = 0
         self._scroll_step = 0
         self._scroll_multiplier = 3
+        self.setViewportMargins(34, 0, 34, 0)
+        self._previous = QPushButton(self)
+        self._next = QPushButton(self)
+        for button, label, direction in ((self._previous, "Previous categories", -1), (self._next, "Next categories", 1)):
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            button.setFixedSize(28, 34)
+            button.clicked.connect(lambda checked=False, step=direction: self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() + step * max(100, self.viewport().width() // 2)))
+        self.horizontalScrollBar().valueChanged.connect(self._update_navigation)
+        self.horizontalScrollBar().rangeChanged.connect(self._update_navigation)
         
         self.apply_compact_style()
         theme_manager.theme_changed.connect(self.update_theme)
@@ -73,6 +85,9 @@ class CategorySlider(QScrollArea):
     def apply_compact_style(self):
         """Apply compact style for category buttons"""
         colors = get_theme_colors()
+        for button, icon in ((self._previous, QStyle.StandardPixmap.SP_ArrowLeft), (self._next, QStyle.StandardPixmap.SP_ArrowRight)):
+            button.setIcon(self.style().standardIcon(icon))
+            button.setStyleSheet(f"QPushButton {{ background: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 6px; min-width: 26px; max-width: 26px; min-height: 32px; max-height: 32px; padding: 0; }} QPushButton:disabled {{ background: {colors['bg_hover']}; }}")
         self.setStyleSheet(f"""
             QScrollArea#categorySlider {{
                 background-color: {colors['card_bg']};
@@ -101,22 +116,24 @@ class CategorySlider(QScrollArea):
             }}
         """)
     
-    def _get_button_style(self, is_checked=False, is_group=False, is_all=False, is_top=False):
+    def _get_button_style(self, is_checked=False, is_group=False, is_all=False, is_top=False, category=""):
         """
         Get compact button style based on type and state.
         """
         colors = get_theme_colors()
-        text_color = colors['warning'] if is_top and not is_checked else colors['text_secondary']
+        background, text_color = category_badge_colors(category, is_dark_theme()) if category else (colors['bg_hover'], colors['text'])
         
         return f"""
             QPushButton {{
-                background-color: transparent;
+                background-color: {background};
                 color: {text_color};
                 border: 1px solid transparent;
                 padding: 0px 13px;
+                min-height: 32px;
+                max-height: 32px;
                 font-size: 9.5pt;
                 font-weight: 500;
-                border-radius: 8px;
+                border-radius: 6px;
             }}
             QPushButton:hover {{
                 background-color: {colors['bg_hover']};
@@ -185,7 +202,7 @@ class CategorySlider(QScrollArea):
         else:
             visible_categories = [
                 category for category in categories
-                if category[3] == 1 or category[0] in self._top_category_names
+                if (len(category) > 3 and category[3] == 1) or category[0] in self._top_category_names
             ]
         # Most-used categories keep their database ranking. Remaining favorite
         # categories follow alphabetically; category-group buttons are omitted.
@@ -220,9 +237,7 @@ class CategorySlider(QScrollArea):
             self._configure_category_button(btn)
             
             # Use the shared SVG set so the icon aligns with the chip text.
-            if is_top:
-                btn.set_icon("trophy", size=(14, 14))
-                btn.setToolTip(f"Top Selling: {cat_name}")
+            btn.setToolTip(cat_name)
             
             btn.clicked.connect(lambda checked, name=cat_name: self._on_category_clicked(name))
             self._layout.addWidget(btn)
@@ -232,6 +247,7 @@ class CategorySlider(QScrollArea):
         self._refresh_button_styles()
         
         self._container.adjustSize()
+        self._on_category_clicked(self._selected_category, emit=False)
         QTimer.singleShot(50, self._update_scroll_area)
 
     def _button_category_name(self, button):
@@ -249,9 +265,10 @@ class CategorySlider(QScrollArea):
                 is_group=is_group,
                 is_all=is_all,
                 is_top=is_top,
+                category="" if is_all else self._button_category_name(btn),
             ))
     
-    def _on_category_clicked(self, category_name):
+    def _on_category_clicked(self, category_name, emit=True):
         """Handle category button click."""
         self._selected_category = category_name
         self._selected_group = ""
@@ -267,7 +284,14 @@ class CategorySlider(QScrollArea):
             btn.blockSignals(False)
         
         self._refresh_button_styles()
-        self.category_selected.emit(category_name)
+        self._container.layout().activate()
+        self._update_scroll_area()
+        for button in self._buttons:
+            if button.isChecked():
+                bar = self.horizontalScrollBar()
+                bar.setValue(button.x() - max(0, (self.viewport().width() - button.width()) // 2))
+        if emit:
+            self.category_selected.emit(category_name)
     
     def _on_group_clicked(self, group_name):
         """Handle group button click."""
@@ -319,7 +343,16 @@ class CategorySlider(QScrollArea):
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, '_previous'):
+            self._previous.move(0, 5)
+            self._next.move(self.width() - 28, 5)
         QTimer.singleShot(100, self._update_scroll_area)
+
+    def _update_navigation(self, *_):
+        if hasattr(self, '_previous'):
+            bar = self.horizontalScrollBar()
+            self._previous.setEnabled(bar.value() > bar.minimum())
+            self._next.setEnabled(bar.value() < bar.maximum())
     
     def showEvent(self, event):
         super().showEvent(event)

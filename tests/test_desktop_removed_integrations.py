@@ -9,6 +9,28 @@ from PyQt6.QtWidgets import QApplication
 
 
 class RemovedIntegrationsTests(unittest.TestCase):
+    def test_category_navigation_and_selection(self):
+        from ui.sales_page.category_slider import CategorySlider
+        app = QApplication.instance() or QApplication([])
+        slider = CategorySlider()
+        slider.resize(740, 44)
+        slider.load_categories([(f"Category {i}", None, "", 1) for i in range(15)])
+        slider.show()
+        slider._update_scroll_area()
+        app.processEvents()
+        self.assertFalse(slider._previous.isEnabled())
+        slider._next.click()
+        self.assertGreater(slider.horizontalScrollBar().value(), 0)
+        slider.set_selected_category("Category 9")
+        app.processEvents()
+        self.assertEqual(sum(button.isChecked() for button in slider._buttons), 1)
+        self.assertEqual(slider._selected_category, "Category 9")
+        output = os.environ.get("DESKTOP_QA_OUTPUT")
+        if output:
+            slider.grab().save(str(Path(output) / "category-slider.png"))
+        slider.close()
+        slider.deleteLater()
+
     def test_cloud_fallback_is_ignored(self):
         from utils.db_compat import database_urls
         with patch.dict(os.environ, {
