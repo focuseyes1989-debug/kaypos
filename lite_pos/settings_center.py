@@ -57,7 +57,7 @@ class LiteSettingsCenter(QWidget):
         group = QGroupBox("Theme")
         form = QFormLayout(group)
         self.theme = QComboBox()
-        self.theme.addItems(["Light", "Dark"])
+        self.theme.addItems(["Light", "Dark", "Qt Fusion"])
         form.addRow("Color Theme", self.theme)
         layout.addWidget(group)
         layout.addStretch()

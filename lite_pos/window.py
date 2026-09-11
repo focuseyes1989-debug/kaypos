@@ -1524,6 +1524,8 @@ class LiteWindow(QMainWindow):
     def _apply_theme_styles(self) -> None:
         if self.theme_name == "Dark":
             foreground, background, border = "#dce3f3", "#20283a", "#36415a"
+        elif self.theme_name == "Qt Fusion":
+            foreground, background, border = "#202020", "#efefef", "#c9c9c9"
         else:
             foreground, background, border = "#334155", "#eef1ff", "#c7cefa"
         self.statusBar().setStyleSheet(f"""

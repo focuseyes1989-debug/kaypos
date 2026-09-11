@@ -10,6 +10,15 @@ from pathlib import Path
 DEFAULT_SERVER_URL = "https://127.0.0.1:8000"
 
 
+def normalize_config_theme(theme_name: str | None) -> str:
+    value = str(theme_name or "").strip().casefold()
+    if value == "dark":
+        return "Dark"
+    if value in {"fusion", "qt fusion", "qt_fusion"}:
+        return "Qt Fusion"
+    return "Light"
+
+
 def config_path() -> Path:
     base = Path(os.getenv("APPDATA") or Path.home())
     return base / "KAY" / "POSLite" / "config.json"
@@ -29,7 +38,7 @@ def load_config(path: Path | None = None) -> dict:
         "receipt_printer_name": str(data.get("receipt_printer_name") or "").strip(),
         "print_receipt_after_sale": bool(data.get("print_receipt_after_sale", False)),
         "open_cash_drawer_after_sale": bool(data.get("open_cash_drawer_after_sale", False)),
-        "theme": "Dark" if str(data.get("theme") or "").casefold() == "dark" else "Light",
+        "theme": normalize_config_theme(data.get("theme")),
         "product_view": "list" if str(data.get("product_view") or "").casefold() == "list" else "grid",
     }
 

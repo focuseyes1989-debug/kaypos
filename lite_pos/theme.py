@@ -9,19 +9,39 @@ from PyQt6.QtWidgets import QApplication, QProxyStyle, QStyle, QStyleFactory
 class DesignerFusionStyle(QProxyStyle):
     """Fusion style with optically centred native dialog-button labels."""
 
+    _TEXT_VERTICAL_OFFSET = 3
+
     def drawControl(self, element, option, painter, widget=None):
-        if element == QStyle.ControlElement.CE_PushButtonLabel:
+        vertically_adjusted_controls = {
+            QStyle.ControlElement.CE_CheckBoxLabel,
+            QStyle.ControlElement.CE_ComboBoxLabel,
+            QStyle.ControlElement.CE_PushButtonLabel,
+            QStyle.ControlElement.CE_RadioButtonLabel,
+        }
+        if element in vertically_adjusted_controls:
             painter.save()
-            painter.translate(0, 1)
+            painter.translate(0, self._TEXT_VERTICAL_OFFSET)
             try:
                 return super().drawControl(element, option, painter, widget)
             finally:
                 painter.restore()
         return super().drawControl(element, option, painter, widget)
 
+    def subElementRect(self, element, option, widget=None):
+        rect = super().subElementRect(element, option, widget)
+        if element == QStyle.SubElement.SE_LineEditContents:
+            rect.translate(0, self._TEXT_VERTICAL_OFFSET)
+            return rect
+        return rect
+
 
 def normalize_theme(theme_name: str | None) -> str:
-    return "Dark" if str(theme_name or "").strip().casefold() == "dark" else "Light"
+    value = str(theme_name or "").strip().casefold()
+    if value in {"dark"}:
+        return "Dark"
+    if value in {"fusion", "qt fusion", "qt_fusion"}:
+        return "Qt Fusion"
+    return "Light"
 
 
 def apply_lite_theme(app: QApplication, theme_name: str | None) -> str:
@@ -35,6 +55,9 @@ def apply_lite_theme(app: QApplication, theme_name: str | None) -> str:
     style.setObjectName("fusion")
     app.setStyle(style)
     palette = base_style.standardPalette()
+    if theme == "Qt Fusion":
+        app.setPalette(palette)
+        return theme
 
     colors = ({
         "window": "#171b26", "window_text": "#edf2ff", "base": "#111724",
