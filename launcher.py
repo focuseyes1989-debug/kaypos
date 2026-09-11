@@ -18,7 +18,7 @@ from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWindow,
-    QMessageBox, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
 )
 from utils.branded_icons import launcher_app_icon
 
@@ -74,23 +74,23 @@ QMainWindow, QWidget#root { background:#0d111b; }
 QFrame#sidebar { background:#111724; border-right:1px solid #252d3d; }
 QLabel#brand { font-size:19pt; font-weight:800; color:white; }
 QLabel#eyebrow { color:#8995ad; font-size:9pt; font-weight:700; letter-spacing:1px; }
-QLabel#pageTitle { font-size:25pt; font-weight:800; color:white; }
+QLabel#pageTitle { font-size:22pt; font-weight:800; color:white; }
 QLabel#muted { color:#99a4ba; }
-QLabel#clock { font-size:17pt; font-weight:700; color:white; }
+QLabel#clock { font-size:15pt; font-weight:700; color:white; }
 QFrame#appCard { background:#151c2a; border:1px solid #293348; border-radius:18px; }
 QFrame#appCard:hover { border-color:#465573; background:#192232; }
-QLabel#cardTitle { font-size:13pt; font-weight:750; color:white; }
+QLabel#cardTitle { font-size:12pt; font-weight:750; color:white; }
 QLabel#cardSubtitle { color:#8f9bb3; font-weight:650; }
 QLabel#description { color:#aab4c8; }
 QLabel#badgeReady { color:#79e2bb; background:#17382f; border:1px solid #245744; border-radius:9px; padding:5px 9px; font-weight:700; }
 QLabel#badgeRunning { color:#aeb7ff; background:#252d55; border:1px solid #46529a; border-radius:9px; padding:5px 9px; font-weight:700; }
 QLabel#badgeMissing { color:#ff9ca7; background:#42242d; border:1px solid #713542; border-radius:9px; padding:5px 9px; font-weight:700; }
-QPushButton#launchButton { min-height:42px; border:0; border-radius:11px; color:white; font-weight:750; padding:0 18px; }
-QPushButton#launchButton:disabled { background:#313847; color:#707b91; }
-QPushButton#sideButton { text-align:left; min-height:42px; border:0; border-radius:10px; background:transparent; color:#aeb8ca; padding:0 13px; font-weight:650; }
+QPushButton#sideButton { text-align:left; min-height:34px; border:0; border-radius:9px; background:transparent; color:#aeb8ca; padding:0 10px; font-weight:650; }
 QPushButton#sideButton:hover { background:#1c2535; color:white; }
 QFrame#statusBar { background:#121925; border:1px solid #253044; border-radius:12px; }
 QLabel#statusText { color:#aeb9cd; }
+QScrollArea#appsScrollArea { background:transparent; border:none; }
+QScrollArea#appsScrollArea > QWidget > QWidget { background:transparent; }
 """
 
 
@@ -214,16 +214,19 @@ class AppCard(QFrame):
         super().__init__(parent)
         self.definition = definition
         self.setObjectName("appCard")
-        self.setMinimumHeight(300)
+        self._state = "ready"
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(206)
+        self.setMaximumHeight(226)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         body = QVBoxLayout(self)
-        body.setContentsMargins(14, 14, 14, 13)
-        body.setSpacing(7)
+        body.setContentsMargins(14, 12, 14, 12)
+        body.setSpacing(4)
         top = QHBoxLayout()
         glyph = QLabel(definition.glyph)
-        glyph.setFixedSize(44, 44)
+        glyph.setFixedSize(38, 38)
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        glyph.setStyleSheet(f"background:{definition.accent};color:white;border-radius:15px;font-size:20pt;font-weight:900;")
+        glyph.setStyleSheet(f"background:{definition.accent};color:white;border-radius:13px;font-size:18pt;font-weight:900;")
         top.addWidget(glyph)
         top.addStretch()
         self.badge = QLabel("READY")
@@ -234,48 +237,30 @@ class AppCard(QFrame):
         title.setObjectName("cardTitle")
         subtitle = QLabel(definition.subtitle.upper())
         subtitle.setObjectName("cardSubtitle")
-        description = QLabel(definition.description)
-        description.setObjectName("description")
-        description.setWordWrap(True)
-        description.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        description.setMinimumHeight(72)
         body.addWidget(title)
         body.addWidget(subtitle)
-        body.addSpacing(3)
-        body.addWidget(description)
+        body.addSpacing(2)
         artwork = ArtworkLabel(Path(get_app_dir()) / "assets" / "launcher" / definition.artwork)
         body.addWidget(artwork, 1)
-        self.launch_button = QPushButton("Open Application")
-        self.launch_button.setObjectName("launchButton")
-        self._apply_launch_button_style("ready")
-        self.launch_button.clicked.connect(lambda: self.launch_requested.emit(definition.key))
-        body.addWidget(self.launch_button)
-
-    def _apply_launch_button_style(self, state: str) -> None:
-        if state == "missing":
-            background, foreground, border = "#313847", "#aab4c8", "#3d475a"
-        else:
-            background, foreground, border = self.definition.accent, "#ffffff", self.definition.accent
-        self.launch_button.setStyleSheet(f"""
-            QPushButton#launchButton,
-            QPushButton#launchButton:disabled {{
-                background: {background};
-                color: {foreground};
-                border: 1px solid {border};
-            }}
-        """)
 
     def set_state(self, state: str, detail="") -> None:
-        states = {"running": ("RUNNING", "badgeRunning", "Already Running", False), "missing": ("NOT FOUND", "badgeMissing", "Application Missing", False), "ready": ("READY", "badgeReady", "Open Application", True)}
-        label, object_name, button_text, enabled = states.get(state, states["ready"])
+        states = {"running": ("RUNNING", "badgeRunning"), "missing": ("NOT FOUND", "badgeMissing"), "ready": ("READY", "badgeReady")}
+        label, object_name = states.get(state, states["ready"])
+        self._state = state
         self.badge.setText(label)
         self.badge.setObjectName(object_name)
-        self.launch_button.setText(button_text)
-        self.launch_button.setEnabled(enabled)
-        self._apply_launch_button_style(state)
         self.setToolTip(detail)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if state == "ready" else Qt.CursorShape.ArrowCursor)
         self.badge.style().unpolish(self.badge)
         self.badge.style().polish(self.badge)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.pos()):
+            if self._state == "ready":
+                self.launch_requested.emit(self.definition.key)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
 
 class ArtworkLabel(QLabel):
@@ -285,8 +270,8 @@ class ArtworkLabel(QLabel):
         super().__init__(parent)
         self.source = QPixmap(str(image_path))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumHeight(55)
-        self.setMaximumHeight(105)
+        self.setMinimumHeight(86)
+        self.setMaximumHeight(118)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -302,8 +287,8 @@ class LauncherWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("KAY Application Launcher")
         self.setWindowIcon(launcher_icon())
-        self.setMinimumSize(1050, 620)
-        self.resize(1320, 700)
+        self.setMinimumSize(1024, 600)
+        self.resize(1366, 768)
         self.setStyleSheet(STYLE)
         self.processes: dict[str, subprocess.Popen] = {}
         self.cards: dict[str, AppCard] = {}
@@ -326,11 +311,11 @@ class LauncherWindow(QMainWindow):
         shell.setSpacing(0)
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(20, 18, 20, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 16, 20, 10)
+        layout.setSpacing(8)
         header = QHBoxLayout()
         mark = QLabel("K")
-        mark.setFixedSize(42, 42)
+        mark.setFixedSize(38, 38)
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mark.setStyleSheet("background:#6675f5;color:white;border-radius:12px;font-size:17pt;font-weight:900;")
         header.addWidget(mark)
@@ -369,10 +354,17 @@ class LauncherWindow(QMainWindow):
         clock_box.addWidget(self.date_label)
         header.addLayout(clock_box)
         layout.addLayout(header)
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(18)
-        grid.setVerticalSpacing(12)
-        column_count = 5
+        scroll = QScrollArea()
+        scroll.setObjectName("appsScrollArea")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_content = QWidget()
+        grid = QGridLayout(scroll_content)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(10)
+        column_count = 3
         for index, definition in enumerate(APPLICATIONS):
             card = AppCard(definition)
             card.launch_requested.connect(self.launch_application)
@@ -381,11 +373,12 @@ class LauncherWindow(QMainWindow):
             grid.addWidget(card, row, column)
             grid.setColumnStretch(column, 1)
             grid.setRowStretch(row, 1)
-        layout.addLayout(grid, 1)
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll, 1)
         status = QFrame()
         status.setObjectName("statusBar")
         status_row = QHBoxLayout(status)
-        status_row.setContentsMargins(15, 10, 15, 10)
+        status_row.setContentsMargins(15, 8, 15, 8)
         dot = QLabel("●")
         dot.setStyleSheet("color:#55d9a5;")
         self.status_label = QLabel("Launcher ready")
