@@ -480,11 +480,21 @@ class CheckoutDialog(QDialog):
         self.credit_due_date = QDateEdit(QDate.currentDate().addDays(int(self.credit_settings.get("credit_due_days") or 15)))
         self.credit_due_date.setCalendarPopup(True); self.credit_due_date.setDisplayFormat("yyyy-MM-dd")
         self.credit_notes = QTextEdit(); self.credit_notes.setMaximumHeight(65)
-        self.print_after_sale = QCheckBox("Print receipt after completing sale")
-        self.open_drawer_after_sale = QCheckBox("Open cash drawer after completing sale")
-        self.print_after_sale.setChecked(bool(print_after_sale))
-        self._drawer_preference = bool(open_drawer_after_sale)
-        self.open_drawer_after_sale.setChecked(self._drawer_preference)
+        self.print_after_sale = bool(print_after_sale)
+        self.open_drawer_after_sale = bool(open_drawer_after_sale)
+        quick_cash_widget = QWidget()
+        self.quick_cash_widget = quick_cash_widget
+        quick_cash_layout = QHBoxLayout(quick_cash_widget)
+        quick_cash_layout.setContentsMargins(0, 0, 0, 0)
+        quick_cash_layout.setSpacing(6)
+        self.quick_cash_buttons: list[QPushButton] = []
+        for amount in (500, 1000, 5000, 10000):
+            button = QPushButton(f"{amount:,}")
+            button.setProperty("cash_amount", amount)
+            button.setToolTip(f"Set received amount to {amount:,} Ks")
+            button.clicked.connect(lambda _checked=False, value=amount: self._set_quick_cash(value))
+            quick_cash_layout.addWidget(button)
+            self.quick_cash_buttons.append(button)
         form.addRow("Customer", self.customer)
         form.addRow("Customer Info", self.customer_info)
         form.addRow("Discount Type", self.discount_type)
@@ -492,13 +502,12 @@ class CheckoutDialog(QDialog):
         form.addRow("Discount", self.discount_label)
         form.addRow("Total Due", self.total_due_label)
         form.addRow("Payment Type", self.payment_type)
-        form.addRow("Payment", self.payment)
+        form.addRow("Received", self.payment)
+        form.addRow("Quick Cash", quick_cash_widget)
         form.addRow("Change", self.change_label)
         form.addRow("Balance Due", self.credit_balance_label)
         form.addRow("Due Date", self.credit_due_date)
         form.addRow("Credit Notes", self.credit_notes)
-        form.addRow(self.print_after_sale)
-        form.addRow(self.open_drawer_after_sale)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Complete Sale")
@@ -509,7 +518,6 @@ class CheckoutDialog(QDialog):
         self.payment_type.currentTextChanged.connect(self._payment_type_changed)
         self.discount_type.currentIndexChanged.connect(self._discount_changed)
         self.discount_value.valueChanged.connect(self._discount_changed)
-        self.open_drawer_after_sale.toggled.connect(self._remember_drawer_preference)
         self.customer.currentIndexChanged.connect(self._customer_changed)
         self._customer_changed()
         self._payment_type_changed(self.payment_type.currentText())
@@ -541,11 +549,19 @@ class CheckoutDialog(QDialog):
         self._last_payable = payable
         self.discount_label.setText(f"{discount:,.0f} Ks")
         self.total_due_label.setText(f"{payable:,.0f} Ks")
+        self._update_quick_cash_buttons()
         self._update_change()
 
-    def _remember_drawer_preference(self, checked: bool) -> None:
-        if self.open_drawer_after_sale.isEnabled():
-            self._drawer_preference = bool(checked)
+    def _set_quick_cash(self, amount: int) -> None:
+        self.payment.setValue(float(amount))
+        self.payment.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _update_quick_cash_buttons(self) -> None:
+        payable = self.payable_total()
+        is_cash = self.payment_type.currentText().strip().lower() == "cash"
+        for button in self.quick_cash_buttons:
+            amount = float(button.property("cash_amount") or 0)
+            button.setEnabled(is_cash and amount >= payable)
 
     def _customer_changed(self, _index=0) -> None:
         customer = self.customer.currentData()
@@ -570,14 +586,13 @@ class CheckoutDialog(QDialog):
             self.payment.setValue(0)
         elif normalized_type != "cash":
             self.payment.setValue(payable)
-        self.payment.setEnabled(normalized_type in {"cash", "credit"})
-        self.open_drawer_after_sale.setEnabled(normalized_type == "cash")
-        if normalized_type == "cash":
-            self.open_drawer_after_sale.setChecked(self._drawer_preference)
-        else:
-            self.open_drawer_after_sale.setChecked(False)
+        payment_editable = normalized_type in {"cash", "credit"}
+        self.payment.setEnabled(payment_editable)
+        self.quick_cash_widget.setVisible(normalized_type == "cash")
+        self.form_label_for(self.quick_cash_widget).setVisible(normalized_type == "cash")
+        self._update_quick_cash_buttons()
         is_credit = normalized_type == "credit"
-        self.form_label_for(self.payment).setText("Paid Today" if is_credit else "Payment")
+        self.form_label_for(self.payment).setText("Paid Today" if is_credit else "Received")
         self.form_label_for(self.change_label).setVisible(not is_credit); self.change_label.setVisible(not is_credit)
         for widget in (self.credit_balance_label, self.credit_due_date, self.credit_notes):
             widget.setVisible(is_credit); self.form_label_for(widget).setVisible(is_credit)
@@ -618,7 +633,7 @@ class CheckoutDialog(QDialog):
                 if answer != QMessageBox.StandardButton.Yes: return
                 self.allow_credit_over_limit = True
         if not is_credit and self.payment.value() < payable:
-            QMessageBox.warning(self, "Payment", "Payment is less than the sale total.")
+            QMessageBox.warning(self, "Received", "Received amount is less than the sale total.")
             return
         self.accept()
 
@@ -3212,12 +3227,11 @@ class LiteWindow(QMainWindow):
         customer_id = dialog.selected_customer_id()
         due_date = dialog.credit_due_date.date().toString("yyyy-MM-dd") if payment_type.strip().lower() == "credit" else ""
         credit_notes = dialog.credit_notes.toPlainText().strip() if payment_type.strip().lower() == "credit" else ""
-        print_after_sale = dialog.print_after_sale.isChecked()
-        open_drawer_after_sale = dialog.open_drawer_after_sale.isChecked()
-        save_config({
-            "print_receipt_after_sale": print_after_sale,
-            "open_cash_drawer_after_sale": dialog._drawer_preference,
-        })
+        print_after_sale = bool(preferences.get("print_receipt_after_sale"))
+        open_drawer_after_sale = (
+            bool(preferences.get("open_cash_drawer_after_sale"))
+            and payment_type.strip().lower() == "cash"
+        )
         self.checkout_button.setEnabled(False)
         self.checkout_button.setText("Saving sale…")
         self.statusBar().showMessage("Completing sale securely…")
