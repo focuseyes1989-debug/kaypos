@@ -2240,7 +2240,10 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
                         (qty, location_id, product_id),
                     )
                     updated = cursor.rowcount == 1
-                if not updated and item.get("location"):
+                if not updated:
+                    fallback_location = str(item.get("location") or "Shop").strip() or "Shop"
+                    fallback_batch = item.get("batch_no") or ""
+                    fallback_expiry = item.get("expire_date") or ""
                     cursor.execute(
                         """
                         SELECT id FROM product_locations
@@ -2248,7 +2251,7 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
                           AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ?
                         LIMIT 1
                         """,
-                        (product_id, item.get("location") or "", item.get("batch_no") or "", item.get("expire_date") or ""),
+                        (product_id, fallback_location, fallback_batch, fallback_expiry),
                     )
                     location_row = cursor.fetchone()
                     if location_row:
@@ -2257,10 +2260,10 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
                             (qty, location_row[0]),
                         )
                         updated = True
-                if not updated and item.get("location"):
+                if not updated:
                     _execute_dynamic_insert(cursor, "product_locations", {
-                        "product_id": product_id, "location": item.get("location") or "Returned",
-                        "batch_no": item.get("batch_no") or "", "expire_date": item.get("expire_date") or "",
+                        "product_id": product_id, "location": fallback_location,
+                        "batch_no": fallback_batch, "expire_date": fallback_expiry,
                         "quantity": qty,
                     })
             _execute_dynamic_insert(cursor, "stock_movements", {

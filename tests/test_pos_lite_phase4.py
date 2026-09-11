@@ -140,6 +140,31 @@ class PosLitePhase4RefundTests(unittest.TestCase):
         self.assertEqual(conn.execute("SELECT COUNT(*) FROM stock_movements WHERE type='refund'").fetchone()[0], 2)
         conn.close()
 
+    @patch("server.cashier_service.is_postgres_backend", return_value=False)
+    def test_refund_restores_blank_location_sale_item_to_shop_stock(self, _backend):
+        conn = self.connect()
+        conn.executescript(
+            """
+            INSERT INTO sales VALUES (2, 'INV-2', '2026-08-25 13:00:00', 1000, 1000, 0, 'Cash', 'completed', NULL);
+            INSERT INTO products(id,name,stock,last_updated,sold_by) VALUES (3, 'Legacy Item', 0, NULL, 'Each');
+            INSERT INTO sale_items VALUES (3, 2, 3, NULL, 'Legacy Item', 1, 1000, 1000, 0, NULL, '', '', '');
+            """
+        )
+        conn.commit()
+        conn.close()
+        cashier_service._TABLE_COLUMNS_CACHE.clear()
+
+        with patch("server.cashier_service.connect_db", self.connect):
+            cashier_service.refund_sale(2, "Returned", "tester")
+
+        conn = self.connect()
+        self.assertEqual(conn.execute("SELECT stock FROM products WHERE id=3").fetchone()[0], 1)
+        self.assertEqual(
+            conn.execute("SELECT location, quantity FROM product_locations WHERE product_id=3").fetchone(),
+            ("Shop", 1),
+        )
+        conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()
