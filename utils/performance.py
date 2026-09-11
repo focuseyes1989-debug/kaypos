@@ -7,10 +7,9 @@ from models.database import connect_db
 
 @dataclass(frozen=True)
 class PerformanceSettings:
-    low_end_mode: bool = True
-    product_page_size: int = 25
-    search_debounce_ms: int = 600
-    thumbnail_quality: str = "low"
+    product_page_size: int = 60
+    search_debounce_ms: int = 300
+    thumbnail_quality: str = "normal"
     customer_display_youtube_enabled: bool = False
 
 
@@ -44,7 +43,6 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
             SELECT key, value
             FROM settings
             WHERE key IN (
-                'performance_low_end_mode',
                 'performance_product_page_size',
                 'performance_search_debounce_ms',
                 'performance_thumbnail_quality',
@@ -56,22 +54,15 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
     except Exception:
         values = {}
 
-    low_end = _bool(values.get("performance_low_end_mode"), True)
-    default_page_size = 25
-    default_debounce = 600 if low_end else 300
-    default_quality = "low" if low_end else "normal"
+    default_page_size = 60
+    default_debounce = 300
+    default_quality = "normal"
     configured_page_size = _int(values.get("performance_product_page_size"), default_page_size, 12, 100)
 
     _CACHE = PerformanceSettings(
-        low_end_mode=low_end,
-        product_page_size=25 if low_end else configured_page_size,
-        search_debounce_ms=max(
-            600,
-            _int(values.get("performance_search_debounce_ms"), default_debounce, 150, 1200),
-        ) if low_end else _int(values.get("performance_search_debounce_ms"), default_debounce, 150, 1200),
-        thumbnail_quality="low" if low_end else (
-            values.get("performance_thumbnail_quality") or default_quality
-        ).strip().lower(),
+        product_page_size=configured_page_size,
+        search_debounce_ms=_int(values.get("performance_search_debounce_ms"), default_debounce, 150, 1200),
+        thumbnail_quality=(values.get("performance_thumbnail_quality") or default_quality).strip().lower(),
         customer_display_youtube_enabled=_bool(values.get("performance_customer_display_youtube_enabled"), False),
     )
     return _CACHE

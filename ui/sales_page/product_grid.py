@@ -17,7 +17,6 @@ from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.sales_page.product_utils import effective_stock_sql, get_effective_stock, load_thumbnail
 from ui.sales_page.grid_view import GridViewWidget
-from ui.sales_page.list_view import ListViewWidget
 from ui.sales_page.category_slider import CategorySlider
 from utils.performance import get_performance_settings
 from loguru import logger
@@ -33,6 +32,8 @@ class ProductGrid(QWidget):
     VIEW_LIST = 1
     VIEW_GRID = 2
     VIEW_MODERN_GRID = 3
+    GRID_INITIAL_BATCH_SIZE = 72
+    GRID_APPEND_BATCH_SIZE = 24
     
     VIEW_NAMES = {
         VIEW_TABLE: "Table View",
@@ -61,6 +62,7 @@ class ProductGrid(QWidget):
         self._grid_lazy_total = 0
         self._grid_lazy_loading = False
         self._grid_lazy_has_more = False
+        self._grid_load_more_queued = False
         self._product_loading_active = False
         self._product_loading_uses_overlay = False
         self._search_filter_timer = QTimer(self)
@@ -104,18 +106,23 @@ class ProductGrid(QWidget):
         self.view_label = QLabel("View:")
         self.view_combo = combo_class("View") if self.use_modern_combos else combo_class()
         self.view_combo.addItem("Grid", self.VIEW_GRID)
-        self.view_combo.addItem("Modern Grid", self.VIEW_MODERN_GRID)
-        self.view_combo.addItem("List", self.VIEW_LIST)
-        self.view_combo.addItem("Table", self.VIEW_TABLE)
         self.view_combo.setCurrentIndex(0)
         self.view_combo.currentIndexChanged.connect(self.on_view_changed)
         self.view_combo.setFixedWidth(124)
         self.view_combo.setMinimumHeight(38)
+        self.view_label.setVisible(False)
+        self.view_combo.setVisible(False)
 
         search_layout.addWidget(self.search_widget, stretch=1)
         search_layout.addWidget(self.category_combo)
         search_layout.addWidget(self.discount_filter_combo)
         layout.addLayout(search_layout)
+
+        self.catalog_status = QLabel("")
+        self.catalog_status.setObjectName("catalogStatus")
+        self.catalog_status.setFixedHeight(18)
+        self.catalog_status.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.catalog_status)
 
         # ── Category Slider ──────────────────────────────────
         self.category_slider = CategorySlider()
@@ -148,9 +155,7 @@ class ProductGrid(QWidget):
         self.table.setHorizontalHeaderLabels(["ID", "Image", "Name", "Price", "Stock", "Status"])
         self.stack.addWidget(self.table)
 
-        # Secondary views are created only when selected. On low-end PCs,
-        # constructing all four product renderers up front noticeably delays
-        # the first paint and can make Windows report the app as unresponsive.
+        # Secondary views are created only when selected to keep first paint fast.
         self.list_view = None
         self.stack.addWidget(QWidget())
 
@@ -159,6 +164,7 @@ class ProductGrid(QWidget):
         self.grid_view.product_selected.connect(self.product_selected)
         self.grid_view.service_selected.connect(self.service_selected)
         self.grid_view.favourite_toggled.connect(self.on_favourite_toggled)
+        self.grid_view.near_bottom.connect(self.load_next_grid_page)
         self.stack.addWidget(self.grid_view)
 
         # Modern grid view
@@ -177,6 +183,7 @@ class ProductGrid(QWidget):
         pagination_layout.addWidget(self.view_combo)
         pagination_layout.addWidget(self.pagination, stretch=1)
         layout.addLayout(pagination_layout)
+        self.pagination.setVisible(False)
 
         if autoload:
             self.load_categories()
@@ -192,31 +199,16 @@ class ProductGrid(QWidget):
         self.load_products(page_size=self.rows_per_page)
 
     def _ensure_view_widget(self, view: int):
-        if view == self.VIEW_LIST and self.list_view is None:
-            widget = ListViewWidget()
-            widget.product_selected.connect(self.product_selected)
-            widget.service_selected.connect(self.service_selected)
-            self.list_view = widget
-        elif view == self.VIEW_MODERN_GRID and self.modern_grid_view is None:
-            widget = GridViewWidget(card_style="modern")
-            widget.product_selected.connect(self.product_selected)
-            widget.service_selected.connect(self.service_selected)
-            widget.favourite_toggled.connect(self.on_favourite_toggled)
-            self.modern_grid_view = widget
-        else:
-            return self.stack.widget(view)
-
-        placeholder = self.stack.widget(view)
-        self.stack.removeWidget(placeholder)
-        placeholder.deleteLater()
-        self.stack.insertWidget(view, widget)
-        return widget
+        return self.grid_view
 
     def apply_performance_settings(self, settings=None):
         self._performance_settings = settings or get_performance_settings(refresh=True)
         self.rows_per_page = self._performance_settings.product_page_size
         self.pagination.set_current_page(1, emit_signal=False)
         self.load_products(1, self.rows_per_page, show_progress=False)
+
+    def _is_grid_view(self, view: int | None = None) -> bool:
+        return True
 
     def _main_window(self):
         parent = self.window()
@@ -226,10 +218,7 @@ class ProductGrid(QWidget):
         main_window = self._main_window()
         self._product_loading_active = True
         self._product_loading_uses_overlay = False
-        if overlay and hasattr(main_window, "show_loading"):
-            self._product_loading_uses_overlay = True
-            main_window.show_loading(message, progress)
-            return
+        self._set_catalog_status(message)
         status_bar = getattr(main_window, "status_bar", None)
         if status_bar and hasattr(status_bar, "begin_background_activity"):
             status_bar.begin_background_activity("product_grid_loading", message)
@@ -239,8 +228,7 @@ class ProductGrid(QWidget):
 
     def _update_product_loading(self, message: str, progress: int | None = None) -> None:
         main_window = self._main_window()
-        if self._product_loading_uses_overlay and hasattr(main_window, "update_loading"):
-            main_window.update_loading(message, progress)
+        self._set_catalog_status(message)
         status_bar = getattr(main_window, "status_bar", None)
         if status_bar and hasattr(status_bar, "begin_background_activity"):
             status_bar.begin_background_activity("product_grid_loading", message)
@@ -260,6 +248,10 @@ class ProductGrid(QWidget):
         self._product_loading_active = False
         self._product_loading_uses_overlay = False
         self._switch_view(self._current_view)
+
+    def _set_catalog_status(self, text: str) -> None:
+        if hasattr(self, "catalog_status"):
+            self.catalog_status.setText(text)
 
     def on_category_combo_changed(self, text):
         """Handle category combo change."""
@@ -285,20 +277,17 @@ class ProductGrid(QWidget):
         )
         conn.commit()
         conn.close()
-        if self._current_view in (self.VIEW_GRID, self.VIEW_MODERN_GRID):
-            self.load_products(self.current_page, self.rows_per_page, show_progress=False)
-        else:
-            self.load_products(self.current_page, self.rows_per_page, show_progress=False)
+        self.load_products(1, self.rows_per_page, show_progress=False)
 
     def on_view_changed(self, index):
-        view = self.view_combo.currentData()
-        self._switch_view(view)
+        self._switch_view(self.VIEW_GRID)
 
     def _switch_view(self, view: int):
+        view = self.VIEW_GRID
         self._ensure_view_widget(view)
         if self._current_view == view:
             self.stack.setCurrentIndex(view)
-            self.pagination.setVisible(True)
+            self.pagination.setVisible(False)
             return
         
         self._current_view = view
@@ -311,17 +300,10 @@ class ProductGrid(QWidget):
         self.view_combo.blockSignals(False)
         
         self.stack.setCurrentIndex(view)
-        self.pagination.setVisible(True)
+        self.pagination.setVisible(False)
         
-        if view in (self.VIEW_GRID, self.VIEW_MODERN_GRID):
-            self.pagination.set_current_page(1, emit_signal=False)
-            self.load_products(1, self.rows_per_page, show_progress=False)
-        elif view == self.VIEW_LIST:
-            self.pagination.set_current_page(1, emit_signal=False)
-            self.load_products(1, self.rows_per_page, show_progress=False)
-        else:
-            self.pagination.set_current_page(1, emit_signal=False)
-            self.load_products(1, self.rows_per_page, show_progress=False)
+        self.pagination.set_current_page(1, emit_signal=False)
+        self.load_products(1, self.rows_per_page, show_progress=False)
 
     def on_category_slider_selected(self, category_name):
         """Handle category selection from the slider."""
@@ -578,7 +560,7 @@ class ProductGrid(QWidget):
             )
         """
 
-    def load_products(self, page=1, page_size=None, append_grid=False, show_progress=False):
+    def load_products(self, page=1, page_size=None, append_grid=False, show_progress=False, offset_override=None):
         """
         Load products with group and category filtering support.
         ✅ FIXED: Supports parent categories - shows products from all child categories
@@ -587,15 +569,27 @@ class ProductGrid(QWidget):
         started_at = perf_counter()
         if page_size is None:
             page_size = self._performance_settings.product_page_size
+        is_grid_view = True
+        if is_grid_view:
+            default_batch = self.GRID_APPEND_BATCH_SIZE if append_grid else self.GRID_INITIAL_BATCH_SIZE
+            page_size = min(
+                int(page_size or default_batch),
+                self.GRID_APPEND_BATCH_SIZE if append_grid else self.GRID_INITIAL_BATCH_SIZE,
+            )
         self.current_page = page
         self.rows_per_page = page_size
-        is_grid_view = self._current_view in (self.VIEW_GRID, self.VIEW_MODERN_GRID)
         should_show_progress = show_progress and is_grid_view
         if should_show_progress:
             message = "Loading more products..." if append_grid else "Loading product grid..."
             self._show_product_loading(message, 8 if not append_grid else None, overlay=not append_grid)
-        if self._current_view in (self.VIEW_GRID, self.VIEW_MODERN_GRID):
+        else:
+            offset_hint = ((page or self.current_page) - 1) * (page_size or self.rows_per_page)
+            self._set_catalog_status("Loading..." if offset_hint == 0 else f"Loading more... {offset_hint}")
+        if is_grid_view:
             self._grid_lazy_loading = True
+            active_grid = self._ensure_view_widget(self.VIEW_GRID)
+            if hasattr(active_grid, "set_lazy_state"):
+                active_grid.set_lazy_state(loading=True, has_more=self._grid_lazy_has_more)
         search_text = self.search_input.text().strip().lower()
         
         selected_category_text = (
@@ -688,16 +682,16 @@ class ProductGrid(QWidget):
         count_sql = "SELECT COUNT(*) FROM products p"
         if count_where:
             count_sql += " WHERE " + " AND ".join(count_where)
-        total_items = 0
-        if not self._performance_settings.low_end_mode:
+        total_items = int(self._grid_lazy_total or 0) if append_grid and is_grid_view else 0
+        if not total_items:
             cursor.execute(count_sql, count_params)
             total_items = cursor.fetchone()[0]
-            self.pagination.set_total_items(total_items, emit_signal=False)
+        self.pagination.set_total_items(total_items, emit_signal=False)
         if should_show_progress:
             self._update_product_loading(f"Found {total_items} products. Loading cards...", 35 if not append_grid else None)
 
         # ── Select query ─────────────────────────────────────────────────
-        offset = (page - 1) * page_size
+        offset = int(offset_override) if offset_override is not None else (page - 1) * page_size
         select_params = []
         where_clauses = []
         
@@ -743,7 +737,6 @@ class ProductGrid(QWidget):
             where_clauses.append(self._active_discount_exists_sql())
 
         stock_expr = effective_stock_sql("p")
-        total_column = ", COUNT(*) OVER() as total_count" if self._performance_settings.low_end_mode else ""
         select_sql = f"""
             SELECT 
                 p.id, p.name, p.price, {stock_expr} as stock, p.low_stock, p.sold_by, p.image,
@@ -789,20 +782,26 @@ class ProductGrid(QWidget):
                     ORDER BY pd.manual_price ASC, pd.end_date ASC
                     LIMIT 1
                 ), 0) as active_manual_price
-                {total_column}
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
         """
         if where_clauses:
             select_sql += " WHERE " + " AND ".join(where_clauses)
         
-        select_sql += " ORDER BY p.is_favourite DESC, p.name LIMIT ? OFFSET ?"
+        select_sql += f"""
+            ORDER BY
+                CASE
+                    WHEN LOWER(COALESCE(p.sold_by, '')) IN ('service', 'restaurant') THEN 0
+                    WHEN COALESCE({stock_expr}, 0) <= 0 THEN 1
+                    ELSE 0
+                END ASC,
+                p.is_favourite DESC,
+                p.name
+            LIMIT ? OFFSET ?
+        """
         cursor.execute(select_sql, select_params + [page_size, offset])
         rows = cursor.fetchall()
         conn.close()
-        if self._performance_settings.low_end_mode:
-            total_items = int(rows[0][12] or 0) if rows else 0
-            self.pagination.set_total_items(total_items, emit_signal=False)
         if should_show_progress:
             loaded_so_far = (len(self._last_rows) if append_grid else 0) + len(rows)
             progress = 35 if total_items <= 0 else min(85, 35 + int((loaded_so_far / max(1, total_items)) * 50))
@@ -810,33 +809,37 @@ class ProductGrid(QWidget):
 
         logger.debug(f"Found {len(rows)} products")
 
-        if self._current_view in (self.VIEW_GRID, self.VIEW_MODERN_GRID):
-            self.stack.setCurrentIndex(self._current_view)
+        if is_grid_view:
+            self._current_view = self.VIEW_GRID
+            self.stack.setCurrentIndex(self.VIEW_GRID)
             self._grid_lazy_page = page
             self._grid_lazy_page_size = page_size
             self._grid_lazy_total = total_items
-            loaded_count = len(rows)
-            self._grid_lazy_has_more = False
+            loaded_count = (len(self._last_rows) if append_grid else 0) + len(rows)
+            self._grid_lazy_has_more = bool(rows) and loaded_count < total_items
             self._grid_lazy_loading = False
 
-            self._last_rows = rows
-            active_grid = self._ensure_view_widget(self._current_view)
-            active_grid.populate_and_store(rows)
+            active_grid = self._ensure_view_widget(self.VIEW_GRID)
+            if append_grid:
+                self._last_rows.extend(rows)
+                active_grid.append_rows(rows)
+            else:
+                self._last_rows = rows
+                active_grid.populate_and_store(rows)
 
             active_grid.set_lazy_state(
                 loading=False,
-                has_more=False
+                has_more=self._grid_lazy_has_more
+            )
+            self._set_catalog_status(
+                f"{loaded_count} / {total_items} products"
+                if total_items != 1 else "1 product"
             )
             loaded_text = loaded_count if total_items else 0
             if should_show_progress:
                 self._update_product_loading(f"Product grid loaded {loaded_text}/{total_items}.", 100 if not append_grid else None)
                 QTimer.singleShot(150, self._hide_product_loading)
-        elif self._current_view == self.VIEW_LIST:
-            self._last_rows = rows
-            self._ensure_view_widget(self.VIEW_LIST).populate_and_store(rows)
-        else:
-            self._last_rows = rows
-            self.populate_table(rows)
+            QTimer.singleShot(0, self._load_more_if_grid_needs_fill)
         elapsed = perf_counter() - started_at
         log = logger.warning if elapsed >= 0.5 else logger.debug
         log(
@@ -846,11 +849,34 @@ class ProductGrid(QWidget):
 
     def load_next_grid_page(self):
         """Load the next grid batch when the user scrolls near the bottom."""
-        return
+        if not self._is_grid_view() or self._grid_lazy_loading or not self._grid_lazy_has_more:
+            return
+        if self._grid_load_more_queued:
+            return
+        self._grid_load_more_queued = True
+        QTimer.singleShot(80, self._run_next_grid_page_load)
+
+    def _run_next_grid_page_load(self):
+        self._grid_load_more_queued = False
+        if not self._is_grid_view() or self._grid_lazy_loading or not self._grid_lazy_has_more:
+            return
+        next_page = self._grid_lazy_page + 1
+        self.load_products(
+            next_page,
+            self.GRID_APPEND_BATCH_SIZE,
+            append_grid=True,
+            show_progress=False,
+            offset_override=len(self._last_rows),
+        )
 
     def _load_more_if_grid_needs_fill(self):
         """Keep loading while the grid has no scrollbar but more products exist."""
-        return
+        if not self._is_grid_view() or self._grid_lazy_loading or not self._grid_lazy_has_more:
+            return
+        active_grid = self._ensure_view_widget(self._current_view)
+        scrollbar = active_grid.verticalScrollBar() if active_grid else None
+        if scrollbar is not None and scrollbar.maximum() <= 0:
+            QTimer.singleShot(40, self.load_next_grid_page)
 
     def on_page_changed(self, page: int, page_size: int):
         self.load_products(page, page_size, show_progress=False)
@@ -1085,12 +1111,13 @@ class ProductGrid(QWidget):
         if hasattr(self, "search_widget"):
             self.search_widget.apply_modern_style()
         self.grid_view.update_theme()
-        if self.modern_grid_view is not None:
-            self.modern_grid_view.update_theme()
-        if self.list_view is not None:
-            self.list_view.update_theme()
         self.category_slider.update_theme()
         colors = get_theme_colors()
+        if hasattr(self, "catalog_status"):
+            self.catalog_status.setStyleSheet(
+                f"QLabel#catalogStatus {{ color: {colors['text_secondary']}; "
+                "background: transparent; border: none; font-size: 11px; padding-left: 2px; }}"
+            )
 
         if self.use_modern_combos:
             for combo in (self.category_combo, self.discount_filter_combo, self.view_combo):
@@ -1152,14 +1179,10 @@ class ProductGrid(QWidget):
             self.view_combo.blockSignals(True)
             self.view_combo.clear()
             self.view_combo.addItem("ကဒ်", self.VIEW_GRID)
-            self.view_combo.addItem("မော်ဒန် ကဒ်", self.VIEW_MODERN_GRID)
-            self.view_combo.addItem("စာရင်း", self.VIEW_LIST)
-            self.view_combo.addItem("ဇယား", self.VIEW_TABLE)
-            for i in range(self.view_combo.count()):
-                if self.view_combo.itemData(i) == self._current_view:
-                    self.view_combo.setCurrentIndex(i)
-                    break
+            self.view_combo.setCurrentIndex(0)
             self.view_combo.blockSignals(False)
+            self.view_label.setVisible(False)
+            self.view_combo.setVisible(False)
             
             # ✅ Reload categories with Myanmmar language
             self.load_categories()
@@ -1194,14 +1217,10 @@ class ProductGrid(QWidget):
             self.view_combo.blockSignals(True)
             self.view_combo.clear()
             self.view_combo.addItem("Grid", self.VIEW_GRID)
-            self.view_combo.addItem("Modern Grid", self.VIEW_MODERN_GRID)
-            self.view_combo.addItem("List", self.VIEW_LIST)
-            self.view_combo.addItem("Table", self.VIEW_TABLE)
-            for i in range(self.view_combo.count()):
-                if self.view_combo.itemData(i) == self._current_view:
-                    self.view_combo.setCurrentIndex(i)
-                    break
+            self.view_combo.setCurrentIndex(0)
             self.view_combo.blockSignals(False)
+            self.view_label.setVisible(False)
+            self.view_combo.setVisible(False)
             
             # ✅ Reload categories with English language
             self.load_categories()

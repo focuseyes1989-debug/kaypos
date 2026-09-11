@@ -19,7 +19,6 @@ from ui.main_window.main_window_handlers import MainWindowHandlers
 from ui.themes.theme_manager import get_theme_colors, theme_manager, apply_theme
 from loguru import logger
 from datetime import datetime
-from utils.performance import get_performance_settings
 from utils.branded_icons import pos_icon
 
 
@@ -131,9 +130,8 @@ class MainWindow(MainWindowUI):
         self.dashboard_digest_timer = QTimer(self)
         self.dashboard_digest_timer.setInterval(15 * 60 * 1000)
         self.dashboard_digest_timer.timeout.connect(self._check_dashboard_digests)
-        if not get_performance_settings().low_end_mode:
-            self.dashboard_digest_timer.start()
-            QTimer.singleShot(5000, self._check_dashboard_digests)
+        self.dashboard_digest_timer.start()
+        QTimer.singleShot(5000, self._check_dashboard_digests)
 
         # ------------------------------------------------------------
         # ၁၀. Language ပြောင်းလဲမှုကို နားဆင်ခြင်း
@@ -169,8 +167,6 @@ class MainWindow(MainWindowUI):
         # ၁၆. PRELOAD INITIAL PAGES
         # ------------------------------------------------------------
         # Preload Sales page and adjacent pages
-        # Optional integrations and page preloading are disabled by default for
-        # low-end client PCs. Start them only from explicit user actions.
         
         # ------------------------------------------------------------
         # ၁၇. Sidebar Collapse Signal ချိတ်ဆက်ခြင်း
@@ -205,10 +201,6 @@ class MainWindow(MainWindowUI):
             self.auto_backup_manager.backup_created.connect(self.on_background_activity_finished)
             self.auto_backup_manager.backup_failed.connect(self.on_background_activity_finished)
             self.auto_backup_manager.start()
-
-            if get_performance_settings().low_end_mode:
-                logger.info("Low-end mode: optional background integrations are disabled")
-                return
 
             from utils.customer_display_server import start_customer_display_server
             from utils.expense_notification_checker import ExpenseNotificationChecker

@@ -11,102 +11,33 @@ from PyQt6.QtWidgets import (
     QPushButton, QLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QPixmap, QRegion
 from loguru import logger
 import re
-from pathlib import Path
 from time import perf_counter
 
 from ui.themes.theme_manager import get_theme_colors, theme_manager
-from utils.performance import get_performance_settings
 
 
-class HamsterProgressWidget(QWidget):
-    """A tiny hamster that runs in place above the loading progress."""
-
-    FRAME_COLUMNS = 8
-    FRAME_ROWS = 3
-    FRAME_COUNT = FRAME_COLUMNS * FRAME_ROWS
-
+class CompactProgressWidget(QWidget):
+    """Small, quiet progress indicator for fast POS workflows."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("hamsterProgress")
+        self.setObjectName("compactProgress")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet("QWidget#hamsterProgress { background: transparent; border: none; }")
-        self.setFixedSize(370, 112)
+        self.setStyleSheet("QWidget#compactProgress { background: transparent; border: none; }")
+        self.setFixedSize(320, 22)
         self._value = 0
-        self._frame_index = 0
-        self._frames = []
-        self._animate_enabled = not get_performance_settings().low_end_mode
-
-        self.hamster = QLabel(self)
-        self.hamster.setFixedSize(96, 82)
-        self.hamster.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.hamster.setStyleSheet("background: transparent; border: none;")
 
         self.track = QProgressBar(self)
         self.track.setRange(0, 100)
         self.track.setTextVisible(False)
-        self.track.setGeometry(10, 88, 350, 8)
+        self.track.setGeometry(0, 0, 320, 6)
 
         self.percent = QLabel("0%", self)
-        self.percent.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.percent.setGeometry(155, 98, 60, 14)
-
-        self.animation_timer = None
-        if self._animate_enabled:
-            self._load_frames()
-            self.animation_timer = QTimer(self)
-            self.animation_timer.setInterval(55)
-            self.animation_timer.timeout.connect(self._animate)
-            self._place_hamster()
-        else:
-            # Low-end mode must not even decode the sprite sheet. Creating and
-            # scaling 24 frames for every lazy page was the expensive part,
-            # even when the animation timer itself was disabled.
-            self.hamster.hide()
-            self.setFixedSize(370, 36)
-            self.track.setGeometry(10, 6, 350, 8)
-            self.percent.setGeometry(155, 18, 60, 14)
+        self.percent.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.percent.setGeometry(0, 8, 320, 14)
         self._apply_theme()
         theme_manager.theme_changed.connect(self._apply_theme)
-
-    def _load_frames(self):
-        sprite_path = (
-            Path(__file__).resolve().parent.parent
-            / "assets" / "animations" / "hamster-run-sprite-24-transparent.png"
-        )
-        sprite = QPixmap(str(sprite_path))
-        if sprite.isNull():
-            self.hamster.setText("🐹")
-            self.hamster.setStyleSheet("font-size: 42px; background: transparent;")
-            return
-
-        width = sprite.width()
-        height = sprite.height()
-        for index in range(self.FRAME_COUNT):
-            row, column = divmod(index, self.FRAME_COLUMNS)
-            left = round(column * width / self.FRAME_COLUMNS)
-            right = round((column + 1) * width / self.FRAME_COLUMNS)
-            top = round(row * height / self.FRAME_ROWS)
-            bottom = round((row + 1) * height / self.FRAME_ROWS)
-            frame = sprite.copy(left, top, max(1, right - left), max(1, bottom - top))
-
-            # Trim each cell to its actual alpha bounds so differently aligned
-            # generated poses stay equally large and centered in the UI.
-            bounds = QRegion(frame.mask()).boundingRect()
-            if not bounds.isEmpty():
-                bounds.adjust(-6, -6, 6, 6)
-                bounds = bounds.intersected(frame.rect())
-                frame = frame.copy(bounds)
-            self._frames.append(
-                frame.scaled(
-                    96, 82,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-        self.hamster.setPixmap(self._frames[0])
 
     def setValue(self, value):
         self._value = max(0, min(100, int(value)))
@@ -116,38 +47,17 @@ class HamsterProgressWidget(QWidget):
     def value(self):
         return self._value
 
-    def _animate(self):
-        if self._frames:
-            self._frame_index = (self._frame_index + 1) % len(self._frames)
-            self.hamster.setPixmap(self._frames[self._frame_index])
-
-    def _place_hamster(self):
-        # Progress changes only the bar.  Like a hamster running on a wheel,
-        # the character stays centered while its 24 running frames loop.
-        x = (self.width() - self.hamster.width()) // 2
-        self.hamster.move(x, 4)
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self.animation_timer is not None and not self.animation_timer.isActive():
-            self.animation_timer.start()
-
-    def hideEvent(self, event):
-        if self.animation_timer is not None:
-            self.animation_timer.stop()
-        super().hideEvent(event)
-
     def _apply_theme(self, *_):
         colors = get_theme_colors()
         self.track.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {colors['border']};
                 border: none;
-                border-radius: 4px;
+                border-radius: 3px;
             }}
             QProgressBar::chunk {{
                 background-color: {colors['progress_bg']};
-                border-radius: 4px;
+                border-radius: 3px;
             }}
         """)
         self.percent.setStyleSheet(
@@ -201,26 +111,26 @@ class LazyLoadingWidget(QWidget):
         )
         loading_layout = QVBoxLayout(self.loading_container)
         loading_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading_layout.setSpacing(15)
+        loading_layout.setSpacing(8)
         
         # Loading label
         self.loading_label = QLabel("Loading...")
         self.loading_label.setStyleSheet("""
-            font-size: 14pt;
+            font-size: 12pt;
             color: #5865f2;
-            font-weight: 500;
+            font-weight: 600;
         """)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         loading_layout.addWidget(self.loading_label)
         
         # Progress bar
-        self.progress_bar = HamsterProgressWidget()
+        self.progress_bar = CompactProgressWidget()
         loading_layout.addWidget(self.progress_bar)
         
         # Status label
         self.status_label = QLabel("Initializing...")
         self.status_label.setStyleSheet("""
-            font-size: 10pt;
+            font-size: 9pt;
             color: #6c757d;
         """)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -296,9 +206,9 @@ class LazyLoadingWidget(QWidget):
         self.status_label.setText("Initializing...")
         self.loading_label.setText("Loading...")
         self.loading_label.setStyleSheet("""
-            font-size: 14pt;
+            font-size: 12pt;
             color: #5865f2;
-            font-weight: 500;
+            font-weight: 600;
         """)
         
         # Load with delay (to allow UI to update)
@@ -496,9 +406,9 @@ class LazyLoadingWidget(QWidget):
         self.progress_bar.setValue(0)
         self.loading_label.setText("⚠️ Loading Failed")
         self.loading_label.setStyleSheet("""
-            font-size: 14pt;
+            font-size: 12pt;
             color: #dc3545;
-            font-weight: 500;
+            font-weight: 600;
         """)
         self.retry_btn.show()
         self.page_error.emit(error_msg)
@@ -521,9 +431,9 @@ class LazyLoadingWidget(QWidget):
         self.retry_btn.hide()
         self.loading_label.setText("Loading...")
         self.loading_label.setStyleSheet("""
-            font-size: 14pt;
+            font-size: 12pt;
             color: #5865f2;
-            font-weight: 500;
+            font-weight: 600;
         """)
         if self._load_func:
             self.load_page(
@@ -549,9 +459,9 @@ class LazyLoadingWidget(QWidget):
         self.status_label.setStyleSheet("color: #6c757d;")
         self.loading_label.setText("Loading...")
         self.loading_label.setStyleSheet("""
-            font-size: 14pt;
+            font-size: 12pt;
             color: #5865f2;
-            font-weight: 500;
+            font-weight: 600;
         """)
     
     def set_load_delay(self, delay_ms: int):

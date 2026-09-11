@@ -635,8 +635,7 @@ class MainWindowActions:
         if product_grid and hasattr(product_grid, "apply_performance_settings"):
             product_grid.apply_performance_settings(settings)
         if getattr(self, "status_bar", None):
-            mode = "Low-end PC mode" if settings.low_end_mode else "Performance settings"
-            self.status_bar.showMessage(f"{mode} applied", 3000)
+            self.status_bar.showMessage("Performance settings applied", 3000)
 
     def open_backup_reset_settings_dialog(self) -> None:
         from ui.settings import BackupResetSettingWidget

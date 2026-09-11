@@ -1,6 +1,5 @@
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
@@ -33,10 +32,6 @@ class PerformanceSettingWidget(QWidget):
         form = QFormLayout(group)
         form.setVerticalSpacing(12)
 
-        self.low_end_check = QCheckBox("Low-end PC mode")
-        self.low_end_check.toggled.connect(self._apply_low_end_defaults)
-        form.addRow("", self.low_end_check)
-
         self.page_size_spin = QSpinBox()
         self.page_size_spin.setRange(12, 100)
         self.page_size_spin.setSingleStep(6)
@@ -56,8 +51,7 @@ class PerformanceSettingWidget(QWidget):
 
 
         note = QLabel(
-            "Low-end mode reduces product cards per page, delays search while typing, "
-            "and uses smaller thumbnails."
+            "Tune product card count, search response delay, and image quality for this PC."
         )
         note.setWordWrap(True)
         form.addRow("", note)
@@ -69,17 +63,10 @@ class PerformanceSettingWidget(QWidget):
         layout.addWidget(group)
         layout.addStretch()
 
-    def _apply_low_end_defaults(self, checked):
-        if checked:
-            self.page_size_spin.setValue(25)
-            self.debounce_spin.setValue(600)
-            self.thumbnail_quality_combo.setCurrentIndex(self.thumbnail_quality_combo.findData("low"))
-
     def load_settings(self):
         conn = connect_db()
         cursor = conn.cursor()
         keys = (
-            "performance_low_end_mode",
             "performance_product_page_size",
             "performance_search_debounce_ms",
             "performance_thumbnail_quality",
@@ -91,20 +78,15 @@ class PerformanceSettingWidget(QWidget):
         values = dict(cursor.fetchall())
         conn.close()
 
-        low_end = values.get("performance_low_end_mode", "1") == "1"
-        self.low_end_check.blockSignals(True)
-        self.low_end_check.setChecked(low_end)
-        self.low_end_check.blockSignals(False)
-        saved_page_size = int(values.get("performance_product_page_size") or 25)
-        self.page_size_spin.setValue(25 if low_end else saved_page_size)
-        self.debounce_spin.setValue(int(values.get("performance_search_debounce_ms") or (600 if low_end else 300)))
-        quality = "low" if low_end else (values.get("performance_thumbnail_quality") or "normal")
+        saved_page_size = int(values.get("performance_product_page_size") or 60)
+        self.page_size_spin.setValue(saved_page_size)
+        self.debounce_spin.setValue(int(values.get("performance_search_debounce_ms") or 300))
+        quality = values.get("performance_thumbnail_quality") or "normal"
         quality_index = self.thumbnail_quality_combo.findData(quality)
         self.thumbnail_quality_combo.setCurrentIndex(max(0, quality_index))
 
     def save_settings(self):
         values = {
-            "performance_low_end_mode": "1" if self.low_end_check.isChecked() else "0",
             "performance_product_page_size": str(self.page_size_spin.value()),
             "performance_search_debounce_ms": str(self.debounce_spin.value()),
             "performance_thumbnail_quality": self.thumbnail_quality_combo.currentData() or "normal",

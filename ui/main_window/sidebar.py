@@ -68,7 +68,7 @@ class Sidebar(QFrame):
         
         # Menu bar style colors
         if is_dark:
-            bg_color = "#151c2a"
+            bg_color = "#eef1ff"
             border_color = "#293348"
             text_secondary = "#949ba4"
             header_color = "#657089"
@@ -77,7 +77,7 @@ class Sidebar(QFrame):
             text_color = "#edf2ff"
             text_selected = "#ffffff"
         else:
-            bg_color = "#f8f9fa"
+            bg_color = "#eef1ff"
             border_color = "#e9ecef"
             text_secondary = "#6c757d"
             header_color = "#6c757d"
@@ -306,12 +306,12 @@ class Sidebar(QFrame):
     def _palette(self) -> dict:
         if self._is_dark:
             return {
-                "bg": "#111724", "border": "#293348", "muted": "#8995ad",
+                "bg": "#eef1ff", "border": "#cfd6ff", "muted": "#536078",
                 "text": "#edf2ff", "hover": "#1c2535", "selected": "#252d55",
                 "selected_text": "#aeb7ff", "toggle": "#182231", "avatar": "#6675f5",
             }
         return {
-            "bg": "#ffffff", "border": "#dbe1ee", "muted": "#667085",
+            "bg": "#eef1ff", "border": "#cfd6ff", "muted": "#667085",
             "text": "#172033", "hover": "#eef1fb", "selected": "#e7eaff",
             "selected_text": "#4f5ed2", "toggle": "#eef1f7", "avatar": "#6675f5",
         }
@@ -378,6 +378,20 @@ class Sidebar(QFrame):
         btn.setMinimumWidth(0)
         btn.setMaximumWidth(16777215)
         btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def _set_nav_button_icon_color(self, btn: QPushButton, selected: bool) -> None:
+        icon_name = btn.property("icon_name")
+        if not icon_name or not hasattr(btn, "_load_icon"):
+            return
+
+        p = self._palette()
+        color = p["selected_text"] if selected else p["muted"]
+        icon_size = self.NAV_ICON_COLLAPSED if self._is_collapsed else self.NAV_ICON_EXPANDED
+        btn._icon_size = QSize(icon_size, icon_size)
+        icon = btn._load_icon(str(icon_name), color)
+        if not icon.isNull():
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(icon_size, icon_size))
 
     def _apply_modern_styles(self) -> None:
         p = self._palette()
@@ -836,6 +850,7 @@ class Sidebar(QFrame):
                         background-color: {hover_color};
                     }}
                 """)
+            self._set_nav_button_icon_color(btn, btn.isChecked())
             btn.update()
         
         # Update logout button
@@ -884,5 +899,7 @@ class Sidebar(QFrame):
     def set_selected_page(self, index: int) -> None:
         for btn in self.sidebar_buttons:
             page_idx = btn.property("page_index")
-            btn.setChecked(page_idx == index)
+            selected = page_idx == index
+            btn.setChecked(selected)
+            self._set_nav_button_icon_color(btn, selected)
 

@@ -7,10 +7,12 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QWidget, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from ui.responsive_utils import DESKTOP_COMPACT_HEADER_HEIGHT
-from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from loguru import logger
 import os
 from datetime import datetime
+
+
+DISCORD_HEADER_COLOR = "#5865F2"
 
 
 class Header(QFrame):
@@ -30,26 +32,9 @@ class Header(QFrame):
         self.update_clock()
     
     def _setup_ui(self):
-        colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
         self.setObjectName("header")
         self.setFixedHeight(DESKTOP_COMPACT_HEADER_HEIGHT)
-        
-        if is_dark:
-            self.setStyleSheet("""
-                QFrame#header {
-                    background: #202936;
-                    border-bottom: none;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QFrame#header {
-                    background: #28394b;
-                    border-bottom: none;
-                }
-            """)
+        self._apply_header_style()
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 5, 16, 5)
@@ -159,6 +144,38 @@ class Header(QFrame):
         clock_layout.addWidget(self.menu_bar_clock)
         
         right_layout.addWidget(clock_container)
+
+        # ============================================================
+        # NOTIFICATION BELL
+        # ============================================================
+        self.notification_container = QWidget()
+        self.notification_container.setObjectName("notificationContainer")
+        self.notification_container.setFixedSize(30, 30)
+        self.notification_container.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.notification_container.mousePressEvent = self._on_notification_clicked
+        self._notification_has_alerts = False
+
+        self.notification_icon = QLabel(self.notification_container)
+        self.notification_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.notification_icon.setGeometry(5, 5, 20, 20)
+        self.notification_icon.setScaledContents(True)
+        self.notification_icon.setStyleSheet("""
+            background: transparent;
+            border: none;
+        """)
+        self._load_svg_icon(self.notification_icon, "notifications", "#ffffff")
+
+        self.notification_badge = QLabel("", self.notification_container)
+        self.notification_badge.setFixedSize(9, 9)
+        self.notification_badge.move(19, 5)
+        self.notification_badge.setStyleSheet("""
+            background-color: #ed4245;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+        """)
+        self.notification_badge.hide()
+        self.notification_container.setToolTip("Notifications")
+        right_layout.addWidget(self.notification_container)
         
         # Separator
         separator = QLabel("|")
@@ -303,31 +320,43 @@ class Header(QFrame):
         
         # Update clock label (without emoji)
         self.menu_bar_clock.setText(time_str)
+
+    def _on_notification_clicked(self, event):
+        if self._parent and hasattr(self._parent, "show_notification_dialog"):
+            self._parent.show_notification_dialog(event)
+
+    def set_notification_alert(self, has_alerts: bool, tooltip: str | None = None):
+        self._notification_has_alerts = bool(has_alerts)
+        self.notification_badge.setVisible(self._notification_has_alerts)
+        self._load_svg_icon(
+            self.notification_icon,
+            "notifications_active" if self._notification_has_alerts else "notifications",
+            "#ffffff",
+        )
+        self.notification_container.setToolTip(tooltip or ("Notifications" if not has_alerts else "Stock alerts"))
     
     def update_theme(self, theme_name):
         """Update header theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.setStyleSheet("""
-                QFrame#header {
-                    background: #202936;
-                    border-bottom: none;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QFrame#header {
-                    background: #28394b;
-                    border-bottom: none;
-                }
-            """)
+        self._apply_header_style()
         
         # Update icon colors
         self._load_svg_icon(self.date_icon, "date", "#ffffff")
         self._load_svg_icon(self.clock_icon, "clock", "#ffffff")
+        self._load_svg_icon(
+            self.notification_icon,
+            "notifications_active" if getattr(self, "_notification_has_alerts", False) else "notifications",
+            "#ffffff",
+        )
         self._load_user_avatar()
         self._apply_text_styles()
+
+    def _apply_header_style(self):
+        self.setStyleSheet(f"""
+            QFrame#header {{
+                background: {DISCORD_HEADER_COLOR};
+                border-bottom: none;
+            }}
+        """)
 
     def _apply_text_styles(self):
         label_style = """

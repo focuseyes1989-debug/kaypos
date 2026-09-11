@@ -126,11 +126,7 @@ class Application:
         
         # Load fonts
         self.load_fonts()
-        from utils.performance import get_performance_settings
-        if not get_performance_settings().low_end_mode:
-            self.load_matplotlib_fonts()
-        else:
-            logger.info("Low-end mode: deferred Matplotlib font initialization")
+        self.load_matplotlib_fonts()
         
         # Load theme
         saved_theme = self.load_theme()

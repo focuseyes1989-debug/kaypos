@@ -349,7 +349,7 @@ class SettingsCenterWidget(QWidget):
             ("regional", "Regional", "Language and currency", "Open Regional"),
             ("backup", "Backup", "Backup status", "Open Backup"),
             ("users", "Users", "Roles and permissions", "Open Users"),
-            ("performance", "Performance", "Low-end mode", "Open Performance"),
+            ("performance", "Performance", "Standard mode", "Open Performance"),
         ]
         for index, (key, title, value, action) in enumerate(cards):
             card = SettingsOverviewCard(title, value, action)
@@ -423,8 +423,7 @@ class SettingsCenterWidget(QWidget):
         backup = "Auto backup on" if settings.get("auto_backup_enabled") == "1" else "Auto backup off"
         self._set_card_value("backup", backup)
 
-        performance = "Low-end mode on" if settings.get("performance_low_end_mode") == "1" else "Standard mode"
-        self._set_card_value("performance", performance)
+        self._set_card_value("performance", "Standard mode")
 
         if "users" in self.overview_cards:
             self._set_card_value("users", "Manage accounts")
@@ -438,7 +437,7 @@ class SettingsCenterWidget(QWidget):
     def _load_settings(self):
         keys = [
             "shop_logo", "shop_qr_code", "receipt_printer_name", "language",
-            "currency", "auto_backup_enabled", "performance_low_end_mode",
+            "currency", "auto_backup_enabled",
         ]
         values = {}
         try:

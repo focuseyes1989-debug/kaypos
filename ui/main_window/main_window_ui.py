@@ -560,6 +560,9 @@ class MainWindowUI(QMainWindow):
     def _update_sidebar_buttons(self, index: int) -> None:
         """Update sidebar button selection state"""
         if self.sidebar:
+            if hasattr(self.sidebar, "set_selected_page"):
+                self.sidebar.set_selected_page(index)
+                return
             for btn in self.sidebar.sidebar_buttons:
                 page_idx = btn.property("page_index")
                 btn.setChecked(page_idx == index)

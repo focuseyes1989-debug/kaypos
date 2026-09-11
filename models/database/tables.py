@@ -420,10 +420,9 @@ def create_tables():
             ('points_expiry_months', '12'), ('points_dollar_value', '0.01'),
             ('window_resolution', '1366x768'),
             ('follow_system_theme', '1'),
-            ('performance_low_end_mode', '1'),
-            ('performance_product_page_size', '25'),
-            ('performance_search_debounce_ms', '450'),
-            ('performance_thumbnail_quality', 'low'),
+            ('performance_product_page_size', '60'),
+            ('performance_search_debounce_ms', '300'),
+            ('performance_thumbnail_quality', 'normal'),
             ('performance_customer_display_youtube_enabled', '0'),
             ('auto_backup_enabled', '0'), ('auto_backup_interval', '24'), ('auto_backup_max', '30'),
             ('credit_due_days', '15'), ('credit_limit_enabled', 'true')

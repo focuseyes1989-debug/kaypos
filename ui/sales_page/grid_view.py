@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QLabel, QFrame, QVBoxLayout, QHBoxLayout, QPushButton, QGraphicsDropShadowEffect,
     QScroller, QScrollerProperties
 )
+from PyQt6 import sip
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve, QRect, QEvent, QPoint
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QPen, QBrush, QMouseEvent, QTransform, QPainterPath
 from models.database import connect_db
@@ -27,66 +28,20 @@ class GridViewWidget(QScrollArea):
     service_selected = pyqtSignal(int, str, float)
     favourite_toggled = pyqtSignal(int, bool)
     near_bottom = pyqtSignal()
+    IMAGE_LOAD_BATCH_SIZE = 4
+    IMAGE_LOAD_INTERVAL_MS = 12
 
     def __init__(self, parent=None, card_style: str = "classic"):
         super().__init__(parent)
         self._card_style = card_style
+        self._is_dark = is_dark_theme()
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._enable_touch_scrolling()
         
-        # ✅ Scroll Bar Style - Same as dark_theme.py and light_theme.py
-        self.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                border-radius: 0px;
-                background: transparent;
-            }
-            QScrollBar:vertical {
-                background: transparent;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background: #3a465a;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #6675f5;
-            }
-            QScrollBar:horizontal {
-                background: transparent;
-                height: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #3a465a;
-                border-radius: 6px;
-                min-width: 20px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: #6675f5;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-                border: none;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-                border: none;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: transparent;
-            }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: transparent;
-            }
-        """)
-
         self._container = QWidget()
-        self._container.setStyleSheet("background: transparent;")
+        self._container.setObjectName("gridViewportContent")
         
         self._grid = QGridLayout(self._container)
         # ✅ Card များ အပေါ်ဘက်သို့ စုစည်းနေစေရန် Alignment ပေးထားပါသည်
@@ -96,9 +51,12 @@ class GridViewWidget(QScrollArea):
         # QScrollArea enables background filling on its viewport/content by default.
         self._container.setAutoFillBackground(False)
         self.viewport().setAutoFillBackground(False)
+        self._apply_surface_style()
 
         self._cards: List[QWidget] = []
         self._cols = 5
+        self._row_count = 0
+        self._last_layout_width = 0
         self._last_rows: List[Any] = []
         self._loading_more = False
         self._has_more = False
@@ -107,7 +65,6 @@ class GridViewWidget(QScrollArea):
         self._resize_timer.timeout.connect(self._delayed_populate)
         
         self._is_minimized = False
-        self._is_dark = is_dark_theme()
         self._drag_start_pos: QPoint | None = None
         self._drag_start_scroll = 0
         self._drag_scrolling = False
@@ -152,8 +109,65 @@ class GridViewWidget(QScrollArea):
 
     def _on_theme_changed(self, theme_name: str) -> None:
         self._is_dark = is_dark_theme()
+        self._apply_surface_style()
         if self._last_rows:
             self.populate(self._last_rows)
+
+    def _apply_surface_style(self) -> None:
+        colors = get_theme_colors()
+        surface = "transparent"
+        scroll_handle = "#3a465a" if self._is_dark else "#c7d0e4"
+        scroll_handle_hover = colors.get("border_hover", "#6675f5")
+        self.setStyleSheet(f"""
+            QScrollArea {{
+                border: none;
+                border-radius: 8px;
+                background: {surface};
+            }}
+            QScrollArea QWidget#gridViewportContent {{
+                background: {surface};
+            }}
+            QScrollBar:vertical {{
+                background: {surface};
+                width: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {scroll_handle};
+                border-radius: 6px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {scroll_handle_hover};
+            }}
+            QScrollBar:horizontal {{
+                background: {surface};
+                height: 12px;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background: {scroll_handle};
+                border-radius: 6px;
+                min-width: 20px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background: {scroll_handle_hover};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+                border: none;
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                width: 0px;
+                border: none;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: {surface};
+            }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: {surface};
+            }}
+        """)
 
     def _get_responsive_sizes(self, width: int) -> Tuple[int, int, int, int, int]:
         """
@@ -197,8 +211,16 @@ class GridViewWidget(QScrollArea):
         self._grid.setVerticalSpacing(v_spacing)
         self._grid.setContentsMargins(margins, margins, margins, margins)
 
+    def _apply_grid_track_sizes(self, cols: int, row_count: int, card_height: int) -> None:
+        for row in range(max(self._row_count, row_count)):
+            self._grid.setRowMinimumHeight(row, card_height if row < row_count else 0)
+            self._grid.setRowStretch(row, 0)
+        for col in range(max(self._cols, cols)):
+            self._grid.setColumnStretch(col, 0 if col < cols else 0)
+        self._row_count = row_count
+
     def populate(self, rows: List[Any]) -> None:
-        self._last_rows = rows
+        self._last_rows = list(rows)
         self._cards.clear()
         self._loading_more = False
         clear_layout_widgets(self._grid)
@@ -209,6 +231,7 @@ class GridViewWidget(QScrollArea):
 
         viewport = self.viewport()
         width = viewport.width() if viewport else self.width()
+        self._last_layout_width = width
         
         self._update_responsive_layout(width)
         cols = self._calculate_columns(width)
@@ -237,14 +260,16 @@ class GridViewWidget(QScrollArea):
                     sold_by, image_path, category_name, discount_percent,
                     discount_type, manual_price,
                     is_favourite, self._is_dark,
-                    card_width, card_height
+                    card_width, card_height,
+                    load_image_now=False
                 )
             else:
                 card = LoyverseProductCard(
                     prod_id, name, price, stock, low_stock,
                     sold_by, image_path, is_favourite, self._is_dark,
                     discount_percent, discount_type, manual_price,
-                    card_width, card_height
+                    card_width, card_height,
+                    load_image_now=False
                 )
             card.clicked.connect(self._on_card_clicked)
             card.installEventFilter(self)
@@ -257,8 +282,9 @@ class GridViewWidget(QScrollArea):
             self._cards.append(card)
 
         # ✅ Stretch Ratio ကို ညီအောင် ထားရှိခြင်း
-        for c in range(cols):
-            self._grid.setColumnStretch(c, 0 if self._card_style == "modern" else 1)
+        row_count = (len(rows) + cols - 1) // cols
+        self._apply_grid_track_sizes(cols, row_count, card_height)
+        self._load_card_images_later(list(self._cards))
 
     def append_rows(self, rows: List[Any]) -> None:
         """Append another product batch without rebuilding existing cards."""
@@ -280,6 +306,7 @@ class GridViewWidget(QScrollArea):
         start_idx = len(self._last_rows)
         self._last_rows.extend(rows)
 
+        new_cards = []
         for offset, prod in enumerate(rows):
             idx = start_idx + offset
             prod_id, name, price, stock, low_stock, sold_by, image_path = prod[:7]
@@ -295,14 +322,16 @@ class GridViewWidget(QScrollArea):
                     sold_by, image_path, category_name, discount_percent,
                     discount_type, manual_price,
                     is_favourite, self._is_dark,
-                    card_width, card_height
+                    card_width, card_height,
+                    load_image_now=False
                 )
             else:
                 card = LoyverseProductCard(
                     prod_id, name, price, stock, low_stock,
                     sold_by, image_path, is_favourite, self._is_dark,
                     discount_percent, discount_type, manual_price,
-                    card_width, card_height
+                    card_width, card_height,
+                    load_image_now=False
                 )
             card.clicked.connect(self._on_card_clicked)
             card.installEventFilter(self)
@@ -312,11 +341,33 @@ class GridViewWidget(QScrollArea):
             col = idx % cols
             self._grid.addWidget(card, row, col, Qt.AlignmentFlag.AlignCenter)
             self._cards.append(card)
+            new_cards.append(card)
 
         for c in range(cols):
             self._grid.setColumnStretch(c, 0 if self._card_style == "modern" else 1)
+        row_count = (len(self._last_rows) + cols - 1) // cols
+        self._apply_grid_track_sizes(cols, row_count, card_height)
 
         self._loading_more = False
+        self._load_card_images_later(new_cards)
+
+    def _load_card_images_later(self, cards: List[QWidget], start: int = 0) -> None:
+        if sip.isdeleted(self):
+            return
+        if start >= len(cards):
+            return
+        active_cards = set(getattr(self, "_cards", ()))
+        batch_size = self.IMAGE_LOAD_BATCH_SIZE
+        for card in cards[start:start + batch_size]:
+            if card not in active_cards or sip.isdeleted(card):
+                continue
+            load_image = getattr(card, "_load_image", None)
+            if callable(load_image):
+                load_image()
+        QTimer.singleShot(
+            self.IMAGE_LOAD_INTERVAL_MS,
+            lambda: self._load_card_images_later(cards, start + batch_size)
+        )
 
     def set_lazy_state(self, loading: bool = False, has_more: bool = False) -> None:
         self._loading_more = loading
@@ -359,7 +410,6 @@ class GridViewWidget(QScrollArea):
             return
 
         if scrollbar.maximum() - value <= 240:
-            self._loading_more = True
             self.near_bottom.emit()
 
     def _show_empty_state(self) -> None:
@@ -517,7 +567,8 @@ class GridViewWidget(QScrollArea):
         self._update_responsive_layout(width)
         
         new_cols = self._calculate_columns(width)
-        if new_cols != self._cols or self._last_rows:
+        if new_cols != self._cols and self._last_rows:
+            self._last_layout_width = width
             self._resize_timer.start(100)
 
     def showEvent(self, event) -> None:
@@ -528,11 +579,12 @@ class GridViewWidget(QScrollArea):
                 QTimer.singleShot(100, lambda: self.populate(self._last_rows))
 
     def populate_and_store(self, rows: List[Any]) -> None:
-        self._last_rows = rows
+        self._last_rows = list(rows)
         self.populate(rows)
 
     def update_theme(self) -> None:
         self._is_dark = is_dark_theme()
+        self._apply_surface_style()
         if self._last_rows:
             self.populate(self._last_rows)
 
@@ -550,7 +602,8 @@ class LoyverseProductCard(QWidget):
                  is_favourite: bool = False, is_dark: bool = False,
                  discount_percent: float = 0, discount_type: str = "percentage",
                  manual_price: float = 0,
-                 card_width: int = 135, card_height: int = 155, parent=None):
+                 card_width: int = 135, card_height: int = 155, parent=None,
+                 load_image_now: bool = True):
         super().__init__(parent)
         
         self._prod_id = prod_id
@@ -573,7 +626,10 @@ class LoyverseProductCard(QWidget):
         
         self._setup_ui()
         self._apply_theme()
-        self._load_image()
+        if load_image_now:
+            self._load_image()
+        else:
+            self._show_image_placeholder()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -708,6 +764,8 @@ class LoyverseProductCard(QWidget):
             self._apply_stock_badge_style()
 
     def _load_image(self) -> None:
+        if sip.isdeleted(self) or sip.isdeleted(self.image_label) or sip.isdeleted(self.image_frame):
+            return
         if self._image_path or self._prod_id:
             try:
                 image_size = self.image_frame.height() - 4
@@ -732,6 +790,19 @@ class LoyverseProductCard(QWidget):
             except Exception:
                 pass
         
+        emoji_size = max(20, min(30, self._card_width // 5))
+        self.image_label.setText("📦")
+        self.image_label.setStyleSheet(f"""
+            font-size: {emoji_size}px;
+            color: #c0c0c0;
+            background: transparent;
+            border: none;
+        """)
+        self._update_overlay_position()
+
+    def _show_image_placeholder(self) -> None:
+        if sip.isdeleted(self) or sip.isdeleted(self.image_label):
+            return
         emoji_size = max(20, min(30, self._card_width // 5))
         self.image_label.setText("📦")
         self.image_label.setStyleSheet(f"""
@@ -892,7 +963,8 @@ class ModernProductCard(QWidget):
                  discount_percent: float = 0,
                  discount_type: str = "percentage", manual_price: float = 0,
                  is_favourite: bool = False, is_dark: bool = False,
-                 card_width: int = 220, card_height: int = 184, parent=None):
+                 card_width: int = 220, card_height: int = 184, parent=None,
+                 load_image_now: bool = True):
         super().__init__(parent)
         self._prod_id = prod_id
         self._name = name
@@ -918,7 +990,10 @@ class ModernProductCard(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
         self._apply_theme()
-        self._load_image()
+        if load_image_now:
+            self._load_image()
+        else:
+            self._show_image_placeholder()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -1109,6 +1184,8 @@ class ModernProductCard(QWidget):
         return rounded
 
     def _load_image(self) -> None:
+        if sip.isdeleted(self) or sip.isdeleted(self.image_label) or sip.isdeleted(self.image_frame):
+            return
         try:
             image_w = max(80, self.image_label.width() or self.image_frame.width())
             image_h = max(80, self.image_label.height() or self.image_frame.height())
@@ -1128,6 +1205,12 @@ class ModernProductCard(QWidget):
                 return
         except Exception as exc:
             logger.warning(f"Modern grid image load failed for product {self._prod_id}: {exc}")
+        self.image_label.setText("Image")
+        self.image_label.setStyleSheet("font-size: 13px; color: #adb5bd; background: transparent; border: none;")
+
+    def _show_image_placeholder(self) -> None:
+        if sip.isdeleted(self) or sip.isdeleted(self.image_label):
+            return
         self.image_label.setText("Image")
         self.image_label.setStyleSheet("font-size: 13px; color: #adb5bd; background: transparent; border: none;")
 

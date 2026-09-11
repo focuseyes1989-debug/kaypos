@@ -6,6 +6,9 @@ from utils.paths import app_path, get_product_images_dir
 from utils.performance import get_performance_settings
 from utils.product_image_store import cached_product_image_path
 
+_THUMBNAIL_CACHE = {}
+_THUMBNAIL_CACHE_LIMIT = 512
+
 
 def effective_stock_sql(alias: str = "p") -> str:
     """Return sale-available stock without exceeding the inventory master stock."""
@@ -128,11 +131,24 @@ def load_thumbnail(image_path: str, size: int = 50, product_id=None):
         if not resolved_path or not os.path.exists(resolved_path):
             return None
 
+    try:
+        cache_key = (resolved_path, int(size), int(os.path.getmtime(resolved_path)))
+        cached = _THUMBNAIL_CACHE.get(cache_key)
+        if cached is not None and not cached.isNull():
+            return cached
+    except OSError:
+        cache_key = None
+
     reader = QImageReader(resolved_path)
     reader.setScaledSize(QSize(size, size))
     image = reader.read()
     if not image.isNull():
-        return QPixmap.fromImage(image)
+        pixmap = QPixmap.fromImage(image)
+        if cache_key is not None:
+            if len(_THUMBNAIL_CACHE) >= _THUMBNAIL_CACHE_LIMIT:
+                _THUMBNAIL_CACHE.pop(next(iter(_THUMBNAIL_CACHE)))
+            _THUMBNAIL_CACHE[cache_key] = pixmap
+        return pixmap
     return None
 
 

@@ -190,6 +190,11 @@ class MainWindowHandlers:
         conn.close()
 
         self.has_alerts = (low_count + out_count) > 0
+        if getattr(self, "header", None) and hasattr(self.header, "set_notification_alert"):
+            tooltip = None
+            if self.has_alerts:
+                tooltip = f"{low_count} low stock, {out_count} out of stock"
+            self.header.set_notification_alert(self.has_alerts, tooltip)
 
         if self.has_alerts and self.notification_icon:
             self.notification_icon.show()

@@ -1,7 +1,7 @@
 """
 Lightweight speech-to-text compatibility layer.
 
-Voice input is disabled for the low-end PC build. Keeping this small module
+Voice input is disabled in this build. Keeping this small module
 preserves existing imports without loading audio, numpy, or speech-recognition
 libraries during product/category form startup.
 """
@@ -60,11 +60,11 @@ class SpeechButton:
         self.start_recording()
 
     def start_recording(self):
-        logger.info("Speech-to-text is disabled in low-end PC mode")
+        logger.info("Speech-to-text is disabled")
         try:
             self.parent.show_message(
                 "Voice Disabled",
-                "Voice-to-text is disabled for better performance on low-end PCs.",
+                "Voice-to-text is disabled for better startup performance.",
             )
         except Exception:
             pass
