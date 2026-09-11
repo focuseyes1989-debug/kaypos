@@ -488,11 +488,9 @@ class CheckoutDialog(QDialog):
         quick_cash_layout.setContentsMargins(0, 0, 0, 0)
         quick_cash_layout.setSpacing(6)
         self.quick_cash_buttons: list[QPushButton] = []
-        for amount in (500, 1000, 5000, 10000):
-            button = QPushButton(f"{amount:,}")
-            button.setProperty("cash_amount", amount)
-            button.setToolTip(f"Set received amount to {amount:,} Ks")
-            button.clicked.connect(lambda _checked=False, value=amount: self._set_quick_cash(value))
+        for _index in range(4):
+            button = QPushButton()
+            button.clicked.connect(self._set_quick_cash_from_button)
             quick_cash_layout.addWidget(button)
             self.quick_cash_buttons.append(button)
         form.addRow("Customer", self.customer)
@@ -556,12 +554,38 @@ class CheckoutDialog(QDialog):
         self.payment.setValue(float(amount))
         self.payment.setFocus(Qt.FocusReason.OtherFocusReason)
 
+    def _set_quick_cash_from_button(self) -> None:
+        sender = self.sender()
+        amount = int(sender.property("cash_amount") or 0) if sender else 0
+        if amount > 0:
+            self._set_quick_cash(amount)
+
+    def _quick_cash_amounts(self) -> list[int]:
+        payable = int(round(self.payable_total()))
+        fixed_amounts = [500, 1000, 5000, 10000]
+        if payable <= 0:
+            return fixed_amounts
+        if payable <= 10000:
+            return [amount for amount in fixed_amounts if amount >= payable]
+        step = 5000
+        rounded = ((payable + step - 1) // step) * step
+        return [rounded, rounded + step]
+
     def _update_quick_cash_buttons(self) -> None:
-        payable = self.payable_total()
         is_cash = self.payment_type.currentText().strip().lower() == "cash"
-        for button in self.quick_cash_buttons:
-            amount = float(button.property("cash_amount") or 0)
-            button.setEnabled(is_cash and amount >= payable)
+        amounts = self._quick_cash_amounts() if is_cash else []
+        for index, button in enumerate(self.quick_cash_buttons):
+            if index >= len(amounts):
+                button.hide()
+                button.setEnabled(False)
+                button.setProperty("cash_amount", 0)
+                continue
+            amount = amounts[index]
+            button.setText(f"{amount:,}")
+            button.setProperty("cash_amount", amount)
+            button.setToolTip(f"Set received amount to {amount:,} Ks")
+            button.setEnabled(True)
+            button.show()
 
     def _customer_changed(self, _index=0) -> None:
         customer = self.customer.currentData()
@@ -1613,7 +1637,15 @@ class LiteWindow(QMainWindow):
         self.login_dialog.move(dialog_frame.topLeft())
         self.login_dialog.raise_()
         self.login_dialog.activateWindow()
-        self.username_input.setFocus()
+        QTimer.singleShot(0, self._focus_login_field)
+
+    def _focus_login_field(self) -> None:
+        target = self.password_input if self.username_input.text().strip() else self.username_input
+        other = self.username_input if target is self.password_input else self.password_input
+        other.clearFocus()
+        target.setFocus(Qt.FocusReason.OtherFocusReason)
+        if target is self.password_input:
+            target.selectAll()
 
     def _build_workspace_page(self) -> QWidget:
         page = QWidget()
