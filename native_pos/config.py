@@ -24,6 +24,8 @@ def load_config(path=None):
     result = {key: data.get(key, value) for key, value in DEFAULTS.items()}
     for key in ('style','palette','font_family','backend','database','schema','username','server_url','receipt_printer'):
         result[key] = str(result[key] or DEFAULTS[key])
+    if result['backend'] not in ('Server', 'SQLite'):
+        result['backend'] = 'Server'
     # Upgrade the initial local-only preview to the user's server-first setup.
     if 'server_url' not in data:
         result['backend'] = 'Server'

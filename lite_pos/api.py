@@ -231,10 +231,12 @@ class LiteApiClient:
 
     def service_orders(
         self, query: str = "", status: str = "", limit: int = 100, offset: int = 0,
+        from_date: str = "", to_date: str = "",
     ) -> list[dict]:
         return list(self._request("GET", "/api/service-orders", params={
             "q": query.strip(), "status": status.strip(),
             "limit": max(1, min(limit, 200)), "offset": max(0, offset),
+            "from_date": from_date.strip(), "to_date": to_date.strip(),
         }).get("service_orders") or [])
 
     def service_order(self, order_id: int) -> dict:

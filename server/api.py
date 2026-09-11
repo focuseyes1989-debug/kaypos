@@ -1682,13 +1682,16 @@ def update_expense(
 def service_orders(
     status: str = Query(default="", max_length=40),
     q: str = Query(default="", max_length=200),
+    from_date: str = Query(default="", max_length=10),
+    to_date: str = Query(default="", max_length=10),
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     _: Dict[str, Any] = Depends(current_user),
 ):
     try:
         return {"service_orders": ServiceOrderRepository().list(
-            status=status, search=q, limit=limit, offset=offset,
+            status=status, search=q, from_date=from_date, to_date=to_date,
+            limit=limit, offset=offset,
         )}
     except ValueError as exc:
         raise _service_order_error(exc) from exc

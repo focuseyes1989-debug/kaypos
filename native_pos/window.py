@@ -31,7 +31,7 @@ class LoginDialog(QDialog):
         intro = QLabel('Phase 7 — Native Employees, Settings and Server Operations\nSign in to the existing POS Server.')
         intro.setWordWrap(True); body.addWidget(intro)
         form = QFormLayout(); self.form = form
-        self.backend = QComboBox(); self.backend.addItems(['Server','SQLite','PostgreSQL'])
+        self.backend = QComboBox(); self.backend.addItems(['Server','SQLite'])
         self.backend.setCurrentText(config['backend'])
         self.server = QLineEdit(config['server_url'])
         self.insecure = QCheckBox('Allow self-signed HTTPS certificate')
@@ -39,12 +39,10 @@ class LoginDialog(QDialog):
         self.database = QLineEdit(config['database']); self.database.setPlaceholderText('Select an existing test copy')
         self.browse = QPushButton('Browse…'); self.browse.clicked.connect(self.browse_database)
         row = QHBoxLayout(); row.addWidget(self.database,1); row.addWidget(self.browse); self.database_row = row
-        self.schema = QLineEdit(config['schema'])
         self.username = QLineEdit(config['username'])
         self.password = QLineEdit(); self.password.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow('Connection',self.backend); form.addRow('Server URL',self.server)
         form.addRow(self.insecure); form.addRow('SQLite file',row)
-        form.addRow('PostgreSQL test schema',self.schema)
         form.addRow('Username',self.username); form.addRow('Password',self.password)
         body.addLayout(form)
         self.target_hint = QLabel(); self.target_hint.setWordWrap(True); self.target_hint.setTextFormat(Qt.TextFormat.PlainText)
@@ -60,31 +58,33 @@ class LoginDialog(QDialog):
         body.addLayout(buttons)
         self.backend.currentTextChanged.connect(self.update_target)
         self.server.textChanged.connect(self.update_target)
-        self.database.textChanged.connect(self.update_target); self.schema.textChanged.connect(self.update_target)
+        self.database.textChanged.connect(self.update_target)
         self.update_target()
     def target(self):
-        return Target(self.backend.currentText(),self.database.text().strip(),self.schema.text().strip(),self.server.text().strip(),self.insecure.isChecked())
+        return Target(
+            self.backend.currentText(),self.database.text().strip(),
+            'public',
+            self.server.text().strip(),self.insecure.isChecked(),
+        )
     def update_target(self):
         backend = self.backend.currentText()
         sqlite, server = backend == 'SQLite', backend == 'Server'
         self.form.setRowVisible(self.server, server)
         self.form.setRowVisible(self.insecure, server)
         self.form.setRowVisible(self.database_row, sqlite)
-        self.form.setRowVisible(self.schema, backend == 'PostgreSQL')
         self.create.setVisible(sqlite)
         self.database.setEnabled(sqlite); self.browse.setEnabled(sqlite); self.create.setEnabled(sqlite)
-        self.schema.setEnabled(backend == 'PostgreSQL')
         if server:
             self.target_hint.setText('Sign in with your existing POS Lite server account.\nServer: ' + self.server.text().strip())
         else:
             self.target_hint.setText('Read-only target: ' + self.target().label +
-                ('\nUse a test copy, or create a new practice file.' if sqlite else '\nConnection comes from NATIVE_POS_TEST_DATABASE_URL. Credentials are not saved.'))
+                '\nUse a test copy, or create a new practice file.')
     def browse_database(self):
         path,_ = QFileDialog.getOpenFileName(self,'Select test database',self.database.text(),'SQLite (*.db *.sqlite *.sqlite3);;All files (*)')
         if path: self.database.setText(path)
     def set_busy(self, busy, message=''):
         self.setProperty('busy',busy)
-        for widget in (self.backend,self.server,self.insecure,self.database,self.browse,self.schema,self.username,self.password,self.create,self.test,self.sign_in):
+        for widget in (self.backend,self.server,self.insecure,self.database,self.browse,self.username,self.password,self.create,self.test,self.sign_in):
             widget.setEnabled(not busy)
         if not busy: self.update_target()
         self.status.setText(message)
@@ -188,7 +188,11 @@ class NativeWindow(QMainWindow):
 
     def _remember_target(self):
         d = self.login_dialog
-        self.config.update(backend=d.backend.currentText(),database=d.database.text().strip(),schema=d.schema.text().strip(),username=d.username.text().strip(),server_url=d.server.text().strip(),insecure_tls=d.insecure.isChecked())
+        self.config.update(
+            backend=d.backend.currentText(),database=d.database.text().strip(),
+            username=d.username.text().strip(),
+            server_url=d.server.text().strip(),insecure_tls=d.insecure.isChecked(),
+        )
         self._save()
     def _save(self):
         try:

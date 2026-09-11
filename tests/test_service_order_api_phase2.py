@@ -61,11 +61,26 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
         self.repo.create.assert_called_once_with(values, created_by="cashier1")
 
     def test_list_detail_and_partial_update(self):
-        self.assertEqual(api.service_orders("received", "SO-1", 20, 0, {})["service_orders"], [{"id": 1}])
-        self.repo.list.assert_called_once_with(status="received", search="SO-1", limit=20, offset=0)
+        self.assertEqual(
+            api.service_orders(
+                status="received", q="SO-1", from_date="", to_date="", limit=20, offset=0, _={},
+            )["service_orders"],
+            [{"id": 1}],
+        )
+        self.repo.list.assert_called_once_with(
+            status="received", search="SO-1", from_date="", to_date="", limit=20, offset=0,
+        )
         self.assertEqual(api.service_order(1, {})["service_order"]["id"], 1)
         api.update_service_order(1, api.ServiceOrderUpdateRequest(priority="urgent"), {})
         self.repo.update.assert_called_once_with(1, {"priority": "urgent"})
+
+    def test_list_passes_date_filters_to_repository(self):
+        api.service_orders(
+            status="", q="", from_date="2026-09-01", to_date="2026-09-11", limit=50, offset=5, _={},
+        )
+        self.repo.list.assert_called_once_with(
+            status="", search="", from_date="2026-09-01", to_date="2026-09-11", limit=50, offset=5,
+        )
 
     def test_item_crud_calls_repository(self):
         created = api.add_service_order_item(

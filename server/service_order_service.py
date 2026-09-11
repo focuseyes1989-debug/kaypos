@@ -430,7 +430,10 @@ class ServiceOrderRepository:
         finally:
             conn.close()
 
-    def list(self, *, status: str = "", search: str = "", limit: int = 100, offset: int = 0) -> list[dict]:
+    def list(
+        self, *, status: str = "", search: str = "", limit: int = 100, offset: int = 0,
+        from_date: str = "", to_date: str = "",
+    ) -> list[dict]:
         clauses, params = [], []
         if status:
             clauses.append("status = ?")
@@ -439,6 +442,20 @@ class ServiceOrderRepository:
             clauses.append("(order_no LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR job_title LIKE ? OR file_reference LIKE ? OR item_name LIKE ? OR serial_no LIKE ?)")
             pattern = f"%{str(search).strip()}%"
             params.extend([pattern] * 7)
+        if str(from_date or "").strip():
+            try:
+                start = datetime.strptime(str(from_date).strip(), "%Y-%m-%d")
+            except ValueError as exc:
+                raise ValueError("From date must use YYYY-MM-DD") from exc
+            clauses.append("received_at >= ?")
+            params.append(start.strftime("%Y-%m-%d %H:%M:%S"))
+        if str(to_date or "").strip():
+            try:
+                end = datetime.strptime(str(to_date).strip(), "%Y-%m-%d") + timedelta(days=1)
+            except ValueError as exc:
+                raise ValueError("To date must use YYYY-MM-DD") from exc
+            clauses.append("received_at < ?")
+            params.append(end.strftime("%Y-%m-%d %H:%M:%S"))
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params.extend([max(1, min(int(limit), 200)), max(0, int(offset))])
         conn = self._connection_factory()

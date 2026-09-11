@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import QObject, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QDate, QObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFormLayout, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -67,6 +67,10 @@ class ServiceJobClientWindow(QMainWindow):
         self.pages.addWidget(self.jobs_page)
         self.setCentralWidget(self.pages)
         self.setStatusBar(QStatusBar())
+        self.jobs_status = QLabel("")
+        self.identity_label = QLabel("")
+        self.statusBar().addWidget(self.jobs_status)
+        self.statusBar().addPermanentWidget(self.identity_label)
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(5000)
@@ -80,22 +84,25 @@ class ServiceJobClientWindow(QMainWindow):
         dialog.setWindowTitle("Sign in · KAY Service Job Client")
         dialog.setWindowIcon(self.windowIcon())
         dialog.setModal(True)
-        dialog.setFixedSize(470, 380)
+        dialog.setFixedSize(470, 340)
         dialog.rejected.connect(self.close)
         body = QVBoxLayout(dialog)
-        body.setContentsMargins(30, 24, 30, 24)
-        body.setSpacing(10)
+        body.setContentsMargins(34, 24, 34, 24)
+        body.setSpacing(8)
         brand = QLabel("KAY SERVICE JOB CLIENT", objectName="brand")
         title = QLabel("Welcome back", objectName="title")
         subtitle = QLabel("Sign in to continue to your service jobs.", objectName="muted")
         subtitle.setWordWrap(True)
+        brand.setStyleSheet("font-weight: 600;")
         for label in (brand, title, subtitle):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             body.addWidget(label)
+        body.addSpacing(4)
         config = load_config()
         form = QFormLayout()
-        form.setHorizontalSpacing(18)
-        form.setVerticalSpacing(10)
+        form.setHorizontalSpacing(14)
+        form.setVerticalSpacing(9)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.server_input = QLineEdit(config["server_url"])
         self.server_input.setMinimumWidth(285)
@@ -107,24 +114,25 @@ class ServiceJobClientWindow(QMainWindow):
         form.addRow("Server URL", self.server_input)
         form.addRow("Username", self.username_input)
         form.addRow("Password", self.password_input)
-        body.addLayout(form)
         self.insecure_check = QCheckBox("Allow self-signed HTTPS certificate")
         self.insecure_check.setChecked(config["insecure_tls"])
-        body.addWidget(self.insecure_check)
+        form.addRow("", self.insecure_check)
+        body.addLayout(form)
         self.login_status = QLabel("", objectName="muted")
         self.login_status.setWordWrap(True)
-        self.login_status.setMinimumHeight(34)
+        self.login_status.setMinimumHeight(28)
         self.login_status.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         body.addWidget(self.login_status)
         buttons = QHBoxLayout()
+        buttons.setSpacing(10)
         self.test_button = QPushButton("Test Connection")
-        self.test_button.setMinimumWidth(120)
+        self.test_button.setMinimumWidth(128)
         self.test_button.clicked.connect(self.test_connection)
         self.login_button = QPushButton("Sign In", objectName="primary")
         self.login_button.setMinimumWidth(100)
         self.login_button.clicked.connect(self.login)
-        buttons.addWidget(self.test_button)
         buttons.addStretch()
+        buttons.addWidget(self.test_button)
         buttons.addWidget(self.login_button)
         body.addLayout(buttons)
         return dialog
@@ -173,8 +181,19 @@ class ServiceJobClientWindow(QMainWindow):
         page = QWidget(); outer = QVBoxLayout(page)
         top = QHBoxLayout()
         title = QLabel("Service Jobs"); title.setStyleSheet("font-size: 22px; font-weight: 700;")
-        self.identity_label = QLabel("")
         self.search_input = QLineEdit(); self.search_input.setPlaceholderText("Search job name or details…"); self.search_input.returnPressed.connect(self.refresh_jobs)
+        self.date_filter_check = QCheckBox("Date")
+        self.date_filter_check.toggled.connect(self._date_filter_toggled)
+        self.from_date = QDateEdit(QDate.currentDate())
+        self.from_date.setCalendarPopup(True)
+        self.from_date.setDisplayFormat("yyyy-MM-dd")
+        self.from_date.setEnabled(False)
+        self.from_date.dateChanged.connect(self.refresh_jobs)
+        self.to_date = QDateEdit(QDate.currentDate())
+        self.to_date.setCalendarPopup(True)
+        self.to_date.setDisplayFormat("yyyy-MM-dd")
+        self.to_date.setEnabled(False)
+        self.to_date.dateChanged.connect(self.refresh_jobs)
         self.status_filter = QComboBox()
         self.status_filter.addItem("Pending", "pending")
         self.status_filter.addItem("In Progress", "in_progress")
@@ -184,7 +203,8 @@ class ServiceJobClientWindow(QMainWindow):
         self.status_filter.currentIndexChanged.connect(self.refresh_jobs)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.refresh_jobs)
         logout = QPushButton("Sign Out"); logout.clicked.connect(self.logout)
-        top.addWidget(title); top.addWidget(self.identity_label); top.addStretch(); top.addWidget(self.search_input, 1)
+        top.addWidget(title); top.addStretch(); top.addWidget(self.search_input, 1)
+        top.addWidget(self.date_filter_check); top.addWidget(self.from_date); top.addWidget(self.to_date)
         top.addWidget(self.status_filter); top.addWidget(refresh); top.addWidget(logout); outer.addLayout(top)
 
         body = QHBoxLayout()
@@ -212,8 +232,21 @@ class ServiceJobClientWindow(QMainWindow):
         self.collect_button = QPushButton("Mark as Collected"); self.collect_button.setEnabled(False); self.collect_button.clicked.connect(self.collect_job)
         detail_layout.addWidget(self.detail_title); detail_layout.addWidget(self.detail_status); detail_layout.addWidget(self.detail_text, 1); detail_layout.addWidget(self.start_button); detail_layout.addWidget(self.complete_button); detail_layout.addWidget(self.collect_button)
         body.addWidget(detail, 1); outer.addLayout(body, 1)
-        self.jobs_status = QLabel(""); outer.addWidget(self.jobs_status)
         return page
+
+    def _date_filter_toggled(self, checked: bool) -> None:
+        self.from_date.setEnabled(checked)
+        self.to_date.setEnabled(checked)
+        self.refresh_jobs()
+
+    def _selected_date_range(self) -> tuple[str, str]:
+        if not self.date_filter_check.isChecked():
+            return "", ""
+        if self.from_date.date() > self.to_date.date():
+            self.to_date.blockSignals(True)
+            self.to_date.setDate(self.from_date.date())
+            self.to_date.blockSignals(False)
+        return self.from_date.date().toString("yyyy-MM-dd"), self.to_date.date().toString("yyyy-MM-dd")
 
     def _run_task(self, operation: Callable, success: Callable, failure: Callable) -> None:
         thread = QThread(self); worker = TaskWorker(operation); worker.moveToThread(thread)
@@ -265,12 +298,13 @@ class ServiceJobClientWindow(QMainWindow):
         client = self.api
         revision = self._jobs_revision
         self._loading = True; query = self.search_input.text().strip(); mode = str(self.status_filter.currentData() or "pending")
+        from_date, to_date = self._selected_date_range()
 
         def operation():
             # Always fetch the shared board so notifications are independent of
             # the operator's current search or status filter.
             all_rows = client.service_orders(query="", status="", limit=200)
-            rows = list(all_rows)
+            rows = client.service_orders(query=query, status="", limit=200, from_date=from_date, to_date=to_date)
             needle = query.casefold()
             if needle:
                 rows = [row for row in rows if needle in " ".join(str(row.get(key) or "") for key in ("job_title", "complaint", "internal_notes")).casefold()]

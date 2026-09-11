@@ -129,6 +129,13 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
         self.assertEqual(len(self.repo.list(status="in_progress")), 1)
         self.assertEqual(self.repo.list(search="SN-200")[0]["customer_name"], "Ko Ko")
 
+    def test_list_filters_received_date_range(self):
+        self.repo.create({"job_title": "Old", "received_at": "2026-09-01 09:00:00"}, created_by="admin")
+        today = self.repo.create({"job_title": "Today", "received_at": "2026-09-11 12:30:00"}, created_by="admin")
+        self.repo.create({"job_title": "Future", "received_at": "2026-09-12 08:00:00"}, created_by="admin")
+        rows = self.repo.list(from_date="2026-09-11", to_date="2026-09-11")
+        self.assertEqual([row["id"] for row in rows], [today["id"]])
+
     def test_validation_rejects_bad_values(self):
         with self.assertRaisesRegex(ValueError, "start as received"):
             self.repo.create({"status": "completed"}, created_by="admin")
@@ -142,7 +149,7 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
         order = self.repo.create({
             "customer_name": "Aye", "job_title": "Training Manual",
             "file_source": "Telegram", "file_reference": "message-100",
-            "approval_status": "waiting_customer",
+            "approval_status": "waiting_customer", "received_at": "2026-09-01 09:00:00",
         }, created_by="operator")
         item = self.repo.add_item(order["id"], {
             "item_type": "custom", "description": "A4 double-side print",
@@ -230,7 +237,7 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
             INSERT INTO products VALUES (2, 'Part', 'Each', 3);
         """)
         conn.commit(); conn.close()
-        order = self.repo.create({"customer_name": "Aye"}, created_by="cashier")
+        order = self.repo.create({"customer_name": "Aye", "received_at": "2026-09-01 09:00:00"}, created_by="cashier")
         self.repo.add_item(order["id"], {"item_type": "service", "product_id": 1, "description": "Repair", "qty": 1, "unit_price": 20000, "warranty_days": 30})
         self.repo.add_item(order["id"], {"item_type": "part", "product_id": 2, "description": "Part", "qty": 1, "unit_price": 5000})
         order = self.repo.record_deposit(order["id"], 5000, payment_type="Cash", received_by="cashier")

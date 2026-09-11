@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from service_job_client.config import load_config, save_config
@@ -144,6 +145,26 @@ class ServiceJobClientTests(unittest.TestCase):
         self.assertTrue(window.complete_button.isEnabled())
         window.status_filter.setCurrentIndex(window.status_filter.findData("in_progress"))
         self.assertEqual(window.job_table.rowCount(), 1)
+
+    def test_date_filter_passes_selected_range_to_server(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        window.user = {"username": "tech1"}
+        window.from_date.setDate(QDate.fromString("2026-09-11", "yyyy-MM-dd"))
+        window.to_date.setDate(QDate.fromString("2026-09-11", "yyyy-MM-dd"))
+        window.api = Mock()
+        window.api.service_orders.side_effect = [
+            [{"id": 1, "job_title": "All", "status": "received", "received_at": "2026-09-10 08:00:00"}],
+            [{"id": 2, "job_title": "Filtered", "status": "received", "received_at": "2026-09-11 09:00:00"}],
+        ]
+        window._run_task = lambda operation, success, failure: success(operation())
+        window.date_filter_check.setChecked(True)
+        self.assertEqual(window.job_table.rowCount(), 1)
+        self.assertEqual(window.job_table.item(0, 2).text(), "Filtered")
+        self.assertEqual(
+            window.api.service_orders.call_args_list[-1].kwargs,
+            {"query": "", "status": "", "limit": 200, "from_date": "2026-09-11", "to_date": "2026-09-11"},
+        )
 
     def test_no_console_windows_launcher_exists(self):
         launcher = Path(__file__).resolve().parents[1] / "service_job_client_main.pyw"
