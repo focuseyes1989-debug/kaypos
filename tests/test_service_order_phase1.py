@@ -228,6 +228,26 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
         self.assertEqual(self.repo.list_presets(), [])
         self.assertEqual(len(self.repo.list_presets(include_inactive=True)), 1)
 
+    def test_design_prompts_can_be_saved_and_deactivated(self):
+        prompt = self.repo.save_design_prompt({
+            "title": "Vinyl Sticker",
+            "prompt_text": "Create a design for {job_title}: {details}",
+            "sort_order": 2,
+        })
+        self.assertEqual(prompt["title"], "Vinyl Sticker")
+        self.assertEqual(self.repo.list_design_prompts()[0]["prompt_text"], "Create a design for {job_title}: {details}")
+        updated = self.repo.save_design_prompt({
+            "title": "Vinyl Sticker Updated",
+            "prompt_text": "Use notes: {notes}",
+            "sort_order": 1,
+        }, prompt["id"])
+        self.assertEqual(updated["sort_order"], 1)
+        with self.assertRaisesRegex(ValueError, "Prompt text is required"):
+            self.repo.save_design_prompt({"title": "Empty", "prompt_text": ""})
+        self.repo.deactivate_design_prompt(prompt["id"])
+        self.assertEqual(self.repo.list_design_prompts(), [])
+        self.assertEqual(len(self.repo.list_design_prompts(include_inactive=True)), 1)
+
     def test_deposit_and_checkout_link_one_sale_and_block_duplicates(self):
         conn = self.connect()
         conn.executescript("""

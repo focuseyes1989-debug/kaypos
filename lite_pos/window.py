@@ -2145,7 +2145,10 @@ class LiteWindow(QMainWindow):
         top = QHBoxLayout(); top.addWidget(QLabel("Service Jobs", objectName="title")); top.addStretch()
         self.service_order_presets_button = QPushButton(); self.service_order_presets_button.hide()
         self.service_order_reports_button = QPushButton(); self.service_order_reports_button.hide()
-        top.addWidget(self.service_order_presets_button); top.addWidget(self.service_order_reports_button); outer.addLayout(top)
+        self.service_order_design_prompts_button = QPushButton("Design Prompts")
+        self.service_order_design_prompts_button.clicked.connect(self.manage_service_order_design_prompts)
+        self.service_order_design_prompts_button.hide()
+        top.addWidget(self.service_order_presets_button); top.addWidget(self.service_order_reports_button); top.addWidget(self.service_order_design_prompts_button); outer.addLayout(top)
         filters = QHBoxLayout()
         self.service_order_search = QLineEdit(); self.service_order_search.setPlaceholderText("Search job name, details or notes…")
         self.service_order_search.returnPressed.connect(self.load_service_orders)
@@ -2585,6 +2588,7 @@ class LiteWindow(QMainWindow):
             self.nav_buttons["Setting Center"].setVisible(str(role).casefold() in {"admin", "manager"})
             self.service_order_reports_button.hide()
             self.service_order_presets_button.hide()
+            self.service_order_design_prompts_button.setVisible(str(role).casefold() in {"admin", "manager"})
             self.identity_label.setText(f"{name}\nRole: {role}")
             self.welcome_label.setText(f"Welcome, {name}. Connected as {role}.")
             self.pages.setCurrentWidget(self.workspace_page)
@@ -4296,6 +4300,74 @@ class LiteWindow(QMainWindow):
         self._run_task(
             lambda: (self.api.products("", limit=100), self.api.print_service_presets()), loaded,
             lambda error: QMessageBox.critical(self, "Quick Presets", error),
+        )
+
+    def manage_service_order_design_prompts(self) -> None:
+        if not self.api:
+            return
+
+        def loaded(prompts):
+            prompts = list(prompts or [])
+            dialog = QDialog(self); dialog.setWindowTitle("Service Job Design Prompts"); dialog.resize(780, 520)
+            layout = QVBoxLayout(dialog)
+            table = QTableWidget(len(prompts), 3)
+            table.setHorizontalHeaderLabels(["Title", "Prompt", "Sort"])
+            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            table.verticalHeader().setVisible(False)
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            for row, prompt in enumerate(prompts):
+                values = (prompt.get("title") or "", prompt.get("prompt_text") or "", prompt.get("sort_order") or 0)
+                for column, value in enumerate(values):
+                    cell = QTableWidgetItem(str(value)); cell.setData(Qt.ItemDataRole.UserRole, int(prompt.get("id") or 0)); table.setItem(row, column, cell)
+            layout.addWidget(table, 1)
+            actions = QHBoxLayout(); add = QPushButton("Add Prompt"); edit = QPushButton("Edit Prompt"); deactivate = QPushButton("Deactivate")
+            actions.addWidget(add); actions.addWidget(edit); actions.addWidget(deactivate); actions.addStretch()
+            close = QPushButton("Close"); close.clicked.connect(dialog.accept); actions.addWidget(close); layout.addLayout(actions)
+
+            def selected():
+                row = table.currentRow()
+                return prompts[row] if 0 <= row < len(prompts) else None
+
+            def open_editor(prompt=None):
+                editor = QDialog(dialog); editor.setWindowTitle("Design Prompt"); editor.resize(620, 430)
+                editor_layout = QVBoxLayout(editor); form = QFormLayout()
+                title = QLineEdit(str((prompt or {}).get("title") or ""))
+                sort_order = QSpinBox(); sort_order.setRange(0, 999999); sort_order.setValue(int((prompt or {}).get("sort_order") or 0))
+                text = QTextEdit(); text.setPlainText(str((prompt or {}).get("prompt_text") or ""))
+                text.setPlaceholderText("Prompt text. You can use {job_title}, {details}, {notes}, {appointment}, {status}.")
+                form.addRow("Title", title); form.addRow("Sort", sort_order); form.addRow("Prompt", text)
+                editor_layout.addLayout(form)
+                buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+                buttons.accepted.connect(editor.accept); buttons.rejected.connect(editor.reject); editor_layout.addWidget(buttons)
+                if editor.exec() != QDialog.DialogCode.Accepted:
+                    return
+                values = {"title": title.text().strip(), "prompt_text": text.toPlainText().strip(), "sort_order": sort_order.value(), "active": True}
+                if not values["title"] or not values["prompt_text"]:
+                    QMessageBox.warning(dialog, "Design Prompt", "Title and prompt text are required."); return
+                prompt_id = int((prompt or {}).get("id") or 0) or None
+                self._run_task(lambda: self.api.save_service_order_design_prompt(values, prompt_id), lambda _saved: (dialog.accept(), self.manage_service_order_design_prompts()), lambda error: QMessageBox.critical(dialog, "Design Prompt", error))
+
+            add.clicked.connect(lambda: open_editor())
+            edit.clicked.connect(lambda: open_editor(selected()) if selected() else QMessageBox.information(dialog, "Design Prompt", "Select a prompt to edit."))
+
+            def deactivate_selected():
+                prompt = selected()
+                if not prompt:
+                    QMessageBox.information(dialog, "Design Prompt", "Select a prompt to deactivate."); return
+                if QMessageBox.question(dialog, "Deactivate Prompt", f"Deactivate {prompt.get('title')}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                    return
+                self._run_task(lambda: self.api.delete_service_order_design_prompt(int(prompt.get("id") or 0)), lambda _result: (dialog.accept(), self.manage_service_order_design_prompts()), lambda error: QMessageBox.critical(dialog, "Design Prompt", error))
+
+            deactivate.clicked.connect(deactivate_selected)
+            table.doubleClicked.connect(lambda _index: open_editor(selected()))
+            dialog.exec()
+
+        self._run_task(
+            self.api.service_order_design_prompts,
+            loaded,
+            lambda error: QMessageBox.critical(self, "Design Prompts", error),
         )
 
     def print_service_order_job_ticket(self) -> None:

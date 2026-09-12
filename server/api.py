@@ -306,6 +306,13 @@ class PrintServicePresetRequest(BaseModel):
     active: bool = True
 
 
+class ServiceOrderDesignPromptRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=160)
+    prompt_text: str = Field(..., min_length=1, max_length=10000)
+    sort_order: int = Field(default=0, ge=0, le=999999)
+    active: bool = True
+
+
 class CarPrintRequest(BaseModel):
     token: str = Field(..., min_length=32, max_length=128)
     request_key: str = Field(..., min_length=16, max_length=128)
@@ -1916,6 +1923,46 @@ def delete_print_service_preset(
     _require_manager(user)
     try:
         ServiceOrderRepository().deactivate_preset(preset_id)
+        return {"status": "SUCCESS"}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.get("/api/service-order-design-prompts")
+def service_order_design_prompts(_: Dict[str, Any] = Depends(current_user)):
+    return {"prompts": ServiceOrderRepository().list_design_prompts()}
+
+
+@app.post("/api/service-order-design-prompts", status_code=201)
+def create_service_order_design_prompt(
+    payload: ServiceOrderDesignPromptRequest, user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"prompt": ServiceOrderRepository().save_design_prompt(_model_values(payload))}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.put("/api/service-order-design-prompts/{prompt_id}")
+def update_service_order_design_prompt(
+    prompt_id: int, payload: ServiceOrderDesignPromptRequest,
+    user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        return {"prompt": ServiceOrderRepository().save_design_prompt(_model_values(payload), prompt_id)}
+    except ValueError as exc:
+        raise _service_order_error(exc) from exc
+
+
+@app.delete("/api/service-order-design-prompts/{prompt_id}")
+def delete_service_order_design_prompt(
+    prompt_id: int, user: Dict[str, Any] = Depends(current_user),
+):
+    _require_manager(user)
+    try:
+        ServiceOrderRepository().deactivate_design_prompt(prompt_id)
         return {"status": "SUCCESS"}
     except ValueError as exc:
         raise _service_order_error(exc) from exc

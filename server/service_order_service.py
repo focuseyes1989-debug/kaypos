@@ -283,6 +283,17 @@ def ensure_service_order_schema(cursor) -> None:
             updated_at TIMESTAMP NOT NULL
         )
     """)
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS service_order_design_prompts (
+            id {pk_sql},
+            title TEXT NOT NULL UNIQUE,
+            prompt_text TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL,
+            updated_at TIMESTAMP NOT NULL
+        )
+    """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_status ON service_orders(status, updated_at)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_customer ON service_orders(customer_id, updated_at)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_received ON service_orders(received_at, id)")
@@ -292,6 +303,7 @@ def ensure_service_order_schema(cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_return_visits_order ON service_order_return_visits(service_order_id, visited_at, id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_notifications_status ON service_order_notifications(status, created_at, id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_print_service_presets_sort ON print_service_presets(active, sort_order, name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_design_prompts_sort ON service_order_design_prompts(active, sort_order, title)")
 
 
 class ServiceOrderRepository:
@@ -533,6 +545,63 @@ class ServiceOrderRepository:
             cursor.execute("UPDATE print_service_presets SET active = 0, updated_at = ? WHERE id = ?", (_now(), int(preset_id)))
             if cursor.rowcount != 1:
                 raise ValueError("Print service preset not found")
+            conn.commit()
+        except Exception:
+            conn.rollback(); raise
+        finally:
+            conn.close()
+
+    def list_design_prompts(self, *, include_inactive: bool = False) -> list[dict]:
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor(); self._prepare(conn, cursor)
+            where = "" if include_inactive else " WHERE COALESCE(active, 1) = 1"
+            cursor.execute(f"SELECT * FROM service_order_design_prompts{where} ORDER BY sort_order, title, id")
+            return _rows(cursor)
+        finally:
+            conn.close()
+
+    def save_design_prompt(self, values: dict, prompt_id: int | None = None) -> dict:
+        title = str(values.get("title") or "").strip()
+        text = str(values.get("prompt_text") or values.get("text") or "").strip()
+        if not title:
+            raise ValueError("Prompt title is required")
+        if not text:
+            raise ValueError("Prompt text is required")
+        sort_order = max(0, int(values.get("sort_order") or 0))
+        active = 1 if values.get("active", True) else 0
+        now = _now(); conn = self._connection_factory()
+        try:
+            cursor = conn.cursor(); self._prepare(conn, cursor)
+            if prompt_id:
+                cursor.execute("""
+                    UPDATE service_order_design_prompts
+                    SET title = ?, prompt_text = ?, sort_order = ?, active = ?, updated_at = ?
+                    WHERE id = ?
+                """, (title, text, sort_order, active, now, int(prompt_id)))
+                if cursor.rowcount != 1:
+                    raise ValueError("Design prompt not found")
+                saved_id = int(prompt_id)
+            else:
+                saved_id = _insert_and_get_id(cursor, """
+                    INSERT INTO service_order_design_prompts
+                        (title, prompt_text, sort_order, active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (title, text, sort_order, active, now, now))
+            conn.commit(); cursor.execute("SELECT * FROM service_order_design_prompts WHERE id = ?", (saved_id,))
+            return _row(cursor)
+        except Exception:
+            conn.rollback(); raise
+        finally:
+            conn.close()
+
+    def deactivate_design_prompt(self, prompt_id: int) -> None:
+        conn = self._connection_factory()
+        try:
+            cursor = conn.cursor(); self._prepare(conn, cursor)
+            cursor.execute("UPDATE service_order_design_prompts SET active = 0, updated_at = ? WHERE id = ?", (_now(), int(prompt_id)))
+            if cursor.rowcount != 1:
+                raise ValueError("Design prompt not found")
             conn.commit()
         except Exception:
             conn.rollback(); raise

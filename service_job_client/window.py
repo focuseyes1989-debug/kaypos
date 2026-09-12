@@ -5,7 +5,7 @@ from collections.abc import Callable
 from PyQt6.QtCore import QDate, QObject, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QFormLayout, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -21,6 +21,37 @@ class LoginDialog(QDialog):
     def reject(self) -> None:
         if not self.property("busy"):
             super().reject()
+
+
+class PromptDialog(QDialog):
+    def __init__(self, parent=None, prompt: dict | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Design Prompt")
+        self.setMinimumSize(560, 420)
+        body = QVBoxLayout(self)
+        form = QFormLayout()
+        self.title_input = QLineEdit(str((prompt or {}).get("title") or ""))
+        self.title_input.setPlaceholderText("Prompt name")
+        self.text_input = QTextEdit()
+        self.text_input.setPlaceholderText("Write the prompt text to reuse with ChatGPT, image AI, etc.")
+        self.text_input.setPlainText(str((prompt or {}).get("text") or ""))
+        form.addRow("Name", self.title_input)
+        form.addRow("Prompt", self.text_input)
+        body.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        body.addWidget(buttons)
+
+    def prompt(self) -> dict:
+        return {"title": self.title_input.text().strip(), "text": self.text_input.toPlainText().strip()}
+
+    def accept(self) -> None:
+        values = self.prompt()
+        if not values["title"] or not values["text"]:
+            QMessageBox.warning(self, "Design Prompt", "Prompt name and text are required.")
+            return
+        super().accept()
 
 
 class TaskWorker(QObject):
@@ -58,13 +89,16 @@ class ServiceJobClientWindow(QMainWindow):
         self._updating = False
         self._jobs_revision = 0
         self._known_job_ids: set[int] | None = None
+        self.prompts: list[dict] = []
 
         self.pages = QStackedWidget()
         self.login_page = QWidget()
         self.login_dialog = self._build_login_dialog()
         self.jobs_page = self._build_jobs_page()
+        self.prompts_page = self._build_prompts_page()
         self.pages.addWidget(self.login_page)
         self.pages.addWidget(self.jobs_page)
+        self.pages.addWidget(self.prompts_page)
         self.setCentralWidget(self.pages)
         self.setStatusBar(QStatusBar())
         self.jobs_status = QLabel("")
@@ -202,10 +236,11 @@ class ServiceJobClientWindow(QMainWindow):
         self.status_filter.addItem("All", "all")
         self.status_filter.currentIndexChanged.connect(self.refresh_jobs)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.refresh_jobs)
+        prompts = QPushButton("Design Prompts"); prompts.clicked.connect(self.show_prompts_page)
         logout = QPushButton("Sign Out"); logout.clicked.connect(self.logout)
         top.addWidget(title); top.addStretch(); top.addWidget(self.search_input, 1)
         top.addWidget(self.date_filter_check); top.addWidget(self.from_date); top.addWidget(self.to_date)
-        top.addWidget(self.status_filter); top.addWidget(refresh); top.addWidget(logout); outer.addLayout(top)
+        top.addWidget(self.status_filter); top.addWidget(refresh); top.addWidget(prompts); top.addWidget(logout); outer.addLayout(top)
 
         body = QHBoxLayout()
         self.job_table = QTableWidget(0, 12)
@@ -233,6 +268,129 @@ class ServiceJobClientWindow(QMainWindow):
         detail_layout.addWidget(self.detail_title); detail_layout.addWidget(self.detail_status); detail_layout.addWidget(self.detail_text, 1); detail_layout.addWidget(self.start_button); detail_layout.addWidget(self.complete_button); detail_layout.addWidget(self.collect_button)
         body.addWidget(detail, 1); outer.addLayout(body, 1)
         return page
+
+    def _build_prompts_page(self) -> QWidget:
+        page = QWidget(); outer = QVBoxLayout(page)
+        top = QHBoxLayout()
+        title = QLabel("Design Prompts"); title.setStyleSheet("font-size: 22px; font-weight: 700;")
+        back = QPushButton("Service Jobs"); back.clicked.connect(self.show_jobs_page)
+        logout = QPushButton("Sign Out"); logout.clicked.connect(self.logout)
+        top.addWidget(title); top.addStretch(); top.addWidget(back); top.addWidget(logout); outer.addLayout(top)
+
+        body = QHBoxLayout()
+        left = QFrame(); left.setFrameShape(QFrame.Shape.StyledPanel); left.setMaximumWidth(340)
+        left_layout = QVBoxLayout(left)
+        self.prompt_select = QComboBox()
+        self.prompt_select.currentIndexChanged.connect(self.load_prompt_preview)
+        self.copy_prompt_button = QPushButton("Copy Prompt")
+        self.copy_prompt_button.clicked.connect(self.copy_prompt)
+        self.refresh_prompt_button = QPushButton("Refresh")
+        self.refresh_prompt_button.clicked.connect(self.refresh_design_prompts)
+        hint = QLabel("Use placeholders like {job_title}, {details}, {notes}, {appointment}, {status}. Select a service job before copying when you want job values filled in.")
+        hint.setWordWrap(True)
+        left_layout.addWidget(QLabel("Saved Prompts"))
+        left_layout.addWidget(self.prompt_select)
+        left_layout.addWidget(self.copy_prompt_button)
+        left_layout.addWidget(self.refresh_prompt_button)
+        left_layout.addWidget(hint)
+        left_layout.addStretch()
+
+        right = QFrame(); right.setFrameShape(QFrame.Shape.StyledPanel)
+        right_layout = QVBoxLayout(right)
+        right_layout.addWidget(QLabel("Preview"))
+        self.prompt_preview = QTextEdit()
+        self.prompt_preview.setReadOnly(True)
+        self.prompt_preview.setPlaceholderText("Save reusable prompts here, then copy them into ChatGPT or another design AI.")
+        right_layout.addWidget(self.prompt_preview, 1)
+        body.addWidget(left)
+        body.addWidget(right, 1)
+        outer.addLayout(body, 1)
+        self.refresh_prompt_controls()
+        return page
+
+    def refresh_prompt_controls(self) -> None:
+        current = self.prompt_select.currentData() if hasattr(self, "prompt_select") else None
+        self.prompt_select.blockSignals(True)
+        self.prompt_select.clear()
+        for index, prompt in enumerate(self.prompts):
+            self.prompt_select.addItem(str(prompt.get("title") or f"Prompt {index + 1}"), index)
+        if current is not None:
+            row = self.prompt_select.findData(current)
+            if row >= 0:
+                self.prompt_select.setCurrentIndex(row)
+        self.prompt_select.blockSignals(False)
+        self.load_prompt_preview()
+
+    def selected_prompt_index(self) -> int:
+        value = self.prompt_select.currentData()
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            return -1
+        return index if 0 <= index < len(self.prompts) else -1
+
+    def selected_prompt(self) -> dict:
+        index = self.selected_prompt_index()
+        return dict(self.prompts[index]) if index >= 0 else {}
+
+    def load_prompt_preview(self) -> None:
+        prompt = self.selected_prompt()
+        self.prompt_preview.setPlainText(self.render_prompt_text(str(prompt.get("prompt_text") or prompt.get("text") or "")))
+        has_prompt = bool(prompt)
+        self.copy_prompt_button.setEnabled(has_prompt)
+
+    def prompt_context(self) -> dict:
+        job = self.selected_job or {}
+        return {
+            "job_title": str(job.get("job_title") or ""),
+            "details": str(job.get("complaint") or ""),
+            "notes": str(job.get("internal_notes") or ""),
+            "appointment": str(job.get("expected_at") or ""),
+            "status": str(job.get("status") or ""),
+        }
+
+    def render_prompt_text(self, text: str) -> str:
+        values = self.prompt_context()
+        result = str(text or "")
+        for key, value in values.items():
+            result = result.replace("{" + key + "}", value)
+        return result
+
+    def copy_prompt(self) -> None:
+        prompt = self.selected_prompt()
+        if not prompt:
+            return
+        text = self.render_prompt_text(str(prompt.get("prompt_text") or prompt.get("text") or ""))
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage("Prompt copied to clipboard.", 3500)
+
+    def refresh_design_prompts(self) -> None:
+        if not self.api:
+            return
+        client = self.api
+        self.refresh_prompt_button.setEnabled(False)
+
+        def loaded(prompts):
+            if self.api is not client:
+                return
+            self.prompts = list(prompts or []) if isinstance(prompts, list) else []
+            self.refresh_prompt_controls()
+            self.refresh_prompt_button.setEnabled(True)
+            self.statusBar().showMessage(f"{len(self.prompts)} prompt(s) loaded.", 3500)
+
+        self._run_task(
+            client.service_order_design_prompts,
+            loaded,
+            lambda error: (self.refresh_prompt_button.setEnabled(True), QMessageBox.warning(self, "Design Prompts", error)),
+        )
+
+    def show_jobs_page(self) -> None:
+        self.pages.setCurrentWidget(self.jobs_page)
+        self.refresh_jobs()
+
+    def show_prompts_page(self) -> None:
+        self.load_prompt_preview()
+        self.pages.setCurrentWidget(self.prompts_page)
 
     def _date_filter_toggled(self, checked: bool) -> None:
         self.from_date.setEnabled(checked)
@@ -272,6 +430,7 @@ class ServiceJobClientWindow(QMainWindow):
             name = self.user.get("full_name") or self.user.get("username") or "User"
             self.identity_label.setText(f"Signed in: {name}")
             self.pages.setCurrentWidget(self.jobs_page); self.show(); self.login_dialog.accept(); self._known_job_ids = None; self.refresh_timer.start(); self.refresh_jobs()
+            self.refresh_design_prompts()
 
         def authenticate():
             try:
@@ -359,7 +518,7 @@ class ServiceJobClientWindow(QMainWindow):
         self.start_button.setEnabled(False)
         self.collect_button.setEnabled(False)
         if not job:
-            self.detail_title.setText("Select a job"); self.detail_text.clear(); self.detail_status.hide(); self.complete_button.setEnabled(False); return
+            self.detail_title.setText("Select a job"); self.detail_text.clear(); self.detail_status.hide(); self.complete_button.setEnabled(False); self.load_prompt_preview(); return
         status = str(job.get("status") or "received")
         status_label, background, foreground = job_status_style(status)
         self.detail_status.setText(status_label)
@@ -379,6 +538,7 @@ class ServiceJobClientWindow(QMainWindow):
                                      and (not owner or owner == self.user.get("username")))
         self.complete_button.setEnabled(not self._updating and status not in READY_FOR_PICKUP_STATUSES | {"delivered", "cancelled"})
         self.collect_button.setEnabled(not self._updating and status in READY_FOR_PICKUP_STATUSES)
+        self.load_prompt_preview()
 
     def start_job(self) -> None:
         if not self.api or not self.selected_job or self._updating:

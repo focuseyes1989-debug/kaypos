@@ -24,6 +24,8 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
         self.repo.notifications.return_value = []
         self.repo.list_presets.return_value = [{"id": 1}]
         self.repo.save_preset.return_value = {"id": 1, "name": "A4 Color"}
+        self.repo.list_design_prompts.return_value = [{"id": 1, "title": "Sticker"}]
+        self.repo.save_design_prompt.return_value = {"id": 1, "title": "Sticker"}
         self.patch = patch("server.api.ServiceOrderRepository", return_value=self.repo)
         self.patch.start()
 
@@ -46,6 +48,8 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
             "/api/service-orders-notifications",
             "/api/print-service-presets",
             "/api/print-service-presets/{preset_id}",
+            "/api/service-order-design-prompts",
+            "/api/service-order-design-prompts/{prompt_id}",
         }.issubset(paths))
 
     def test_delete_calls_repository(self):
@@ -160,6 +164,20 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 403)
         result = api.create_print_service_preset(payload, {"role": "Manager"})
         self.assertEqual(result["preset"]["name"], "A4 Color")
+
+    def test_design_prompt_crud_uses_repository_and_requires_manager_for_writes(self):
+        self.assertEqual(api.service_order_design_prompts({})["prompts"], [{"id": 1, "title": "Sticker"}])
+        payload = api.ServiceOrderDesignPromptRequest(title="Sticker", prompt_text="Design {job_title}")
+        with self.assertRaises(HTTPException) as caught:
+            api.create_service_order_design_prompt(payload, {"role": "Cashier"})
+        self.assertEqual(caught.exception.status_code, 403)
+        result = api.create_service_order_design_prompt(payload, {"role": "Manager"})
+        self.assertEqual(result["prompt"]["title"], "Sticker")
+        self.repo.save_design_prompt.assert_called_once_with({"title": "Sticker", "prompt_text": "Design {job_title}", "sort_order": 0, "active": True})
+        api.update_service_order_design_prompt(1, payload, {"role": "Admin"})
+        self.repo.save_design_prompt.assert_called_with({"title": "Sticker", "prompt_text": "Design {job_title}", "sort_order": 0, "active": True}, 1)
+        api.delete_service_order_design_prompt(1, {"role": "Manager"})
+        self.repo.deactivate_design_prompt.assert_called_once_with(1)
 
 
 if __name__ == "__main__":

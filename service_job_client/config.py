@@ -18,10 +18,17 @@ def load_config(path: Path | None = None) -> dict:
         data = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, ValueError, json.JSONDecodeError):
         data = {}
+    prompts = []
+    for item in data.get("prompts") or []:
+        title = str((item or {}).get("title") or "").strip()
+        text = str((item or {}).get("text") or "").strip()
+        if title and text:
+            prompts.append({"title": title, "text": text})
     return {
         "server_url": str(data.get("server_url") or DEFAULT_SERVER_URL).strip(),
         "insecure_tls": bool(data.get("insecure_tls", True)),
         "remember_username": str(data.get("remember_username") or "").strip(),
+        "prompts": prompts,
     }
 
 
@@ -34,4 +41,3 @@ def save_config(values: dict, path: Path | None = None) -> dict:
     temporary.write_text(json.dumps(current, indent=2), encoding="utf-8")
     temporary.replace(target)
     return current
-

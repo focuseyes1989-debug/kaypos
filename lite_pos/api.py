@@ -333,6 +333,17 @@ class LiteApiClient:
     def delete_print_service_preset(self, preset_id: int) -> None:
         self._request("DELETE", f"/api/print-service-presets/{int(preset_id)}")
 
+    def service_order_design_prompts(self) -> list[dict]:
+        return list(self._request("GET", "/api/service-order-design-prompts").get("prompts") or [])
+
+    def save_service_order_design_prompt(self, values: dict, prompt_id: int | None = None) -> dict:
+        method = "PUT" if prompt_id else "POST"
+        path = f"/api/service-order-design-prompts/{int(prompt_id)}" if prompt_id else "/api/service-order-design-prompts"
+        return dict(self._request(method, path, json=values).get("prompt") or {})
+
+    def delete_service_order_design_prompt(self, prompt_id: int) -> None:
+        self._request("DELETE", f"/api/service-order-design-prompts/{int(prompt_id)}")
+
     def customers(self, query: str = "", limit: int = 100) -> list[dict]:
         return list(self._request(
             "GET", "/api/customers", params={"q": query.strip(), "limit": max(1, min(limit, 200))}
