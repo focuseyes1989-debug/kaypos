@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import QDate, QObject, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QDate, QObject, QStringListModel, QThread, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
@@ -234,6 +234,7 @@ class ServiceJobClientWindow(QMainWindow):
         self.status_filter.addItem("Ready for Pickup", "ready_for_pickup")
         self.status_filter.addItem("Delivered", "delivered")
         self.status_filter.addItem("All", "all")
+        self._make_searchable_combo(self.status_filter, "Search status")
         self.status_filter.currentIndexChanged.connect(self.refresh_jobs)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.refresh_jobs)
         prompts = QPushButton("Design Prompts"); prompts.clicked.connect(self.show_prompts_page)
@@ -281,6 +282,7 @@ class ServiceJobClientWindow(QMainWindow):
         left = QFrame(); left.setFrameShape(QFrame.Shape.StyledPanel); left.setMaximumWidth(340)
         left_layout = QVBoxLayout(left)
         self.prompt_select = QComboBox()
+        self._make_searchable_combo(self.prompt_select, "Search prompt")
         self.prompt_select.currentIndexChanged.connect(self.load_prompt_preview)
         self.copy_prompt_button = QPushButton("Copy Prompt")
         self.copy_prompt_button.clicked.connect(self.copy_prompt)
@@ -314,12 +316,38 @@ class ServiceJobClientWindow(QMainWindow):
         self.prompt_select.clear()
         for index, prompt in enumerate(self.prompts):
             self.prompt_select.addItem(str(prompt.get("title") or f"Prompt {index + 1}"), index)
+        self._refresh_combo_completer(self.prompt_select)
         if current is not None:
             row = self.prompt_select.findData(current)
             if row >= 0:
                 self.prompt_select.setCurrentIndex(row)
         self.prompt_select.blockSignals(False)
         self.load_prompt_preview()
+
+    @staticmethod
+    def _make_searchable_combo(combo: QComboBox, placeholder: str = "Search") -> None:
+        combo.setEditable(True)
+        combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        combo.setMinimumWidth(180)
+        combo.setMaxVisibleItems(12)
+        line_edit = combo.lineEdit()
+        if line_edit:
+            line_edit.setPlaceholderText(placeholder)
+            line_edit.setClearButtonEnabled(True)
+        completer = QCompleter(combo)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        combo.setCompleter(completer)
+        ServiceJobClientWindow._refresh_combo_completer(combo)
+
+    @staticmethod
+    def _refresh_combo_completer(combo: QComboBox) -> None:
+        completer = combo.completer()
+        if not completer:
+            return
+        labels = [combo.itemText(index) for index in range(combo.count())]
+        completer.setModel(QStringListModel([label for label in labels if label.strip()], completer))
 
     def selected_prompt_index(self) -> int:
         value = self.prompt_select.currentData()

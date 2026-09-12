@@ -8,11 +8,11 @@ import html
 from collections.abc import Callable
 
 from PyQt6 import sip
-from PyQt6.QtCore import QDate, QDateTime, QMarginsF, QObject, QRectF, QSize, QSizeF, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QDate, QDateTime, QMarginsF, QObject, QRectF, QSize, QSizeF, QStringListModel, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
+    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QCompleter, QDialog, QDialogButtonBox, QFormLayout,
     QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, QHeaderView, QHBoxLayout, QLabel,
     QGraphicsOpacityEffect, QInputDialog, QLineEdit, QMainWindow, QMessageBox, QPushButton as QtPushButton,
     QStackedWidget, QStyle, QStyleOptionButton, QStylePainter, QSystemTrayIcon,
@@ -2006,8 +2006,10 @@ class LiteWindow(QMainWindow):
         self.management_search.returnPressed.connect(self.load_management)
         self.inventory_category_filter = QComboBox()
         self.inventory_category_filter.addItem("All Categories", "")
+        self._make_searchable_category_filter(self.inventory_category_filter, "Search category")
         refresh = QPushButton("Search / Refresh")
         refresh.clicked.connect(self.load_management)
+        self.inventory_category_filter.lineEdit().returnPressed.connect(self.load_management)
         self.inventory_category_filter.currentIndexChanged.connect(self.load_management)
         top.addStretch()
         top.addWidget(self.management_search, 1)
@@ -2159,6 +2161,7 @@ class LiteWindow(QMainWindow):
         self.service_order_status_filter.addItem("Ready for Pickup", "ready_for_pickup")
         self.service_order_status_filter.addItem("Delivered", "delivered")
         self.service_order_status_filter.addItem("Cancelled", "cancelled")
+        self._make_searchable_combo(self.service_order_status_filter, "Search status")
         self.service_order_status_filter.currentIndexChanged.connect(self.load_service_orders)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.load_service_orders)
         filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
@@ -2243,7 +2246,7 @@ class LiteWindow(QMainWindow):
         page = QWidget(); outer = QVBoxLayout(page); outer.setContentsMargins(14,12,14,12); outer.setSpacing(8)
         top = QHBoxLayout(); top.addWidget(QLabel("Products", objectName="title")); top.addStretch()
         self.manage_product_search = QLineEdit(); self.manage_product_search.setPlaceholderText("Search name, SKU or barcode…"); self.manage_product_search.returnPressed.connect(self.load_product_management)
-        self.product_category_filter = QComboBox(); self.product_category_filter.addItem("All Categories", ""); self.product_category_filter.currentIndexChanged.connect(self.load_product_management)
+        self.product_category_filter = QComboBox(); self.product_category_filter.addItem("All Categories", ""); self._make_searchable_category_filter(self.product_category_filter, "Search category"); self.product_category_filter.lineEdit().returnPressed.connect(self.load_product_management); self.product_category_filter.currentIndexChanged.connect(self.load_product_management)
         search = QPushButton("Search / Refresh"); categories = QPushButton("Manage Categories"); add = QPushButton("Add Product"); edit = QPushButton("Edit Product")
         search.clicked.connect(self.load_product_management); categories.clicked.connect(self.manage_categories); add.clicked.connect(self.add_managed_product); edit.clicked.connect(self.edit_managed_product)
         top.addWidget(self.manage_product_search,1); top.addWidget(self.product_category_filter); top.addWidget(search); top.addWidget(categories); top.addWidget(add); top.addWidget(edit); outer.addLayout(top)
@@ -3698,7 +3701,7 @@ class LiteWindow(QMainWindow):
             return
         load_token=self._new_page_load("inventory")
         query = self.management_search.text().strip()
-        category = str(self.inventory_category_filter.currentData() or "")
+        category = self._category_filter_value(self.inventory_category_filter)
 
         def loaded(result):
             if not self._page_load_is_current("inventory",load_token): return
@@ -4412,7 +4415,7 @@ class LiteWindow(QMainWindow):
     def load_product_management(self) -> None:
         if not self.api: return
         load_token=self._new_page_load("products")
-        query = self.manage_product_search.text().strip(); category = str(self.product_category_filter.currentData() or ""); self.manage_product_status.setText("Loading…")
+        query = self.manage_product_search.text().strip(); category = self._category_filter_value(self.product_category_filter); self.manage_product_status.setText("Loading…")
         def loaded(result):
             if not self._page_load_is_current("products",load_token): return
             products, categories = result; self.managed_products = list(products); self.managed_categories = list(categories)
@@ -4435,19 +4438,69 @@ class LiteWindow(QMainWindow):
         self._run_task(lambda:(self.api.products(query,limit=100,category=category),self.api.categories()),loaded,lambda error:(self.manage_product_status.setText("Could not load products"),QMessageBox.critical(self,"Products",error)))
 
     @staticmethod
+    def _make_searchable_combo(combo: QComboBox, placeholder: str = "Search") -> None:
+        combo.setEditable(True)
+        combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        combo.setMinimumWidth(210)
+        combo.setMaxVisibleItems(12)
+        line_edit = combo.lineEdit()
+        if line_edit:
+            line_edit.setPlaceholderText(placeholder)
+            line_edit.setClearButtonEnabled(True)
+        completer = QCompleter(combo)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        combo.setCompleter(completer)
+        LiteWindow._refresh_combo_completer(combo)
+
+    @staticmethod
+    def _make_searchable_category_filter(combo: QComboBox, placeholder: str = "Search category") -> None:
+        LiteWindow._make_searchable_combo(combo, placeholder)
+
+    @staticmethod
+    def _refresh_combo_completer(combo: QComboBox, values: list[str] | None = None) -> None:
+        completer = combo.completer()
+        if not completer:
+            return
+        labels = values if values is not None else [combo.itemText(index) for index in range(combo.count())]
+        completer.setModel(QStringListModel([str(label) for label in labels if str(label).strip()], completer))
+
+    @staticmethod
+    def _category_filter_value(combo: QComboBox) -> str:
+        text = combo.currentText().strip()
+        if not text or text == "All Categories":
+            return ""
+        index = combo.findText(text, Qt.MatchFlag.MatchExactly)
+        if index >= 0:
+            return str(combo.itemData(index) or text).strip()
+        return text
+
+    @staticmethod
     def _populate_category_filter(combo: QComboBox, categories: list[str], selected: str = "") -> None:
         if not qt_alive(combo):
             return
+        current_text = combo.currentText().strip()
         combo.blockSignals(True)
         try:
             combo.clear()
             combo.addItem("All Categories", "")
+            completer_values = ["All Categories"]
             for category in categories:
                 name = str(category or "").strip()
                 if name:
                     combo.addItem(name, name)
+                    completer_values.append(name)
             selected_index = combo.findData(selected)
-            combo.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+            if selected_index >= 0:
+                combo.setCurrentIndex(selected_index)
+            elif selected:
+                combo.setCurrentText(selected)
+            elif current_text and current_text != "All Categories":
+                combo.setCurrentText(current_text)
+            else:
+                combo.setCurrentIndex(0)
+            LiteWindow._refresh_combo_completer(combo, completer_values)
         finally:
             if qt_alive(combo):
                 combo.blockSignals(False)
