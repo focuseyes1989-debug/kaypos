@@ -333,7 +333,7 @@ class ServiceJobClientWindow(QMainWindow):
         line_edit = combo.lineEdit()
         if line_edit:
             line_edit.setPlaceholderText(placeholder)
-            line_edit.setClearButtonEnabled(True)
+            line_edit.setClearButtonEnabled(False)
         completer = QCompleter(combo)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
