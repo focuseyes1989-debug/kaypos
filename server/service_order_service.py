@@ -86,6 +86,22 @@ def _table_exists(cursor, name: str) -> bool:
     return cursor.fetchone() is not None
 
 
+def _table_columns(cursor, name: str) -> set[str]:
+    if _is_sqlite_cursor(cursor):
+        cursor.execute(f"PRAGMA table_info({name})")
+        return {str(row[1]) for row in cursor.fetchall()}
+    cursor.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA() AND table_name = ?",
+        (name,),
+    )
+    return {str(row[0]) for row in cursor.fetchall()}
+
+
+def _add_column_if_missing(cursor, table: str, column: str, definition: str) -> None:
+    if column not in _table_columns(cursor, table):
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def _ensure_column(cursor, table: str, column: str, definition: str) -> None:
     if _is_sqlite_cursor(cursor):
         cursor.execute(f"PRAGMA table_info({table})")
@@ -288,12 +304,16 @@ def ensure_service_order_schema(cursor) -> None:
             id {pk_sql},
             title TEXT NOT NULL UNIQUE,
             prompt_text TEXT NOT NULL,
+            image_data TEXT,
+            image_name TEXT,
             sort_order INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1,
             created_at TIMESTAMP NOT NULL,
             updated_at TIMESTAMP NOT NULL
         )
     """)
+    _add_column_if_missing(cursor, "service_order_design_prompts", "image_data", "TEXT")
+    _add_column_if_missing(cursor, "service_order_design_prompts", "image_name", "TEXT")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_status ON service_orders(status, updated_at)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_customer ON service_orders(customer_id, updated_at)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_received ON service_orders(received_at, id)")
@@ -568,6 +588,12 @@ class ServiceOrderRepository:
             raise ValueError("Prompt title is required")
         if not text:
             raise ValueError("Prompt text is required")
+        image_data = str(values.get("image_data") or "").strip()
+        image_name = str(values.get("image_name") or "").strip()[:255]
+        if image_data and not image_data.startswith("data:image/"):
+            raise ValueError("Prompt image must be an image data URL")
+        if len(image_data) > 5_000_000:
+            raise ValueError("Prompt image is too large")
         sort_order = max(0, int(values.get("sort_order") or 0))
         active = 1 if values.get("active", True) else 0
         now = _now(); conn = self._connection_factory()
@@ -576,18 +602,18 @@ class ServiceOrderRepository:
             if prompt_id:
                 cursor.execute("""
                     UPDATE service_order_design_prompts
-                    SET title = ?, prompt_text = ?, sort_order = ?, active = ?, updated_at = ?
+                    SET title = ?, prompt_text = ?, image_data = ?, image_name = ?, sort_order = ?, active = ?, updated_at = ?
                     WHERE id = ?
-                """, (title, text, sort_order, active, now, int(prompt_id)))
+                """, (title, text, image_data, image_name, sort_order, active, now, int(prompt_id)))
                 if cursor.rowcount != 1:
                     raise ValueError("Design prompt not found")
                 saved_id = int(prompt_id)
             else:
                 saved_id = _insert_and_get_id(cursor, """
                     INSERT INTO service_order_design_prompts
-                        (title, prompt_text, sort_order, active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (title, text, sort_order, active, now, now))
+                        (title, prompt_text, image_data, image_name, sort_order, active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (title, text, image_data, image_name, sort_order, active, now, now))
             conn.commit(); cursor.execute("SELECT * FROM service_order_design_prompts WHERE id = ?", (saved_id,))
             return _row(cursor)
         except Exception:

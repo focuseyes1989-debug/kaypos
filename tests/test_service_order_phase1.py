@@ -232,18 +232,26 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
         prompt = self.repo.save_design_prompt({
             "title": "Vinyl Sticker",
             "prompt_text": "Create a design for {job_title}: {details}",
+            "image_data": "data:image/png;base64,aW1hZ2U=",
+            "image_name": "sample.png",
             "sort_order": 2,
         })
         self.assertEqual(prompt["title"], "Vinyl Sticker")
+        self.assertEqual(prompt["image_name"], "sample.png")
         self.assertEqual(self.repo.list_design_prompts()[0]["prompt_text"], "Create a design for {job_title}: {details}")
         updated = self.repo.save_design_prompt({
             "title": "Vinyl Sticker Updated",
             "prompt_text": "Use notes: {notes}",
+            "image_data": "",
+            "image_name": "",
             "sort_order": 1,
         }, prompt["id"])
         self.assertEqual(updated["sort_order"], 1)
+        self.assertEqual(updated["image_data"], "")
         with self.assertRaisesRegex(ValueError, "Prompt text is required"):
             self.repo.save_design_prompt({"title": "Empty", "prompt_text": ""})
+        with self.assertRaisesRegex(ValueError, "Prompt image must be an image data URL"):
+            self.repo.save_design_prompt({"title": "Bad image", "prompt_text": "Prompt", "image_data": "not-image"})
         self.repo.deactivate_design_prompt(prompt["id"])
         self.assertEqual(self.repo.list_design_prompts(), [])
         self.assertEqual(len(self.repo.list_design_prompts(include_inactive=True)), 1)

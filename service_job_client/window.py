@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import base64
 from collections.abc import Callable
 
 from PyQt6.QtCore import QDate, QObject, QStringListModel, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
@@ -304,6 +305,12 @@ class ServiceJobClientWindow(QMainWindow):
         self.prompt_preview.setReadOnly(True)
         self.prompt_preview.setPlaceholderText("Save reusable prompts here, then copy them into ChatGPT or another design AI.")
         right_layout.addWidget(self.prompt_preview, 1)
+        right_layout.addWidget(QLabel("Sample Image"))
+        self.prompt_image = QLabel("No sample image")
+        self.prompt_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.prompt_image.setMinimumHeight(180)
+        self.prompt_image.setStyleSheet("border: 1px solid #d7e0ed; border-radius: 8px; color: #6b7280;")
+        right_layout.addWidget(self.prompt_image)
         body.addWidget(left)
         body.addWidget(right, 1)
         outer.addLayout(body, 1)
@@ -364,8 +371,26 @@ class ServiceJobClientWindow(QMainWindow):
     def load_prompt_preview(self) -> None:
         prompt = self.selected_prompt()
         self.prompt_preview.setPlainText(self.render_prompt_text(str(prompt.get("prompt_text") or prompt.get("text") or "")))
+        self.load_prompt_image(str(prompt.get("image_data") or ""))
         has_prompt = bool(prompt)
         self.copy_prompt_button.setEnabled(has_prompt)
+
+    def load_prompt_image(self, image_data: str) -> None:
+        if not image_data:
+            self.prompt_image.setPixmap(QPixmap())
+            self.prompt_image.setText("No sample image")
+            return
+        try:
+            encoded = image_data.split(",", 1)[1] if "," in image_data else image_data
+            pixmap = QPixmap()
+            pixmap.loadFromData(base64.b64decode(encoded))
+            if pixmap.isNull():
+                raise ValueError("Invalid image")
+            self.prompt_image.setPixmap(pixmap.scaled(420, 220, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.prompt_image.setText("")
+        except Exception:
+            self.prompt_image.setPixmap(QPixmap())
+            self.prompt_image.setText("Could not preview image")
 
     def prompt_context(self) -> dict:
         job = self.selected_job or {}

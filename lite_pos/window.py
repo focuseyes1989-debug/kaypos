@@ -4314,14 +4314,14 @@ class LiteWindow(QMainWindow):
             dialog = QDialog(self); dialog.setWindowTitle("Service Job Design Prompts"); dialog.resize(780, 520)
             layout = QVBoxLayout(dialog)
             table = QTableWidget(len(prompts), 3)
-            table.setHorizontalHeaderLabels(["Title", "Prompt", "Sort"])
+            table.setHorizontalHeaderLabels(["Title", "Prompt", "Image"])
             table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             table.verticalHeader().setVisible(False)
             table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
             table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
             for row, prompt in enumerate(prompts):
-                values = (prompt.get("title") or "", prompt.get("prompt_text") or "", prompt.get("sort_order") or 0)
+                values = (prompt.get("title") or "", prompt.get("prompt_text") or "", "Yes" if prompt.get("image_data") else "")
                 for column, value in enumerate(values):
                     cell = QTableWidgetItem(str(value)); cell.setData(Qt.ItemDataRole.UserRole, int(prompt.get("id") or 0)); table.setItem(row, column, cell)
             layout.addWidget(table, 1)
@@ -4334,7 +4334,7 @@ class LiteWindow(QMainWindow):
                 return prompts[row] if 0 <= row < len(prompts) else None
 
             def open_editor(prompt=None):
-                editor = QDialog(dialog); editor.setWindowTitle("Design Prompt"); editor.resize(620, 430)
+                editor = QDialog(dialog); editor.setWindowTitle("Design Prompt"); editor.resize(680, 560)
                 editor_layout = QVBoxLayout(editor); form = QFormLayout()
                 title = QLineEdit(str((prompt or {}).get("title") or ""))
                 sort_order = QSpinBox(); sort_order.setRange(0, 999999); sort_order.setValue(int((prompt or {}).get("sort_order") or 0))
@@ -4342,11 +4342,60 @@ class LiteWindow(QMainWindow):
                 text.setPlaceholderText("Prompt text. You can use {job_title}, {details}, {notes}, {appointment}, {status}.")
                 form.addRow("Title", title); form.addRow("Sort", sort_order); form.addRow("Prompt", text)
                 editor_layout.addLayout(form)
+                image_state = {
+                    "data": str((prompt or {}).get("image_data") or ""),
+                    "name": str((prompt or {}).get("image_name") or ""),
+                }
+                image_preview = QLabel("No sample image")
+                image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                image_preview.setMinimumHeight(150)
+                image_preview.setStyleSheet("border: 1px solid #d7e0ed; border-radius: 8px; color: #6b7280;")
+
+                def refresh_image_preview():
+                    data = image_state["data"]
+                    if not data:
+                        image_preview.setText("No sample image"); image_preview.setPixmap(QPixmap()); return
+                    try:
+                        encoded = data.split(",", 1)[1] if "," in data else data
+                        pixmap = QPixmap()
+                        pixmap.loadFromData(base64.b64decode(encoded))
+                        if pixmap.isNull():
+                            raise ValueError("Invalid image")
+                        image_preview.setPixmap(pixmap.scaled(300, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                        image_preview.setText("")
+                    except Exception:
+                        image_preview.setPixmap(QPixmap()); image_preview.setText("Could not preview image")
+
+                def upload_image():
+                    path, _filter = QFileDialog.getOpenFileName(editor, "Choose Sample Image", "", "Images (*.png *.jpg *.jpeg *.webp)")
+                    if not path:
+                        return
+                    with open(path, "rb") as handle:
+                        raw = handle.read()
+                    if len(raw) > 3_500_000:
+                        QMessageBox.warning(editor, "Design Prompt", "Image is too large. Choose an image under 3.5 MB."); return
+                    suffix = path.rsplit(".", 1)[-1].lower()
+                    mime = "image/jpeg" if suffix in {"jpg", "jpeg"} else "image/webp" if suffix == "webp" else "image/png"
+                    image_state["data"] = f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
+                    image_state["name"] = path.replace("\\", "/").rsplit("/", 1)[-1]
+                    refresh_image_preview()
+
+                def remove_image():
+                    image_state["data"] = ""; image_state["name"] = ""; refresh_image_preview()
+
+                image_buttons = QHBoxLayout()
+                upload = QPushButton("Upload Sample Image"); upload.clicked.connect(upload_image)
+                remove = QPushButton("Remove Image"); remove.clicked.connect(remove_image)
+                image_buttons.addWidget(upload); image_buttons.addWidget(remove); image_buttons.addStretch()
+                editor_layout.addWidget(QLabel("Sample Image"))
+                editor_layout.addWidget(image_preview)
+                editor_layout.addLayout(image_buttons)
+                refresh_image_preview()
                 buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
                 buttons.accepted.connect(editor.accept); buttons.rejected.connect(editor.reject); editor_layout.addWidget(buttons)
                 if editor.exec() != QDialog.DialogCode.Accepted:
                     return
-                values = {"title": title.text().strip(), "prompt_text": text.toPlainText().strip(), "sort_order": sort_order.value(), "active": True}
+                values = {"title": title.text().strip(), "prompt_text": text.toPlainText().strip(), "image_data": image_state["data"], "image_name": image_state["name"], "sort_order": sort_order.value(), "active": True}
                 if not values["title"] or not values["prompt_text"]:
                     QMessageBox.warning(dialog, "Design Prompt", "Title and prompt text are required."); return
                 prompt_id = int((prompt or {}).get("id") or 0) or None

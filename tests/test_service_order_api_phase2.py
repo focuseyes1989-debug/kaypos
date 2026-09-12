@@ -173,9 +173,10 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 403)
         result = api.create_service_order_design_prompt(payload, {"role": "Manager"})
         self.assertEqual(result["prompt"]["title"], "Sticker")
-        self.repo.save_design_prompt.assert_called_once_with({"title": "Sticker", "prompt_text": "Design {job_title}", "sort_order": 0, "active": True})
+        expected = {"title": "Sticker", "prompt_text": "Design {job_title}", "image_data": "", "image_name": "", "sort_order": 0, "active": True}
+        self.repo.save_design_prompt.assert_called_once_with(expected)
         api.update_service_order_design_prompt(1, payload, {"role": "Admin"})
-        self.repo.save_design_prompt.assert_called_with({"title": "Sticker", "prompt_text": "Design {job_title}", "sort_order": 0, "active": True}, 1)
+        self.repo.save_design_prompt.assert_called_with(expected, 1)
         api.delete_service_order_design_prompt(1, {"role": "Manager"})
         self.repo.deactivate_design_prompt.assert_called_once_with(1)
 
