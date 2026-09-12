@@ -1,5 +1,6 @@
-const CACHE = 'kay-pos-touch-w10-v154';
+const CACHE = 'kay-pos-touch-w10-v155';
 const SHELL = [
+  '/static/touch_pos/touch-combobox.js?v=20260912-searchable-selects',
   '/static/touch_pos/touch-locations.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-suppliers.js?v=20260910-cart-footer-panel1',
   '/static/touch_pos/touch-customers.js?v=20260910-cart-footer-panel1',

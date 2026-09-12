@@ -163,6 +163,102 @@
   color:var(--ink);
   font-size:11px;
 }
+.touch-combo-select{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+.touch-combo{
+  position:relative;
+  width:100%;
+  min-width:0;
+}
+.touch-combo-input{
+  width:100%;
+  height:42px;
+  min-width:0;
+  padding:0 34px 0 11px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  outline:0;
+  font:inherit;
+}
+.touch-combo:after{
+  content:"";
+  position:absolute;
+  right:12px;
+  top:50%;
+  width:8px;
+  height:8px;
+  border-right:2px solid var(--muted);
+  border-bottom:2px solid var(--muted);
+  transform:translateY(-65%) rotate(45deg);
+  pointer-events:none;
+}
+.touch-combo-input:focus{
+  border-color:#7aa7f8;
+  box-shadow:0 0 0 3px rgba(37,99,235,.13);
+}
+.touch-combo.disabled{
+  opacity:.6;
+}
+.touch-combo-list{
+  position:absolute;
+  z-index:80;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  max-height:min(280px,42dvh);
+  overflow:auto;
+  padding:5px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 14px 34px rgba(15,23,42,.18);
+  display:none;
+}
+.touch-combo.open .touch-combo-list{
+  display:grid;
+  gap:3px;
+}
+.touch-combo-option{
+  min-height:36px;
+  width:100%;
+  padding:7px 9px;
+  border:0;
+  border-radius:7px;
+  background:#fff;
+  color:var(--ink);
+  text-align:left;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.touch-combo-option:hover,
+.touch-combo-option[aria-selected="true"]{
+  background:#edf3ff;
+  color:#174ba7;
+}
+.touch-combo-empty{
+  padding:10px;
+  color:var(--muted);
+  font-size:12px;
+}
+html[data-touch-theme=dark] .touch-combo-input,
+html[data-touch-theme=dark] .touch-combo-list,
+html[data-touch-theme=dark] .touch-combo-option{
+  background:#142033;
+  color:var(--ink);
+  border-color:var(--line);
+}
+html[data-touch-theme=dark] .touch-combo-option:hover,
+html[data-touch-theme=dark] .touch-combo-option[aria-selected="true"]{
+  background:#244773;
+  color:#eff6ff;
+}
 @media screen and (max-width:760px){
   .categories{
     display:block;
