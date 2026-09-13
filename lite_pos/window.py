@@ -23,6 +23,15 @@ from PyQt6.QtWidgets import (
 from lite_pos.api import LiteApiClient, LiteAuthError
 from lite_pos.cart import CartError, LiteCart, sold_by_mode
 from lite_pos.config import load_config, save_config
+from lite_pos.offline_sales import (
+    create_offline_sale,
+    load_product_cache,
+    mark_failed,
+    mark_synced,
+    pending_count,
+    pending_sales,
+    save_product_cache,
+)
 from lite_pos.theme import apply_lite_theme, normalize_theme
 from lite_pos.settings_center import LiteSettingsCenter
 from lite_pos.service_jobs import READY_FOR_PICKUP_STATUSES, job_status_style
@@ -1440,6 +1449,7 @@ class LiteWindow(QMainWindow):
         self.setMinimumSize(960, 600)
         self.theme_name = normalize_theme(load_config().get("theme"))
         self.api: LiteApiClient | None = None
+        self.offline_mode = False
         self.user: dict = {}
         self.products: list[dict] = []
         self.product_page_size = 50
@@ -1490,6 +1500,7 @@ class LiteWindow(QMainWindow):
         self._service_job_polling = False
         self._service_job_updating = False
         self._service_job_snapshot = None
+        self._offline_syncing = False
         self._session_expired_handled = False
         self.service_job_tray = QSystemTrayIcon(QApplication.instance().windowIcon(), self)
         self.service_job_tray.setToolTip("KAY POS Service Jobs")
@@ -1520,6 +1531,7 @@ class LiteWindow(QMainWindow):
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
         self._add_shortcut("Ctrl+Shift+P", self.open_printer_settings)
+        QTimer.singleShot(500, self._update_offline_status)
 
     def _apply_theme_styles(self) -> None:
         if self.theme_name == "Dark":
@@ -2643,6 +2655,65 @@ class LiteWindow(QMainWindow):
         )
         self.logout("Please login again.")
 
+    def _update_offline_status(self) -> None:
+        count = pending_count()
+        if count:
+            self.statusBar().showMessage(f"{count} offline sale(s) pending sync")
+
+    def _sync_offline_sales(self) -> None:
+        if not self.api or self._offline_syncing:
+            return
+        sales = pending_sales()
+        if not sales:
+            return
+        self._offline_syncing = True
+
+        def sync() -> int:
+            synced = 0
+            for sale in pending_sales():
+                payload = dict(sale.get("payload") or {})
+                sale_items = [
+                    {
+                        "product_id": item.get("product_id"),
+                        "variant_id": item.get("variant_id"),
+                        "qty": item.get("qty"),
+                        "manual_price": item.get("manual_price"),
+                    }
+                    for item in list(payload.get("items") or [])
+                ]
+                try:
+                    self.api.checkout(
+                        sale_items,
+                        float(payload.get("payment") or 0),
+                        str(payload.get("payment_type") or "Cash"),
+                        None,
+                        "",
+                        "",
+                        False,
+                        float(payload.get("discount_amount") or 0),
+                    )
+                except Exception as exc:
+                    mark_failed(str(sale.get("id") or ""), str(exc))
+                    raise
+                mark_synced(str(sale.get("id") or ""))
+                synced += 1
+            return synced
+
+        def completed(synced: int):
+            self._offline_syncing = False
+            remaining = pending_count()
+            if remaining:
+                self.statusBar().showMessage(f"{remaining} offline sale(s) pending sync")
+            elif synced:
+                self.statusBar().showMessage(f"Synced {synced} offline sale(s)")
+                QTimer.singleShot(100, self.load_products)
+
+        def failed(error: str):
+            self._offline_syncing = False
+            self.statusBar().showMessage(f"Offline sync paused: {error}")
+
+        self._run_task(sync, completed, failed)
+
     def _new_page_load(self, page: str) -> int:
         """Return a generation token so pages can load independently and discard stale replies."""
         token = self._page_load_tokens.get(page, 0) + 1
@@ -2686,6 +2757,7 @@ class LiteWindow(QMainWindow):
 
         def accepted(user):
             self.api = client
+            self.offline_mode = False
             self.user = dict(user)
             self._session_expired_handled = False
             save_config({
@@ -2716,15 +2788,39 @@ class LiteWindow(QMainWindow):
             QTimer.singleShot(250, self.open_sale_display_if_available)
             QTimer.singleShot(100, self.load_categories)
             QTimer.singleShot(120, self.load_receipt_settings)
+            QTimer.singleShot(300, self._sync_offline_sales)
             self._known_service_job_ids = None
             self._service_job_snapshot = None
             self.service_job_timer.start()
             QTimer.singleShot(200, self._poll_service_jobs)
 
-        self._run_task(authenticate, accepted, lambda error: self._set_busy(False, error))
+        def login_failed(error: str):
+            cached = load_product_cache()
+            if cached and "login" not in str(error).casefold() and "password" not in str(error).casefold():
+                self.api = None
+                self.offline_mode = True
+                self.user = {"username": username, "role": "offline"}
+                self.password_input.clear()
+                self._set_busy(False, "")
+                self.nav_buttons["Setting Center"].setVisible(False)
+                self.service_order_reports_button.hide()
+                self.service_order_presets_button.hide()
+                self.service_order_tabs.setTabEnabled(1, False)
+                self.identity_label.setText(f"{username or 'Cashier'}\nRole: Offline")
+                self.welcome_label.setText("Offline mode. Cash sales will sync when the server is available.")
+                self.pages.setCurrentWidget(self.workspace_page)
+                self.login_dialog.accept()
+                self.showFullScreen()
+                self.workspace_stack.setCurrentWidget(self.pos_page)
+                self.statusBar().showMessage(f"Offline mode. {pending_count()} sale(s) pending sync.")
+                QTimer.singleShot(100, self.load_products)
+                return
+            self._set_busy(False, error)
+
+        self._run_task(authenticate, accepted, login_failed)
 
     def load_products(self) -> None:
-        if not self.api:
+        if not self.api and not load_product_cache():
             return
         self._product_load_token = self._new_page_load("pos_products")
         self.products = []
@@ -2749,7 +2845,7 @@ class LiteWindow(QMainWindow):
         )
 
     def _load_product_page(self) -> None:
-        if not self.api or self._product_page_loading:
+        if self._product_page_loading:
             return
         self._product_page_loading = True
         load_token = getattr(self,"_product_load_token",None)
@@ -2774,6 +2870,8 @@ class LiteWindow(QMainWindow):
             page = list(products)
             start_row = len(self.products)
             self.products.extend(page)
+            if self.api and not query and not selected_category:
+                save_product_cache(self.products)
             self.product_table.setUpdatesEnabled(False); self.product_table.blockSignals(True); self.product_table.setRowCount(len(self.products))
             for page_row, product in enumerate(page):
                 row = start_row + page_row
@@ -2835,9 +2933,33 @@ class LiteWindow(QMainWindow):
 
         def failed(error):
             self._product_page_loading = False
+            if offset == 0:
+                cached = load_product_cache()
+                if cached:
+                    search = query.casefold()
+                    filtered = []
+                    for product in cached:
+                        text = " ".join(
+                            str(product.get(key) or "")
+                            for key in ("name", "barcode", "sku", "category")
+                        ).casefold()
+                        if search and search not in text:
+                            continue
+                        if selected_category and str(product.get("category") or "") != selected_category:
+                            continue
+                        filtered.append(product)
+                    if filtered:
+                        loaded(filtered[:self.product_page_size])
+                        self.product_has_more = False
+                        self.catalog_status.setText(f"{len(self.products)} cached products")
+                        self.statusBar().showMessage(f"Server unavailable. Using cached products. {pending_count()} offline sale(s) pending sync.")
+                        return
             self.catalog_status.setText("Could not load products")
             self.statusBar().showMessage(error)
 
+        if not self.api:
+            failed("Server unavailable. Offline product cache is required.")
+            return
         self._run_task(
             lambda: self.api.products(
                 query, limit=self.product_page_size, offset=offset, category=category,
@@ -3327,9 +3449,15 @@ class LiteWindow(QMainWindow):
         self.statusBar().showMessage("Sale Display closed")
 
     def open_checkout(self) -> None:
-        if not self.api or not self.cart.items or self._threads:
+        if not self.cart.items or self._threads:
             return
         if not hasattr(self, "management_customers") or not hasattr(self, "checkout_payment_types") or not hasattr(self, "checkout_credit_settings"):
+            if not self.api:
+                self.management_customers = []
+                self.checkout_payment_types = ["Cash"]
+                self.checkout_credit_settings = {}
+                QTimer.singleShot(0, self.open_checkout)
+                return
             self.checkout_button.setEnabled(False)
             self.checkout_button.setText("Loading customers…")
 
@@ -3370,6 +3498,8 @@ class LiteWindow(QMainWindow):
             {
                 "product_id": item["product_id"], "variant_id": item.get("variant_id"),
                 "qty": item["qty"], "manual_price": item["price"] if item.get("is_service") else None,
+                "price": item["price"],
+                "name": item.get("name") or "", "variant_label": item.get("variant_label") or "",
             }
             for item in self.cart.items.values()
         ]
@@ -3403,10 +3533,35 @@ class LiteWindow(QMainWindow):
             QTimer.singleShot(100, self.load_products)
 
         def failed(error):
+            if payment_type.strip().casefold() == "cash" and "server" in str(error).casefold():
+                try:
+                    receipt = create_offline_sale(
+                        items, payment, payment_type, discount_amount, self.receipt_settings
+                    )
+                except Exception as exc:
+                    self.checkout_button.setText("Checkout")
+                    self.checkout_button.setEnabled(bool(self.cart.items))
+                    self.statusBar().showMessage("Checkout failed")
+                    QMessageBox.critical(self, "Checkout", f"{error}\n\nOffline save failed: {exc}")
+                    return
+                completed(receipt)
+                self.statusBar().showMessage(f"Offline sale saved · {receipt.get('invoice_no')} · {pending_count()} pending sync")
+                return
             self.checkout_button.setText("Checkout")
             self.checkout_button.setEnabled(bool(self.cart.items))
             self.statusBar().showMessage("Checkout failed")
             QMessageBox.critical(self, "Checkout", error)
+
+        if not self.api:
+            if payment_type.strip().casefold() != "cash":
+                QMessageBox.warning(self, "Offline Sale", "Offline mode supports cash sales only.")
+                self.checkout_button.setText("Checkout")
+                self.checkout_button.setEnabled(bool(self.cart.items))
+                return
+            receipt = create_offline_sale(items, payment, payment_type, discount_amount, self.receipt_settings)
+            completed(receipt)
+            self.statusBar().showMessage(f"Offline sale saved · {receipt.get('invoice_no')} · {pending_count()} pending sync")
+            return
 
         self._run_task(
             lambda: self.api.checkout(
