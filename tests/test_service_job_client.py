@@ -125,6 +125,10 @@ class ServiceJobClientTests(unittest.TestCase):
         window.selected_job = {"job_title": "Opening Sale", "status": "received"}
         window.refresh_prompt_controls()
         self.assertEqual(len(window.prompt_cards), 2)
+        self.assertIs(window.prompt_card_layout.itemAtPosition(0, 0).widget(), window.prompt_cards[0])
+        self.assertIs(window.prompt_card_layout.itemAtPosition(0, 1).widget(), window.prompt_cards[1])
+        card_text = " ".join(label.text() for label in window.prompt_cards[0].findChildren(QLabel))
+        self.assertNotIn("Opening Sale", card_text)
         self.assertEqual(window.selected_prompt_index(), 0)
         self.assertIn("Opening Sale", window.prompt_preview.toPlainText())
         self.assertTrue(window.copy_prompt_button.isEnabled())
@@ -163,6 +167,8 @@ class ServiceJobClientTests(unittest.TestCase):
         window.refresh_prompt_controls()
         image_label = window.prompt_cards[0].findChildren(QLabel)[0]
         self.assertFalse(image_label.pixmap().isNull())
+        self.assertEqual(image_label.pixmap().size().width(), 190)
+        self.assertEqual(image_label.pixmap().size().height(), 126)
 
     def test_start_job_shows_authenticated_worker_and_keeps_selection(self):
         window = ServiceJobClientWindow()

@@ -4,10 +4,10 @@ import base64
 from collections.abc import Callable
 
 from PyQt6.QtCore import QDate, QObject, QStringListModel, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtGui import QColor, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
+    QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
@@ -296,10 +296,9 @@ class ServiceJobClientWindow(QMainWindow):
         self.prompt_card_area.setWidgetResizable(True)
         self.prompt_card_area.setFrameShape(QFrame.Shape.NoFrame)
         self.prompt_card_container = QWidget()
-        self.prompt_card_layout = QVBoxLayout(self.prompt_card_container)
+        self.prompt_card_layout = QGridLayout(self.prompt_card_container)
         self.prompt_card_layout.setContentsMargins(0, 0, 0, 0)
         self.prompt_card_layout.setSpacing(8)
-        self.prompt_card_layout.addStretch()
         self.prompt_card_area.setWidget(self.prompt_card_container)
         left_layout.addWidget(self.prompt_card_area, 1)
 
@@ -342,13 +341,15 @@ class ServiceJobClientWindow(QMainWindow):
             visible_rows.append(index)
             card = self._create_prompt_card(prompt, index)
             self.prompt_cards.append(card)
-            self.prompt_card_layout.addWidget(card)
+            position = len(visible_rows) - 1
+            self.prompt_card_layout.addWidget(card, position // 3, position % 3)
         if not self.prompts or not visible_rows:
             empty = QLabel("No matching prompts" if self.prompts else "No design prompts yet")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setStyleSheet("color: #6b7280; padding: 28px 8px;")
-            self.prompt_card_layout.addWidget(empty)
-        self.prompt_card_layout.addStretch()
+            self.prompt_card_layout.addWidget(empty, 0, 0, 1, 3)
+        for column in range(3):
+            self.prompt_card_layout.setColumnStretch(column, 1)
         self.selected_prompt_row = current if current in visible_rows else (visible_rows[0] if visible_rows else -1)
         self.refresh_prompt_card_styles()
         self.load_prompt_preview()
@@ -361,36 +362,29 @@ class ServiceJobClientWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("promptCard")
         card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setFixedHeight(236)
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         card.setProperty("prompt_index", index)
         card.setFrameShape(QFrame.Shape.StyledPanel)
-        layout = QHBoxLayout(card)
+        layout = QVBoxLayout(card)
         layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(12)
+        layout.setSpacing(7)
         image = QLabel()
         image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        image.setFixedSize(96, 72)
+        image.setFixedHeight(132)
         image.setStyleSheet("background: #f8fafc; border: 1px solid #d7e0ed; border-radius: 6px; color: #64748b;")
         self._set_prompt_card_image(image, str(prompt.get("image_data") or ""))
-        text_layout = QVBoxLayout()
-        text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(5)
         title = QLabel(str(prompt.get("title") or f"Prompt {index + 1}"))
         title.setWordWrap(True)
         title.setStyleSheet("font-weight: 700;")
         category = QLabel(str(prompt.get("category") or "General"))
         category.setStyleSheet("color: #2563eb; font-size: 11px; font-weight: 700;")
-        preview = QLabel(self.render_prompt_text(str(prompt.get("prompt_text") or prompt.get("text") or "")).replace("\n", " ")[:190])
-        preview.setWordWrap(True)
-        preview.setStyleSheet("color: #4b5563;")
         meta = QLabel("Sample image attached" if prompt.get("image_data") else "Text prompt")
         meta.setStyleSheet("color: #64748b; font-size: 11px;")
-        text_layout.addWidget(title)
-        text_layout.addWidget(category)
-        text_layout.addWidget(preview)
-        text_layout.addWidget(meta)
         layout.addWidget(image)
-        layout.addLayout(text_layout, 1)
+        layout.addWidget(title)
+        layout.addWidget(category)
+        layout.addWidget(meta)
         card.mousePressEvent = lambda event, row=index: self.select_prompt_card(row)
         return card
 
@@ -405,11 +399,24 @@ class ServiceJobClientWindow(QMainWindow):
             pixmap.loadFromData(base64.b64decode(encoded))
             if pixmap.isNull():
                 raise ValueError("Invalid image")
-            label.setPixmap(pixmap.scaled(90, 66, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            label.setPixmap(self._cropped_prompt_pixmap(pixmap, 190, 126))
             label.setText("")
         except Exception:
             label.setPixmap(QPixmap())
             label.setText("Bad image")
+
+    @staticmethod
+    def _cropped_prompt_pixmap(pixmap: QPixmap, width: int, height: int) -> QPixmap:
+        scaled = pixmap.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+        x = max(0, (scaled.width() - width) // 2)
+        y = max(0, (scaled.height() - height) // 2)
+        cropped = scaled.copy(x, y, width, height)
+        canvas = QPixmap(width, height)
+        canvas.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(canvas)
+        painter.drawPixmap(0, 0, cropped)
+        painter.end()
+        return canvas
 
     def select_prompt_card(self, index: int) -> None:
         if not 0 <= index < len(self.prompts):
