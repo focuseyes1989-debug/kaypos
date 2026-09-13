@@ -2613,6 +2613,25 @@ class LiteWindow(QMainWindow):
             return
         failure(str(error))
 
+    def _open_cash_drawer_for_sale(self) -> None:
+        """Open the drawer after checkout without being blocked by checkout cleanup."""
+        printer_name = str(load_config().get("receipt_printer_name") or "")
+        if not printer_name:
+            self.statusBar().showMessage("Cash drawer skipped: select a local receipt printer first.")
+            return
+
+        def opened(_result):
+            self.cash_drawer_button.setEnabled(True)
+            self.statusBar().showMessage(f"Cash drawer opened · {printer_name}")
+
+        def failed(error):
+            self.cash_drawer_button.setEnabled(True)
+            self.statusBar().showMessage(f"Sale completed. Cash drawer could not be opened: {error}")
+
+        self.cash_drawer_button.setEnabled(False)
+        self.statusBar().showMessage("Opening cash drawer…")
+        self._run_task(lambda: open_local_cash_drawer(printer_name), opened, failed)
+
     def _handle_session_expired(self) -> None:
         if self._session_expired_handled:
             return
@@ -3379,7 +3398,7 @@ class LiteWindow(QMainWindow):
             if print_after_sale:
                 QTimer.singleShot(0, receipt_dialog.print_receipt_automatic)
             if open_drawer_after_sale:
-                QTimer.singleShot(150, self.open_cash_drawer)
+                QTimer.singleShot(750 if print_after_sale else 150, self._open_cash_drawer_for_sale)
             receipt_dialog.exec()
             QTimer.singleShot(100, self.load_products)
 
