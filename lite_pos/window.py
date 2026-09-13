@@ -1488,6 +1488,7 @@ class LiteWindow(QMainWindow):
         self._threads: set[QThread] = set()
         self._workers: set[TaskWorker] = set()
         self._scan_in_progress = False
+        self._checkout_busy = False
         self._product_page_loading = False
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
@@ -3449,7 +3450,7 @@ class LiteWindow(QMainWindow):
         self.statusBar().showMessage("Sale Display closed")
 
     def open_checkout(self) -> None:
-        if not self.cart.items or self._threads:
+        if not self.cart.items or self._checkout_busy:
             return
         if not hasattr(self, "management_customers") or not hasattr(self, "checkout_payment_types") or not hasattr(self, "checkout_credit_settings"):
             if not self.api:
@@ -3458,6 +3459,7 @@ class LiteWindow(QMainWindow):
                 self.checkout_credit_settings = {}
                 QTimer.singleShot(0, self.open_checkout)
                 return
+            self._checkout_busy = True
             self.checkout_button.setEnabled(False)
             self.checkout_button.setText("Loading customers…")
 
@@ -3466,9 +3468,16 @@ class LiteWindow(QMainWindow):
                 self.management_customers = list(customers)
                 self.checkout_payment_types = list(payment_types)
                 self.checkout_credit_settings = dict(credit_settings)
+                self._checkout_busy = False
                 self.checkout_button.setText("Checkout")
                 self.checkout_button.setEnabled(bool(self.cart.items))
                 QTimer.singleShot(50, self.open_checkout)
+
+            def checkout_settings_failed(error):
+                self._checkout_busy = False
+                self.checkout_button.setText("Checkout")
+                self.checkout_button.setEnabled(bool(self.cart.items))
+                QMessageBox.critical(self, "Customers", error)
 
             self._run_task(
                 lambda: (
@@ -3477,11 +3486,7 @@ class LiteWindow(QMainWindow):
                     self.api.credit_settings(),
                 ),
                 checkout_settings_loaded,
-                lambda error: (
-                    self.checkout_button.setText("Checkout"),
-                    self.checkout_button.setEnabled(bool(self.cart.items)),
-                    QMessageBox.critical(self, "Customers", error),
-                ),
+                checkout_settings_failed,
             )
             return
         preferences = load_config()
@@ -3517,8 +3522,10 @@ class LiteWindow(QMainWindow):
         self.checkout_button.setEnabled(False)
         self.checkout_button.setText("Saving sale…")
         self.statusBar().showMessage("Completing sale securely…")
+        self._checkout_busy = True
 
         def completed(receipt):
+            self._checkout_busy = False
             self.cart.clear()
             self.render_cart()
             self.checkout_button.setText("Checkout")
@@ -3539,6 +3546,7 @@ class LiteWindow(QMainWindow):
                         items, payment, payment_type, discount_amount, self.receipt_settings
                     )
                 except Exception as exc:
+                    self._checkout_busy = False
                     self.checkout_button.setText("Checkout")
                     self.checkout_button.setEnabled(bool(self.cart.items))
                     self.statusBar().showMessage("Checkout failed")
@@ -3547,6 +3555,7 @@ class LiteWindow(QMainWindow):
                 completed(receipt)
                 self.statusBar().showMessage(f"Offline sale saved · {receipt.get('invoice_no')} · {pending_count()} pending sync")
                 return
+            self._checkout_busy = False
             self.checkout_button.setText("Checkout")
             self.checkout_button.setEnabled(bool(self.cart.items))
             self.statusBar().showMessage("Checkout failed")
@@ -3555,6 +3564,7 @@ class LiteWindow(QMainWindow):
         if not self.api:
             if payment_type.strip().casefold() != "cash":
                 QMessageBox.warning(self, "Offline Sale", "Offline mode supports cash sales only.")
+                self._checkout_busy = False
                 self.checkout_button.setText("Checkout")
                 self.checkout_button.setEnabled(bool(self.cart.items))
                 return
