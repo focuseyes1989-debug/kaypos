@@ -9,7 +9,7 @@ consistent without first replacing every widget with a custom component.
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ui.design_system.theme import get_theme
-from ui.design_system.metrics import button_metrics_stylesheet
+from ui.design_system.metrics import CONTROL_HEIGHT, button_metrics_stylesheet
 from ui.design_system.tabs import tab_stylesheet
 
 
@@ -44,6 +44,17 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         QLabel {{
             color: {colors.text};
             background: transparent;
+        }}
+
+        QScrollArea,
+        QScrollArea > QWidget > QWidget,
+        QScrollArea QWidget#qt_scrollarea_viewport,
+        QStackedWidget,
+        QWidget#mainContainer,
+        QWidget#mainContent,
+        QStackedWidget#workspacePages {{
+            background-color: transparent;
+            border: none;
         }}
 
         QGroupBox {{
@@ -99,8 +110,14 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             border-color: {colors.border};
         }}
 
+        QComboBox:disabled {{
+            color: {colors.text_muted};
+            background-color: transparent;
+            border-color: {colors.border};
+        }}
+
         QComboBox {{
-            background-color: {colors.input_bg};
+            background-color: transparent;
             color: {colors.text};
             border: 1px solid {colors.input_border};
             border-radius: {_px(radius.input)};
@@ -120,6 +137,7 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
 
         QComboBox::drop-down {{
             border: none;
+            background: transparent;
             width: 28px;
             subcontrol-origin: padding;
             subcontrol-position: center right;
@@ -184,8 +202,8 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             background-color: {table_bg};
             alternate-background-color: {table_alt};
             color: {colors.text};
-            gridline-color: {colors.border};
-            border: 1px solid {colors.border};
+            gridline-color: transparent;
+            border: none;
             border-radius: {_px(radius.table)};
             selection-background-color: {colors.table_selection};
             selection-color: {colors.text};
@@ -212,71 +230,106 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QScrollBar:vertical {{
-            background: {colors.scrollbar_bg};
+            background-color: transparent;
             width: 10px;
             margin: 0px;
             border: none;
+            border-radius: 0px;
         }}
 
         QScrollBar::handle:vertical {{
-            background: {colors.scrollbar_handle};
-            border-radius: 5px;
+            background-color: {colors.scrollbar_handle};
+            border: none;
+            border-radius: 3px;
             min-height: 28px;
             margin: 2px;
         }}
 
         QScrollBar::handle:vertical:hover {{
-            background: {colors.scrollbar_handle_hover};
+            background-color: {colors.scrollbar_handle_hover};
         }}
 
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
             height: 0px;
-            border: none;
-            background: transparent;
-        }}
-
-        QScrollBar:horizontal {{
-            background: {colors.scrollbar_bg};
-            height: 10px;
-            margin: 0px;
-            border: none;
-        }}
-
-        QScrollBar::handle:horizontal {{
-            background: {colors.scrollbar_handle};
-            border-radius: 5px;
-            min-width: 28px;
-            margin: 2px;
-        }}
-
-        QScrollBar::handle:horizontal:hover {{
-            background: {colors.scrollbar_handle_hover};
-        }}
-
-        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
             width: 0px;
             border: none;
             background: transparent;
         }}
 
+        QScrollBar:horizontal {{
+            background-color: transparent;
+            height: 10px;
+            margin: 0px;
+            border: none;
+            border-radius: 0px;
+        }}
+
+        QScrollBar::handle:horizontal {{
+            background-color: {colors.scrollbar_handle};
+            border: none;
+            border-radius: 3px;
+            min-width: 28px;
+            margin: 2px;
+        }}
+
+        QScrollBar::handle:horizontal:hover {{
+            background-color: {colors.scrollbar_handle_hover};
+        }}
+
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+            width: 0px;
+            height: 0px;
+            border: none;
+            background: transparent;
+        }}
+
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+            background: transparent;
+            border: none;
+        }}
+
+        QScrollBar::up-arrow, QScrollBar::down-arrow,
+        QScrollBar::left-arrow, QScrollBar::right-arrow {{
+            image: none;
+            width: 0px;
+            height: 0px;
+        }}
+
         QTabWidget::pane {{
-            border: 1px solid {colors.border};
-            border-radius: {_px(radius.lg)};
-            background: {colors.card_bg};
+            border: none;
+            border-radius: 0px;
+            background: transparent;
+        }}
+
+        QTabWidget,
+        QTabBar {{
+            background-color: transparent;
+            border: none;
         }}
 
         QTabBar::tab {{
             background: transparent;
             color: {colors.text_secondary};
-            padding: 8px 12px;
-            margin-right: 2px;
-            border-bottom: 2px solid transparent;
+            padding: 7px 18px;
+            margin: 4px 4px 4px 0px;
+            border: 1px solid transparent;
+            border-radius: {_px(radius.md)};
             font-weight: {typo.weight_medium};
         }}
 
         QTabBar::tab:selected {{
             color: {colors.primary};
-            border-bottom-color: {colors.primary};
+            background: {colors.card_bg};
+            border: 1px solid {colors.primary};
+            padding: 7px 18px;
+            font-weight: {typo.weight_semibold};
+        }}
+
+        QTabBar::tab:hover:!selected {{
+            background: {colors.bg_hover};
+            color: {colors.text};
+            border-color: {colors.border};
         }}
 
         QDialog, QMessageBox {{
@@ -297,7 +350,8 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         QDialogButtonBox QPushButton,
         QMessageBox QPushButton {{
             min-width: 86px;
-            min-height: 26px;
+            min-height: {_px(CONTROL_HEIGHT - 10)};
+            max-height: {_px(CONTROL_HEIGHT - 10)};
             padding: 4px 16px;
             border-radius: {_px(radius.button)};
             font-weight: {typo.weight_semibold};
@@ -343,10 +397,10 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QMessageBox QLabel#qt_msgbox_label {{
-            padding: 8px 12px;
-            min-height: 20px;
+            padding: 2px 0px;
+            min-height: 38px;
             font-size: 9pt;
-            min-width: 260px;
+            min-width: 280px;
         }}
 
         QMenu {{

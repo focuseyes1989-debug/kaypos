@@ -15,6 +15,7 @@ from ui.widgets.no_wheel_spinbox import NoWheelDoubleSpinBox  # ✅ Import custo
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.design_system.dialog_styles import modern_table_stylesheet
 from ui.responsive_utils import fit_dialog_to_available_screen
+from utils.branded_icons import pos_icon
 
 
 class ExpenseBudgetDialog(QDialog):
@@ -33,7 +34,7 @@ class ExpenseBudgetDialog(QDialog):
         )
         
         fit_dialog_to_available_screen(self, 1080, 640, 940, 540)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -896,3 +897,4 @@ class ExpenseBudgetDialog(QDialog):
         """Refresh data when dialog becomes visible"""
         self.load_budgets()
         super().showEvent(event)
+

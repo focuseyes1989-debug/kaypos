@@ -75,7 +75,8 @@ class UserDialog(QDialog):
             QLabel#dialogTitle {{ font-size: 20px; font-weight: 700; }}
             QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
             QWidget#formCard {{ background-color: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 12px; }}
-            QLineEdit, QComboBox {{ min-height: 34px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QLineEdit {{ min-height: 34px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QComboBox {{ min-height: 34px; padding: 0 10px; color: {colors['text']}; background-color: transparent; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
             QLineEdit:focus, QComboBox:focus {{ border-color: {colors['border_hover']}; }}
             QPushButton {{ min-height: 32px; padding: 0 16px; border-radius: 8px; }}
         """)

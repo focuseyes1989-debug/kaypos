@@ -9,6 +9,7 @@ from models.database import connect_db
 from utils.auto_backup import AutoBackupManager
 import os
 from datetime import datetime
+from utils.branded_icons import pos_icon
 
 
 class AutoBackupDialog(QDialog):
@@ -17,7 +18,7 @@ class AutoBackupDialog(QDialog):
         self.backup_manager = backup_manager
         self.setWindowTitle("Auto Backup Settings")
         self.setMinimumSize(800, 500)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
 
         layout = QVBoxLayout()
@@ -293,3 +294,4 @@ class AutoBackupDialog(QDialog):
             subprocess.run(['open', backup_dir])
         else:
             subprocess.run(['xdg-open', backup_dir])
+

@@ -29,6 +29,8 @@ class StatCard(QFrame):
         
         self._setup_ui()
         self._apply_style()
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumHeight(CARD_HEIGHT)
         self.setMinimumWidth(CARD_MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
@@ -116,7 +118,7 @@ class StatCard(QFrame):
             }}
             QFrame:hover {{
                 border-color: {colors.border_hover};
-                background-color: {colors.bg_hover if not is_dark else colors.card_bg};
+                background-color: {colors.bg_hover};
             }}
             QLabel#stat_title {{
                 color: {colors.text_secondary};
@@ -131,6 +133,7 @@ class StatCard(QFrame):
                 background-color: {self._color}20;
                 border-radius: 8px;
                 border: none;
+                padding: 0px;
             }}
         """)
         

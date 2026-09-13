@@ -109,14 +109,14 @@ class ComboBoxWidget(ContentWidthComboBox):
     def apply_theme(self) -> None:
         colors = get_theme_colors()
         dark = is_dark_theme()
-        bg = colors.get("card_bg", "#ffffff")
+        bg = "transparent"
         text = colors.get("text", "#212529")
         muted = colors.get("text_secondary", "#6c757d")
         border = colors.get("input_border", colors.get("border", "#ced4da"))
         focus = colors.get("border_hover", "#5865f2")
         hover = colors.get("bg_hover", "#eef0ff")
         selected = "#e7e9ff" if not dark else colors.get("bg_hover", "#40444b")
-        disabled_bg = colors.get("bg_hover", bg)
+        disabled_bg = "transparent"
 
         self.setStyleSheet(f"""
             QComboBox {{

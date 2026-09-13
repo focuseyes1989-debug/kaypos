@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from datetime import datetime
+from utils.branded_icons import pos_icon
 
 
 class ExpenseDialog(QDialog):
@@ -18,7 +19,7 @@ class ExpenseDialog(QDialog):
         self.setWindowTitle("Edit Expense" if expense_id else "Add Expense")
         self.setMinimumWidth(800)
         self.setMinimumHeight(550)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
 
         main_layout = QVBoxLayout()
@@ -387,3 +388,4 @@ class ExpenseDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to save expense: {e}")
         finally:
             conn.close()
+

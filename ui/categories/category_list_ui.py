@@ -428,7 +428,7 @@ class CategoryListUI:
                 border-radius: 10px;
                 font-size: 10pt;
                 min-width: 130px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
             }}
             QComboBox:focus {{

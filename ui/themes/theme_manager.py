@@ -21,24 +21,27 @@ THEMES = {
 # Theme color definitions for programmatic access
 THEME_COLORS = {
     "Dark": {
-        'bg': '#0d111b',
-        'bg_hover': '#1c2535',
-        'text': '#edf2ff',
-        'text_secondary': '#aab4c8',
-        'border': '#293348',
-        'border_hover': '#6675f5',
-        'card_bg': '#151c2a',
-        'card_hover': '#192232',
-        'table_alt': '#111824',
-        'progress_bg': '#6675f5',
-        'danger': '#ff6b7a',
-        'success': '#27c992',
-        'warning': '#f3a64a',
-        'input_bg': '#0f1520',
-        'input_border': '#303b50',
-        'icon_color': '#aeb8ca',
-        'icon_active': '#7885ff',
-        'icon_hover': '#ffffff',
+        'bg': '#262c36',
+        'bg_hover': '#343c4a',
+        'text': '#eef2f7',
+        'text_secondary': '#c8d0dc',
+        'border': '#3d4655',
+        'border_hover': '#7482f5',
+        'card_bg': '#2a303b',
+        'card_hover': '#303744',
+        'table_alt': '#262c36',
+        'progress_bg': '#7482f5',
+        'scrollbar_bg': '#262c36',
+        'scrollbar_handle': '#9ea7b5',
+        'scrollbar_handle_hover': '#5865F2',
+        'danger': '#ff8a96',
+        'success': '#4fdbad',
+        'warning': '#ffc46b',
+        'input_bg': '#252b35',
+        'input_border': '#4d596c',
+        'icon_color': '#c8d0dc',
+        'icon_active': '#8896ff',
+        'icon_hover': '#eef2f7',
     },
     "Light": {
         'bg': '#f4f6fb',
@@ -51,6 +54,9 @@ THEME_COLORS = {
         'card_hover': '#f8f9ff',
         'table_alt': '#f7f8fc',
         'progress_bg': '#6675f5',
+        'scrollbar_bg': '#f2f3f6',
+        'scrollbar_handle': '#8f8f8f',
+        'scrollbar_handle_hover': '#5865F2',
         'danger': '#dc4c64',
         'success': '#15966d',
         'warning': '#d8892f',
@@ -116,6 +122,8 @@ class ThemeManager(QObject):
         self._updating = True
         
         try:
+            from ui.design_system.scrollbars import install_scrollbar_style
+            install_scrollbar_style(app, get_theme_colors(theme_name))
             for widget in app.topLevelWidgets():
                 try:
                     widget.update()

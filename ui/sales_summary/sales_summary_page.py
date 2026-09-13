@@ -28,6 +28,7 @@ from ui.widgets import (
     ModernButton  # ✅ Added ModernButton import
 )
 from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colors
+from ui.widgets.wrapping_toolbar import WrappingToolbar
 from utils.currency import get_currency_symbol, format_money
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
 import os
@@ -36,15 +37,22 @@ import os
 class SalesSummaryPage(BaseSalesSummary):
     def __init__(self):
         super().__init__()
+        self.setObjectName("salesSummaryPage")
+        self.setAutoFillBackground(False)
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(14)
 
         # ========== Toast Notification ==========
         self.toast = ToastNotificationWidget(self)
 
         # ========== Filter Row with DateRangeWidget ==========
-        filter_layout = QHBoxLayout()
+        self.filter_card = QFrame()
+        self.filter_card.setObjectName("salesSummaryFilterCard")
+        self.filter_card.setFrameShape(QFrame.Shape.NoFrame)
+        self.filter_card.setAutoFillBackground(False)
+        filter_layout = QHBoxLayout(self.filter_card)
+        filter_layout.setContentsMargins(14, 10, 14, 10)
         filter_layout.setSpacing(10)
 
         self.date_range = DateRangeWidget()
@@ -61,11 +69,11 @@ class SalesSummaryPage(BaseSalesSummary):
         
         filter_layout.addWidget(self.btn_export_excel)
 
-        main_layout.addLayout(filter_layout)
+        main_layout.addWidget(self.filter_card)
 
         # ========== Summary Cards with SVG Icons ==========
-        card_layout = QHBoxLayout()
-        card_layout.setSpacing(12)
+        card_layout = WrappingToolbar(minimum_item_width=180)
+        card_layout.setSpacing(8)
 
         # Total Sales
         self.total_sales_card = SummaryCardWidget(
@@ -73,7 +81,8 @@ class SalesSummaryPage(BaseSalesSummary):
             value="0", 
             icon="attach_money",
             color="#2ecc71",
-            icon_is_svg=True
+            icon_is_svg=True,
+            flat=True
         )
         card_layout.addWidget(self.total_sales_card)
 
@@ -83,7 +92,8 @@ class SalesSummaryPage(BaseSalesSummary):
             value="0", 
             icon="orders",
             color="#3498db",
-            icon_is_svg=True
+            icon_is_svg=True,
+            flat=True
         )
         card_layout.addWidget(self.total_orders_card)
 
@@ -93,7 +103,8 @@ class SalesSummaryPage(BaseSalesSummary):
             value="0", 
             icon="analytics",
             color="#f39c12",
-            icon_is_svg=True
+            icon_is_svg=True,
+            flat=True
         )
         card_layout.addWidget(self.avg_order_card)
 
@@ -103,7 +114,8 @@ class SalesSummaryPage(BaseSalesSummary):
             value="—", 
             icon="category",
             color="#9b59b6",
-            icon_is_svg=True
+            icon_is_svg=True,
+            flat=True
         )
         card_layout.addWidget(self.top_category_card)
 
@@ -113,16 +125,17 @@ class SalesSummaryPage(BaseSalesSummary):
             value="0", 
             icon="percent_discount",
             color="#e74c3c",
-            icon_is_svg=True
+            icon_is_svg=True,
+            flat=True
         )
         card_layout.addWidget(self.total_discount_card)
 
-        card_layout.addStretch()
         main_layout.addLayout(card_layout)
 
         # ========== Tabs ==========
         self.tabs = QTabWidget()
         self.tabs.setObjectName("salesSummaryTabs")
+        self.tabs.setAutoFillBackground(False)
         self.tabs.setDocumentMode(True)
         self.tabs.setUsesScrollButtons(True)
         self.tab_names = {
@@ -165,6 +178,7 @@ class SalesSummaryPage(BaseSalesSummary):
         
         self.payment_tab = PaymentTab(self)
         self.tabs.addTab(self.payment_tab, self._load_colored_tab_icon(6), self.tab_names[6])
+        self._align_tab_pages()
 
         self._apply_tab_bar_style()
 
@@ -176,6 +190,7 @@ class SalesSummaryPage(BaseSalesSummary):
         main_layout.addWidget(self.spinner)
 
         self.setLayout(main_layout)
+        self._apply_page_style()
 
         # Connect signals
         lang.language_changed.connect(self.retranslateUi)
@@ -189,35 +204,46 @@ class SalesSummaryPage(BaseSalesSummary):
         """Apply tab bar style based on theme"""
         colors = get_theme_colors()
         from ui.design_system.tabs import tab_stylesheet
-        self.tabs.setStyleSheet(f"""
-            QTabWidget#salesSummaryTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#salesSummaryTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 8px 12px;
-                margin: 0px 2px 0px 0px;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#salesSummaryTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#salesSummaryTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
-        """)
-        
-        self.tabs.setStyleSheet(self.tabs.styleSheet() + tab_stylesheet(colors, "salesSummaryTabs"))
+        self.tabs.setStyleSheet(tab_stylesheet(colors, "salesSummaryTabs"))
         self._update_tab_icons_color()
+
+    def _apply_page_style(self):
+        self.setStyleSheet("""
+            QWidget#salesSummaryPage {
+                background: transparent;
+                border: none;
+            }
+            QFrame#salesSummaryFilterCard {
+                background: transparent;
+                border: none;
+                border-radius: 0px;
+            }
+            QTabWidget#salesSummaryTabs,
+            QTabWidget#salesSummaryTabs QWidget#qt_tabwidget_stackedwidget,
+            QTabWidget#salesSummaryTabs > QWidget,
+            QTabWidget#salesSummaryTabs QWidget#salesSummaryTabPage {
+                background: transparent;
+                border: none;
+            }
+        """)
+
+    def _align_tab_pages(self):
+        for page in (
+            self.top_items_tab,
+            self.items_tab,
+            self.wholesale_items_tab,
+            self.categories_tab,
+            self.category_parents_tab,
+            self.category_groups_tab,
+            self.payment_tab,
+        ):
+            page.setObjectName("salesSummaryTabPage")
+            page.setAutoFillBackground(False)
+            page.setStyleSheet("QWidget#salesSummaryTabPage { background: transparent; border: none; }")
+            layout = page.layout()
+            if layout is not None:
+                layout.setContentsMargins(0, 0, 0, 0)
+                layout.setSpacing(8)
 
     def _update_tab_icons_color(self):
         """Update all tab icons color based on theme"""
@@ -267,6 +293,7 @@ class SalesSummaryPage(BaseSalesSummary):
 
     def on_theme_changed(self, theme_name):
         """Handle theme change - update all cards and tab icons"""
+        self._apply_page_style()
         self.update_card_theme()
         self._apply_tab_bar_style()
         self._update_tab_icons_color()

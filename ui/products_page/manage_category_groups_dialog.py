@@ -7,6 +7,7 @@ from ui.products_page.manage_category_groups_handlers import CategoryGroupsHandl
 from ui.themes.theme_manager import register_theme_callback, theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
 from utils.language import lang
+from utils.branded_icons import pos_icon
 
 
 class ManageCategoryGroupsDialog(QDialog):
@@ -20,7 +21,7 @@ class ManageCategoryGroupsDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         
@@ -84,3 +85,4 @@ class ManageCategoryGroupsDialog(QDialog):
         except:
             pass
         event.accept()
+

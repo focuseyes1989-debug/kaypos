@@ -16,6 +16,7 @@ from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 import os
+from utils.branded_icons import pos_icon
 
 
 class CustomerLedgerDialog(QDialog):
@@ -29,7 +30,7 @@ class CustomerLedgerDialog(QDialog):
         
         self.setWindowTitle(f"Ledger - {customer_name}")
         fit_dialog_to_available_screen(self, 1080, 660, 960, 560)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -333,7 +334,7 @@ class CustomerLedgerDialog(QDialog):
                 padding: 6px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 10pt;
                 min-width: 120px;
@@ -1164,3 +1165,4 @@ class CustomerLedgerDialog(QDialog):
         """Refresh data when dialog becomes visible"""
         self.load_ledger()
         super().showEvent(event)
+

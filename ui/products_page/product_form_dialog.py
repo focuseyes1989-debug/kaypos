@@ -6,6 +6,7 @@ from ui.products_page.product_form_ui import ProductFormUI
 from ui.products_page.product_form_handlers import ProductFormHandlers
 from ui.themes.theme_manager import theme_manager, get_theme_colors
 import os
+from utils.branded_icons import pos_icon
 
 
 class ProductFormDialog(QDialog):
@@ -18,7 +19,7 @@ class ProductFormDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         
@@ -185,3 +186,4 @@ class ProductFormDialog(QDialog):
             if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 return True
         return super().eventFilter(obj, event)
+

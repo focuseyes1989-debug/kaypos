@@ -8,6 +8,7 @@ from ui.receipt_detail_dialog import ReceiptDetailDialog
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
 from ui.responsive_utils import fit_dialog_to_available_screen
+from utils.branded_icons import pos_icon
 
 
 def _apply_sales_dialog_theme(dialog):
@@ -23,7 +24,7 @@ class DiscountedSalesDialog(QDialog):
     def __init__(self, from_date: str, to_date: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Discounted Sales")
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         fit_dialog_to_available_screen(self, 860, 560, 640, 360)
         self.setModal(True)
         layout = QVBoxLayout()
@@ -93,7 +94,7 @@ class RefundedSalesDialog(QDialog):
     def __init__(self, from_date: str, to_date: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Refunded Sales")
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         fit_dialog_to_available_screen(self, 860, 560, 640, 360)
         self.setModal(True)
         layout = QVBoxLayout()
@@ -154,3 +155,4 @@ class RefundedSalesDialog(QDialog):
         if sale_id:
             dialog = ReceiptDetailDialog(sale_id[0], self)
             dialog.exec()
+

@@ -17,6 +17,7 @@ import csv
 from datetime import datetime
 from loguru import logger
 import os
+from utils.branded_icons import pos_icon
 
 
 class OutstandingReportDialog(QDialog):
@@ -36,7 +37,7 @@ class OutstandingReportDialog(QDialog):
         
         self.setWindowTitle("Outstanding Debts Report")
         fit_dialog_to_available_screen(self, 1080, 640, 900, 520)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Enable resize grip
@@ -705,3 +706,4 @@ class OutstandingReportDialog(QDialog):
         """Refresh data when dialog becomes visible"""
         self.load_report()
         super().showEvent(event)
+

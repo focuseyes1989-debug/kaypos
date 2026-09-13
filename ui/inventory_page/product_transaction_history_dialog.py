@@ -15,6 +15,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.design_system.dialog_styles import modern_table_stylesheet, modern_panel_stylesheet
 from datetime import datetime
+from utils.branded_icons import pos_icon
 
 
 class ProductTransactionHistoryDialog(QDialog):
@@ -30,7 +31,7 @@ class ProductTransactionHistoryDialog(QDialog):
         
         self.setWindowTitle(f"Transaction History - {product_name}")
         self.setMinimumSize(1100, 580)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -185,7 +186,7 @@ class ProductTransactionHistoryDialog(QDialog):
                 padding: 6px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 10pt;
                 min-width: 120px;
@@ -583,3 +584,4 @@ class ProductTransactionHistoryDialog(QDialog):
         self.load_current_stock()
         self.load_history()
         super().showEvent(event)
+

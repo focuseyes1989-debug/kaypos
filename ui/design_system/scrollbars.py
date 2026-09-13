@@ -7,20 +7,19 @@ from ui.design_system.metrics import SCROLLBAR_WIDTH, SCROLLBAR_MIN_HANDLE
 
 
 def scrollbar_stylesheet(colors):
-    handle = colors['text_secondary']
-    hover = colors['progress_bg']
-    track = colors['bg']
+    handle = colors.get('scrollbar_handle', '#8f8f8f')
+    hover = colors.get('scrollbar_handle_hover', '#5865F2')
     return f"""
-        QScrollBar {{ background: {track}; border: none; padding: 0px; margin: 0px; }}
+        QScrollBar {{ background-color: transparent; border: none; padding: 0px; margin: 0px; }}
         QScrollBar:vertical {{ width: {SCROLLBAR_WIDTH}px; min-width: {SCROLLBAR_WIDTH}px; max-width: {SCROLLBAR_WIDTH}px; }}
         QScrollBar:horizontal {{ height: {SCROLLBAR_WIDTH}px; min-height: {SCROLLBAR_WIDTH}px; max-height: {SCROLLBAR_WIDTH}px; }}
-        QScrollBar::handle {{ background: {handle}; border: none; border-radius: 4px; }}
+        QScrollBar::handle {{ background-color: {handle}; border: none; border-radius: 3px; }}
         QScrollBar::handle:vertical {{ min-height: {SCROLLBAR_MIN_HANDLE}px; margin: 2px; }}
         QScrollBar::handle:horizontal {{ min-width: {SCROLLBAR_MIN_HANDLE}px; margin: 2px; }}
-        QScrollBar::handle:hover, QScrollBar::handle:pressed {{ background: {hover}; }}
-        QScrollBar::handle:disabled {{ background: {colors['border']}; }}
-        QScrollBar::add-line, QScrollBar::sub-line {{ width: 0px; height: 0px; border: none; background: transparent; }}
-        QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; border: none; }}
+        QScrollBar::handle:hover, QScrollBar::handle:pressed {{ background-color: {hover}; }}
+        QScrollBar::handle:disabled {{ background-color: {colors['border']}; }}
+        QScrollBar::add-line, QScrollBar::sub-line {{ width: 0px; height: 0px; border: none; background-color: transparent; }}
+        QScrollBar::add-page, QScrollBar::sub-page {{ background-color: transparent; border: none; }}
         QScrollBar::up-arrow, QScrollBar::down-arrow,
         QScrollBar::left-arrow, QScrollBar::right-arrow {{ image: none; width: 0px; height: 0px; }}
     """

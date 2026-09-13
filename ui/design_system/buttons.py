@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, QSize, pyqtProperty, QPropertyAnimation, QEasingCur
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QFont
 from ui.design_system.theme import get_theme, get_theme_colors, is_dark_theme
 from ui.design_system.icon import get_icon
-from ui.design_system.metrics import button_metrics_stylesheet
+from ui.design_system.metrics import CONTROL_HEIGHT, button_metrics_stylesheet
 
 class BaseButton(QPushButton):
     """Base button with hover animation and consistent styling"""
@@ -23,6 +23,8 @@ class BaseButton(QPushButton):
         
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.setMinimumHeight(CONTROL_HEIGHT)
+        self.setMaximumHeight(CONTROL_HEIGHT)
         
         # Hover animation
         self._hover_anim = QPropertyAnimation(self, b"opacity")

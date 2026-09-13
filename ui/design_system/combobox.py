@@ -24,7 +24,7 @@ class PrimaryComboBox(QComboBox):
         is_dark = is_dark_theme()
         theme = get_theme()
         
-        bg = colors.input_bg
+        bg = "transparent"
         border = colors.input_border
         text = colors.text
         hover = colors.bg_hover
@@ -54,6 +54,7 @@ class PrimaryComboBox(QComboBox):
             }}
             QComboBox:disabled {{
                 color: {colors.text_muted};
+                background-color: transparent;
                 opacity: 0.6;
             }}
             QComboBox::drop-down {{
@@ -102,22 +103,35 @@ class PrimaryComboBox(QComboBox):
                 color: {colors.text_light};
             }}
             QScrollBar:vertical {{
-                background: transparent;
-                width: 6px;
-                border-radius: 3px;
-                margin: 2px;
+                background-color: transparent;
+                width: 10px;
+                border: none;
+                border-radius: 0px;
+                margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: {colors.scrollbar_handle};
+                background-color: {colors.scrollbar_handle};
+                border: none;
                 border-radius: 3px;
                 min-height: 20px;
+                margin: 2px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background: {colors.scrollbar_handle_hover};
+                background-color: {colors.scrollbar_handle_hover};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 border: none;
-                background: none;
+                background-color: transparent;
+                width: 0px;
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::up-arrow, QScrollBar::down-arrow {{
+                image: none;
+                width: 0px;
                 height: 0px;
             }}
         """)

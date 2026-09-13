@@ -33,7 +33,7 @@ def branded_tile_icon(glyph: str, color: str) -> QIcon:
 
 
 def pos_icon() -> QIcon:
-    return branded_tile_icon("P", "#6675f5")
+    return branded_tile_icon("K", "#6675f5")
 
 
 def car_management_icon() -> QIcon:

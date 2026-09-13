@@ -22,6 +22,7 @@ from datetime import datetime
 from loguru import logger
 import csv
 import os
+from utils.branded_icons import pos_icon
 
 
 class WorkerSignals(QObject):
@@ -51,7 +52,7 @@ class BaseReportDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         fit_dialog_to_available_screen(self, 1000, 640, 880, 540)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setWindowFlags(
             self.windowFlags()
             | Qt.WindowType.Window
@@ -262,3 +263,4 @@ class BaseReportDialog(QDialog):
     def retranslateUi(self):
         """Override this method to update UI text when language changes"""
         pass
+

@@ -12,6 +12,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from loguru import logger
 import os
+from utils.branded_icons import pos_icon
 
 
 class WarehouseDialog(QDialog):
@@ -24,7 +25,7 @@ class WarehouseDialog(QDialog):
         
         self.setWindowTitle("Manage Locations")
         self.setMinimumSize(700, 500)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -485,3 +486,4 @@ class WarehouseDialog(QDialog):
         """Update button icons when shown"""
         self._update_button_icons()
         super().showEvent(event)
+

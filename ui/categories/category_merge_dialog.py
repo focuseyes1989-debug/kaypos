@@ -109,7 +109,7 @@ class CategoryMergeDialog(QDialog):
             }}
             QComboBox {{
                 padding: 8px 14px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['input_border']};
                 border-radius: 6px;
@@ -245,7 +245,7 @@ class CategoryMergeDialog(QDialog):
         self.target_combo.setStyleSheet(f"""
             QComboBox {{
                 padding: 8px 14px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['input_border']};
                 border-radius: 6px;
@@ -386,7 +386,7 @@ class CategoryMergeDialog(QDialog):
         self.target_combo.setStyleSheet(f"""
             QComboBox {{
                 padding: 8px 14px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['input_border']};
                 border-radius: 6px;

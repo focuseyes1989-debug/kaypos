@@ -14,6 +14,7 @@ from ui.themes.theme_manager import (
     theme_manager, get_theme_colors, get_icon_with_color, is_dark_theme
 )
 import os
+from utils.branded_icons import pos_icon
 
 
 class ReceiptDetailDialog(QDialog):
@@ -31,7 +32,7 @@ class ReceiptDetailDialog(QDialog):
         self.setModal(True)
         
         # Set window icon
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         
         # Connect theme change
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -494,3 +495,4 @@ class ReceiptDetailDialog(QDialog):
         """Handle show event - apply theme"""
         self._apply_theme()
         super().showEvent(event)
+

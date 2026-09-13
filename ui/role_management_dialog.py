@@ -10,6 +10,7 @@ from models.database import connect_db
 from utils.language import lang
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.design_system.dialog_styles import add_standard_close_footer, modern_table_stylesheet
+from utils.branded_icons import pos_icon
 
 
 class RoleManagementDialog(QDialog):
@@ -17,7 +18,7 @@ class RoleManagementDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Role Management")
         self.setMinimumSize(900, 700)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         self.selected_role_id = None
 
@@ -317,3 +318,4 @@ class RoleManagementDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to save role: {e}")
         finally:
             conn.close()
+

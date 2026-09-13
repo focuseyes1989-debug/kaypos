@@ -6,6 +6,7 @@ from models.database import connect_db
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 import os
+from utils.branded_icons import pos_icon
 
 
 class SupplierDialog(QDialog):
@@ -18,7 +19,7 @@ class SupplierDialog(QDialog):
         
         self.setWindowTitle("Supplier Information")
         self.resize(450, 580)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -246,7 +247,7 @@ class SupplierDialog(QDialog):
                 padding: 8px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 10pt;
                 min-height: 36px;
@@ -407,3 +408,4 @@ class SupplierDialog(QDialog):
         """Update button icons when dialog becomes visible"""
         self._update_button_icons()
         super().showEvent(event)
+

@@ -3,8 +3,8 @@
 from typing import Any, Dict, List
 
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QMouseEvent, QPainter, QPainterPath, QPixmap
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
+from PyQt6.QtGui import QFontMetrics, QMouseEvent, QPainter, QPainterPath, QPixmap
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
@@ -58,8 +58,11 @@ class CartItemWidget(CashierCartItemWidget):
         middle_layout.setContentsMargins(0, 0, 0, 0)
         middle_layout.setSpacing(2)
 
-        self.name_label = QLabel(self.item["name"])
+        self._full_name = str(self.item["name"])
+        self.name_label = QLabel(self._full_name)
         self.name_label.setFixedHeight(20)
+        self.name_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.name_label.setToolTip(self._full_name)
         self.name_label.setStyleSheet("font-size: 9.5pt; font-weight: 600; background: transparent; border: none;")
         middle_layout.addWidget(self.name_label)
 
@@ -78,6 +81,8 @@ class CartItemWidget(CashierCartItemWidget):
 
         symbol = get_currency_symbol()
         self.price_label = QLabel(format_money(self.item["price"], symbol))
+        self.price_label.setFixedWidth(78)
+        self.price_label.setToolTip(format_money(self.item["price"], symbol))
         qty_row.addWidget(self.price_label)
         qty_row.addStretch()
         middle_layout.addLayout(qty_row)
@@ -91,7 +96,9 @@ class CartItemWidget(CashierCartItemWidget):
         total = self.item["price"] * self.item["qty"]
         self.total_label = QLabel(format_money(total, symbol))
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.total_label.setFixedWidth(74)
         self.total_label.setFixedHeight(20)
+        self.total_label.setToolTip(format_money(total, symbol))
         right_layout.addWidget(self.total_label)
 
         location = self.item.get("location")
@@ -103,6 +110,16 @@ class CartItemWidget(CashierCartItemWidget):
 
         layout.addLayout(right_layout)
         self._update_thumbnail()
+        self._update_elided_name()
+
+    def _update_elided_name(self) -> None:
+        available = max(60, self.name_label.width())
+        metrics = QFontMetrics(self.name_label.font())
+        self.name_label.setText(metrics.elidedText(self._full_name, Qt.TextElideMode.ElideRight, available))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_elided_name()
 
     def _resolve_image_path(self) -> str:
         image_path = str(self.item.get("image") or self.item.get("image_path") or "").strip()
@@ -214,18 +231,31 @@ class CartWidget(CashierCartWidget):
     def __init__(self, parent=None):
         self.selected_row = -1
         super().__init__(parent)
+        self.setObjectName("salesCartWidget")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.table = _CartSelectionProxy(self)
         self.subtotal_label.setText("Grand Total")
 
     def _apply_theme(self):
         super()._apply_theme()
         colors = get_theme_colors()
-        surface = colors['card_bg']
+        dark = is_dark_theme()
+        surface = colors.get("card_bg", "#242832") if dark else "#f3f6ff"
+        item_surface = colors['card_bg']
+        hover_surface = colors.get('card_hover', colors.get('bg_hover', item_surface))
         text = colors['text']
         muted = colors['text_secondary']
-        border = colors['border']
+        border = colors.get("border", "#4b5568") if dark else "#c9d5f4"
+        self.setStyleSheet(
+            f"QWidget#salesCartWidget {{ background-color: {surface}; "
+            f"border: 1px solid {border}; border-radius: 8px; }}"
+        )
         for widget in (self.header, self.empty_widget, self.items_container, self.footer):
             widget.setStyleSheet(f"background-color: {surface}; border: none;")
+        self.header.setStyleSheet(
+            f"background-color: {surface}; border: none; "
+            "border-top-left-radius: 8px; border-top-right-radius: 8px;"
+        )
         self.scroll_area.setStyleSheet(f"QScrollArea {{ background-color: {surface}; border: none; }}")
         self.sep.setStyleSheet(f"background-color: {border}; border: none;")
         self.title_label.setStyleSheet(f"font-size: 12pt; font-weight: 600; color: {text}; background: transparent;")
@@ -234,7 +264,7 @@ class CartWidget(CashierCartWidget):
         self.empty_action_btn.hide()
         self.count_badge.setStyleSheet(f"color: {text}; background: {colors['bg_hover']}; border: none; border-radius: 6px; padding: 1px 6px;")
         self.clear_btn.set_button_style(self.clear_btn.SECONDARY)
-        self.clear_btn.setStyleSheet(f"QPushButton {{ min-width: 0px; min-height: 0px; padding: 0px; border: 1px solid {border}; border-radius: 6px; background: {surface}; }} QPushButton:hover {{ background: {colors['bg_hover']}; }}")
+        self.clear_btn.setStyleSheet(f"QPushButton {{ min-width: 0px; min-height: 0px; padding: 0px; border: 1px solid {border}; border-radius: 6px; background: {item_surface}; }} QPushButton:hover {{ background: {hover_surface}; }}")
         self.clear_btn.set_icon("delete", (16, 16))
         self.subtotal_value.setStyleSheet(f"font-size: 13pt; font-weight: 600; color: {text}; background: transparent;")
 

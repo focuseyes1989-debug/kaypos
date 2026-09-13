@@ -17,6 +17,7 @@ from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 from loguru import logger
 import os
+from utils.branded_icons import pos_icon
 
 
 class CreditPaymentDialog(QDialog):
@@ -32,7 +33,7 @@ class CreditPaymentDialog(QDialog):
         
         self.setWindowTitle(f"Payment Collection - {customer_name}")
         fit_dialog_to_available_screen(self, 960, 640, 860, 540)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -400,7 +401,7 @@ class CreditPaymentDialog(QDialog):
                 padding: 10px 14px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 11pt;
             }}
@@ -851,3 +852,4 @@ class CreditPaymentDialog(QDialog):
         self.load_customer_info()
         self.load_outstanding_invoices()
         super().showEvent(event)
+

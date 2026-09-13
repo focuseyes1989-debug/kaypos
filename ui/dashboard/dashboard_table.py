@@ -41,6 +41,9 @@ class DashboardTable(QFrame):
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
         self.table.setWordWrap(True)
+        self.table.setFrameShape(QFrame.Shape.NoFrame)
+        self.table.setAutoFillBackground(False)
+        self.table.viewport().setAutoFillBackground(False)
         
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -73,6 +76,10 @@ class DashboardTable(QFrame):
                     border-radius: 12px;
                     color: {colors['text']};
                 }}
+                QTableWidget::viewport {{
+                    background-color: {colors['card_bg']};
+                    border-radius: 12px;
+                }}
                 QTableWidget::item {{
                     padding: 6px 10px;
                     border: none;
@@ -95,6 +102,17 @@ class DashboardTable(QFrame):
                     font-weight: 600;
                     font-size: 9pt;
                     color: {colors['text_secondary']};
+                }}
+                QHeaderView::section:first {{
+                    border-top-left-radius: 12px;
+                }}
+                QHeaderView::section:last {{
+                    border-top-right-radius: 12px;
+                }}
+                QTableCornerButton::section {{
+                    background-color: {colors['bg_hover']};
+                    border: none;
+                    border-top-left-radius: 12px;
                 }}
             """
         self.table.setStyleSheet(table_style)

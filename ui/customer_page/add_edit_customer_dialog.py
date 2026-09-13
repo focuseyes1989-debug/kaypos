@@ -17,6 +17,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from utils.language import lang
 import os
+from utils.branded_icons import pos_icon
 
 
 class AddEditCustomerDialog(QDialog):
@@ -29,7 +30,7 @@ class AddEditCustomerDialog(QDialog):
         self._is_dark = is_dark_theme()
         self.setMinimumWidth(500)
         self.setMaximumWidth(600)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
 
         # Connect theme change
         theme_manager.theme_changed.connect(self._on_theme_changed)

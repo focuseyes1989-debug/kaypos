@@ -1645,7 +1645,7 @@ I can help you with:
     def update_theme(self):
         """Update theme"""
         colors = get_theme_colors()
-        self.setStyleSheet(f"background-color: {colors.get('bg', '#f5f6fa')};")
+        self.setStyleSheet("background-color: transparent;")
         if hasattr(self, "input_frame"):
             self.input_frame.setStyleSheet(f"""
                 QFrame {{

@@ -138,7 +138,7 @@ class ExpensePage(QWidget):
         self.setObjectName("expensePage")
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
+        layout.setSpacing(14)
         
         # ========== Cards (Using SummaryCardWidget with SVG icons) ==========
         card_layout = QHBoxLayout()
@@ -180,8 +180,8 @@ class ExpensePage(QWidget):
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("expenseToolbarCard")
         toolbar_layout = QHBoxLayout(self.toolbar_card)
-        toolbar_layout.setContentsMargins(12, 7, 12, 7)
-        toolbar_layout.setSpacing(6)
+        toolbar_layout.setContentsMargins(14, 10, 14, 10)
+        toolbar_layout.setSpacing(8)
         
         # âœ… DateRangeWidget
         self.date_range = DateRangeWidget()

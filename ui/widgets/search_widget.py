@@ -331,9 +331,9 @@ class ModernSearchWidget(QWidget):
         is_dark = is_dark_theme()
         
         if is_dark:
-            bg_color = colors['input_bg']
-            bg_hover = colors['card_hover']
-            bg_focus = colors['input_bg']
+            bg_color = "transparent"
+            bg_hover = "transparent"
+            bg_focus = "transparent"
             border_color = colors['input_border']
             border_hover = colors['border_hover']
             border_focus = colors['border_hover']
@@ -341,9 +341,9 @@ class ModernSearchWidget(QWidget):
             placeholder_color = colors['text_secondary']
             shadow_color = "rgba(88, 101, 242, 0.25)"
         else:
-            bg_color = "#f8f9fa"
-            bg_hover = "#ffffff"
-            bg_focus = "#ffffff"
+            bg_color = "transparent"
+            bg_hover = "transparent"
+            bg_focus = "transparent"
             border_color = "#ced4da"
             border_hover = "#adb5bd"
             border_focus = colors['border_hover']
@@ -352,6 +352,12 @@ class ModernSearchWidget(QWidget):
             shadow_color = "rgba(88, 101, 242, 0.15)"
         
         self.setStyleSheet(f"""
+            ModernSearchWidget,
+            SearchWidget {{
+                background-color: transparent;
+                border: none;
+            }}
+
             /* Container styling */
             #searchContainer {{
                 background-color: {bg_color};
@@ -362,6 +368,7 @@ class ModernSearchWidget(QWidget):
             }}
             
             #searchContainer:hover {{
+                background-color: {bg_hover};
                 border-color: {border_hover};
             }}
             

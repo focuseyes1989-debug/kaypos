@@ -158,7 +158,6 @@ class SettingsCenterWidget(QWidget):
     def apply_style(self):
         colors = get_theme_colors()
         dark = is_dark_theme()
-        bg = colors.get("bg", "#f3f6fb")
         card_bg = colors.get("card_bg", "#ffffff")
         card_hover = colors.get("card_hover", colors.get("bg_hover", "#f8fafc"))
         text = colors.get("text", "#111827")
@@ -172,7 +171,7 @@ class SettingsCenterWidget(QWidget):
 
         self.setStyleSheet(f"""
             QFrame#settingsCenterShell {{
-                background: {bg};
+                background: transparent;
             }}
             QFrame#settingsCenterSidebar {{
                 background: {card_bg};
@@ -220,7 +219,7 @@ class SettingsCenterWidget(QWidget):
                 background: {card_hover};
             }}
             QStackedWidget#settingsCenterStack {{
-                background: {bg};
+                background: transparent;
             }}
         """)
 

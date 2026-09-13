@@ -15,6 +15,7 @@ from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_the
 from datetime import datetime
 from loguru import logger
 import os
+from utils.branded_icons import pos_icon
 
 
 class CreditSaleDialog(QDialog):
@@ -30,7 +31,7 @@ class CreditSaleDialog(QDialog):
         self.setWindowTitle(f"Credit Sale - {customer_name}" if customer_name else "Credit Sale")
         self.setMinimumWidth(650)
         self.setMinimumHeight(600)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change

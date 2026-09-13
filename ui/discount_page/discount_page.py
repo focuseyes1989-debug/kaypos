@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -25,7 +26,9 @@ from models.database import connect_db, safe_initialize_postgres_pilot_database
 from utils.db_compat import is_postgres_backend
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.widgets.action_toolbar import ActionToolbar
+from ui.widgets.combo_box_widget import ContentWidthComboBox
 from ui.widgets.modern_button import ModernButton
+from ui.widgets.search_widget import SearchWidget
 
 
 class DiscountPage(QWidget):
@@ -98,16 +101,21 @@ class DiscountPage(QWidget):
         top = QHBoxLayout(self.toolbar_card)
         top.setContentsMargins(14, 10, 14, 10)
         top.setSpacing(8)
-        self.search_input = QLineEdit()
-        self.search_input.setMinimumWidth(260)
-        self.search_input.setFixedHeight(38)
-        self.search_input.setPlaceholderText("Search product or note...")
-        self.search_input.textChanged.connect(self.load_discounts)
-        top.addWidget(self.search_input, 1)
+        self.search_widget = SearchWidget("Search product or note...")
+        self.search_widget.setMinimumWidth(260)
+        self.search_widget.setMaximumWidth(16777215)
+        self.search_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.search_widget.search_changed.connect(self.load_discounts)
+        self.search_widget.search_cleared.connect(self.load_discounts)
+        self.search_input = self.search_widget.search_input
+        self.search_input.setMinimumHeight(36)
+        top.addWidget(self.search_widget, 1)
 
-        self.status_filter = QComboBox()
+        self.status_filter = ContentWidthComboBox()
         self.status_filter.setMinimumWidth(170)
-        self.status_filter.setFixedHeight(38)
+        self.status_filter.setFixedWidth(170)
+        self.status_filter.setMinimumHeight(36)
+        self.status_filter.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.status_filter.addItems(["All", "Active Now", "Scheduled", "Expired", "Disabled"])
         self.status_filter.currentTextChanged.connect(self.load_discounts)
         top.addWidget(self.status_filter)
@@ -147,25 +155,61 @@ class DiscountPage(QWidget):
                 color: {colors.get('text', '#212529')};
             }}
             QFrame#discountToolbarCard {{
-                background-color: {colors.get('card_bg', '#ffffff')};
-                border: 1px solid {colors.get('border', '#dee2e6')};
-                border-radius: 12px;
-            }}
-            QLineEdit, QComboBox, QDateEdit, QDoubleSpinBox {{
-                background-color: {colors.get('card_bg', '#ffffff')};
-                color: {colors.get('text', '#212529')};
-                border: 1px solid {colors.get('border', '#dee2e6')};
-                border-radius: 8px;
-                padding: 6px 8px;
+                background-color: transparent;
+                border: none;
+                border-radius: 0;
             }}
             QTableWidget {{
                 background-color: {colors.get('card_bg', '#ffffff')};
                 color: {colors.get('text', '#212529')};
                 gridline-color: transparent;
-                border: 1px solid {colors.get('border', '#dee2e6')};
+                border: none;
                 border-radius: 12px;
             }}
+            QHeaderView::section {{
+                background-color: {colors.get('table_header', colors.get('bg_hover', '#f8f9fa'))};
+                color: {colors.get('text_secondary', colors.get('text', '#212529'))};
+                border: none;
+                border-bottom: 1px solid {colors.get('border', '#dee2e6')};
+                padding: 8px 10px;
+                font-weight: 600;
+            }}
+            QTableWidget::item {{
+                border: none;
+                padding: 6px 10px;
+            }}
         """)
+        if hasattr(self, "search_widget"):
+            self.search_widget.apply_modern_style()
+        if hasattr(self, "status_filter"):
+            border = colors.get("border", "#dbe1ee")
+            hover = colors.get("progress_bg", colors.get("primary", "#6675f5"))
+            popup_bg = colors.get("card_bg", "#ffffff")
+            self.status_filter.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: transparent;
+                    color: {colors.get('text', '#212529')};
+                    border: 1px solid {border};
+                    border-radius: 8px;
+                    padding: 4px 8px;
+                    min-height: 20px;
+                }}
+                QComboBox:hover, QComboBox:focus {{
+                    border-color: {hover};
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 22px;
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {popup_bg};
+                    color: {colors.get('text', '#212529')};
+                    border: 1px solid {border};
+                    selection-background-color: {colors.get('bg_hover', '#f3f6ff')};
+                    selection-color: {colors.get('text', '#212529')};
+                    outline: none;
+                }}
+            """)
         if hasattr(self, "action_toolbar"):
             self.action_toolbar.update_theme()
 
@@ -595,6 +639,9 @@ class DiscountPage(QWidget):
                 border: 1px solid {colors.get('border', '#dee2e6')};
                 border-radius: 5px;
                 padding: 6px 8px;
+            }}
+            QComboBox {{
+                background-color: transparent;
             }}
             QCheckBox {{
                 color: {colors.get('text', '#212529')};

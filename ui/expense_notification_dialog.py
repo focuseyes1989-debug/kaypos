@@ -8,6 +8,7 @@ from PyQt6.QtGui import QIcon
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from datetime import datetime
+from utils.branded_icons import pos_icon
 
 
 class ExpenseNotificationDialog(QDialog):
@@ -15,7 +16,7 @@ class ExpenseNotificationDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Expense Notification Settings")
         self.setMinimumSize(800, 600)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
 
         layout = QVBoxLayout()

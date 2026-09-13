@@ -11,7 +11,10 @@ from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QSize
 
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
-from ui.design_system.metrics import CONTROL_HEIGHT, CONTROL_RADIUS
+from ui.design_system.metrics import COMPACT_HEIGHT, CONTROL_HEIGHT, CONTROL_RADIUS
+
+
+DENSE_HEIGHT = 34
 
 
 class ModernButton(QPushButton):
@@ -256,6 +259,9 @@ class ModernButton(QPushButton):
             disabled_text = "#9ba5b8"
         
         # Base styles common to all buttons
+        target_height = COMPACT_HEIGHT if self._compact else DENSE_HEIGHT if self._dense else CONTROL_HEIGHT
+        vertical_padding = 3 if self._compact else 4 if self._dense else 6
+        content_height = max(18, target_height - (vertical_padding * 2))
         style_sheet = f"""
             QPushButton {{
                 border: none;
@@ -264,6 +270,8 @@ class ModernButton(QPushButton):
                 font-weight: 600;
                 text-align: center;
                 outline: none;
+                min-height: {content_height}px;
+                max-height: {content_height}px;
             }}
             QPushButton:focus {{
                 outline: none;
@@ -552,14 +560,14 @@ class ModernButton(QPushButton):
         self._compact = compact
         if compact:
             self._dense = False
-            self.setMinimumHeight(30)
-            self.setMaximumHeight(32)
+            self.setMinimumHeight(COMPACT_HEIGHT)
+            self.setMaximumHeight(COMPACT_HEIGHT)
             self.setIconSize(QSize(14, 14))
             if not self.text().strip():
-                self.setMinimumWidth(32)
+                self.setMinimumWidth(COMPACT_HEIGHT)
         else:
-            self.setMinimumHeight(38)
-            self.setMaximumHeight(44)
+            self.setMinimumHeight(CONTROL_HEIGHT)
+            self.setMaximumHeight(CONTROL_HEIGHT)
             self.setIconSize(QSize(16, 16))
             self.setMinimumWidth(0)
         self._apply_style()
@@ -569,14 +577,14 @@ class ModernButton(QPushButton):
         self._dense = dense
         if dense:
             self._compact = False
-            self.setMinimumHeight(34)
-            self.setMaximumHeight(38)
+            self.setMinimumHeight(DENSE_HEIGHT)
+            self.setMaximumHeight(DENSE_HEIGHT)
             self.setIconSize(QSize(15, 15))
             if not self.text().strip():
                 self.setMinimumWidth(36)
         else:
-            self.setMinimumHeight(38)
-            self.setMaximumHeight(44)
+            self.setMinimumHeight(CONTROL_HEIGHT)
+            self.setMaximumHeight(CONTROL_HEIGHT)
             self.setIconSize(QSize(16, 16))
             self.setMinimumWidth(0)
         self._apply_style()

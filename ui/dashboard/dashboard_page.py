@@ -156,6 +156,10 @@ class DashboardPage(QWidget):
         
         if hasattr(self, 'splitter'):
             self.splitter.setStyleSheet(f"""
+                QSplitter#dashboardSplitter {{
+                    background-color: transparent;
+                    border: none;
+                }}
                 QSplitter::handle {{
                     background-color: {handle_color};
                     width: 2px;
@@ -197,6 +201,7 @@ class DashboardPage(QWidget):
     # ============================================================
     def setup_ui(self):
         self.setObjectName("dashboardPage")
+        self.setAutoFillBackground(False)
         main_layout = QVBoxLayout()
         main_layout.setSpacing(14)
         main_layout.setContentsMargins(4, 4, 4, 4)
@@ -205,7 +210,9 @@ class DashboardPage(QWidget):
         # SPLITTER: Left Column (80%) | Right Column (20%) - 4:1 Ratio
         # ============================================================
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setObjectName("dashboardSplitter")
         self.splitter.setHandleWidth(2)
+        self.splitter.setAutoFillBackground(False)
         
         # ✅ Apply splitter style
         self._update_splitter_style()
@@ -213,6 +220,7 @@ class DashboardPage(QWidget):
         # ---------- LEFT COLUMN ----------
         self.left_widget = QWidget()
         self.left_widget.setObjectName("dashboardMainColumn")
+        self.left_widget.setAutoFillBackground(False)
         left_layout = QVBoxLayout(self.left_widget)
         left_layout.setSpacing(12)
         left_layout.setContentsMargins(0, 0, 10, 0)
@@ -220,6 +228,8 @@ class DashboardPage(QWidget):
         # 1. Date Range
         self.filter_card = QFrame()
         self.filter_card.setObjectName("dashboardFilterCard")
+        self.filter_card.setFrameShape(QFrame.Shape.NoFrame)
+        self.filter_card.setAutoFillBackground(False)
         filter_layout = QHBoxLayout(self.filter_card)
         filter_layout.setContentsMargins(14, 10, 14, 10)
         self.date_range = DateRangeWidget()
@@ -397,8 +407,12 @@ class DashboardPage(QWidget):
         
         # ---------- Add to Splitter ----------
         self.left_scroll = QScrollArea()
+        self.left_scroll.setObjectName("dashboardScrollArea")
         self.left_scroll.setWidgetResizable(True)
         self.left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.left_scroll.setAutoFillBackground(False)
+        self.left_scroll.viewport().setAutoFillBackground(False)
+        self.left_scroll.viewport().setStyleSheet("background: transparent; border: none;")
         self.table_widget.setMinimumHeight(240)
         self.left_scroll.setWidget(self.left_widget)
         self.splitter.addWidget(self.left_scroll)
@@ -414,10 +428,21 @@ class DashboardPage(QWidget):
         self.setStyleSheet(f"""
             QWidget#dashboardPage {{ background: transparent; }}
             QWidget#dashboardMainColumn {{ background: transparent; }}
+            QSplitter#dashboardSplitter {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea#dashboardScrollArea,
+            QScrollArea#dashboardScrollArea QWidget#qt_scrollarea_viewport,
+            QScrollArea#dashboardScrollArea > QWidget,
+            QScrollArea#dashboardScrollArea > QWidget > QWidget {{
+                background: transparent;
+                border: none;
+            }}
             QFrame#dashboardFilterCard {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
+                background-color: transparent;
+                border: none;
+                border-radius: 0px;
             }}
             QFrame#dashboardAIColumn {{
                 background-color: {colors['card_bg']};

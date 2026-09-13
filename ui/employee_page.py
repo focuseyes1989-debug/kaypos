@@ -45,6 +45,8 @@ def _table(headers):
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    table.setAlternatingRowColors(True)
+    table.setShowGrid(False)
     table.verticalHeader().setVisible(False)
     return table
 

@@ -54,14 +54,14 @@ class InventoryPage(QWidget):
         self.setObjectName("inventoryPage")
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
+        layout.setSpacing(14)
 
         # Export and Location button row - ✅ Buttons on the right side
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("inventoryToolbarCard")
         btn_layout = QHBoxLayout(self.toolbar_card)
-        btn_layout.setContentsMargins(12, 7, 12, 7)
-        btn_layout.setSpacing(6)
+        btn_layout.setContentsMargins(14, 10, 14, 10)
+        btn_layout.setSpacing(8)
         
         # ✅ Add stretch to push buttons to the right
         btn_layout.addStretch()
@@ -150,30 +150,6 @@ class InventoryPage(QWidget):
             QFrame#inventoryToolbarCard {{
                 background: transparent;
                 border: none;
-            }}
-            QTabWidget#inventoryTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#inventoryTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 7px 12px;
-                margin: 0 3px 5px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#inventoryTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#inventoryTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
             }}
         """)
         

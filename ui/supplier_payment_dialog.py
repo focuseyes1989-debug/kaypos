@@ -13,6 +13,7 @@ from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from datetime import datetime
 import os
+from utils.branded_icons import pos_icon
 
 
 class SupplierPaymentDialog(QDialog):
@@ -27,7 +28,7 @@ class SupplierPaymentDialog(QDialog):
         
         self.setWindowTitle(f"Record Payment - {supplier_name}")
         self.setMinimumWidth(550)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change

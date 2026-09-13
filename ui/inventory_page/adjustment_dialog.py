@@ -7,6 +7,7 @@ from ui.inventory_page.adjustment_ui import AdjustmentUI
 from ui.inventory_page.adjustment_handlers import AdjustmentHandlers
 from ui.themes.theme_manager import theme_manager, get_theme_colors
 import os
+from utils.branded_icons import pos_icon
 
 
 class AdjustmentDialog(QDialog):
@@ -37,7 +38,7 @@ class AdjustmentDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         

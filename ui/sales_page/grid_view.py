@@ -42,6 +42,7 @@ class GridViewWidget(QScrollArea):
         
         self._container = QWidget()
         self._container.setObjectName("gridViewportContent")
+        self._container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         self._grid = QGridLayout(self._container)
         # ✅ Card များ အပေါ်ဘက်သို့ စုစည်းနေစေရန် Alignment ပေးထားပါသည်
@@ -51,6 +52,7 @@ class GridViewWidget(QScrollArea):
         # QScrollArea enables background filling on its viewport/content by default.
         self._container.setAutoFillBackground(False)
         self.viewport().setAutoFillBackground(False)
+        self.setAutoFillBackground(False)
         self._apply_surface_style()
 
         self._cards: List[QWidget] = []
@@ -115,57 +117,81 @@ class GridViewWidget(QScrollArea):
 
     def _apply_surface_style(self) -> None:
         colors = get_theme_colors()
-        surface = "transparent"
-        scroll_handle = "#3a465a" if self._is_dark else "#c7d0e4"
-        scroll_handle_hover = colors.get("border_hover", "#6675f5")
+        scroll_handle = colors.get("scrollbar_handle", "#8d929c" if self._is_dark else "#8f8f8f")
+        scroll_handle_hover = colors.get("scrollbar_handle_hover", "#5865F2")
         self.setStyleSheet(f"""
             QScrollArea {{
                 border: none;
-                border-radius: 8px;
-                background: {surface};
+                border-radius: 0px;
+                background-color: transparent;
+            }}
+            QScrollArea QWidget#qt_scrollarea_viewport {{
+                background-color: transparent;
+                border: none;
             }}
             QScrollArea QWidget#gridViewportContent {{
-                background: {surface};
+                background-color: transparent;
+                border: none;
             }}
             QScrollBar:vertical {{
-                background: {surface};
-                width: 12px;
-                border-radius: 6px;
+                background-color: transparent;
+                width: 10px;
+                border-radius: 0px;
+                border: none;
+                margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: {scroll_handle};
-                border-radius: 6px;
+                background-color: {scroll_handle};
+                border: none;
+                border-radius: 3px;
                 min-height: 20px;
+                margin: 2px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background: {scroll_handle_hover};
+                background-color: {scroll_handle_hover};
             }}
             QScrollBar:horizontal {{
-                background: {surface};
-                height: 12px;
-                border-radius: 6px;
+                background-color: transparent;
+                height: 10px;
+                border-radius: 0px;
+                border: none;
+                margin: 0px;
             }}
             QScrollBar::handle:horizontal {{
-                background: {scroll_handle};
-                border-radius: 6px;
+                background-color: {scroll_handle};
+                border: none;
+                border-radius: 3px;
                 min-width: 20px;
+                margin: 2px;
             }}
             QScrollBar::handle:horizontal:hover {{
-                background: {scroll_handle_hover};
+                background-color: {scroll_handle_hover};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                width: 0px;
                 height: 0px;
                 border: none;
+                background: transparent;
             }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 width: 0px;
+                height: 0px;
                 border: none;
+                background: transparent;
             }}
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-                background: {surface};
+                background: transparent;
+                border: none;
             }}
             QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-                background: {surface};
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar::up-arrow, QScrollBar::down-arrow,
+            QScrollBar::left-arrow, QScrollBar::right-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
             }}
         """)
 
@@ -1063,7 +1089,6 @@ class ModernProductCard(QWidget):
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 0, 0)
         self.price_label = QLabel(format_money(self._price, get_currency_symbol()))
-        self.price_label.setToolTip(self.price_label.text())
         self.price_label.setFixedHeight(24)
         footer.addWidget(self.price_label, 1)
         self.quantity_label = QLabel(str(self._stock), self)

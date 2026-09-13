@@ -1,13 +1,14 @@
 # ui/sales_summary/payment_tab.py
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QProgressBar, QFrame,
+    QTableWidgetItem, QHeaderView, QFrame,
     QLabel, QPushButton
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 from models.database import connect_db
 from utils.currency import format_money, get_currency_symbol
+from ui.sales_summary.progress_cell import create_progress_cell
 
 
 def _as_float(value):
@@ -28,6 +29,10 @@ class PaymentTab(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -139,43 +144,7 @@ class PaymentTab(QWidget):
                 amount_item.setForeground(QColor(46, 204, 113))
             self.table.setItem(r, 2, amount_item)
             
-            # Progress Bar
-            progress_widget = QWidget()
-            progress_layout = QHBoxLayout(progress_widget)
-            progress_layout.setContentsMargins(5, 2, 5, 2)
-            progress_layout.setSpacing(0)
-            
-            progress_bar = QProgressBar()
-            progress_bar.setRange(0, 100)
-            progress_bar.setValue(int(percentage))
-            progress_bar.setFormat("")
-            progress_bar.setTextVisible(False)
-            
-            # Color based on percentage
-            if percentage >= 80:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #e74c3c;
-                        border-radius: 3px;
-                    }
-                """)
-            elif percentage >= 50:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #f39c12;
-                        border-radius: 3px;
-                    }
-                """)
-            else:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #2ecc71;
-                        border-radius: 3px;
-                    }
-                """)
-            
-            progress_layout.addWidget(progress_bar)
-            self.table.setCellWidget(r, 3, progress_widget)
+            self.table.setCellWidget(r, 3, create_progress_cell(percentage))
             
             # Set row height
             self.table.setRowHeight(r, 50)
@@ -213,26 +182,7 @@ class PaymentTab(QWidget):
         amount_item.setForeground(QColor(theme_colors['total_color']))
         self.table.setItem(r, 2, amount_item)
         
-        # Progress Bar for total (different color - blue)
-        progress_widget = QWidget()
-        progress_layout = QHBoxLayout(progress_widget)
-        progress_layout.setContentsMargins(5, 2, 5, 2)
-        progress_layout.setSpacing(0)
-        
-        progress_bar = QProgressBar()
-        progress_bar.setRange(0, 100)
-        progress_bar.setValue(int(total_percentage))
-        progress_bar.setFormat("")
-        progress_bar.setTextVisible(False)
-        progress_bar.setStyleSheet("""
-            QProgressBar::chunk {
-                background-color: #3498db;
-                border-radius: 3px;
-            }
-        """)
-        
-        progress_layout.addWidget(progress_bar)
-        self.table.setCellWidget(r, 3, progress_widget)
+        self.table.setCellWidget(r, 3, create_progress_cell(total_percentage, "#5865f2"))
         self.table.setRowHeight(r, 50)
         
         # Set headers based on language

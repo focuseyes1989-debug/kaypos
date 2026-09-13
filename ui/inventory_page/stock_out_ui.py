@@ -453,7 +453,7 @@ class StockOutUI:
                 padding: 6px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 6px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 10pt;
             }}

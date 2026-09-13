@@ -33,6 +33,7 @@ class AIPagesPage(QWidget):
     def __init__(self, parent=None, current_user=None):
         super().__init__(parent)
         self.current_user = current_user or {}
+        self.setObjectName("aiPagesPage")
         self._setup_ui()
     
     def _setup_ui(self):
@@ -40,8 +41,8 @@ class AIPagesPage(QWidget):
         
         # Main layout
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(14)
         
         # ============================================================
         # TAB WIDGET
@@ -212,11 +213,11 @@ class AIPagesPage(QWidget):
         widget.setObjectName("analyticsTab")
         widget.setStyleSheet(f"""
             QWidget#analyticsTab {{
-                background-color: {colors.get('bg', '#f5f6fa')};
+                background-color: transparent;
             }}
         """)
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
         
         # ============================================================
@@ -1100,11 +1101,11 @@ class AIPagesPage(QWidget):
         widget.setObjectName("aiToolsTab")
         widget.setStyleSheet(f"""
             QWidget#aiToolsTab {{
-                background-color: {colors.get('bg', '#f5f6fa')};
+                background-color: transparent;
             }}
         """)
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
 
         header_frame = QFrame()
@@ -1353,8 +1354,15 @@ class AIPagesPage(QWidget):
     def update_theme(self):
         """Update theme for AI Pages"""
         colors = get_theme_colors()
-        bg_color = colors.get('bg', '#f5f6fa')
-        self.setStyleSheet(f"background-color: {bg_color};")
+        self.setStyleSheet("""
+            QWidget#aiPagesPage {
+                background-color: transparent;
+            }
+            QWidget#analyticsTab,
+            QWidget#aiToolsTab {
+                background-color: transparent;
+            }
+        """)
         
         # Apply tab style
         self._apply_tab_style()

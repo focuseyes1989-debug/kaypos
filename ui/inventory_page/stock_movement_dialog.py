@@ -18,6 +18,7 @@ from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_the
 from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import os
+from utils.branded_icons import pos_icon
 
 
 class StockMovementDialog(QDialog):
@@ -34,7 +35,7 @@ class StockMovementDialog(QDialog):
         
         self.setWindowTitle("Stock Movements")
         fit_dialog_to_available_screen(self, 1080, 640, 940, 540)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -216,7 +217,7 @@ class StockMovementDialog(QDialog):
                 padding: 6px 12px;
                 border: 1px solid {colors['border']};
                 border-radius: 8px;
-                background: {colors['card_bg']};
+                background: transparent;
                 color: {colors['text']};
                 font-size: 10pt;
                 min-width: 120px;
@@ -701,3 +702,4 @@ class StockMovementDialog(QDialog):
         """Update button icons when dialog becomes visible"""
         self._update_button_icons()
         super().showEvent(event)
+

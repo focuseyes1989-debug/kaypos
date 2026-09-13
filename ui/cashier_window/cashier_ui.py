@@ -9,7 +9,8 @@ from typing import Optional, Dict, Any, Callable
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QApplication, QSplitter, QComboBox, QSizePolicy,
-    QPushButton, QMessageBox, QDialog, QDialogButtonBox
+    QPushButton, QMessageBox, QDialog, QDialogButtonBox, QToolButton,
+    QMenu,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap, QShortcut, QKeySequence
@@ -30,14 +31,17 @@ from ui.responsive_utils import (
     get_responsive_window_size,
     get_responsive_font_size,
     get_responsive_spacing,
-    get_responsive_padding
+    get_responsive_padding,
+    fit_dialog_to_available_screen,
 )
 from models.database import connect_db
+from utils.currency import format_money, get_currency_symbol
 from utils.language import lang
 from utils.translations import tr
 from loguru import logger
 
 from ui.widgets.modern_button import ModernButton
+from ui.design_system.icon import get_icon
 from utils.branded_icons import pos_icon
 
 
@@ -54,6 +58,8 @@ class CashierUI(QMainWindow):
         self.user_id = current_user["id"]
         self._on_closed_callback: Optional[Callable[[], None]] = None
         self._customer_display = None
+        self._checkout_dialog = None
+        self._checkout_busy = False
         
         # Initialize attributes before UI setup
         self.product_grid: Any = None
@@ -67,6 +73,10 @@ class CashierUI(QMainWindow):
         self.btn_customer_display: Any = None
         self.btn_open_cashdrawer: Any = None
         self.btn_checkout: Any = None
+        self.cart_actions_footer: Any = None
+        self.cart_total: Any = None
+        self.cart_clear: Any = None
+        self.cart_checkout: Any = None
         self.btn_hold_sale: Any = None
         self.btn_resume_sale: Any = None
         self.btn_expense: Any = None
@@ -166,12 +176,8 @@ class CashierUI(QMainWindow):
         # အဓိက container
         central_widget = QWidget()
         central_widget.setObjectName("cashierContainer")
-        central_widget.setStyleSheet(f"""
-            QWidget#cashierContainer {{
-                background-color: {colors['bg']};
-            }}
-        """)
         self.setCentralWidget(central_widget)
+        self._apply_cashier_root_style()
         
         # Main layout
         main_layout = QVBoxLayout(central_widget)
@@ -184,10 +190,10 @@ class CashierUI(QMainWindow):
         self._main_splitter.setChildrenCollapsible(False)
         self._main_splitter.setStyleSheet(f"""
             QSplitter {{
-                background-color: {colors['bg']};
+                background-color: transparent;
             }}
             QSplitter::handle {{
-                background-color: {colors['border']};
+                background-color: transparent;
                 margin: {self._padding // 2}px 0px;
                 border-radius: 3px;
             }}
@@ -205,10 +211,11 @@ class CashierUI(QMainWindow):
         self._main_splitter.addWidget(sale_panel)
         
         # ─── Column 3: Widgets & Checkout ─────────────────────────────
-        product_grid_container.setMinimumWidth(520)
-        sale_panel.setMinimumWidth(420)
-        self._main_splitter.setStretchFactor(0, 3)
-        self._main_splitter.setStretchFactor(1, 2)
+        product_grid_container.setMinimumWidth(720)
+        sale_panel.setMinimumWidth(380)
+        sale_panel.setMaximumWidth(620)
+        self._main_splitter.setStretchFactor(0, 4)
+        self._main_splitter.setStretchFactor(1, 1)
         self._set_default_splitter_sizes()
         
         main_layout.addWidget(self._main_splitter, stretch=1)
@@ -220,15 +227,57 @@ class CashierUI(QMainWindow):
         # Connect signals
         self._connect_signals()
 
+    def _apply_cashier_root_style(self):
+        """Keep Cashier Mode visually aligned with the upgraded Sale page."""
+        colors = get_theme_colors()
+        bg = colors.get('bg', '#f4f6fb')
+        card = colors.get('card_bg', '#ffffff')
+        border = colors.get('border', '#dbe1ee')
+        text = colors.get('text', '#172033')
+        surface = colors.get("card_bg", "#242832") if is_dark_theme() else "#f3f6ff"
+        central = self.centralWidget()
+        target = central if central is not None else self
+        target.setStyleSheet(f"""
+            QWidget#cashierContainer {{
+                background-color: {bg};
+                color: {text};
+            }}
+            QWidget#cashierContainer QLabel,
+            QWidget#cashierContainer QPushButton,
+            QWidget#cashierContainer QComboBox,
+            QWidget#cashierContainer QLineEdit {{
+                font-family: "Segoe UI";
+            }}
+            QWidget#cashierProductColumn {{
+                background-color: transparent;
+                border: none;
+            }}
+            QWidget#cashierSalePanel {{
+                background-color: {card};
+                border: none;
+                border-left: 1px solid {border};
+            }}
+            QWidget#cashierDetailsHiddenHolder {{
+                background-color: transparent;
+                border: none;
+            }}
+            QWidget#cashierActionStrip {{
+                background-color: {surface};
+                border: 1px solid {colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"};
+                border-radius: 8px;
+            }}
+        """)
+
     def _set_default_splitter_sizes(self):
         """Set balanced initial column widths without fighting user resizing."""
         if self._splitter_initialized or not self._main_splitter:
             return
 
         total_width = max(self.width(), 1024)
+        sale_width = min(max(int(total_width * 0.28), 420), 600)
         self._main_splitter.setSizes([
-            int(total_width * 0.60),
-            int(total_width * 0.40),
+            total_width - sale_width,
+            sale_width,
         ])
         self._splitter_initialized = True
     
@@ -238,20 +287,15 @@ class CashierUI(QMainWindow):
         
         container = QWidget()
         container.setObjectName("cashierProductColumn")
-        container.setStyleSheet(f"""
-            QWidget#cashierProductColumn {{
-                background-color: {colors.get('bg', '#f8f9fa')};
-            }}
-        """)
         
         layout = QVBoxLayout(container)
         layout.setContentsMargins(
-            6,
-            6,
-            self._padding // 2,
-            self._padding // 2,
+            12,
+            10,
+            8,
+            10,
         )
-        layout.setSpacing(self._spacing)
+        layout.setSpacing(8)
         
         self.product_grid = ProductGrid(self, use_modern_combos=True)
 
@@ -284,8 +328,17 @@ class CashierUI(QMainWindow):
         text = colors.get('text', '#212529')
         muted = colors.get('text_secondary', '#6c757d')
         control_style = f"""
-            QLineEdit, QComboBox {{
+            QLineEdit {{
                 background-color: {input_bg};
+                color: {text};
+                border: 1px solid {input_border};
+                border-radius: 4px;
+                padding: 5px 8px;
+                min-height: 24px;
+                max-height: 24px;
+            }}
+            QComboBox {{
+                background-color: transparent;
                 color: {text};
                 border: 1px solid {input_border};
                 border-radius: 4px;
@@ -354,15 +407,10 @@ class CashierUI(QMainWindow):
 
         container = QWidget()
         container.setObjectName("cashierSalePanel")
-        container.setStyleSheet(f"""
-            QWidget#cashierSalePanel {{
-                background-color: {colors['card_bg']};
-            }}
-        """)
 
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(5)
+        layout.setContentsMargins(8, 10, 10, 10)
+        layout.setSpacing(8)
 
         self._setup_customer_section()
         layout.addLayout(self.customer_layout)
@@ -383,6 +431,7 @@ class CashierUI(QMainWindow):
         self.payment_widget._apply_received_input_style()
 
         self.checkout_handler = CheckoutHandler(self)
+        self._install_cart_actions()
 
         # Four matching ModernButton controls.
         self.btn_toggle_details = ModernButton("Sale Details", ModernButton.SECONDARY)
@@ -390,13 +439,6 @@ class CashierUI(QMainWindow):
         self.btn_toggle_details.setCheckable(False)
         self.btn_toggle_details.setAutoExclusive(False)
         self.btn_toggle_details.clicked.connect(self.open_sale_details_dialog)
-
-        self.btn_add_expense = ModernButton("Add Expense", ModernButton.SECONDARY)
-        self.btn_add_expense.set_icon("money", size=(15, 15))
-        self.btn_add_expense.setCheckable(False)
-        self.btn_add_expense.setAutoExclusive(False)
-        self.btn_add_expense.setToolTip("Add Expense (Ctrl+E)")
-        self.btn_add_expense.clicked.connect(self._open_expense_dialog)
 
         self.btn_customer_display = ModernButton("Customer Display", ModernButton.SECONDARY)
         self.btn_customer_display.set_icon("visibility", size=(15, 15))
@@ -414,7 +456,6 @@ class CashierUI(QMainWindow):
 
         for button in (
             self.btn_toggle_details,
-            self.btn_add_expense,
             self.btn_customer_display,
             self.btn_open_cashdrawer,
         ):
@@ -423,14 +464,16 @@ class CashierUI(QMainWindow):
             button.setMinimumWidth(0)
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        detail_buttons_layout = QHBoxLayout()
-        detail_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        detail_buttons_container = QWidget()
+        detail_buttons_container.setObjectName("cashierActionStrip")
+        detail_buttons_layout = QHBoxLayout(detail_buttons_container)
+        detail_buttons_layout.setContentsMargins(8, 8, 8, 8)
         detail_buttons_layout.setSpacing(6)
         detail_buttons_layout.addWidget(self.btn_toggle_details, 1)
-        detail_buttons_layout.addWidget(self.btn_add_expense, 1)
         detail_buttons_layout.addWidget(self.btn_customer_display, 1)
         detail_buttons_layout.addWidget(self.btn_open_cashdrawer, 1)
-        layout.addLayout(detail_buttons_layout)
+        layout.addWidget(detail_buttons_container)
+        detail_buttons_container.hide()
 
         self.details_panel = QWidget()
         self.details_panel.setObjectName("cashierDetailsHiddenHolder")
@@ -464,15 +507,109 @@ class CashierUI(QMainWindow):
         hold_resume_layout.addWidget(self.btn_hold_sale)
         hold_resume_layout.addWidget(self.btn_resume_sale)
 
-        action_layout = QHBoxLayout()
-        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_container = QWidget()
+        action_container.setObjectName("cashierActionStrip")
+        action_layout = QHBoxLayout(action_container)
+        action_layout.setContentsMargins(8, 8, 8, 8)
         action_layout.setSpacing(6)
         action_layout.addWidget(self.payment_widget, 1)
         action_layout.addWidget(hold_resume_widget, 1)
         action_layout.addWidget(self.btn_checkout, 2)
-        layout.addLayout(action_layout)
+        layout.addWidget(action_container)
+        action_container.hide()
 
         return container
+
+    def _install_cart_actions(self):
+        """Use the same Cart footer/action UI as the main Sale page."""
+        cart = self.cart_widget
+        if not cart:
+            return
+        cart.footer.hide()
+        cart.clear_btn.hide()
+
+        more = QToolButton(cart.header)
+        more.setIcon(get_icon("settings"))
+        more.setToolTip("Sale actions")
+        more.setStyleSheet("QToolButton { border: none; padding: 0; min-width: 0; } QToolButton::menu-indicator { image: none; }")
+        more.setFixedSize(32, 32)
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(more)
+        menu.addAction("Sale Details", self.open_sale_details_dialog)
+        menu.addAction("Hold", self.checkout_handler.hold_sale)
+        menu.addAction("Resume", self.checkout_handler.resume_sale)
+        menu.addAction("Add Expense", self._open_expense_dialog)
+        menu.addAction("Customer Display", self._toggle_customer_display)
+        menu.addAction("Open CashDrawer", self._open_cashdrawer)
+        more.setMenu(menu)
+        cart.header.layout().addWidget(more)
+
+        footer = QWidget(cart)
+        footer.setObjectName("cartActionsFooter")
+        footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        footer.setFixedHeight(104)
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(12, 10, 12, 10)
+        footer_layout.setSpacing(8)
+
+        total_row = QHBoxLayout()
+        total_row.addWidget(QLabel("Total"))
+        total_row.addStretch()
+        self.cart_total = QLabel()
+        self.cart_total.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        total_row.addWidget(self.cart_total)
+        footer_layout.addLayout(total_row)
+
+        action_row = QHBoxLayout()
+        self.cart_clear = QPushButton("Clear")
+        self.cart_clear.clicked.connect(self.checkout_handler.clear_cart)
+        self.cart_checkout = QPushButton("Checkout (F4)")
+        self.cart_checkout.setIcon(get_icon("shopping_cart"))
+        self.cart_checkout.clicked.connect(self.request_checkout)
+        for button in (self.cart_clear, self.cart_checkout):
+            button.setFixedHeight(44)
+            action_row.addWidget(button)
+        footer_layout.addLayout(action_row)
+
+        cart.layout().addWidget(footer)
+        cart.cart_changed.connect(self._update_cart_summary)
+        self.totals_widget.grand_total_changed.connect(self._update_cart_summary)
+        self._update_cart_summary()
+        self._style_cart_actions()
+
+    def _style_cart_actions(self):
+        if not self.cart_actions_footer:
+            return
+        colors = get_theme_colors()
+        background = colors.get("card_bg", "#242832") if is_dark_theme() else "#edf2ff"
+        button_background = colors.get("card_bg", "#ffffff")
+        border = colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"
+        self.cart_actions_footer.setStyleSheet(
+            f"QWidget#cartActionsFooter {{ background-color: {background}; border: 1px solid {border}; "
+            "border-radius: 8px; }}"
+            "QLabel { background: transparent; border: none; }"
+        )
+        self.cart_total.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {colors['text']};")
+        self.cart_checkout.setStyleSheet(
+            "QPushButton { background: #167c65; color: white; border: none; border-radius: 6px; padding: 0 12px; font-weight: 600; }"
+            "QPushButton:hover { background: #126b56; }"
+            f"QPushButton:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}"
+        )
+        self.cart_checkout.setIcon(get_icon("shopping_cart", color_hex="#ffffff" if self.cart_checkout.isEnabled() else colors['text_secondary']))
+        self.cart_clear.setStyleSheet(
+            f"QPushButton {{ background: {button_background}; color: {colors['text']}; border: 1px solid {border}; border-radius: 6px; padding: 0 12px; }}"
+            f"QPushButton:disabled {{ color: {colors['text_secondary']}; }}"
+        )
+
+    def _update_cart_summary(self, *_):
+        if not self.cart_total:
+            return
+        symbol = get_currency_symbol()
+        self.cart_total.setText(format_money(self.totals_widget.get_current_grand_total(), symbol))
+        enabled = bool(self.cart_widget.get_cart())
+        self.cart_clear.setEnabled(enabled)
+        self.cart_checkout.setEnabled(enabled)
+        self._style_cart_actions()
 
     def _detail_widgets(self):
         return [
@@ -683,27 +820,32 @@ class CashierUI(QMainWindow):
         return container
     
     def _setup_customer_section(self):
-        """Setup customer section - Theme-aware SVG Icon"""
-        colors = get_theme_colors()
-        is_dark = is_dark_theme()
-        
+        """Setup the compact action row above the cart."""
         self.customer_layout = QHBoxLayout()
-        self.customer_layout.setSpacing(4)
+        self.customer_layout.setSpacing(6)
         self.customer_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # 👤 SVG Icon - Theme-aware
+
         self.customer_icon = QLabel()
-        icon_color = "#dcddde" if is_dark else "#495057"
-        self._set_colored_svg_icon(self.customer_icon, "person", icon_color, 20, 20)
-        self.customer_layout.addWidget(self.customer_icon)
-        
+        self.customer_icon.hide()
+
         self.customer_combo = ComboBoxWidget("Customer")
         self.customer_combo.addItem("Walk-in", None)
         self.customer_combo.currentIndexChanged.connect(self._on_customer_changed)
         self.customer_combo.setMinimumWidth(120)
         self.customer_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._apply_customer_combo_style()
-        self.customer_layout.addWidget(self.customer_combo, 1)
+        self.customer_combo.hide()
+
+        self.btn_add_expense = ModernButton("Add Expense", ModernButton.SECONDARY)
+        self.btn_add_expense.set_icon("money", size=(15, 15))
+        self.btn_add_expense.set_dense(True)
+        self.btn_add_expense.setCheckable(False)
+        self.btn_add_expense.setAutoExclusive(False)
+        self.btn_add_expense.setFixedHeight(32)
+        self.btn_add_expense.setMinimumWidth(120)
+        self.btn_add_expense.setToolTip("Add Expense (Ctrl+E)")
+        self.btn_add_expense.clicked.connect(self._open_expense_dialog)
+        self.customer_layout.addWidget(self.btn_add_expense, 1)
 
         self.btn_receipts = ModernButton("Receipts", ModernButton.SECONDARY)
         self.btn_receipts.set_icon("receipt_long", size=(15, 15))
@@ -764,7 +906,7 @@ class CashierUI(QMainWindow):
         if is_dark:
             self.customer_combo.setStyleSheet("""
                 QComboBox {
-                    background-color: #40444b;
+                    background-color: transparent;
                     border: 1px solid #40444b;
                     border-radius: 4px;
                     padding: 3px 6px;
@@ -815,7 +957,7 @@ class CashierUI(QMainWindow):
         else:
             self.customer_combo.setStyleSheet("""
                 QComboBox {
-                    background-color: #ffffff;
+                    background-color: transparent;
                     border: 1px solid #ced4da;
                     border-radius: 4px;
                     padding: 3px 6px;
@@ -920,7 +1062,7 @@ class CashierUI(QMainWindow):
         self.totals_widget.grand_total_changed.connect(self.payment_widget.auto_set_payment)
         self.totals_widget.grand_total_changed.connect(self.cart_widget.update_grand_total)
         self.payment_widget.payment_amount_changed.connect(self.totals_widget.update_change_display)
-        self.payment_widget.checkout_requested.connect(self._checkout)
+        self.payment_widget.checkout_requested.connect(self.request_checkout)
         
         self.options_widget.payment_type_changed.connect(self.checkout_handler.on_payment_type_changed)
         
@@ -936,13 +1078,13 @@ class CashierUI(QMainWindow):
         self._add_shortcut("F2", self.product_grid.focus_search)
         self._add_shortcut("Ctrl+F", self.product_grid.focus_search)
         self._add_shortcut("F3", self.focus_customer)
-        self._add_shortcut("F4", self.focus_payment_amount)
+        self._add_shortcut("F4", self.request_checkout)
         self._add_shortcut("F6", self.focus_payment_type)
         self._add_shortcut("F7", self.toggle_discount)
         self._add_shortcut("F8", self.focus_discount)
         self._add_shortcut("F9", self.set_cash_sale)
         self._add_shortcut("F10", self.set_credit_sale)
-        self._add_shortcut("F12", self._checkout)
+        self._add_shortcut("F12", self.request_checkout)
         self._add_shortcut("Ctrl+H", self._hold_sale)
         self._add_shortcut("Ctrl+Shift+H", self._resume_sale)
         self._add_shortcut("Ctrl+Backspace", self._clear_cart)
@@ -1024,6 +1166,10 @@ class CashierUI(QMainWindow):
         self.options_widget.cash_radio.setToolTip(tr("cash_sale_shortcut"))
         self.options_widget.credit_radio.setToolTip(tr("credit_sale_shortcut"))
         self.btn_checkout.setToolTip(f"{tr('checkout_shortcut')} | Ctrl+E: Expense")
+        if self.cart_checkout:
+            self.cart_checkout.setToolTip(tr("checkout_shortcut"))
+        if self.cart_clear:
+            self.cart_clear.setToolTip(tr("clear_cart_shortcut"))
         if self.btn_hold_sale:
             self.btn_hold_sale.setToolTip("Hold current sale (Ctrl+H)")
         if self.btn_resume_sale:
@@ -1050,9 +1196,170 @@ class CashierUI(QMainWindow):
             self.checkout_handler.clear_cart()
     
     def _checkout(self):
-        """Checkout"""
-        if self.checkout_handler:
-            self.checkout_handler.checkout()
+        """Open the Sale-page checkout dialog."""
+        self.request_checkout()
+
+    def request_checkout(self):
+        """Open checkout review first, matching the main Sale page flow."""
+        if self._checkout_dialog is not None:
+            self.payment_widget.payment_input.setFocus()
+            self.payment_widget.payment_input.selectAll()
+            return
+        if not self.cart_widget.get_cart():
+            QApplication.beep()
+            return
+
+        customer_index = self.customer_combo.currentIndex()
+        sale_type = self.options_widget.get_payment_type()
+        discount_enabled = self.totals_widget.discount_checkbox.isChecked()
+        discount_value = self.totals_widget.discount_input.value()
+        points_enabled = self.totals_widget.points_use_check.isChecked()
+        points_value = self.totals_widget.points_spin.value()
+        amount = self.payment_widget.get_payment_amount()
+        manual = self.payment_widget.payment_manual_override
+        payment_index = self.payment_widget.payment_combo.currentIndex()
+
+        from ui.sales_page.checkout_dialog import CheckoutDialog
+        dialog = CheckoutDialog(self)
+        self._checkout_dialog = dialog
+        self.payment_widget.change_label_title.show()
+        self.payment_widget.change_label.show()
+        self.payment_widget.setMinimumHeight(130)
+        self.payment_widget.layout().setSpacing(8)
+        self.payment_widget.layout().setContentsMargins(10, 8, 10, 8)
+        self.payment_widget.update_change()
+        fit_dialog_to_available_screen(dialog, preferred_width=1040, preferred_height=600, min_width=900, min_height=500)
+        self.payment_widget.payment_input.setFocus()
+        self.payment_widget.payment_input.selectAll()
+        try:
+            dialog.exec()
+        finally:
+            dialog.restore_controls()
+            self._checkout_dialog = None
+            if dialog.result() != QDialog.DialogCode.Accepted:
+                self.customer_combo.setCurrentIndex(customer_index)
+                self.options_widget.set_payment_type(sale_type)
+                self.totals_widget.discount_checkbox.setChecked(discount_enabled)
+                self.totals_widget.discount_input.setValue(discount_value)
+                self.totals_widget.points_use_check.setChecked(points_enabled)
+                self.totals_widget.points_spin.setValue(points_value)
+                self.payment_widget.payment_combo.setCurrentIndex(payment_index)
+                self.payment_widget.payment_input.setValue(amount)
+                self.payment_widget.payment_manual_override = manual
+            self.payment_widget.update_theme()
+            self._apply_customer_combo_style()
+            dialog.deleteLater()
+
+    def confirm_checkout(self):
+        """Complete the sale from the checkout dialog."""
+        if getattr(self, "_checkout_busy", False):
+            return
+        if self._checkout_dialog is None:
+            self.request_checkout()
+            return
+        self.btn_checkout.setEnabled(False)
+        self._checkout_busy = True
+        try:
+            result = self.checkout_handler.checkout()
+            if result:
+                self._checkout_dialog.accept()
+        finally:
+            self._checkout_busy = False
+            self.btn_checkout.setEnabled(True)
+
+    def show_sale_completion(self, sale_id, invoice_no, grand_total, payment, change):
+        """Use the Sale page completion dialog after a cashier sale is saved."""
+        from ui.sales_page.checkout_handler.checkout_utils import print_receipt, open_cash_drawer
+        from ui.themes.theme_manager import get_icon_with_color
+
+        if self._checkout_dialog is not None:
+            self._checkout_dialog.hide()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Sale Complete")
+        colors = get_theme_colors()
+        dialog.setStyleSheet(f"""
+            QDialog {{ background: {colors['card_bg']}; }}
+            QLabel {{ background: transparent; color: {colors['text']}; font-size: 13px; }}
+            QLabel#completionTitle {{ font-size: 22px; font-weight: 700; color: #16805d; }}
+            QLabel#completionInvoice {{ color: {colors['text_secondary']}; }}
+            QFrame#completionSummary {{ background: transparent; border: 1px solid {colors['border']}; border-radius: 8px; }}
+            QPushButton {{ background: {colors['card_bg']}; color: {colors['text']};
+                border: 1px solid {colors['border']}; border-radius: 8px;
+                min-height: 44px; max-height: 44px; min-width: 0; padding: 0 12px; font-size: 14px; }}
+            QPushButton:hover {{ background: {colors['bg_hover']}; }}
+            QPushButton#completionPrint {{ background: #2563eb; color: white; border-color: #2563eb; }}
+            QPushButton#completionPrint:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; border-color: {colors['border']}; }}
+        """)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+        heading = QLabel("Sale complete")
+        heading.setObjectName("completionTitle")
+        layout.addWidget(heading)
+        invoice = QLabel("Invoice: " + invoice_no)
+        invoice.setObjectName("completionInvoice")
+        invoice.setWordWrap(True)
+        invoice.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(invoice)
+        summary = QFrame()
+        summary.setObjectName("completionSummary")
+        summary_layout = QVBoxLayout(summary)
+        summary_layout.setContentsMargins(12, 6, 12, 6)
+        summary_layout.setSpacing(0)
+        for title, value in (("Total", grand_total), ("Received", payment), ("Change", change)):
+            row = QHBoxLayout()
+            label = QLabel(title)
+            label.setMinimumHeight(40)
+            row.addWidget(label)
+            row.addStretch()
+            amount_label = QLabel(format_money(value, get_currency_symbol()))
+            amount_label.setObjectName("completion" + title)
+            amount_label.setStyleSheet("font-size: 18px; font-weight: 700;" if title == "Change" else "font-size: 15px; font-weight: 600;")
+            row.addWidget(amount_label)
+            summary_layout.addLayout(row)
+        layout.addWidget(summary)
+        status = QLabel("")
+        status.setObjectName("completionStatus")
+        status.setWordWrap(True)
+        status.setMinimumHeight(20)
+        layout.addWidget(status)
+        actions = QHBoxLayout()
+        done = QPushButton("New Sale")
+        done.setAutoDefault(False)
+        done.clicked.connect(dialog.accept)
+        print_button = QPushButton("Receipt Print")
+        print_button.setObjectName("completionPrint")
+        print_button.setIcon(get_icon_with_color("print", "#ffffff", (18, 18)))
+        print_button.setDefault(True)
+
+        def print_sale():
+            print_button.setEnabled(False)
+            try:
+                if print_receipt(self, sale_id):
+                    status.setText("Receipt sent to printer.")
+                else:
+                    status.setText("Receipt not printed. Retry or print from Receipts.")
+                    print_button.setEnabled(True)
+            except Exception as exc:
+                logger.exception("Receipt printing failed after sale completion")
+                status.setText("Sale saved. Print failed: " + str(exc))
+                print_button.setEnabled(True)
+
+        print_button.clicked.connect(print_sale)
+        for button in (done, print_button):
+            button.setFixedHeight(46)
+            actions.addWidget(button)
+        layout.addLayout(actions)
+        if self.options_widget.is_open_drawer_enabled():
+            try:
+                open_cash_drawer(self)
+            except Exception:
+                logger.exception("Cash drawer failed after sale completion")
+                status.setText("Sale saved. Cash drawer could not be opened.")
+        fit_dialog_to_available_screen(dialog, preferred_width=480, preferred_height=360, min_width=400, min_height=340)
+        print_button.setFocus()
+        dialog.exec()
+        dialog.deleteLater()
 
     def _hold_sale(self):
         """Hold current sale"""
@@ -1501,15 +1808,7 @@ class CashierUI(QMainWindow):
     
     def _on_theme_changed(self, theme_name: str):
         """Handle theme change"""
-        colors = get_theme_colors()
-        
-        central = self.centralWidget()
-        if central:
-            central.setStyleSheet(f"""
-                QWidget#cashierContainer {{
-                    background-color: {colors['bg']};
-                }}
-            """)
+        self._apply_cashier_root_style()
         
         self._apply_customer_combo_style()
         self._update_icon_colors()
@@ -1520,6 +1819,7 @@ class CashierUI(QMainWindow):
         
         if hasattr(self, 'cart_widget') and self.cart_widget:
             self.cart_widget.update_theme()
+        self._style_cart_actions()
         
         if self._customer_display and hasattr(self._customer_display, 'apply_theme_style'):
             self._customer_display.apply_theme_style()

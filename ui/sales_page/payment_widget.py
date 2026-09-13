@@ -307,7 +307,14 @@ class PaymentWidget(QGroupBox):
                 background-color: {card_bg};
                 color: {text};
             }}
-            QComboBox, QLineEdit {{
+            QComboBox {{
+                background-color: transparent;
+                color: {text};
+                border: 1px solid {input_border};
+                border-radius: 4px;
+                padding: 4px 6px;
+            }}
+            QLineEdit {{
                 background-color: {input_bg};
                 color: {text};
                 border: 1px solid {input_border};
@@ -319,7 +326,11 @@ class PaymentWidget(QGroupBox):
                 font-weight: 700;
                 padding: 6px 10px;
             }}
-            QComboBox:disabled, QLineEdit:disabled {{
+            QComboBox:disabled {{
+                color: {secondary};
+                background-color: transparent;
+            }}
+            QLineEdit:disabled {{
                 color: {secondary};
                 background-color: {colors.get('bg_hover', input_bg)};
             }}

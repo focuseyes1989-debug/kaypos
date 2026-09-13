@@ -20,6 +20,7 @@ import tempfile
 import zipfile
 from datetime import datetime
 import time
+from utils.branded_icons import pos_icon
 
 
 # ========== DATABASE PATH FIX ==========
@@ -1681,7 +1682,7 @@ class BackupInfoDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Backup Created")
         self.setMinimumSize(500, 350)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         layout = QVBoxLayout()
@@ -1771,7 +1772,7 @@ class ConfirmResetDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Confirm Factory Reset")
         self.setMinimumSize(500, 450)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         self.confirmed = False
         
@@ -1867,3 +1868,4 @@ class ConfirmResetDialog(QDialog):
             return row[0] if row else "en"
         except:
             return "en"
+

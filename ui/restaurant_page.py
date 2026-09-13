@@ -138,8 +138,8 @@ class RestaurantPage(QWidget):
 
     def _build_ui(self):
         root = QHBoxLayout(self)
-        root.setContentsMargins(6, 6, 6, 4)
-        root.setSpacing(6)
+        root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(14)
 
         root.addWidget(self.product_grid, 3)
         root.addWidget(self._build_order_panel(), 2)
@@ -1238,7 +1238,7 @@ class RestaurantPage(QWidget):
                 color: {colors['text']};
             }}
             QWidget#restaurantPage {{
-                background-color: {colors['bg']};
+                background-color: transparent;
                 color: {colors['text']};
             }}
             QFrame#restaurantSidePanel,
@@ -1266,7 +1266,7 @@ class RestaurantPage(QWidget):
                 min-height: 20px;
             }}
             QComboBox {{
-                background-color: {colors['input_bg']};
+                background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
                 border-radius: 6px;

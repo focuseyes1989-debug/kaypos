@@ -1,7 +1,7 @@
 """Global adapter that gives every QMessageBox modern semantic buttons."""
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
+from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QSizePolicy
 from ui.design_system.metrics import CONTROL_HEIGHT
 
 
@@ -75,6 +75,7 @@ class ModernMessageBoxFilter(QObject):
             button.setProperty("modernButtonRole", role.lower())
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setMinimumHeight(CONTROL_HEIGHT)
+            button.setMaximumHeight(CONTROL_HEIGHT)
 
     @staticmethod
     def _fit_message_text(box: QMessageBox) -> None:
@@ -88,31 +89,44 @@ class ModernMessageBoxFilter(QObject):
 
         longest_line = 0
         for label in labels:
-            label.setMinimumWidth(260)
+            label.setWordWrap(True)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+            label.setMinimumWidth(280)
             lines = label.text().splitlines() or [label.text()]
             line_width = max(label.fontMetrics().horizontalAdvance(line) for line in lines)
             longest_line = max(longest_line, line_width)
-            label.setMinimumWidth(max(260, min(520, line_width + 24)))
-            label.setWordWrap(True)
+            label_width = max(280, min(560, line_width + 32))
+            label.setMinimumWidth(label_width)
             # Reserve wrapped line height as well as width; Qt's compact
             # native message geometry can otherwise clip subsequent lines.
-            text_width = max(label.minimumWidth(), label.width())
+            text_width = max(label_width, label.width())
+            wrapped_rect = label.fontMetrics().boundingRect(
+                0,
+                0,
+                text_width,
+                16777215,
+                int(Qt.TextFlag.TextWordWrap),
+                label.text(),
+            )
             required_height = max(
-                label.fontMetrics().lineSpacing() * max(1, len(lines)) + 16,
+                label.fontMetrics().lineSpacing() * max(1, len(lines)) + 18,
                 label.heightForWidth(text_width),
+                wrapped_rect.height() + 18,
             )
             # Apply the constraint in QSS too: a later theme polish can reset
             # QWidget.minimumHeight to the global message-label rule (20px).
             label.setStyleSheet(
                 f"min-height: {required_height}px; max-height: 16777215px;"
-                "padding: 0px; background: transparent;"
+                "padding: 2px 0px; background: transparent;"
             )
             label.setMinimumHeight(required_height)
 
         # Reserve enough room for icon, text and margins before first paint.
         # Qt retains responsibility for wrapping genuinely long messages.
-        target_width = max(360, min(600, longest_line + 120))
+        target_width = max(380, min(640, longest_line + 140))
         box.setMinimumWidth(target_width)
+        box.setMinimumHeight(max(box.minimumHeight(), 150))
 
 
 def install_modern_message_boxes(app: QApplication) -> ModernMessageBoxFilter:

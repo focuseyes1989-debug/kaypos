@@ -160,6 +160,10 @@ QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
     color: #212529;
 }
 
+QComboBox {
+    background-color: transparent;
+}
+
 QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {
     border-color: #4A6CF7;
     outline: none;
@@ -249,43 +253,68 @@ QHeaderView::section {
 
 /* Scroll Bars */
 QScrollBar:vertical {
-    background-color: #F8F9FA;
+    background-color: transparent;
     width: 10px;
-    border-radius: 5px;
+    border: none;
+    border-radius: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background-color: #DEE2E6;
-    border-radius: 5px;
+    background-color: #8F8F8F;
+    border: none;
+    border-radius: 3px;
     min-height: 20px;
+    margin: 2px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #6C757D;
+    background-color: #5865F2;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+    width: 0px;
+    border: none;
+    background-color: transparent;
 }
 
 QScrollBar:horizontal {
-    background-color: #F8F9FA;
+    background-color: transparent;
     height: 10px;
-    border-radius: 5px;
+    border: none;
+    border-radius: 0px;
 }
 
 QScrollBar::handle:horizontal {
-    background-color: #DEE2E6;
-    border-radius: 5px;
+    background-color: #8F8F8F;
+    border: none;
+    border-radius: 3px;
     min-width: 20px;
+    margin: 2px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background-color: #6C757D;
+    background-color: #5865F2;
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     width: 0px;
+    height: 0px;
+    border: none;
+    background-color: transparent;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar::up-arrow, QScrollBar::down-arrow,
+QScrollBar::left-arrow, QScrollBar::right-arrow {
+    image: none;
+    width: 0px;
+    height: 0px;
 }
 
 /* Group Boxes */
@@ -305,31 +334,43 @@ QGroupBox::title {
 }
 
 /* Tabs */
+QTabWidget,
+QTabBar {
+    background-color: transparent;
+    border: none;
+}
 QTabWidget::pane {
-    border: 1px solid #DEE2E6;
-    border-radius: 6px;
-    background-color: white;
+    border: none;
+    border-radius: 0px;
+    background-color: transparent;
+    top: 0px;
+}
+
+QTabWidget::tab-bar {
+    left: 0px;
 }
 
 QTabBar::tab {
-    background-color: #F8F9FA;
-    border: 1px solid #DEE2E6;
-    border-bottom: none;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    padding: 8px 16px;
-    margin-right: 2px;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 7px 18px;
+    margin: 4px 4px 4px 0px;
     color: #6C757D;
+    font-weight: 600;
 }
 
 QTabBar::tab:selected {
     background-color: white;
     color: #4A6CF7;
-    border-bottom: 2px solid #4A6CF7;
+    border: 1px solid #4A6CF7;
+    padding: 7px 18px;
+    font-weight: 700;
 }
 
 QTabBar::tab:hover:!selected {
     background-color: #E9ECEF;
+    border-color: #DEE2E6;
 }
 
 /* Progress Bars */
@@ -360,12 +401,19 @@ QProgressBar::chunk[danger="true"] {
 
 /* Status Bar */
 QStatusBar {
-    background-color: #F8F9FA;
+    background-color: #edf2ff;
     color: #6C757D;
-    border-top: 1px solid #DEE2E6;
+    border: none;
 }
 
 QStatusBar::item {
+    border: none;
+    background: transparent;
+}
+
+QStatusBar QWidget,
+QStatusBar QLabel {
+    background: transparent;
     border: none;
 }
 

@@ -1,12 +1,13 @@
 # ui/sales_summary/items_tab.py
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QProgressBar, QMessageBox
+    QTableWidgetItem, QHeaderView, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import format_money, get_currency_symbol
+from ui.sales_summary.progress_cell import create_progress_cell
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.search_widget import ModernSearchWidget
 from ui.widgets.modern_button import ModernButton
@@ -44,6 +45,10 @@ class ItemsTab(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(9)  # 9 columns
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
         
         # Enable double click on table cells
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
@@ -492,42 +497,7 @@ class ItemsTab(QWidget):
                 profit_item.setForeground(QColor(231, 76, 60))
             self.table.setItem(r, 7, profit_item)
             
-            # Progress Bar
-            progress_widget = QWidget()
-            progress_layout = QHBoxLayout(progress_widget)
-            progress_layout.setContentsMargins(5, 2, 5, 2)
-            progress_layout.setSpacing(0)
-            
-            progress_bar = QProgressBar()
-            progress_bar.setRange(0, 100)
-            progress_bar.setValue(int(percentage))
-            progress_bar.setFormat("")
-            progress_bar.setTextVisible(False)
-            
-            if percentage >= 80:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #e74c3c;
-                        border-radius: 3px;
-                    }
-                """)
-            elif percentage >= 50:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #f39c12;
-                        border-radius: 3px;
-                    }
-                """)
-            else:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #2ecc71;
-                        border-radius: 3px;
-                    }
-                """)
-            
-            progress_layout.addWidget(progress_bar)
-            self.table.setCellWidget(r, 8, progress_widget)
+            self.table.setCellWidget(r, 8, create_progress_cell(percentage))
             
             self.table.setRowHeight(r, 50)
         

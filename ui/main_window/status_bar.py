@@ -8,6 +8,21 @@ from PyQt6.QtCore import Qt
 from ui.themes.theme_manager import get_theme_colors
 
 
+def _status_bar_background(colors):
+    """Slightly stronger surface so the footer reads apart from transparent pages."""
+    bg = str(colors.get("bg", "#ffffff")).lower()
+    if bg in {"#20242d", "#262c36", "#1e222b", "#242832", "#2a303b", "#111827", "#0f172a"}:
+        return "#242a34"
+    return "#edf2ff"
+
+
+def _status_bar_text_color(colors):
+    bg = _status_bar_background(colors).lower()
+    if bg in {"#242a34", "#1b2029", "#1e222b", "#20242d", "#262c36", "#242832", "#111827", "#0f172a"}:
+        return "#eef2f7"
+    return "#172033"
+
+
 class StatusBar(QStatusBar):
     """Main Window Status Bar with background activity indicator"""
     
@@ -19,19 +34,31 @@ class StatusBar(QStatusBar):
     
     def _setup_ui(self):
         colors = get_theme_colors()
+        text_color = _status_bar_text_color(colors)
         
         self.setStyleSheet(f"""
             QStatusBar {{
-                background-color: {colors['card_bg']};
-                color: {colors['text_secondary']};
-                border-top: 1px solid {colors['border']};
+                background-color: {_status_bar_background(colors)};
+                color: {text_color};
+                border: none;
                 padding: 3px 16px;
+                font-weight: 500;
+            }}
+            QStatusBar::item {{
+                border: none;
+                background: transparent;
+            }}
+            QStatusBar QWidget#statusBarContent,
+            QStatusBar QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         if hasattr(self, "ready_label"):
             self.ready_label.setStyleSheet(f"""
-                color: {colors['text_secondary']};
+                color: {text_color};
                 font-size: 9pt;
+                font-weight: 500;
                 background: transparent;
             """)
         self.clearMessage()
@@ -43,15 +70,19 @@ class StatusBar(QStatusBar):
     def _setup_activity_indicator(self):
         """Setup background activity indicator"""
         status_left = QWidget()
+        status_left.setObjectName("statusBarContent")
+        status_left.setStyleSheet("QWidget#statusBarContent { background: transparent; border: none; }")
         status_layout = QHBoxLayout(status_left)
         status_layout.setContentsMargins(16, 0, 0, 0)
         status_layout.setSpacing(8)
 
         self.ready_label = QLabel("Ready")
         colors = get_theme_colors()
+        text_color = _status_bar_text_color(colors)
         self.ready_label.setStyleSheet(f"""
-            color: {colors['text_secondary']};
+            color: {text_color};
             font-size: 9pt;
+            font-weight: 500;
             background: transparent;
         """)
         status_layout.addWidget(self.ready_label)
@@ -115,17 +146,28 @@ class StatusBar(QStatusBar):
     def update_theme(self, theme_name):
         """Update status bar theme"""
         colors = get_theme_colors()
+        text_color = _status_bar_text_color(colors)
         
         self.setStyleSheet(f"""
             QStatusBar {{
-                background-color: {colors['card_bg']};
-                color: {colors['text_secondary']};
-                border-top: 1px solid {colors['border']};
+                background-color: {_status_bar_background(colors)};
+                color: {text_color};
+                border: none;
                 padding: 3px 16px;
+                font-weight: 500;
+            }}
+            QStatusBar::item {{
+                border: none;
+                background: transparent;
+            }}
+            QStatusBar QWidget#statusBarContent,
+            QStatusBar QLabel {{
+                border: none;
+                background: transparent;
             }}
         """)
         self.ready_label.setStyleSheet(
-            f"color: {colors['text_secondary']}; font-size: 9pt; background: transparent;"
+            f"color: {text_color}; font-size: 9pt; font-weight: 500; background: transparent;"
         )
         self.background_activity_progress.setStyleSheet(f"""
             QProgressBar {{

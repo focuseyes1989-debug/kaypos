@@ -13,6 +13,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import get_responsive_dialog_size
 import os
+from utils.branded_icons import pos_icon
 
 
 class LoginDialog(QDialog):
@@ -21,7 +22,7 @@ class LoginDialog(QDialog):
         self._is_dark = is_dark_theme()
         
         self.setWindowTitle(tr("login_title"))
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
 
         screen = self.screen()
@@ -142,12 +143,7 @@ class LoginDialog(QDialog):
         logo_container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo_label = QLabel()
-        logo_path = "assets/icons/zaypos.png"
-        if os.path.exists(logo_path):
-            pixmap = QPixmap(logo_path)
-            if not pixmap.isNull():
-                scaled_pixmap = pixmap.scaled(68, 68, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                logo_label.setPixmap(scaled_pixmap)
+        logo_label.setPixmap(pos_icon().pixmap(QSize(68, 68)))
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_container_layout.addWidget(logo_label)
         
@@ -437,3 +433,4 @@ class LoginDialog(QDialog):
         """Apply theme when dialog becomes visible"""
         self._apply_theme()
         super().showEvent(event)
+

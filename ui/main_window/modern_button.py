@@ -14,6 +14,7 @@ from PyQt6.QtGui import QIcon, QColor, QPixmap, QPainter
 from PyQt6.QtCore import Qt, QSize
 
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.metrics import COMPACT_HEIGHT, CONTROL_HEIGHT
 
 
 class ModernButton(QPushButton):
@@ -178,8 +179,8 @@ class ModernButton(QPushButton):
         self.setAutoExclusive(True)
         
         # Default size - normal
-        self.setMinimumHeight(32)
-        self.setMaximumHeight(40)
+        self.setMinimumHeight(CONTROL_HEIGHT)
+        self.setMaximumHeight(CONTROL_HEIGHT)
         
         # Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
@@ -242,6 +243,9 @@ class ModernButton(QPushButton):
             disabled_text = "#adb5bd"
         
         # Base styles common to all buttons - No border for secondary
+        target_height = COMPACT_HEIGHT if self._compact else CONTROL_HEIGHT
+        vertical_padding = 3 if self._compact else 6
+        content_height = max(18, target_height - (vertical_padding * 2))
         style_sheet = f"""
             QPushButton {{
                 border: none;
@@ -249,6 +253,8 @@ class ModernButton(QPushButton):
                 font-weight: 500;
                 text-align: left;
                 outline: none;
+                min-height: {content_height}px;
+                max-height: {content_height}px;
             }}
             QPushButton:focus {{
                 outline: none;
@@ -474,13 +480,13 @@ class ModernButton(QPushButton):
         """Toggle between compact and normal size"""
         self._compact = compact
         if compact:
-            self.setMinimumHeight(28)
-            self.setMaximumHeight(36)
+            self.setMinimumHeight(COMPACT_HEIGHT)
+            self.setMaximumHeight(COMPACT_HEIGHT)
             if not self.text().strip():
-                self.setMinimumWidth(28)
+                self.setMinimumWidth(COMPACT_HEIGHT)
         else:
-            self.setMinimumHeight(32)
-            self.setMaximumHeight(40)
+            self.setMinimumHeight(CONTROL_HEIGHT)
+            self.setMaximumHeight(CONTROL_HEIGHT)
             self.setMinimumWidth(0)
         self._apply_style()
     

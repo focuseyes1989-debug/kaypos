@@ -44,6 +44,7 @@ class ProductGrid(QWidget):
 
     def __init__(self, parent=None, use_modern_combos: bool = False, autoload: bool = True):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.use_modern_combos = use_modern_combos
         self._performance_settings = get_performance_settings()
         self.current_page = 1
@@ -132,6 +133,8 @@ class ProductGrid(QWidget):
 
         # ── Stacked widget ──────────────────────────────────────────────
         self.stack = QStackedWidget()
+        self.stack.setObjectName("productGridStack")
+        self.stack.setStyleSheet("QStackedWidget#productGridStack { background-color: transparent; border: none; }")
         layout.addWidget(self.stack)
 
         # Table view
@@ -1108,6 +1111,9 @@ class ProductGrid(QWidget):
         self.search_input.selectAll()
 
     def update_theme(self):
+        self.setStyleSheet("QWidget#productBrowserPanel { background-color: transparent; border: none; }")
+        if hasattr(self, "stack"):
+            self.stack.setStyleSheet("QStackedWidget#productGridStack { background-color: transparent; border: none; }")
         if hasattr(self, "search_widget"):
             self.search_widget.apply_modern_style()
         self.grid_view.update_theme()
@@ -1127,7 +1133,7 @@ class ProductGrid(QWidget):
         
         self.view_combo.setStyleSheet(f"""
             QComboBox {{
-                background-color: {colors['card_bg']};
+                background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
                 border-radius: 9px;
@@ -1148,7 +1154,7 @@ class ProductGrid(QWidget):
         
         self.category_combo.setStyleSheet(f"""
             QComboBox {{
-                background-color: {colors['card_bg']};
+                background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
                 border-radius: 9px;

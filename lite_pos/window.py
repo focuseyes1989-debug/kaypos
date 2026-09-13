@@ -2330,8 +2330,10 @@ class LiteWindow(QMainWindow):
 
     def _build_service_order_design_prompts_tab(self) -> QWidget:
         page = QWidget()
-        layout = QVBoxLayout(page); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
+        layout = QVBoxLayout(page); layout.setContentsMargins(0, 6, 0, 4); layout.setSpacing(8)
         top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 2)
+        top.setSpacing(8)
         self.service_order_prompt_search = QLineEdit()
         self.service_order_prompt_search.setPlaceholderText("Search prompts...")
         self.service_order_prompt_search.textChanged.connect(self.refresh_service_order_prompt_table)
@@ -2354,6 +2356,8 @@ class LiteWindow(QMainWindow):
         self.service_order_prompt_table.doubleClicked.connect(lambda _index: self.edit_service_order_design_prompt())
         layout.addWidget(self.service_order_prompt_table, 1)
         actions = QHBoxLayout()
+        actions.setContentsMargins(0, 6, 0, 0)
+        actions.setSpacing(8)
         add = QPushButton("Add Prompt"); add.clicked.connect(lambda: self.open_service_order_design_prompt_editor())
         edit = QPushButton("Edit Prompt"); edit.clicked.connect(self.edit_service_order_design_prompt)
         deactivate = QPushButton("Deactivate"); deactivate.clicked.connect(self.deactivate_service_order_design_prompt)

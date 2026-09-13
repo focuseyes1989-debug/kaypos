@@ -86,7 +86,7 @@ class SalesPage(QWidget):
         main_layout.setContentsMargins(2, 2, 2, 2)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(0)
+        content_layout.setSpacing(8)
 
         content_layout.addWidget(self.product_grid, stretch=7)
 
@@ -96,7 +96,7 @@ class SalesPage(QWidget):
         self.right_container.setMaximumWidth(440)
         right_layout = QVBoxLayout(self.right_container)
         right_layout.setSpacing(7)
-        right_layout.setContentsMargins(8, 0, 0, 0)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
         self.setup_customer_section()
         self.checkout_controls = QWidget(self)
@@ -285,8 +285,15 @@ class SalesPage(QWidget):
                         color: {text};
                         background-color: transparent;
                     }}
-                    QGroupBox QSpinBox, QGroupBox QDoubleSpinBox, QGroupBox QComboBox {{
+                    QGroupBox QSpinBox, QGroupBox QDoubleSpinBox {{
                         background-color: {input_bg};
+                        color: {text};
+                        border: 1px solid {input_border};
+                        border-radius: 4px;
+                        padding: 4px 6px;
+                    }}
+                    QGroupBox QComboBox {{
+                        background-color: transparent;
                         color: {text};
                         border: 1px solid {input_border};
                         border-radius: 4px;
@@ -419,10 +426,13 @@ class SalesPage(QWidget):
         if not hasattr(self, "cart_actions_footer"):
             return
         colors = get_theme_colors()
-        background = colors.get("card_bg", "#ffffff")
-        border = colors.get("border", "#d7deea")
+        background = colors.get("card_bg", "#242832") if is_dark_theme() else "#edf2ff"
+        button_background = colors.get("card_bg", "#ffffff")
+        border = colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"
         self.cart_actions_footer.setStyleSheet(
-            f"QWidget#cartActionsFooter {{ background: {background}; border-top: 1px solid {border}; }}"
+            f"QWidget#cartActionsFooter {{ background-color: {background}; border: 1px solid {border}; "
+            "border-top-left-radius: 0px; border-top-right-radius: 0px; "
+            "border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }}"
             "QLabel { background: transparent; border: none; }"
         )
         self.cart_total.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {colors['text']};")
@@ -433,7 +443,7 @@ class SalesPage(QWidget):
         )
         self.cart_checkout.setIcon(get_icon("shopping_cart", color_hex="#ffffff" if self.cart_checkout.isEnabled() else colors['text_secondary']))
         self.cart_clear.setStyleSheet(
-            f"QPushButton {{ background: {background}; color: {colors['text']}; border: 1px solid {border}; border-radius: 6px; padding: 0 12px; }}"
+            f"QPushButton {{ background: {button_background}; color: {colors['text']}; border: 1px solid {border}; border-radius: 6px; padding: 0 12px; }}"
             f"QPushButton:disabled {{ color: {colors['text_secondary']}; }}"
         )
 
@@ -931,8 +941,13 @@ class SalesPage(QWidget):
             QWidget#salesPage QComboBox, QWidget#salesPage QLineEdit {{
                 font-family: "Segoe UI";
             }}
-            QWidget#productBrowserPanel, QWidget#salesRightContainer {{
-                background-color: {colors['card_bg']};
+            QWidget#productBrowserPanel {{
+                background-color: transparent;
+                border: none;
+                border-radius: 0px;
+            }}
+            QWidget#salesRightContainer {{
+                background-color: transparent;
                 border: none;
                 border-radius: 0px;
             }}
@@ -940,9 +955,8 @@ class SalesPage(QWidget):
         if self.right_container:
             self.right_container.setStyleSheet(f"""
                 QWidget#salesRightContainer {{
-                    background-color: {colors['card_bg']};
+                    background-color: transparent;
                     border: none;
-                    border-left: 1px solid {colors['border']};
                     border-radius: 0px;
                 }}
             """)
@@ -956,7 +970,7 @@ class SalesPage(QWidget):
     def update_customer_combo_style(self):
         """Update customer combo box style based on current theme"""
         colors = get_theme_colors()
-        bg = colors.get("input_bg", colors.get("card_bg", "#ffffff"))
+        bg = "transparent"
         text = colors.get("text", "#172033")
         secondary = colors.get("text_secondary", "#667085")
         border = colors.get("input_border", colors.get("border", "#dbe1ee"))
@@ -997,7 +1011,7 @@ class SalesPage(QWidget):
         if is_dark_theme():
             self.customer_combo.setStyleSheet("""
                 QComboBox {
-                    background-color: #40444b;
+                    background-color: transparent;
                     border: 1px solid #40444b;
                     border-radius: 4px;
                     padding: 5px 8px;
@@ -1049,7 +1063,7 @@ class SalesPage(QWidget):
         else:
             self.customer_combo.setStyleSheet("""
                 QComboBox {
-                    background-color: #ffffff;
+                    background-color: transparent;
                     border: 1px solid #ced4da;
                     border-radius: 4px;
                     padding: 5px 8px;

@@ -6,6 +6,7 @@ from ui.inventory_page.stock_out_ui import StockOutUI
 from ui.inventory_page.stock_out_handlers import StockOutHandlers
 from ui.themes.theme_manager import theme_manager, get_theme_colors
 import os
+from utils.branded_icons import pos_icon
 
 
 class StockOutDialog(QDialog):
@@ -16,7 +17,7 @@ class StockOutDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         

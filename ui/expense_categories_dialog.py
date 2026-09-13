@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from models.database import connect_db
+from utils.branded_icons import pos_icon
 
 
 class ExpenseCategoriesDialog(QDialog):
@@ -15,7 +16,7 @@ class ExpenseCategoriesDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Manage Expense Categories")
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setMinimumSize(400, 500)
         self.setModal(True)
 

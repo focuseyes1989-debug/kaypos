@@ -80,7 +80,7 @@ class ProductsPage(QWidget):
         self.setObjectName("productsPage")
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(14)
 
         # Cards
         self.cards = ProductCards(self)
@@ -90,7 +90,7 @@ class ProductsPage(QWidget):
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("productsToolbarCard")
         top_layout = QVBoxLayout(self.toolbar_card)
-        top_layout.setContentsMargins(12, 7, 12, 7)
+        top_layout.setContentsMargins(14, 10, 14, 10)
         top_layout.setSpacing(8)
         
         # âœ… ProductFilters - stretch á€™á€•á€±á€¸á€á€±á€¬á€·á€•á€«

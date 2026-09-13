@@ -8,6 +8,7 @@ from models.database import connect_db
 import os
 import shutil
 from datetime import datetime
+from utils.branded_icons import pos_icon
 
 
 class ExpenseAttachmentDialog(QDialog):
@@ -18,7 +19,7 @@ class ExpenseAttachmentDialog(QDialog):
         self.attachments_dir = "attachments/expenses"
         self.setWindowTitle(f"Attachments - {expense_no}")
         self.setMinimumSize(550, 400)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
 
         # Create attachments directory if not exists

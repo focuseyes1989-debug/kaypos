@@ -6,6 +6,7 @@ from ui.inventory_page.stock_transfer_ui import StockTransferUI
 from ui.inventory_page.stock_transfer_handlers import StockTransferHandlers
 from ui.themes.theme_manager import theme_manager, get_theme_colors
 import os
+from utils.branded_icons import pos_icon
 
 
 class StockTransferDialog(QDialog):
@@ -16,7 +17,7 @@ class StockTransferDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         

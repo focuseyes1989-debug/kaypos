@@ -7,7 +7,7 @@ WITH PROGRESS BAR
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QProgressBar, QSizePolicy
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QSize, QRectF
 from PyQt6.QtGui import QColor, QLinearGradient, QBrush, QPainter, QPen, QFont, QPixmap, QIcon
 from loguru import logger
 import os
@@ -23,7 +23,7 @@ class SummaryCardWidget(QWidget):
     def __init__(self, title="", value="0", icon="", color="#5865f2", 
                  gradient_colors=None, icon_is_svg=False, parent=None,
                  show_progress=False, progress_value=0, progress_max=100,
-                 flat=False):
+                 flat=True):
         super().__init__(parent)
         self._title = title
         self._raw_value = value
@@ -323,7 +323,7 @@ class SummaryCardWidget(QWidget):
     def _get_icon_color(self):
         """Get icon color based on current theme"""
         if self._flat:
-            return self._color
+            return "#f7f9fc" if self._is_dark else self._color
         if self._is_dark:
             return "#ffffff"
         else:
@@ -389,16 +389,27 @@ class SummaryCardWidget(QWidget):
         if self._flat:
             from ui.themes.theme_manager import get_theme_colors
             colors = get_theme_colors()
-            self.card.set_flat_palette(colors['card_bg'], colors['border'], colors['card_hover'])
+            surface = colors.get('card_bg', '#ffffff')
+            hover = colors.get('bg_hover', colors.get('card_hover', '#f8f9fa'))
+            border = colors.get('border', '#d0d3d9')
+            self.card.set_flat_palette(surface, border, hover)
             if hasattr(self, 'title_label'):
-                self.title_label.setStyleSheet(f"color:{colors['text_secondary']};font-size:8.5pt;font-weight:600;background:transparent;border:none;")
+                self.title_label.setStyleSheet(
+                    f"color:{colors['text_secondary']};font-size:9.5pt;font-weight:600;"
+                    "background:transparent;border:none;padding:0;margin:0;"
+                )
             if hasattr(self, 'value_label'):
-                self.value_label.setStyleSheet(f"color:{colors['text']};font-size:15pt;font-weight:700;background:transparent;border:none;padding:3px 0 1px 0;")
+                self.value_label.setStyleSheet(
+                    f"color:{colors['text']};font-size:16pt;font-weight:700;"
+                    "background:transparent;border:none;padding:2px 0 0 0;margin:0;"
+                )
             if hasattr(self, 'icon_container'):
                 tint = QColor(self._color)
-                tint.setAlpha(34)
+                tint.setAlpha(70 if self._is_dark else 28)
+                icon_border = self._color if self._is_dark else "transparent"
                 self.icon_container.setStyleSheet(
-                    f"QFrame{{background-color:{tint.name(QColor.NameFormat.HexArgb)};border:1px solid {self._color};border-radius:8px;}}"
+                    f"QFrame{{background-color:{tint.name(QColor.NameFormat.HexArgb)};"
+                    f"border:1px solid {icon_border};border-radius:8px;}}"
                 )
             self._update_icon_display()
             return
@@ -496,7 +507,9 @@ class SummaryCardWidget(QWidget):
     def setup_ui(self):
         # Card frame
         self.card = ModernGradientCard(self._gradient_colors, self._color, flat=self._flat)
-        self.card.setMinimumHeight(CARD_PROGRESS_HEIGHT if self._show_progress else CARD_HEIGHT)
+        card_height = CARD_PROGRESS_HEIGHT if self._show_progress else (88 if self._flat else CARD_HEIGHT)
+        self.card.setMinimumHeight(card_height)
+        self.card.setMaximumHeight(card_height if self._flat else 16777215)
         self.card.setMinimumWidth(CARD_MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.card.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -504,8 +517,8 @@ class SummaryCardWidget(QWidget):
         self._apply_theme()
         
         card_layout = QVBoxLayout(self.card)
-        card_layout.setSpacing(4)
-        card_layout.setContentsMargins(10, 8, 10, 8)
+        card_layout.setSpacing(3 if self._flat else 4)
+        card_layout.setContentsMargins(12, 8, 12, 8)
         
         # Top section: Icon and Title (horizontal layout)
         top_layout = QHBoxLayout()
@@ -513,7 +526,7 @@ class SummaryCardWidget(QWidget):
         
         # Icon container
         self.icon_container = QFrame()
-        self.icon_container.setFixedSize(28, 28)
+        self.icon_container.setFixedSize(26 if self._flat else 28, 26 if self._flat else 28)
         self.icon_container.setStyleSheet("""
             QFrame {
                 background-color: rgba(255, 255, 255, 0.16);
@@ -595,7 +608,7 @@ class SummaryCardWidget(QWidget):
         self.comparison_label = QLabel()
         self.comparison_label.setObjectName("cardComparison")
         self.comparison_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.comparison_label.setFixedHeight(19)
+        self.comparison_label.setFixedHeight(18)
         self.comparison_label.setVisible(False)
         self._apply_comparison_style()
 
@@ -754,6 +767,31 @@ class SummaryCardWidget(QWidget):
     def _apply_comparison_style(self):
         if not hasattr(self, 'comparison_label'):
             return
+        if self._flat:
+            if self._comparison_direction == "up":
+                bg = "rgba(22, 128, 93, 0.18)" if self._is_dark else "rgba(22, 128, 93, 0.10)"
+                fg = "#b8f5d6" if self._is_dark else "#126b4e"
+                border = "rgba(22, 128, 93, 0.24)"
+            elif self._comparison_direction == "down":
+                bg = "rgba(190, 70, 55, 0.18)" if self._is_dark else "rgba(190, 70, 55, 0.10)"
+                fg = "#ffc9c2" if self._is_dark else "#9b2f25"
+                border = "rgba(190, 70, 55, 0.24)"
+            else:
+                bg = "rgba(124, 140, 255, 0.16)" if self._is_dark else "rgba(88, 101, 242, 0.09)"
+                fg = "#dce1ff" if self._is_dark else "#4956c8"
+                border = "rgba(124, 140, 255, 0.22)"
+            self.comparison_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {fg};
+                    background-color: {bg};
+                    border: 1px solid {border};
+                    border-radius: 9px;
+                    padding: 1px 8px;
+                    font-size: 8pt;
+                    font-weight: 600;
+                }}
+            """)
+            return
         if self._comparison_direction == "up":
             bg = "rgba(46, 204, 113, 0.22)"
             fg = "#d9ffe8"
@@ -794,7 +832,9 @@ class ModernGradientCard(QFrame):
         self._surface_color = "#151c2a"
         self._border_color = "#293348"
         self._hover_color = "#192232"
-        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setFrameStyle(QFrame.Shape.NoFrame)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAutoFillBackground(False)
         self.setMouseTracking(True)
         
     def set_gradient_colors(self, colors):
@@ -815,12 +855,23 @@ class ModernGradientCard(QFrame):
 
         if self._flat:
             hovered = bool(getattr(self.parent(), '_is_hovered', False))
+            radius = float(CARD_RADIUS)
+            body_rect = QRectF(rect).adjusted(1.5, 1.5, -1.5, -1.5)
             painter.setBrush(QBrush(QColor(self._hover_color if hovered else self._surface_color)))
-            painter.setPen(QPen(QColor(self._border_color), 1))
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), CARD_RADIUS, CARD_RADIUS)
+            pen = QPen(QColor(self._border_color), 1.0)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            painter.drawRoundedRect(body_rect, radius, radius)
+
+            accent_rect = QRectF(
+                body_rect.left() + radius + 8,
+                body_rect.bottom() - 5,
+                max(0, body_rect.width() - (radius * 2) - 16),
+                2.5,
+            )
             painter.setBrush(QBrush(QColor(self._accent_color)))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(rect.adjusted(12, rect.height() - 4, -12, -1), 2, 2)
+            painter.drawRoundedRect(accent_rect, 1.5, 1.5)
             painter.end()
             return
         

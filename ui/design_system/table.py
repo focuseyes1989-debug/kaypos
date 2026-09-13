@@ -91,42 +91,61 @@ class ModernTable(QTableWidget):
                 border-bottom: 1px solid {border};
             }}
             QScrollBar:vertical {{
-                background: {colors.scrollbar_bg if not is_dark else colors.bg};
-                width: 8px;
-                border-radius: 4px;
-                margin: 1px;
+                background-color: transparent;
+                width: 10px;
+                border: none;
+                border-radius: 0px;
+                margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: {colors.scrollbar_handle};
-                border-radius: 4px;
-                min-height: 30px;
+                background-color: {colors.scrollbar_handle};
+                border: none;
+                border-radius: 3px;
+                min-height: 28px;
+                margin: 2px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background: {colors.scrollbar_handle_hover};
+                background-color: {colors.scrollbar_handle_hover};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 border: none;
-                background: none;
+                background-color: transparent;
+                width: 0px;
                 height: 0px;
             }}
             QScrollBar:horizontal {{
-                background: {colors.scrollbar_bg if not is_dark else colors.bg};
-                height: 8px;
-                border-radius: 4px;
-                margin: 1px;
+                background-color: transparent;
+                height: 10px;
+                border: none;
+                border-radius: 0px;
+                margin: 0px;
             }}
             QScrollBar::handle:horizontal {{
-                background: {colors.scrollbar_handle};
-                border-radius: 4px;
-                min-width: 30px;
+                background-color: {colors.scrollbar_handle};
+                border: none;
+                border-radius: 3px;
+                min-width: 28px;
+                margin: 2px;
             }}
             QScrollBar::handle:horizontal:hover {{
-                background: {colors.scrollbar_handle_hover};
+                background-color: {colors.scrollbar_handle_hover};
             }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 border: none;
-                background: none;
+                background-color: transparent;
                 width: 0px;
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollBar::up-arrow, QScrollBar::down-arrow,
+            QScrollBar::left-arrow, QScrollBar::right-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
             }}
         """)
     

@@ -104,7 +104,7 @@ class CheckoutDialog(QDialog):
         actions = QHBoxLayout()
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
-        self.save = QPushButton("Save Sale")
+        self.save = QPushButton("Complete")
         self.save.setObjectName("saveSale")
         self.save.clicked.connect(self._save)
         for button in (cancel, self.save):
@@ -169,7 +169,9 @@ class CheckoutDialog(QDialog):
             QPushButton[checkoutSize="clear"] {{ min-height: 54px; max-height: 54px; padding: 0; }}
             QPushButton[checkoutSize="quick"] {{ min-height: 34px; max-height: 34px; padding: 0; }}
             QPushButton[checkoutSize="action"] {{ min-height: 42px; max-height: 42px; padding: 0; }}
-            QComboBox, QDoubleSpinBox {{ background: {colors['card_bg']}; color: {colors['text']};
+            QDoubleSpinBox {{ background: {colors['card_bg']}; color: {colors['text']};
+                border: 1px solid {colors['border']}; border-radius: 6px; min-height: 28px; padding: 2px 6px; }}
+            QComboBox {{ background: transparent; color: {colors['text']};
                 border: 1px solid {colors['border']}; border-radius: 6px; min-height: 28px; padding: 2px 6px; }}
             QPushButton#saveSale {{ background: #2563eb; color: white; border: 1px solid #2563eb; }}
             QPushButton#saveSale:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}
@@ -319,5 +321,5 @@ class CheckoutDialog(QDialog):
             self.page.confirm_checkout()
         finally:
             self._saving = False
-            self.save.setText("Save Sale")
+            self.save.setText("Complete")
             self.refresh()

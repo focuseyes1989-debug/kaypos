@@ -15,6 +15,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors
 from ui.responsive_utils import fit_dialog_to_available_screen
 from loguru import logger
+from utils.branded_icons import pos_icon
 
 
 class ManageCategoriesDialog(QDialog):
@@ -22,7 +23,7 @@ class ManageCategoriesDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setWindowTitle(tr("manage_categories"))
         fit_dialog_to_available_screen(self, 760, 640, 640, 520)
         self.all_categories = []
@@ -168,6 +169,9 @@ class ManageCategoriesDialog(QDialog):
                 background-color: {colors['input_bg']}; color: {colors['text']};
                 border: 1px solid {colors['input_border']}; border-radius: 8px;
                 padding: 8px 12px; min-height: 20px;
+            }}
+            QComboBox {{
+                background-color: transparent;
             }}
             QLineEdit#categorySearch:focus, QComboBox:focus {{ border-color: {colors['border_hover']}; }}
             QLabel, QCheckBox {{ color: {colors['text_secondary']}; }}
@@ -317,7 +321,7 @@ class ManageCategoriesDialog(QDialog):
         dialog = QDialog(self)
         dialog.setObjectName("addCategoryDialog")
         dialog.setWindowTitle(tr("new_category"))
-        dialog.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        dialog.setWindowIcon(pos_icon())
         dialog.setMinimumSize(520, 450)
         dialog.resize(560, 480)
         colors = get_theme_colors()
@@ -435,6 +439,9 @@ class ManageCategoriesDialog(QDialog):
                 background-color: {colors['input_bg']}; color: {colors['text']};
                 border: 1px solid {colors['input_border']}; border-radius: 8px;
                 padding: 8px 12px; min-height: 22px;
+            }}
+            QComboBox#categoryGroupCombo {{
+                background-color: transparent;
             }}
             QLineEdit#categoryNameInput:focus, QComboBox#categoryGroupCombo:focus {{
                 border-color: {colors['border_hover']};
@@ -697,3 +704,4 @@ class ManageCategoriesDialog(QDialog):
                 conn.close()
             self.load_groups()
             self.load_categories()
+

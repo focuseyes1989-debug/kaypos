@@ -68,13 +68,13 @@ class Sidebar(QFrame):
         
         # Menu bar style colors
         if is_dark:
-            bg_color = "#eef1ff"
-            border_color = "#293348"
-            text_secondary = "#949ba4"
-            header_color = "#657089"
-            hover_color = "#293348"
-            selected_color = "#293348"
-            text_color = "#edf2ff"
+            bg_color = "#20232b"
+            border_color = "#4b5568"
+            text_secondary = "#d5dae6"
+            header_color = "#aeb6c6"
+            hover_color = "#303747"
+            selected_color = "#343d6d"
+            text_color = "#f7f9fc"
             text_selected = "#ffffff"
         else:
             bg_color = "#eef1ff"
@@ -306,9 +306,9 @@ class Sidebar(QFrame):
     def _palette(self) -> dict:
         if self._is_dark:
             return {
-                "bg": "#eef1ff", "border": "#cfd6ff", "muted": "#536078",
-                "text": "#edf2ff", "hover": "#1c2535", "selected": "#252d55",
-                "selected_text": "#aeb7ff", "toggle": "#182231", "avatar": "#6675f5",
+                "bg": "#20232b", "border": "#4b5568", "muted": "#d5dae6",
+                "text": "#f7f9fc", "hover": "#303747", "selected": "#343d6d",
+                "selected_text": "#ffffff", "toggle": "#242832", "avatar": "#7c8cff",
             }
         return {
             "bg": "#eef1ff", "border": "#cfd6ff", "muted": "#667085",
@@ -524,7 +524,7 @@ class Sidebar(QFrame):
             btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {'#6675f5' if active else 'transparent'};
+                    background-color: {'#7c8cff' if active and self._is_dark else '#6675f5' if active else 'transparent'};
                     color: {'#ffffff' if active else p['muted']};
                     border: none;
                     border-radius: 5px;
@@ -537,7 +537,7 @@ class Sidebar(QFrame):
                     font-weight: {600 if active else 500};
                 }}
                 QPushButton:hover {{
-                    background-color: {'#6675f5' if active else p['hover']};
+                    background-color: {'#7c8cff' if active and self._is_dark else '#6675f5' if active else p['hover']};
                     color: {'#ffffff' if active else p['text']};
                 }}
             """)
@@ -582,9 +582,9 @@ class Sidebar(QFrame):
         is_dark = getattr(self, '_is_dark', True)
         
         if is_dark:
-            hover_color = "#293348"
-            selected_color = "#293348"
-            text_color = "#edf2ff"
+            hover_color = "#303747"
+            selected_color = "#343d6d"
+            text_color = "#f7f9fc"
             text_selected = "#ffffff"
         else:
             hover_color = "#e9ecef"

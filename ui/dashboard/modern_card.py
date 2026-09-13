@@ -28,6 +28,7 @@ class ModernSummaryCard(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         self._setup_ui()
         self._apply_style()
@@ -177,6 +178,7 @@ class ModernSummaryCard(QFrame):
                 background-color: {colors['card_bg']};
                 border: 1px solid {colors['border']};
                 border-radius: {CARD_RADIUS}px;
+                padding: 0px;
             }}
             ModernSummaryCard:hover {{
                 border-color: {colors['border_hover']};

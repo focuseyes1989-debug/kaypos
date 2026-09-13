@@ -107,7 +107,7 @@ class MainWindowUI(QMainWindow):
         central_widget.setObjectName("mainContainer")
         central_widget.setStyleSheet(f"""
             QWidget#mainContainer {{
-                background-color: {colors['bg']};
+                background-color: transparent;
             }}
         """)
         self.setCentralWidget(central_widget)
@@ -140,7 +140,7 @@ class MainWindowUI(QMainWindow):
         self.content_area.setObjectName("mainContent")
         self.content_area.setStyleSheet(f"""
             QWidget#mainContent {{
-                background-color: {colors['bg']};
+                background-color: transparent;
             }}
         """)
         content_layout = QVBoxLayout(self.content_area)
@@ -270,11 +270,11 @@ class MainWindowUI(QMainWindow):
         central_widget = self.centralWidget()
         if central_widget:
             central_widget.setStyleSheet(f"""
-                QWidget#mainContainer {{ background-color: {colors['bg']}; }}
+                QWidget#mainContainer {{ background-color: transparent; }}
             """)
         if self.content_area:
             self.content_area.setStyleSheet(f"""
-                QWidget#mainContent {{ background-color: {colors['bg']}; }}
+                QWidget#mainContent {{ background-color: transparent; }}
             """)
         if self.splitter:
             self.splitter.setStyleSheet("""
@@ -282,12 +282,12 @@ class MainWindowUI(QMainWindow):
                 QSplitter#workspaceSplitter::handle { background: transparent; }
             """)
         if self.page_surface:
-            self.page_surface.setStyleSheet(f"""
-                QFrame#workspaceSurface {{
-                    background-color: {colors['card_bg']};
-                    border: 1px solid {colors['border']};
-                    border-radius: 14px;
-                }}
+            self.page_surface.setStyleSheet("""
+                QFrame#workspaceSurface {
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0;
+                }
             """)
         if self.pages:
             self.pages.setStyleSheet("""

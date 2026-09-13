@@ -41,14 +41,14 @@ class CustomersPage(QWidget):
 
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
+        layout.setSpacing(14)
 
         # ====== Top Row: Search, Add Button, Action Toolbar (All on left) ======
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("customersToolbarCard")
         top_layout = QHBoxLayout(self.toolbar_card)
-        top_layout.setSpacing(6)
-        top_layout.setContentsMargins(12, 7, 12, 7)
+        top_layout.setSpacing(8)
+        top_layout.setContentsMargins(14, 10, 14, 10)
         
         # ====== Search Widget (Leftmost) ======
         self.search_widget = SearchWidget(

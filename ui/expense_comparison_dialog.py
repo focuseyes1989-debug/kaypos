@@ -22,6 +22,7 @@ from ui.themes.theme_manager import theme_manager, is_dark_theme, get_theme_colo
 from ui.design_system.dialog_styles import modern_table_stylesheet
 from ui.responsive_utils import fit_dialog_to_available_screen
 import os
+from utils.branded_icons import pos_icon
 
 
 class ExpenseComparisonDialog(QDialog):
@@ -34,7 +35,7 @@ class ExpenseComparisonDialog(QDialog):
             Qt.WindowType.WindowMaximizeButtonHint
         )
         fit_dialog_to_available_screen(self, 1000, 640, 900, 540)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         self._is_dark = is_dark_theme()
 
@@ -807,3 +808,4 @@ class ExpenseComparisonDialog(QDialog):
         self._apply_theme()
         self._update_card_icons()
         super().showEvent(event)
+

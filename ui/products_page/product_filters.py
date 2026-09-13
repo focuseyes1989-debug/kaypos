@@ -116,7 +116,7 @@ class ProductFilters(QWidget):
         
         self.category_combo.setStyleSheet(f"""
             QComboBox#categoryCombo {{
-                background-color: {bg_color};
+                background-color: transparent;
                 border: 1px solid {border_color};
                 border-radius: 8px;
                 padding: 4px 8px 4px 12px;

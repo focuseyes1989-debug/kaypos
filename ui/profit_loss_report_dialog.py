@@ -15,6 +15,7 @@ from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import csv
 import os
+from utils.branded_icons import pos_icon
 
 
 class ProfitLossReportDialog(QDialog):
@@ -22,7 +23,7 @@ class ProfitLossReportDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Profit & Loss Report")
         fit_dialog_to_available_screen(self, 940, 600, 820, 520)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         self._is_dark = is_dark_theme()
 
@@ -530,3 +531,4 @@ class ProfitLossReportDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         self._apply_theme()
+

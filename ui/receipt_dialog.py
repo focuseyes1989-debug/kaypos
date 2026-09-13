@@ -13,6 +13,7 @@ from utils.currency import get_currency_symbol, format_money
 from utils.receipt_images import resolve_receipt_image_path
 from utils.receipt_template import build_receipt_html, build_receipt_text_lines
 from utils.wholesale_pricing import ensure_wholesale_sale_item_columns
+from utils.branded_icons import pos_icon
 
 
 class ReceiptDialog(QDialog):
@@ -27,7 +28,7 @@ class ReceiptDialog(QDialog):
         self.sale_id = sale_id
         self.cash_drawer_opened = False
         self.setWindowTitle("Receipt")
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setMinimumSize(550, 650)
 
         layout = QVBoxLayout()
@@ -655,3 +656,4 @@ class ReceiptDialog(QDialog):
 
 # Export the class for import
 __all__ = ['ReceiptDialog']
+

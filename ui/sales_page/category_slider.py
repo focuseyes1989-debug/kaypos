@@ -18,6 +18,8 @@ class CategorySlider(QScrollArea):
     group_selected = pyqtSignal(str)
     SLIDER_HEIGHT = 44
     BUTTON_HEIGHT = 34
+    NAV_BUTTON_WIDTH = 22
+    NAV_BUTTON_HEIGHT = 28
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -60,13 +62,14 @@ class CategorySlider(QScrollArea):
         self._scroll_target = 0
         self._scroll_step = 0
         self._scroll_multiplier = 3
-        self.setViewportMargins(34, 0, 34, 0)
+        nav_margin = self.NAV_BUTTON_WIDTH + 8
+        self.setViewportMargins(nav_margin, 0, nav_margin, 0)
         self._previous = QPushButton(self)
         self._next = QPushButton(self)
         for button, label, direction in ((self._previous, "Previous categories", -1), (self._next, "Next categories", 1)):
             button.setToolTip(label)
             button.setAccessibleName(label)
-            button.setFixedSize(28, 34)
+            button.setFixedSize(self.NAV_BUTTON_WIDTH, self.NAV_BUTTON_HEIGHT)
             button.clicked.connect(lambda checked=False, step=direction: self.horizontalScrollBar().setValue(
                 self.horizontalScrollBar().value() + step * max(100, self.viewport().width() // 2)))
         self.horizontalScrollBar().valueChanged.connect(self._update_navigation)
@@ -78,7 +81,8 @@ class CategorySlider(QScrollArea):
     def _configure_category_button(self, button):
         """Apply category-slider specific metrics after ModernButton compact setup."""
         button.setFixedHeight(self.BUTTON_HEIGHT)
-        button.setMinimumWidth(68)
+        text_width = button.fontMetrics().horizontalAdvance(button.text())
+        button.setMinimumWidth(max(68, text_width + 34))
         button.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
     
     def apply_compact_style(self):
@@ -86,10 +90,10 @@ class CategorySlider(QScrollArea):
         colors = get_theme_colors()
         for button, icon in ((self._previous, QStyle.StandardPixmap.SP_ArrowLeft), (self._next, QStyle.StandardPixmap.SP_ArrowRight)):
             button.setIcon(self.style().standardIcon(icon))
-            button.setStyleSheet(f"QPushButton {{ background: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 6px; min-width: 26px; max-width: 26px; min-height: 32px; max-height: 32px; padding: 0; }} QPushButton:disabled {{ background: {colors['bg_hover']}; }}")
+            button.setStyleSheet(f"QPushButton {{ background: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 6px; min-width: {self.NAV_BUTTON_WIDTH}px; max-width: {self.NAV_BUTTON_WIDTH}px; min-height: {self.NAV_BUTTON_HEIGHT}px; max-height: {self.NAV_BUTTON_HEIGHT}px; padding: 0; }} QPushButton:disabled {{ background: {colors['bg_hover']}; }}")
         self.setStyleSheet(f"""
             QScrollArea#categorySlider {{
-                background-color: {colors['card_bg']};
+                background-color: transparent;
                 border: none;
                 border-radius: 0px;
             }}
@@ -99,19 +103,36 @@ class CategorySlider(QScrollArea):
                 border: none;
             }}
             QScrollBar:horizontal {{
-                background: {colors['border']};
-                height: 3px;
-                border-radius: 1px;
+                background: transparent;
+                height: 10px;
+                border: none;
+                border-radius: 0px;
+                margin: 0px;
             }}
             QScrollBar::handle:horizontal {{
-                background: {colors['progress_bg']};
-                border-radius: 1px;
+                background-color: {colors.get('scrollbar_handle', '#8f8f8f')};
+                border: none;
+                border-radius: 3px;
                 min-width: 30px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: {colors.get('scrollbar_handle_hover', '#5865F2')};
             }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 border: none;
                 background: transparent;
                 width: 0px;
+                height: 0px;
+            }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar::left-arrow, QScrollBar::right-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
             }}
         """)
     
@@ -322,22 +343,26 @@ class CategorySlider(QScrollArea):
     
     def _update_scroll_area(self):
         """Update scroll area."""
-        container_width = self._container.sizeHint().width()
+        layout = self._container.layout()
+        margins = layout.contentsMargins() if layout is not None else None
+        spacing = layout.spacing() if layout is not None else 0
+        button_width = sum(max(button.minimumWidth(), button.sizeHint().width()) for button in self._buttons)
+        gap_width = max(0, len(self._buttons) - 1) * max(0, spacing)
+        margin_width = (margins.left() + margins.right()) if margins is not None else 0
+        container_width = max(self._container.sizeHint().width(), button_width + gap_width + margin_width)
         viewport = self.viewport()
         viewport_width = viewport.width() if viewport is not None else self.width()
         
-        if container_width > viewport_width:
-            self._container.setFixedWidth(container_width)
-        else:
-            self._container.setFixedWidth(viewport_width)
-        
-        self._container.adjustSize()
+        self._container.setFixedWidth(max(container_width, viewport_width))
+        self._container.setFixedHeight(self.SLIDER_HEIGHT)
+        self._container.layout().activate()
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, '_previous'):
-            self._previous.move(0, 5)
-            self._next.move(self.width() - 28, 5)
+            top = max(0, (self.SLIDER_HEIGHT - self.NAV_BUTTON_HEIGHT) // 2)
+            self._previous.move(0, top)
+            self._next.move(self.width() - self.NAV_BUTTON_WIDTH, top)
         QTimer.singleShot(100, self._update_scroll_area)
 
     def _update_navigation(self, *_):

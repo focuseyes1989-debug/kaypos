@@ -2,12 +2,13 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QProgressBar, QComboBox
+    QComboBox
 )
 from PyQt6.QtCore import Qt, QDate, pyqtSignal, QSize
 from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
+from ui.sales_summary.progress_cell import create_progress_cell, progress_color
 
 # ✅ Import widgets
 from ui.widgets import (
@@ -320,43 +321,8 @@ class ExpenseCategoryTab(QWidget):
                 percent_item.setForeground(QColor(46, 204, 113))
             self.table.setItem(row_idx, 4, percent_item)
             
-            # Progress Bar (as a QWidget)
-            progress_widget = QWidget()
-            progress_layout = QHBoxLayout(progress_widget)
-            progress_layout.setContentsMargins(5, 2, 5, 2)
-            progress_layout.setSpacing(0)
-            
-            progress_bar = QProgressBar()
-            progress_bar.setRange(0, 100)
-            progress_bar.setValue(int(percentage))
-            progress_bar.setFormat("")
-            progress_bar.setTextVisible(False)
-            
-            # Color based on percentage
-            if percentage >= 50:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #e74c3c;
-                        border-radius: 3px;
-                    }
-                """)
-            elif percentage >= 20:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #f1c40f;
-                        border-radius: 3px;
-                    }
-                """)
-            else:
-                progress_bar.setStyleSheet("""
-                    QProgressBar::chunk {
-                        background-color: #2ecc71;
-                        border-radius: 3px;
-                    }
-                """)
-            
-            progress_layout.addWidget(progress_bar)
-            self.table.setCellWidget(row_idx, 5, progress_widget)
+            color = progress_color(percentage, warning_threshold=20, danger_threshold=50)
+            self.table.setCellWidget(row_idx, 5, create_progress_cell(percentage, color))
             
             # Set row height
             self.table.setRowHeight(row_idx, 50)

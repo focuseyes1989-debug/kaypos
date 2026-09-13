@@ -41,7 +41,7 @@ class ReceiptsPage(QWidget):
         theme_manager.theme_changed.connect(self._on_theme_changed)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(14)
         main_layout.setContentsMargins(4, 4, 4, 4)
 
         self.toast = ToastNotificationWidget(self)
@@ -50,7 +50,7 @@ class ReceiptsPage(QWidget):
         self.filter_card = QFrame()
         self.filter_card.setObjectName("receiptsFilterCard")
         filter_layout = QHBoxLayout(self.filter_card)
-        filter_layout.setContentsMargins(12, 7, 12, 7)
+        filter_layout.setContentsMargins(14, 10, 14, 10)
         filter_layout.setSpacing(8)
 
         self.date_range = DateRangeWidget()
@@ -231,35 +231,8 @@ class ReceiptsPage(QWidget):
     
     def _update_tab_widget_style(self):
         colors = get_theme_colors()
-        self.tab_widget.setStyleSheet(f"""
-            QTabWidget#receiptsTabs::pane {{
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                background-color: {colors['card_bg']};
-                top: -1px;
-            }}
-            QTabWidget#receiptsTabs QTabBar::tab {{
-                background-color: transparent;
-                color: {colors['text_secondary']};
-                padding: 7px 14px;
-                margin: 0 4px 5px 0;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-            }}
-            QTabWidget#receiptsTabs QTabBar::tab:selected {{
-                background-color: {colors['bg_hover']};
-                color: {colors['text']};
-                border-bottom: 2px solid {colors['progress_bg']};
-            }}
-            QTabWidget#receiptsTabs QTabBar::tab:hover:!selected {{
-                background-color: {colors['card_hover']};
-                color: {colors['text']};
-            }}
-        """)
-    
         from ui.design_system.tabs import tab_stylesheet
-        self.tab_widget.setStyleSheet(self.tab_widget.styleSheet() + tab_stylesheet(colors, "receiptsTabs"))
+        self.tab_widget.setStyleSheet(tab_stylesheet(colors, "receiptsTabs"))
 
     def _on_theme_changed(self, theme_name):
         self._is_dark = is_dark_theme()

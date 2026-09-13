@@ -17,6 +17,7 @@ from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_the
 from ui.design_system.dialog_styles import modern_table_stylesheet
 from ui.responsive_utils import fit_dialog_to_available_screen
 import os
+from utils.branded_icons import pos_icon
 
 
 class SupplierLedgerDialog(QDialog):
@@ -31,7 +32,7 @@ class SupplierLedgerDialog(QDialog):
         
         self.setWindowTitle(f"Supplier Ledger - {supplier_name}" if supplier_name else "Supplier Ledger")
         fit_dialog_to_available_screen(self, 1000, 620, 900, 520)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         # Connect theme change
@@ -751,3 +752,4 @@ class SupplierLedgerDialog(QDialog):
         """Update button icons when dialog becomes visible"""
         self._update_button_icons()
         super().showEvent(event)
+

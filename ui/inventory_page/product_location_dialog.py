@@ -17,6 +17,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.search_widget import ModernSearchWidget
 from ui.themes.theme_manager import get_theme_colors, theme_manager
 from ui.design_system.dialog_styles import modern_table_stylesheet
+from utils.branded_icons import pos_icon
 
 
 class ProductLocationDialog(QDialog):
@@ -29,7 +30,7 @@ class ProductLocationDialog(QDialog):
         self.product_name = product_name
         self.setWindowTitle(f"Manage Locations - {product_name}")
         self.setMinimumSize(750, 500)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
         self.setModal(True)
         
         layout = QVBoxLayout()
@@ -146,7 +147,8 @@ class ProductLocationDialog(QDialog):
             QLabel#dialogSubtitle {{ color: {colors['text_secondary']}; font-size: 11px; }}
             QGroupBox {{ background-color: {colors['card_bg']}; border: 1px solid {colors['border']}; border-radius: 11px; margin-top: 10px; padding: 14px 12px 10px; }}
             QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 6px; color: {colors['text_secondary']}; }}
-            QComboBox, QSpinBox {{ min-height: 36px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QSpinBox {{ min-height: 36px; padding: 0 10px; color: {colors['text']}; background-color: {colors['input_bg']}; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
+            QComboBox {{ min-height: 36px; padding: 0 10px; color: {colors['text']}; background-color: transparent; border: 1px solid {colors['input_border']}; border-radius: 8px; }}
             QPushButton#dangerButton {{ color: {colors['danger']}; border-color: {colors['danger']}; }}
             QPushButton#dangerButton:hover {{ background-color: {colors['danger']}; color: white; }}
             QPushButton#warningButton {{ background-color: {colors['warning']}; color: white; border-color: {colors['warning']}; }}
@@ -449,3 +451,4 @@ class ProductLocationDialog(QDialog):
         
         QMessageBox.information(self, "Success", f"Moved {qty_to_move} units from {from_location} to {to_location}")
         self.load_product_locations()
+

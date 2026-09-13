@@ -33,6 +33,7 @@ from utils.excel_exporter import ExcelExporter
 from loguru import logger
 from datetime import datetime
 from typing import List, Optional, Dict
+from utils.branded_icons import pos_icon
 
 
 class CategoryListDialog(QDialog):
@@ -67,7 +68,7 @@ class CategoryListDialog(QDialog):
         
         # Set window icon
         try:
-            self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+            self.setWindowIcon(pos_icon())
         except:
             pass
         
@@ -358,3 +359,4 @@ def _attach_category_list_helpers():
 
 
 _attach_category_list_helpers()
+

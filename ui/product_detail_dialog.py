@@ -10,6 +10,7 @@ from PyQt6.QtGui import QPixmap, QColor, QIcon, QFontMetrics
 from models.database import connect_db
 from utils.paths import app_path
 import functools
+from utils.branded_icons import pos_icon
 
 
 # ========== IMAGE PATH RESOLVER ==========
@@ -114,7 +115,7 @@ class ProductDetailDialog(QDialog):
         self.setWindowTitle("Product Details")
         self.setMinimumSize(600, 700)
         self.setModal(True)
-        self.setWindowIcon(QIcon("assets/icons/zaypos.png"))
+        self.setWindowIcon(pos_icon())
 
         # Store product data for later status update
         self.product_data = None
