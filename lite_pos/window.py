@@ -8,7 +8,7 @@ import html
 from collections.abc import Callable
 
 from PyQt6 import sip
-from PyQt6.QtCore import QDate, QDateTime, QMarginsF, QObject, QRectF, QSize, QSizeF, QStringListModel, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QDate, QDateTime, QEvent, QMarginsF, QObject, QRectF, QSize, QSizeF, QStringListModel, QThread, QTime, QTimer, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QImage, QKeySequence, QPageLayout, QPageSize, QPainter, QPalette, QPixmap, QShortcut
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PyQt6.QtWidgets import (
@@ -528,6 +528,13 @@ class CheckoutDialog(QDialog):
         self.customer.currentIndexChanged.connect(self._customer_changed)
         self._customer_changed()
         self._payment_type_changed(self.payment_type.currentText())
+        QTimer.singleShot(0, self._focus_received_payment)
+
+    def _focus_received_payment(self) -> None:
+        if not self.payment.isEnabled():
+            return
+        self.payment.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.payment.selectAll()
 
     def discount_amount(self) -> float:
         discount_type = self.discount_type.currentData()
@@ -1488,8 +1495,13 @@ class LiteWindow(QMainWindow):
         self._threads: set[QThread] = set()
         self._workers: set[TaskWorker] = set()
         self._scan_in_progress = False
+        self._scanner_buffer = ""
         self._checkout_busy = False
         self._product_page_loading = False
+        self.scanner_timer = QTimer(self)
+        self.scanner_timer.setSingleShot(True)
+        self.scanner_timer.setInterval(180)
+        self.scanner_timer.timeout.connect(self._clear_scanner_buffer)
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(350)
@@ -1541,6 +1553,7 @@ class LiteWindow(QMainWindow):
         self._add_shortcut("Ctrl+P", self.print_last_receipt)
         self._add_shortcut("Ctrl+Shift+D", self.open_cash_drawer)
         self._add_shortcut("Ctrl+Shift+P", self.open_printer_settings)
+        QApplication.instance().installEventFilter(self)
         QTimer.singleShot(500, self._update_offline_status)
 
     def _apply_theme_styles(self) -> None:
@@ -1578,6 +1591,44 @@ class LiteWindow(QMainWindow):
         shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         shortcut.activated.connect(callback)
         self._shortcuts.append(shortcut)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() != QEvent.Type.KeyPress:
+            return super().eventFilter(watched, event)
+        if self._capture_scanner_key(event):
+            return True
+        return super().eventFilter(watched, event)
+
+    def _capture_scanner_key(self, event: QEvent) -> bool:
+        pos_page = getattr(self, "pos_page", None)
+        if getattr(self, "workspace_stack", None) is None or pos_page is None or self.workspace_stack.currentWidget() is not pos_page:
+            return False
+        if QApplication.activeModalWidget() is not None or self._scan_in_progress:
+            return False
+        focus = QApplication.focusWidget()
+        if focus is self.product_search:
+            return False
+        if isinstance(focus, (QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox)):
+            return False
+        if event.modifiers() not in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.KeypadModifier):
+            return False
+        key = event.key()
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            code = normalize_barcode_digits(self._scanner_buffer).strip()
+            self._clear_scanner_buffer()
+            if len(code) >= 3:
+                self._scan_code(code)
+                return True
+            return False
+        text = normalize_barcode_digits(event.text())
+        if len(text) == 1 and text.isprintable() and not text.isspace():
+            self._scanner_buffer += text
+            self.scanner_timer.start()
+            return True
+        return False
+
+    def _clear_scanner_buffer(self) -> None:
+        self._scanner_buffer = ""
 
     def toggle_full_screen(self) -> None:
         if self.isFullScreen():
@@ -3257,12 +3308,31 @@ class LiteWindow(QMainWindow):
         self.load_products()
 
     def scan_or_search(self) -> None:
-        if not self.api or self._scan_in_progress:
+        if self._scan_in_progress:
             self._focus_product_search(select_all=True)
             return
         code = normalize_barcode_digits(self.product_search.text()).strip()
         if not code:
             self.load_products()
+            self._focus_product_search()
+            return
+        self._scan_code(code)
+
+    def _scan_code(self, code: str) -> None:
+        code = normalize_barcode_digits(code).strip()
+        if not code or self._scan_in_progress:
+            return
+        if not self.api:
+            product, variant = self._find_cached_scan_match(code)
+            if not product:
+                self.catalog_status.setText("Barcode not found")
+                self.statusBar().showMessage(f"No cached product found for barcode / SKU: {code}")
+                self._focus_product_search(select_all=True)
+                return
+            self._show_scanned_product(product)
+            self._add_product_to_cart(product, variant, select_variant=variant is None)
+            self.product_search.clear()
+            self.catalog_status.setText("Barcode added")
             self._focus_product_search()
             return
         # A scanner can take longer than the search debounce interval. Do not
@@ -3279,44 +3349,7 @@ class LiteWindow(QMainWindow):
                 self.statusBar().showMessage(f"No product found for barcode / SKU: {code}")
                 self._focus_product_search(select_all=True)
                 return
-            self.products = [product]
-            self.product_has_more = False
-            self.product_rows = {int(product.get("id") or 0): 0}
-            self.product_grid_items = {}
-            self.product_grid_tiles = {}
-            self.product_table.setRowCount(1)
-            self.product_table.setItem(0, 0, QTableWidgetItem())
-            values = (
-                product.get("name") or "", product.get("barcode") or product.get("sku") or "—",
-                f"{float(product.get('price') or 0):,.0f} Ks", str(int(product.get("stock") or 0)),
-                str(len(product.get("variants") or [])) or "—",
-            )
-            for column, value in enumerate(values, start=1):
-                self.product_table.setItem(0, column, QTableWidgetItem(str(value)))
-            self.product_grid.clear()
-            grid_item = QListWidgetItem()
-            grid_item.setData(Qt.ItemDataRole.UserRole, 0)
-            self.product_grid.fit_item(grid_item)
-            self.product_grid.addItem(grid_item)
-            product_id = int(product.get("id") or 0)
-            tile = ProductGridTile(product.get("name") or "Product")
-            scan_variants = product.get("variants") or []
-            scan_mode = sold_by_mode(product.get("sold_by"))
-            scan_stock = (
-                "Service" if scan_mode == "service"
-                else sum(int(variant.get("stock") or 0) for variant in scan_variants)
-                if scan_mode == "variants" and scan_variants
-                else int(product.get("stock") or 0)
-            )
-            tile.set_out_of_stock(self._product_stock_status(product, scan_stock) == "out")
-            tile.setToolTip(
-                f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {int(product.get('stock') or 0)}"
-            )
-            self.product_grid.setItemWidget(grid_item, tile)
-            self.product_grid_items[product_id] = grid_item
-            self.product_grid_tiles[product_id] = tile
-            self.product_grid.refit()
-            QTimer.singleShot(0, self._load_visible_product_thumbnails)
+            self._show_scanned_product(product)
             matched_id = product.get("matched_variant_id")
             matched = next((v for v in product.get("variants") or [] if int(v.get("variant_id") or 0) == int(matched_id or 0)), None)
             self._add_product_to_cart(product, matched, select_variant=matched_id is None)
@@ -3331,6 +3364,64 @@ class LiteWindow(QMainWindow):
             self._focus_product_search(select_all=True)
 
         self._run_task(lambda: self.api.scan_product(code), scanned, failed)
+
+    def _find_cached_scan_match(self, code: str) -> tuple[dict | None, dict | None]:
+        normalized = normalize_barcode_digits(code).casefold()
+        for product in [*self.products, *load_product_cache()]:
+            product_codes = {
+                normalize_barcode_digits(product.get("barcode") or "").casefold(),
+                normalize_barcode_digits(product.get("sku") or "").casefold(),
+            }
+            if normalized in product_codes:
+                return product, None
+            for variant in product.get("variants") or []:
+                variant_codes = {
+                    normalize_barcode_digits(variant.get("barcode") or "").casefold(),
+                    normalize_barcode_digits(variant.get("sku") or "").casefold(),
+                }
+                if normalized in variant_codes:
+                    return product, variant
+        return None, None
+
+    def _show_scanned_product(self, product: dict) -> None:
+        self.products = [product]
+        self.product_has_more = False
+        self.product_rows = {int(product.get("id") or 0): 0}
+        self.product_grid_items = {}
+        self.product_grid_tiles = {}
+        self.product_table.setRowCount(1)
+        self.product_table.setItem(0, 0, QTableWidgetItem())
+        variants = product.get("variants") or []
+        mode = sold_by_mode(product.get("sold_by"))
+        display_stock = (
+            "Service" if mode == "service"
+            else sum(int(variant.get("stock") or 0) for variant in variants)
+            if mode == "variants" and variants
+            else int(product.get("stock") or 0)
+        )
+        values = (
+            product.get("name") or "", product.get("barcode") or product.get("sku") or "—",
+            f"{float(product.get('price') or 0):,.0f} Ks", str(display_stock),
+            str(len(variants)) if variants else "—",
+        )
+        for column, value in enumerate(values, start=1):
+            self.product_table.setItem(0, column, QTableWidgetItem(str(value)))
+        self.product_grid.clear()
+        grid_item = QListWidgetItem()
+        grid_item.setData(Qt.ItemDataRole.UserRole, 0)
+        self.product_grid.fit_item(grid_item)
+        self.product_grid.addItem(grid_item)
+        product_id = int(product.get("id") or 0)
+        tile = ProductGridTile(product.get("name") or "Product")
+        tile.set_out_of_stock(self._product_stock_status(product, display_stock) == "out")
+        tile.setToolTip(
+            f"{product.get('name') or ''}\n{float(product.get('price') or 0):,.0f} Ks · Stock {display_stock}"
+        )
+        self.product_grid.setItemWidget(grid_item, tile)
+        self.product_grid_items[product_id] = grid_item
+        self.product_grid_tiles[product_id] = tile
+        self.product_grid.refit()
+        QTimer.singleShot(0, self._load_visible_product_thumbnails)
 
     def add_selected_product(self) -> None:
         row = self.product_table.currentRow()
