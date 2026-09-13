@@ -231,22 +231,26 @@ class ServiceOrderPhase1Tests(unittest.TestCase):
     def test_design_prompts_can_be_saved_and_deactivated(self):
         prompt = self.repo.save_design_prompt({
             "title": "Vinyl Sticker",
+            "category": "Sticker",
             "prompt_text": "Create a design for {job_title}: {details}",
             "image_data": "data:image/png;base64,aW1hZ2U=",
             "image_name": "sample.png",
             "sort_order": 2,
         })
         self.assertEqual(prompt["title"], "Vinyl Sticker")
+        self.assertEqual(prompt["category"], "Sticker")
         self.assertEqual(prompt["image_name"], "sample.png")
         self.assertEqual(self.repo.list_design_prompts()[0]["prompt_text"], "Create a design for {job_title}: {details}")
         updated = self.repo.save_design_prompt({
             "title": "Vinyl Sticker Updated",
+            "category": "Labels",
             "prompt_text": "Use notes: {notes}",
             "image_data": "",
             "image_name": "",
             "sort_order": 1,
         }, prompt["id"])
         self.assertEqual(updated["sort_order"], 1)
+        self.assertEqual(updated["category"], "Labels")
         self.assertEqual(updated["image_data"], "")
         with self.assertRaisesRegex(ValueError, "Prompt text is required"):
             self.repo.save_design_prompt({"title": "Empty", "prompt_text": ""})

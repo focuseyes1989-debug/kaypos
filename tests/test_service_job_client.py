@@ -1,10 +1,12 @@
+import base64
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from PyQt6.QtCore import QDate
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import QByteArray, QBuffer, QDate, QIODevice
+from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from service_job_client.config import load_config, save_config
 from service_job_client.window import ServiceJobClientWindow
@@ -112,6 +114,55 @@ class ServiceJobClientTests(unittest.TestCase):
         self.assertEqual(window.complete_button.text(), "Complete Job")
         self.assertFalse(hasattr(window, "checkout_button"))
         window.close()
+
+    def test_design_prompts_render_as_selectable_cards(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        window.prompts = [
+            {"title": "Poster", "prompt_text": "Design {job_title} poster"},
+            {"title": "Banner", "prompt_text": "Create a banner for {status}"},
+        ]
+        window.selected_job = {"job_title": "Opening Sale", "status": "received"}
+        window.refresh_prompt_controls()
+        self.assertEqual(len(window.prompt_cards), 2)
+        self.assertEqual(window.selected_prompt_index(), 0)
+        self.assertIn("Opening Sale", window.prompt_preview.toPlainText())
+        self.assertTrue(window.copy_prompt_button.isEnabled())
+        window.select_prompt_card(1)
+        self.assertEqual(window.selected_prompt()["title"], "Banner")
+        self.assertIn("received", window.prompt_preview.toPlainText())
+
+    def test_design_prompt_search_filters_cards(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        window.prompts = [
+            {"title": "Poster", "prompt_text": "Design {job_title} poster"},
+            {"title": "Banner", "prompt_text": "Create a shop banner"},
+            {"title": "Sticker", "prompt_text": "Print label art"},
+        ]
+        window.refresh_prompt_controls()
+        window.prompt_search_input.setText("banner")
+        self.assertEqual(len(window.prompt_cards), 1)
+        self.assertEqual(window.selected_prompt()["title"], "Banner")
+        window.prompt_search_input.setText("missing")
+        self.assertEqual(len(window.prompt_cards), 0)
+        self.assertEqual(window.selected_prompt_index(), -1)
+        self.assertFalse(window.copy_prompt_button.isEnabled())
+
+    def test_design_prompt_card_shows_sample_photo_preview(self):
+        window = ServiceJobClientWindow()
+        self.addCleanup(window.close)
+        pixmap = QPixmap(2, 2)
+        pixmap.fill(QColor("#2563eb"))
+        payload = QByteArray()
+        buffer = QBuffer(payload)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        pixmap.save(buffer, "PNG")
+        tiny_png = f"data:image/png;base64,{base64.b64encode(bytes(payload)).decode('ascii')}"
+        window.prompts = [{"title": "Photo Prompt", "prompt_text": "Use this photo", "image_data": tiny_png}]
+        window.refresh_prompt_controls()
+        image_label = window.prompt_cards[0].findChildren(QLabel)[0]
+        self.assertFalse(image_label.pixmap().isNull())
 
     def test_start_job_shows_authenticated_worker_and_keeps_selection(self):
         window = ServiceJobClientWindow()

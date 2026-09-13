@@ -308,6 +308,7 @@ class PrintServicePresetRequest(BaseModel):
 
 class ServiceOrderDesignPromptRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=160)
+    category: str = Field(default="", max_length=120)
     prompt_text: str = Field(..., min_length=1, max_length=10000)
     image_data: str = Field(default="", max_length=5_000_000)
     image_name: str = Field(default="", max_length=255)

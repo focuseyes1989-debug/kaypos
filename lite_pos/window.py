@@ -2148,9 +2148,13 @@ class LiteWindow(QMainWindow):
         self.service_order_presets_button = QPushButton(); self.service_order_presets_button.hide()
         self.service_order_reports_button = QPushButton(); self.service_order_reports_button.hide()
         self.service_order_design_prompts_button = QPushButton("Design Prompts")
-        self.service_order_design_prompts_button.clicked.connect(self.manage_service_order_design_prompts)
+        self.service_order_design_prompts_button.clicked.connect(self.show_service_order_design_prompts_tab)
         self.service_order_design_prompts_button.hide()
         top.addWidget(self.service_order_presets_button); top.addWidget(self.service_order_reports_button); top.addWidget(self.service_order_design_prompts_button); outer.addLayout(top)
+
+        self.service_order_tabs = QTabWidget()
+        jobs_tab = QWidget()
+        jobs_layout = QVBoxLayout(jobs_tab); jobs_layout.setContentsMargins(0, 0, 0, 0); jobs_layout.setSpacing(8)
         filters = QHBoxLayout()
         self.service_order_search = QLineEdit(); self.service_order_search.setPlaceholderText("Search job name, details or notes…")
         self.service_order_search.returnPressed.connect(self.load_service_orders)
@@ -2165,9 +2169,9 @@ class LiteWindow(QMainWindow):
         self.service_order_status_filter.currentIndexChanged.connect(self.load_service_orders)
         refresh = QPushButton("Refresh"); refresh.clicked.connect(self.load_service_orders)
         filters.addWidget(self.service_order_search, 1); filters.addWidget(self.service_order_status_filter); filters.addWidget(refresh)
-        outer.addLayout(filters)
+        jobs_layout.addLayout(filters)
         urgency_legend = QLabel("Appointment column · Red: overdue · Orange: within 24 hours · Yellow: within 3 days", objectName="muted")
-        outer.addWidget(urgency_legend)
+        jobs_layout.addWidget(urgency_legend)
 
         body = QHBoxLayout()
         list_panel = QFrame(objectName="card"); list_layout = QVBoxLayout(list_panel); list_layout.setContentsMargins(8, 8, 8, 8)
@@ -2239,8 +2243,94 @@ class LiteWindow(QMainWindow):
         job_actions.addWidget(self.service_order_collect_button)
         detail_layout.addLayout(job_actions)
         self._set_service_order_actions_enabled(False)
-        body.addWidget(detail, 2); outer.addLayout(body, 1)
+        body.addWidget(detail, 2); jobs_layout.addLayout(body, 1)
+        prompts_tab = self._build_service_order_design_prompts_tab()
+        self.service_order_tabs.addTab(jobs_tab, "Jobs")
+        self.service_order_tabs.addTab(prompts_tab, "Design Prompts")
+        self.service_order_tabs.setTabEnabled(1, False)
+        self.service_order_tabs.currentChanged.connect(self._service_order_tab_changed)
+        outer.addWidget(self.service_order_tabs, 1)
         return page
+
+    def _build_service_order_design_prompts_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
+        top = QHBoxLayout()
+        self.service_order_prompt_search = QLineEdit()
+        self.service_order_prompt_search.setPlaceholderText("Search prompts...")
+        self.service_order_prompt_search.textChanged.connect(self.refresh_service_order_prompt_table)
+        self.service_order_prompt_category_filter = QComboBox()
+        self.service_order_prompt_category_filter.addItem("All Categories", "")
+        self.service_order_prompt_category_filter.currentIndexChanged.connect(self.refresh_service_order_prompt_table)
+        refresh = QPushButton("Refresh"); refresh.clicked.connect(self.manage_service_order_design_prompts)
+        top.addWidget(self.service_order_prompt_search, 1); top.addWidget(self.service_order_prompt_category_filter); top.addWidget(refresh)
+        layout.addLayout(top)
+        self.service_order_prompt_table = QTableWidget(0, 4)
+        self.service_order_prompt_table.setHorizontalHeaderLabels(["Category", "Title", "Prompt", "Image"])
+        self.service_order_prompt_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.service_order_prompt_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.service_order_prompt_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.service_order_prompt_table.verticalHeader().setVisible(False)
+        self.service_order_prompt_table.verticalHeader().setDefaultSectionSize(38)
+        self.service_order_prompt_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.service_order_prompt_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.service_order_prompt_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.service_order_prompt_table.doubleClicked.connect(lambda _index: self.edit_service_order_design_prompt())
+        layout.addWidget(self.service_order_prompt_table, 1)
+        actions = QHBoxLayout()
+        add = QPushButton("Add Prompt"); add.clicked.connect(lambda: self.open_service_order_design_prompt_editor())
+        edit = QPushButton("Edit Prompt"); edit.clicked.connect(self.edit_service_order_design_prompt)
+        deactivate = QPushButton("Deactivate"); deactivate.clicked.connect(self.deactivate_service_order_design_prompt)
+        actions.addWidget(add); actions.addWidget(edit); actions.addWidget(deactivate); actions.addStretch()
+        layout.addLayout(actions)
+        self.service_order_design_prompts_data: list[dict] = []
+        self.service_order_design_prompts_visible: list[dict] = []
+        return page
+
+    def _service_order_tab_changed(self, index: int) -> None:
+        if index == 1:
+            self.manage_service_order_design_prompts()
+
+    def show_service_order_design_prompts_tab(self) -> None:
+        if hasattr(self, "service_order_tabs"):
+            self.service_order_tabs.setCurrentIndex(1)
+
+    def refresh_service_order_prompt_table(self) -> None:
+        search = self.service_order_prompt_search.text().strip().casefold() if hasattr(self, "service_order_prompt_search") else ""
+        category = self.service_order_prompt_category_filter.currentData() if hasattr(self, "service_order_prompt_category_filter") else ""
+        prompts = [
+            prompt for prompt in getattr(self, "service_order_design_prompts_data", [])
+            if (not category or str(prompt.get("category") or "") == category)
+            and (not search or search in " ".join(str(prompt.get(key) or "") for key in ("category", "title", "prompt_text", "image_name")).casefold())
+        ]
+        self.service_order_design_prompts_visible = prompts
+        self.service_order_prompt_table.setRowCount(len(prompts))
+        for row, prompt in enumerate(prompts):
+            values = (prompt.get("category") or "General", prompt.get("title") or "", prompt.get("prompt_text") or "", "Yes" if prompt.get("image_data") else "")
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                cell.setData(Qt.ItemDataRole.UserRole, int(prompt.get("id") or 0))
+                self.service_order_prompt_table.setItem(row, column, cell)
+
+    def refresh_service_order_prompt_categories(self) -> None:
+        if not hasattr(self, "service_order_prompt_category_filter"):
+            return
+        current = self.service_order_prompt_category_filter.currentData()
+        categories = sorted({str(prompt.get("category") or "").strip() for prompt in getattr(self, "service_order_design_prompts_data", []) if str(prompt.get("category") or "").strip()})
+        self.service_order_prompt_category_filter.blockSignals(True)
+        self.service_order_prompt_category_filter.clear()
+        self.service_order_prompt_category_filter.addItem("All Categories", "")
+        for category in categories:
+            self.service_order_prompt_category_filter.addItem(category, category)
+        index = self.service_order_prompt_category_filter.findData(current)
+        if index >= 0:
+            self.service_order_prompt_category_filter.setCurrentIndex(index)
+        self.service_order_prompt_category_filter.blockSignals(False)
+
+    def selected_service_order_design_prompt(self) -> dict | None:
+        row = self.service_order_prompt_table.currentRow()
+        prompts = getattr(self, "service_order_design_prompts_visible", [])
+        return prompts[row] if 0 <= row < len(prompts) else None
 
     def _build_product_management_page(self) -> QWidget:
         page = QWidget(); outer = QVBoxLayout(page); outer.setContentsMargins(14,12,14,12); outer.setSpacing(8)
@@ -2591,7 +2681,9 @@ class LiteWindow(QMainWindow):
             self.nav_buttons["Setting Center"].setVisible(str(role).casefold() in {"admin", "manager"})
             self.service_order_reports_button.hide()
             self.service_order_presets_button.hide()
-            self.service_order_design_prompts_button.setVisible(str(role).casefold() in {"admin", "manager"})
+            can_manage_service_prompts = str(role).casefold() in {"admin", "manager"}
+            self.service_order_design_prompts_button.hide()
+            self.service_order_tabs.setTabEnabled(1, can_manage_service_prompts)
             self.identity_label.setText(f"{name}\nRole: {role}")
             self.welcome_label.setText(f"Welcome, {name}. Connected as {role}.")
             self.pages.setCurrentWidget(self.workspace_page)
@@ -4310,117 +4402,106 @@ class LiteWindow(QMainWindow):
             return
 
         def loaded(prompts):
-            prompts = list(prompts or [])
-            dialog = QDialog(self); dialog.setWindowTitle("Service Job Design Prompts"); dialog.resize(780, 520)
-            layout = QVBoxLayout(dialog)
-            table = QTableWidget(len(prompts), 3)
-            table.setHorizontalHeaderLabels(["Title", "Prompt", "Image"])
-            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-            table.verticalHeader().setVisible(False)
-            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-            for row, prompt in enumerate(prompts):
-                values = (prompt.get("title") or "", prompt.get("prompt_text") or "", "Yes" if prompt.get("image_data") else "")
-                for column, value in enumerate(values):
-                    cell = QTableWidgetItem(str(value)); cell.setData(Qt.ItemDataRole.UserRole, int(prompt.get("id") or 0)); table.setItem(row, column, cell)
-            layout.addWidget(table, 1)
-            actions = QHBoxLayout(); add = QPushButton("Add Prompt"); edit = QPushButton("Edit Prompt"); deactivate = QPushButton("Deactivate")
-            actions.addWidget(add); actions.addWidget(edit); actions.addWidget(deactivate); actions.addStretch()
-            close = QPushButton("Close"); close.clicked.connect(dialog.accept); actions.addWidget(close); layout.addLayout(actions)
-
-            def selected():
-                row = table.currentRow()
-                return prompts[row] if 0 <= row < len(prompts) else None
-
-            def open_editor(prompt=None):
-                editor = QDialog(dialog); editor.setWindowTitle("Design Prompt"); editor.resize(680, 560)
-                editor_layout = QVBoxLayout(editor); form = QFormLayout()
-                title = QLineEdit(str((prompt or {}).get("title") or ""))
-                sort_order = QSpinBox(); sort_order.setRange(0, 999999); sort_order.setValue(int((prompt or {}).get("sort_order") or 0))
-                text = QTextEdit(); text.setPlainText(str((prompt or {}).get("prompt_text") or ""))
-                text.setPlaceholderText("Prompt text. You can use {job_title}, {details}, {notes}, {appointment}, {status}.")
-                form.addRow("Title", title); form.addRow("Sort", sort_order); form.addRow("Prompt", text)
-                editor_layout.addLayout(form)
-                image_state = {
-                    "data": str((prompt or {}).get("image_data") or ""),
-                    "name": str((prompt or {}).get("image_name") or ""),
-                }
-                image_preview = QLabel("No sample image")
-                image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                image_preview.setMinimumHeight(150)
-                image_preview.setStyleSheet("border: 1px solid #d7e0ed; border-radius: 8px; color: #6b7280;")
-
-                def refresh_image_preview():
-                    data = image_state["data"]
-                    if not data:
-                        image_preview.setText("No sample image"); image_preview.setPixmap(QPixmap()); return
-                    try:
-                        encoded = data.split(",", 1)[1] if "," in data else data
-                        pixmap = QPixmap()
-                        pixmap.loadFromData(base64.b64decode(encoded))
-                        if pixmap.isNull():
-                            raise ValueError("Invalid image")
-                        image_preview.setPixmap(pixmap.scaled(300, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                        image_preview.setText("")
-                    except Exception:
-                        image_preview.setPixmap(QPixmap()); image_preview.setText("Could not preview image")
-
-                def upload_image():
-                    path, _filter = QFileDialog.getOpenFileName(editor, "Choose Sample Image", "", "Images (*.png *.jpg *.jpeg *.webp)")
-                    if not path:
-                        return
-                    with open(path, "rb") as handle:
-                        raw = handle.read()
-                    if len(raw) > 3_500_000:
-                        QMessageBox.warning(editor, "Design Prompt", "Image is too large. Choose an image under 3.5 MB."); return
-                    suffix = path.rsplit(".", 1)[-1].lower()
-                    mime = "image/jpeg" if suffix in {"jpg", "jpeg"} else "image/webp" if suffix == "webp" else "image/png"
-                    image_state["data"] = f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
-                    image_state["name"] = path.replace("\\", "/").rsplit("/", 1)[-1]
-                    refresh_image_preview()
-
-                def remove_image():
-                    image_state["data"] = ""; image_state["name"] = ""; refresh_image_preview()
-
-                image_buttons = QHBoxLayout()
-                upload = QPushButton("Upload Sample Image"); upload.clicked.connect(upload_image)
-                remove = QPushButton("Remove Image"); remove.clicked.connect(remove_image)
-                image_buttons.addWidget(upload); image_buttons.addWidget(remove); image_buttons.addStretch()
-                editor_layout.addWidget(QLabel("Sample Image"))
-                editor_layout.addWidget(image_preview)
-                editor_layout.addLayout(image_buttons)
-                refresh_image_preview()
-                buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-                buttons.accepted.connect(editor.accept); buttons.rejected.connect(editor.reject); editor_layout.addWidget(buttons)
-                if editor.exec() != QDialog.DialogCode.Accepted:
-                    return
-                values = {"title": title.text().strip(), "prompt_text": text.toPlainText().strip(), "image_data": image_state["data"], "image_name": image_state["name"], "sort_order": sort_order.value(), "active": True}
-                if not values["title"] or not values["prompt_text"]:
-                    QMessageBox.warning(dialog, "Design Prompt", "Title and prompt text are required."); return
-                prompt_id = int((prompt or {}).get("id") or 0) or None
-                self._run_task(lambda: self.api.save_service_order_design_prompt(values, prompt_id), lambda _saved: (dialog.accept(), self.manage_service_order_design_prompts()), lambda error: QMessageBox.critical(dialog, "Design Prompt", error))
-
-            add.clicked.connect(lambda: open_editor())
-            edit.clicked.connect(lambda: open_editor(selected()) if selected() else QMessageBox.information(dialog, "Design Prompt", "Select a prompt to edit."))
-
-            def deactivate_selected():
-                prompt = selected()
-                if not prompt:
-                    QMessageBox.information(dialog, "Design Prompt", "Select a prompt to deactivate."); return
-                if QMessageBox.question(dialog, "Deactivate Prompt", f"Deactivate {prompt.get('title')}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
-                    return
-                self._run_task(lambda: self.api.delete_service_order_design_prompt(int(prompt.get("id") or 0)), lambda _result: (dialog.accept(), self.manage_service_order_design_prompts()), lambda error: QMessageBox.critical(dialog, "Design Prompt", error))
-
-            deactivate.clicked.connect(deactivate_selected)
-            table.doubleClicked.connect(lambda _index: open_editor(selected()))
-            dialog.exec()
+            self.service_order_design_prompts_data = list(prompts or [])
+            self.refresh_service_order_prompt_categories()
+            self.refresh_service_order_prompt_table()
+            self.statusBar().showMessage(f"{len(self.service_order_design_prompts_data)} design prompt(s) loaded", 3500)
 
         self._run_task(
             self.api.service_order_design_prompts,
             loaded,
             lambda error: QMessageBox.critical(self, "Design Prompts", error),
         )
+
+    def edit_service_order_design_prompt(self) -> None:
+        prompt = self.selected_service_order_design_prompt()
+        if not prompt:
+            QMessageBox.information(self, "Design Prompt", "Select a prompt to edit.")
+            return
+        self.open_service_order_design_prompt_editor(prompt)
+
+    def open_service_order_design_prompt_editor(self, prompt=None) -> None:
+        editor = QDialog(self); editor.setWindowTitle("Design Prompt"); editor.resize(680, 560)
+        editor_layout = QVBoxLayout(editor); form = QFormLayout()
+        title = QLineEdit(str((prompt or {}).get("title") or ""))
+        category = QComboBox()
+        category.setEditable(True)
+        category.addItem("")
+        for value in sorted({str(row.get("category") or "").strip() for row in getattr(self, "service_order_design_prompts_data", []) if str(row.get("category") or "").strip()}):
+            category.addItem(value)
+        category.setCurrentText(str((prompt or {}).get("category") or ""))
+        sort_order = QSpinBox(); sort_order.setRange(0, 999999); sort_order.setValue(int((prompt or {}).get("sort_order") or 0))
+        text = QTextEdit(); text.setPlainText(str((prompt or {}).get("prompt_text") or ""))
+        text.setPlaceholderText("Prompt text. You can use {job_title}, {details}, {notes}, {appointment}, {status}.")
+        form.addRow("Title", title); form.addRow("Category", category); form.addRow("Sort", sort_order); form.addRow("Prompt", text)
+        editor_layout.addLayout(form)
+        image_state = {
+            "data": str((prompt or {}).get("image_data") or ""),
+            "name": str((prompt or {}).get("image_name") or ""),
+        }
+        image_preview = QLabel("No sample image")
+        image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_preview.setMinimumHeight(150)
+        image_preview.setStyleSheet("border: 1px solid #d7e0ed; border-radius: 8px; color: #6b7280;")
+
+        def refresh_image_preview():
+            data = image_state["data"]
+            if not data:
+                image_preview.setText("No sample image"); image_preview.setPixmap(QPixmap()); return
+            try:
+                encoded = data.split(",", 1)[1] if "," in data else data
+                pixmap = QPixmap()
+                pixmap.loadFromData(base64.b64decode(encoded))
+                if pixmap.isNull():
+                    raise ValueError("Invalid image")
+                image_preview.setPixmap(pixmap.scaled(300, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                image_preview.setText("")
+            except Exception:
+                image_preview.setPixmap(QPixmap()); image_preview.setText("Could not preview image")
+
+        def upload_image():
+            path, _filter = QFileDialog.getOpenFileName(editor, "Choose Sample Image", "", "Images (*.png *.jpg *.jpeg *.webp)")
+            if not path:
+                return
+            with open(path, "rb") as handle:
+                raw = handle.read()
+            if len(raw) > 3_500_000:
+                QMessageBox.warning(editor, "Design Prompt", "Image is too large. Choose an image under 3.5 MB."); return
+            suffix = path.rsplit(".", 1)[-1].lower()
+            mime = "image/jpeg" if suffix in {"jpg", "jpeg"} else "image/webp" if suffix == "webp" else "image/png"
+            image_state["data"] = f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
+            image_state["name"] = path.replace("\\", "/").rsplit("/", 1)[-1]
+            refresh_image_preview()
+
+        def remove_image():
+            image_state["data"] = ""; image_state["name"] = ""; refresh_image_preview()
+
+        image_buttons = QHBoxLayout()
+        upload = QPushButton("Upload Sample Image"); upload.clicked.connect(upload_image)
+        remove = QPushButton("Remove Image"); remove.clicked.connect(remove_image)
+        image_buttons.addWidget(upload); image_buttons.addWidget(remove); image_buttons.addStretch()
+        editor_layout.addWidget(QLabel("Sample Image"))
+        editor_layout.addWidget(image_preview)
+        editor_layout.addLayout(image_buttons)
+        refresh_image_preview()
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(editor.accept); buttons.rejected.connect(editor.reject); editor_layout.addWidget(buttons)
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = {"title": title.text().strip(), "category": category.currentText().strip(), "prompt_text": text.toPlainText().strip(), "image_data": image_state["data"], "image_name": image_state["name"], "sort_order": sort_order.value(), "active": True}
+        if not values["title"] or not values["prompt_text"]:
+            QMessageBox.warning(self, "Design Prompt", "Title and prompt text are required."); return
+        prompt_id = int((prompt or {}).get("id") or 0) or None
+        self._run_task(lambda: self.api.save_service_order_design_prompt(values, prompt_id), lambda _saved: self.manage_service_order_design_prompts(), lambda error: QMessageBox.critical(self, "Design Prompt", error))
+
+    def deactivate_service_order_design_prompt(self) -> None:
+        prompt = self.selected_service_order_design_prompt()
+        if not prompt:
+            QMessageBox.information(self, "Design Prompt", "Select a prompt to deactivate.")
+            return
+        if QMessageBox.question(self, "Deactivate Prompt", f"Deactivate {prompt.get('title')}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        self._run_task(lambda: self.api.delete_service_order_design_prompt(int(prompt.get("id") or 0)), lambda _result: self.manage_service_order_design_prompts(), lambda error: QMessageBox.critical(self, "Design Prompt", error))
 
     def print_service_order_job_ticket(self) -> None:
         if not self.selected_service_order:

@@ -28,6 +28,10 @@ class PosLiteServiceJobTests(unittest.TestCase):
         self.window.api = Mock()
         self.window.api.service_orders.side_effect = lambda query="", status="", limit=200: self.repo.list(search=query, status=status, limit=limit)
         self.window.api.service_order.side_effect = self.repo.get
+        self.window.api.service_order_design_prompts.return_value = [
+            {"id": 1, "category": "Poster", "title": "Poster", "prompt_text": "Design a poster", "image_data": ""},
+            {"id": 2, "category": "Banner", "title": "Banner", "prompt_text": "Create a banner", "image_data": "data:image/png;base64,abc"},
+        ]
         self.window.api.change_service_order_status.side_effect = lambda order_id, status, note: self.repo.change_status(order_id, status, changed_by=self.window.user["username"], note=note)
         def run(operation, success, failure):
             try:
@@ -41,6 +45,23 @@ class PosLiteServiceJobTests(unittest.TestCase):
     def filter(self, status):
         combo = self.window.service_order_status_filter
         combo.setCurrentIndex(combo.findData(status))
+
+    def test_design_prompts_are_available_as_service_jobs_tab(self):
+        window = self.window
+        self.assertEqual(window.service_order_tabs.tabText(0), "Jobs")
+        self.assertEqual(window.service_order_tabs.tabText(1), "Design Prompts")
+        window.service_order_tabs.setTabEnabled(1, True)
+        window.show_service_order_design_prompts_tab()
+        self.assertEqual(window.service_order_tabs.currentIndex(), 1)
+        self.assertEqual(window.service_order_prompt_table.rowCount(), 2)
+        window.service_order_prompt_search.setText("banner")
+        self.assertEqual(window.service_order_prompt_table.rowCount(), 1)
+        self.assertEqual(window.service_order_prompt_table.item(0, 0).text(), "Banner")
+        self.assertEqual(window.service_order_prompt_table.item(0, 1).text(), "Banner")
+        window.service_order_prompt_search.clear()
+        window.service_order_prompt_category_filter.setCurrentIndex(window.service_order_prompt_category_filter.findData("Poster"))
+        self.assertEqual(window.service_order_prompt_table.rowCount(), 1)
+        self.assertEqual(window.service_order_prompt_table.item(0, 1).text(), "Poster")
 
     def test_full_work_and_collection_flow_with_separate_staff(self):
         job = self.repo.create({"job_title": "Print", "internal_notes": "Deposit 5000"}, created_by="server")

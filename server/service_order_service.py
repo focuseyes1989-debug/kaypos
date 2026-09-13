@@ -303,6 +303,7 @@ def ensure_service_order_schema(cursor) -> None:
         CREATE TABLE IF NOT EXISTS service_order_design_prompts (
             id {pk_sql},
             title TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL DEFAULT '',
             prompt_text TEXT NOT NULL,
             image_data TEXT,
             image_name TEXT,
@@ -312,6 +313,7 @@ def ensure_service_order_schema(cursor) -> None:
             updated_at TIMESTAMP NOT NULL
         )
     """)
+    _add_column_if_missing(cursor, "service_order_design_prompts", "category", "TEXT NOT NULL DEFAULT ''")
     _add_column_if_missing(cursor, "service_order_design_prompts", "image_data", "TEXT")
     _add_column_if_missing(cursor, "service_order_design_prompts", "image_name", "TEXT")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_status ON service_orders(status, updated_at)")
@@ -323,7 +325,7 @@ def ensure_service_order_schema(cursor) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_return_visits_order ON service_order_return_visits(service_order_id, visited_at, id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_notifications_status ON service_order_notifications(status, created_at, id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_print_service_presets_sort ON print_service_presets(active, sort_order, name)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_design_prompts_sort ON service_order_design_prompts(active, sort_order, title)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_design_prompts_sort ON service_order_design_prompts(active, category, sort_order, title)")
 
 
 class ServiceOrderRepository:
@@ -583,6 +585,7 @@ class ServiceOrderRepository:
 
     def save_design_prompt(self, values: dict, prompt_id: int | None = None) -> dict:
         title = str(values.get("title") or "").strip()
+        category = str(values.get("category") or "").strip()[:120]
         text = str(values.get("prompt_text") or values.get("text") or "").strip()
         if not title:
             raise ValueError("Prompt title is required")
@@ -602,18 +605,18 @@ class ServiceOrderRepository:
             if prompt_id:
                 cursor.execute("""
                     UPDATE service_order_design_prompts
-                    SET title = ?, prompt_text = ?, image_data = ?, image_name = ?, sort_order = ?, active = ?, updated_at = ?
+                    SET title = ?, category = ?, prompt_text = ?, image_data = ?, image_name = ?, sort_order = ?, active = ?, updated_at = ?
                     WHERE id = ?
-                """, (title, text, image_data, image_name, sort_order, active, now, int(prompt_id)))
+                """, (title, category, text, image_data, image_name, sort_order, active, now, int(prompt_id)))
                 if cursor.rowcount != 1:
                     raise ValueError("Design prompt not found")
                 saved_id = int(prompt_id)
             else:
                 saved_id = _insert_and_get_id(cursor, """
                     INSERT INTO service_order_design_prompts
-                        (title, prompt_text, image_data, image_name, sort_order, active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (title, text, image_data, image_name, sort_order, active, now, now))
+                        (title, category, prompt_text, image_data, image_name, sort_order, active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (title, category, text, image_data, image_name, sort_order, active, now, now))
             conn.commit(); cursor.execute("SELECT * FROM service_order_design_prompts WHERE id = ?", (saved_id,))
             return _row(cursor)
         except Exception:

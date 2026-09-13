@@ -167,13 +167,13 @@ class ServiceOrderApiPhase2Tests(unittest.TestCase):
 
     def test_design_prompt_crud_uses_repository_and_requires_manager_for_writes(self):
         self.assertEqual(api.service_order_design_prompts({})["prompts"], [{"id": 1, "title": "Sticker"}])
-        payload = api.ServiceOrderDesignPromptRequest(title="Sticker", prompt_text="Design {job_title}")
+        payload = api.ServiceOrderDesignPromptRequest(title="Sticker", category="Sticker", prompt_text="Design {job_title}")
         with self.assertRaises(HTTPException) as caught:
             api.create_service_order_design_prompt(payload, {"role": "Cashier"})
         self.assertEqual(caught.exception.status_code, 403)
         result = api.create_service_order_design_prompt(payload, {"role": "Manager"})
         self.assertEqual(result["prompt"]["title"], "Sticker")
-        expected = {"title": "Sticker", "prompt_text": "Design {job_title}", "image_data": "", "image_name": "", "sort_order": 0, "active": True}
+        expected = {"title": "Sticker", "category": "Sticker", "prompt_text": "Design {job_title}", "image_data": "", "image_name": "", "sort_order": 0, "active": True}
         self.repo.save_design_prompt.assert_called_once_with(expected)
         api.update_service_order_design_prompt(1, payload, {"role": "Admin"})
         self.repo.save_design_prompt.assert_called_with(expected, 1)

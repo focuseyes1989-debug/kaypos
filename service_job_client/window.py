@@ -8,7 +8,7 @@ from PyQt6.QtGui import QColor, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPushButton, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
+    QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QStatusBar, QSystemTrayIcon, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -91,6 +91,8 @@ class ServiceJobClientWindow(QMainWindow):
         self._jobs_revision = 0
         self._known_job_ids: set[int] | None = None
         self.prompts: list[dict] = []
+        self.selected_prompt_row = -1
+        self.prompt_cards: list[QFrame] = []
 
         self.pages = QStackedWidget()
         self.login_page = QWidget()
@@ -280,25 +282,28 @@ class ServiceJobClientWindow(QMainWindow):
         top.addWidget(title); top.addStretch(); top.addWidget(back); top.addWidget(logout); outer.addLayout(top)
 
         body = QHBoxLayout()
-        left = QFrame(); left.setFrameShape(QFrame.Shape.StyledPanel); left.setMaximumWidth(340)
+        left = QFrame(); left.setFrameShape(QFrame.Shape.StyledPanel); left.setMinimumWidth(520)
         left_layout = QVBoxLayout(left)
-        self.prompt_select = QComboBox()
-        self._make_searchable_combo(self.prompt_select, "Search prompt")
-        self.prompt_select.currentIndexChanged.connect(self.load_prompt_preview)
         self.copy_prompt_button = QPushButton("Copy Prompt")
         self.copy_prompt_button.clicked.connect(self.copy_prompt)
         self.refresh_prompt_button = QPushButton("Refresh")
         self.refresh_prompt_button.clicked.connect(self.refresh_design_prompts)
-        hint = QLabel("Use placeholders like {job_title}, {details}, {notes}, {appointment}, {status}. Select a service job before copying when you want job values filled in.")
-        hint.setWordWrap(True)
-        left_layout.addWidget(QLabel("Saved Prompts"))
-        left_layout.addWidget(self.prompt_select)
-        left_layout.addWidget(self.copy_prompt_button)
-        left_layout.addWidget(self.refresh_prompt_button)
-        left_layout.addWidget(hint)
-        left_layout.addStretch()
+        self.prompt_search_input = QLineEdit()
+        self.prompt_search_input.setPlaceholderText("Search prompts...")
+        self.prompt_search_input.textChanged.connect(self.refresh_prompt_controls)
+        left_layout.addWidget(self.prompt_search_input)
+        self.prompt_card_area = QScrollArea()
+        self.prompt_card_area.setWidgetResizable(True)
+        self.prompt_card_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.prompt_card_container = QWidget()
+        self.prompt_card_layout = QVBoxLayout(self.prompt_card_container)
+        self.prompt_card_layout.setContentsMargins(0, 0, 0, 0)
+        self.prompt_card_layout.setSpacing(8)
+        self.prompt_card_layout.addStretch()
+        self.prompt_card_area.setWidget(self.prompt_card_container)
+        left_layout.addWidget(self.prompt_card_area, 1)
 
-        right = QFrame(); right.setFrameShape(QFrame.Shape.StyledPanel)
+        right = QFrame(); right.setFrameShape(QFrame.Shape.StyledPanel); right.setMinimumWidth(280); right.setMaximumWidth(360)
         right_layout = QVBoxLayout(right)
         right_layout.addWidget(QLabel("Preview"))
         self.prompt_preview = QTextEdit()
@@ -311,25 +316,119 @@ class ServiceJobClientWindow(QMainWindow):
         self.prompt_image.setMinimumHeight(180)
         self.prompt_image.setStyleSheet("border: 1px solid #d7e0ed; border-radius: 8px; color: #6b7280;")
         right_layout.addWidget(self.prompt_image)
-        body.addWidget(left)
+        prompt_actions = QHBoxLayout()
+        prompt_actions.addWidget(self.copy_prompt_button)
+        prompt_actions.addWidget(self.refresh_prompt_button)
+        right_layout.addLayout(prompt_actions)
+        body.addWidget(left, 2)
         body.addWidget(right, 1)
         outer.addLayout(body, 1)
         self.refresh_prompt_controls()
         return page
 
     def refresh_prompt_controls(self) -> None:
-        current = self.prompt_select.currentData() if hasattr(self, "prompt_select") else None
-        self.prompt_select.blockSignals(True)
-        self.prompt_select.clear()
+        current = self.selected_prompt_row
+        search_text = self.prompt_search_input.text().strip().casefold() if hasattr(self, "prompt_search_input") else ""
+        while self.prompt_card_layout.count():
+            item = self.prompt_card_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self.prompt_cards = []
+        visible_rows = []
         for index, prompt in enumerate(self.prompts):
-            self.prompt_select.addItem(str(prompt.get("title") or f"Prompt {index + 1}"), index)
-        self._refresh_combo_completer(self.prompt_select)
-        if current is not None:
-            row = self.prompt_select.findData(current)
-            if row >= 0:
-                self.prompt_select.setCurrentIndex(row)
-        self.prompt_select.blockSignals(False)
+            if search_text and search_text not in self._prompt_search_text(prompt).casefold():
+                continue
+            visible_rows.append(index)
+            card = self._create_prompt_card(prompt, index)
+            self.prompt_cards.append(card)
+            self.prompt_card_layout.addWidget(card)
+        if not self.prompts or not visible_rows:
+            empty = QLabel("No matching prompts" if self.prompts else "No design prompts yet")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty.setStyleSheet("color: #6b7280; padding: 28px 8px;")
+            self.prompt_card_layout.addWidget(empty)
+        self.prompt_card_layout.addStretch()
+        self.selected_prompt_row = current if current in visible_rows else (visible_rows[0] if visible_rows else -1)
+        self.refresh_prompt_card_styles()
         self.load_prompt_preview()
+
+    @staticmethod
+    def _prompt_search_text(prompt: dict) -> str:
+        return " ".join(str(prompt.get(key) or "") for key in ("category", "title", "prompt_text", "text", "image_name"))
+
+    def _create_prompt_card(self, prompt: dict, index: int) -> QFrame:
+        card = QFrame()
+        card.setObjectName("promptCard")
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        card.setProperty("prompt_index", index)
+        card.setFrameShape(QFrame.Shape.StyledPanel)
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(12)
+        image = QLabel()
+        image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image.setFixedSize(96, 72)
+        image.setStyleSheet("background: #f8fafc; border: 1px solid #d7e0ed; border-radius: 6px; color: #64748b;")
+        self._set_prompt_card_image(image, str(prompt.get("image_data") or ""))
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(5)
+        title = QLabel(str(prompt.get("title") or f"Prompt {index + 1}"))
+        title.setWordWrap(True)
+        title.setStyleSheet("font-weight: 700;")
+        category = QLabel(str(prompt.get("category") or "General"))
+        category.setStyleSheet("color: #2563eb; font-size: 11px; font-weight: 700;")
+        preview = QLabel(self.render_prompt_text(str(prompt.get("prompt_text") or prompt.get("text") or "")).replace("\n", " ")[:190])
+        preview.setWordWrap(True)
+        preview.setStyleSheet("color: #4b5563;")
+        meta = QLabel("Sample image attached" if prompt.get("image_data") else "Text prompt")
+        meta.setStyleSheet("color: #64748b; font-size: 11px;")
+        text_layout.addWidget(title)
+        text_layout.addWidget(category)
+        text_layout.addWidget(preview)
+        text_layout.addWidget(meta)
+        layout.addWidget(image)
+        layout.addLayout(text_layout, 1)
+        card.mousePressEvent = lambda event, row=index: self.select_prompt_card(row)
+        return card
+
+    def _set_prompt_card_image(self, label: QLabel, image_data: str) -> None:
+        if not image_data:
+            label.setPixmap(QPixmap())
+            label.setText("No image")
+            return
+        try:
+            encoded = image_data.split(",", 1)[1] if "," in image_data else image_data
+            pixmap = QPixmap()
+            pixmap.loadFromData(base64.b64decode(encoded))
+            if pixmap.isNull():
+                raise ValueError("Invalid image")
+            label.setPixmap(pixmap.scaled(90, 66, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            label.setText("")
+        except Exception:
+            label.setPixmap(QPixmap())
+            label.setText("Bad image")
+
+    def select_prompt_card(self, index: int) -> None:
+        if not 0 <= index < len(self.prompts):
+            return
+        self.selected_prompt_row = index
+        self.refresh_prompt_card_styles()
+        self.load_prompt_preview()
+
+    def refresh_prompt_card_styles(self) -> None:
+        for card in self.prompt_cards:
+            selected = int(card.property("prompt_index") or -1) == self.selected_prompt_row
+            card.setStyleSheet(
+                "QFrame#promptCard {"
+                f"background: {'#eef6ff' if selected else '#ffffff'};"
+                f"border: 2px solid {'#2563eb' if selected else '#d7e0ed'};"
+                "border-radius: 8px;"
+                "}"
+                "QFrame#promptCard:hover { background: #f8fbff; border-color: #60a5fa; }"
+            )
 
     @staticmethod
     def _make_searchable_combo(combo: QComboBox, placeholder: str = "Search") -> None:
@@ -357,11 +456,7 @@ class ServiceJobClientWindow(QMainWindow):
         completer.setModel(QStringListModel([label for label in labels if label.strip()], completer))
 
     def selected_prompt_index(self) -> int:
-        value = self.prompt_select.currentData()
-        try:
-            index = int(value)
-        except (TypeError, ValueError):
-            return -1
+        index = int(self.selected_prompt_row)
         return index if 0 <= index < len(self.prompts) else -1
 
     def selected_prompt(self) -> dict:
