@@ -1502,10 +1502,14 @@ class LiteWindow(QMainWindow):
         self._service_job_updating = False
         self._service_job_snapshot = None
         self._offline_syncing = False
+        self._connection_checking = False
         self._session_expired_handled = False
         self.service_job_tray = QSystemTrayIcon(QApplication.instance().windowIcon(), self)
         self.service_job_tray.setToolTip("KAY POS Service Jobs")
         self.service_job_tray.show()
+        self.connection_timer = QTimer(self)
+        self.connection_timer.setInterval(10000)
+        self.connection_timer.timeout.connect(self.check_server_connection)
 
         self.pages = QStackedWidget()
         self.setCentralWidget(self.pages)
@@ -1522,7 +1526,12 @@ class LiteWindow(QMainWindow):
                 frame.setFrameShadow(QFrame.Shadow.Plain)
         status = QStatusBar()
         self.setStatusBar(status)
+        self.connection_status = QLabel()
+        self.connection_status.setMinimumWidth(132)
+        self.connection_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.statusBar().addPermanentWidget(self.connection_status)
         self._apply_theme_styles()
+        self._set_connection_status(False, "Not connected")
         self.statusBar().showMessage("Ready")
         self._shortcuts = []
         self._add_shortcut("F11", self.toggle_full_screen)
@@ -1550,6 +1559,9 @@ class LiteWindow(QMainWindow):
             }}
             QStatusBar::item {{ border: 0; }}
         """)
+        if hasattr(self, "connection_status"):
+            current_online = self.connection_status.property("online") is True
+            self._set_connection_status(current_online, self.connection_status.toolTip() or "Not connected")
 
     def apply_theme(self, theme_name: str, persist: bool = True) -> str:
         app = QApplication.instance()
@@ -2727,6 +2739,50 @@ class LiteWindow(QMainWindow):
     def _new_api(self) -> LiteApiClient:
         return LiteApiClient(self.server_input.text(), self.insecure_check.isChecked())
 
+    def _set_connection_status(self, online: bool, detail: str = "") -> None:
+        label = "Server Online" if online else "Server Offline"
+        color = "#16a34a" if online else "#dc2626"
+        background = "#dcfce7" if online else "#fee2e2"
+        foreground = "#14532d" if online else "#7f1d1d"
+        self.connection_status.setProperty("online", bool(online))
+        self.connection_status.setText(f"● {label}")
+        self.connection_status.setToolTip(detail or label)
+        self.connection_status.setStyleSheet(
+            "QLabel {"
+            f"color: {foreground}; background: {background};"
+            "border: 1px solid rgba(0,0,0,0.12); border-radius: 7px;"
+            "padding: 2px 8px; font-weight: 600;"
+            "}"
+            f"QLabel::first-letter {{ color: {color}; }}"
+        )
+
+    def check_server_connection(self) -> None:
+        if self._connection_checking:
+            return
+        if self.api:
+            client = self.api
+            detail = f"Connected to {client.server_url}"
+        else:
+            config = load_config()
+            client = LiteApiClient(config.get("server_url"), config.get("insecure_tls"))
+            detail = f"POS Server reachable at {client.server_url}"
+        if not client.server_url:
+            self._set_connection_status(False, "Not connected to POS Server")
+            return
+        self._connection_checking = True
+
+        def connected(_data):
+            self._connection_checking = False
+            if self.api is client or not self.api:
+                self._set_connection_status(True, detail)
+
+        def failed(error):
+            self._connection_checking = False
+            if self.api is client or not self.api:
+                self._set_connection_status(False, str(error))
+
+        self._run_task(client.health, connected, failed)
+
     def test_connection(self) -> None:
         self._set_busy(True, "Testing server connection…")
         client = self._new_api()
@@ -2738,9 +2794,14 @@ class LiteWindow(QMainWindow):
                 "remember_username": self.username_input.text().strip(),
             })
             self._set_busy(False, "Server is connected and ready.")
+            self._set_connection_status(True, f"Connected to {client.server_url}")
             self.statusBar().showMessage("Server connected")
 
-        self._run_task(client.health, connected, lambda error: self._set_busy(False, error))
+        self._run_task(
+            client.health,
+            connected,
+            lambda error: (self._set_busy(False, error), self._set_connection_status(False, error)),
+        )
 
     def login(self) -> None:
         username = self.username_input.text().strip()
@@ -2781,6 +2842,8 @@ class LiteWindow(QMainWindow):
             self.pages.setCurrentWidget(self.workspace_page)
             self.login_dialog.accept()
             self.showFullScreen()
+            self._set_connection_status(True, f"Connected to {client.server_url}")
+            self.connection_timer.start()
             self.statusBar().showMessage(f"Connected · {client.server_url}")
             self.workspace_stack.setCurrentWidget(self.pos_page)
             self._focus_product_search()
@@ -2813,6 +2876,8 @@ class LiteWindow(QMainWindow):
                 self.login_dialog.accept()
                 self.showFullScreen()
                 self.workspace_stack.setCurrentWidget(self.pos_page)
+                self._set_connection_status(False, "Offline mode. POS Server unavailable.")
+                self.connection_timer.start()
                 self.statusBar().showMessage(f"Offline mode. {pending_count()} sale(s) pending sync.")
                 QTimer.singleShot(100, self.load_products)
                 return
@@ -5522,8 +5587,10 @@ class LiteWindow(QMainWindow):
 
     def logout(self, message: str = "Signed out.") -> None:
         self.service_job_timer.stop()
+        self.connection_timer.stop()
         self._service_job_polling = False
         self._service_job_updating = False
+        self._connection_checking = False
         self._page_load_tokens = {}
         if self.sale_display:
             self.sale_display.close()
@@ -5544,6 +5611,7 @@ class LiteWindow(QMainWindow):
         self.password_input.clear()
         self.pages.setCurrentWidget(self.login_page)
         self.login_status.setText(message)
+        self._set_connection_status(False, "Not connected to POS Server")
         self.statusBar().showMessage("Ready")
         self.hide()
         QTimer.singleShot(0, self.show_login_dialog)
