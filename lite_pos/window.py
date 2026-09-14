@@ -1226,6 +1226,13 @@ class ReceiptDialog(QDialog):
         ))
         dialog = QPrintDialog(printer, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_name = str(printer.printerName() or "").strip()
+            selected_info = next(
+                (info for info in QPrinterInfo.availablePrinters() if info.printerName() == selected_name),
+                None,
+            )
+            if selected_info is not None:
+                printer = QPrinter(selected_info, QPrinter.PrinterMode.HighResolution)
             document, logical_dpi, logical_width, content_height = self._build_print_document()
             if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
                 QMessageBox.critical(self, "Print Receipt", "Could not start the selected printer.")
