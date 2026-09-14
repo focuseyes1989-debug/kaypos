@@ -215,26 +215,26 @@ class LoadingDialog(QDialog):
         self.setModal(True)
         
         if show_log:
-            self.setFixedSize(680, 460)
+            self.setFixedSize(600, 390)
         else:
-            self.setFixedSize(560, 300)
+            self.setFixedSize(500, 250)
 
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(28, 28, 28, 28)
+        root_layout.setContentsMargins(18, 18, 18, 18)
 
         self.card = QFrame()
         self.card.setObjectName("loadingCard")
         root_layout.addWidget(self.card)
 
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(42)
-        shadow.setColor(QColor(0, 0, 0, 125))
-        shadow.setOffset(0, 12)
+        shadow.setBlurRadius(28)
+        shadow.setColor(QColor(0, 0, 0, 82))
+        shadow.setOffset(0, 8)
         self.card.setGraphicsEffect(shadow)
 
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(28, 26, 28, 24)
-        card_layout.setSpacing(12)
+        card_layout.setContentsMargins(22, 20, 22, 18)
+        card_layout.setSpacing(8)
 
         # Header
         card_layout.addLayout(self._build_header())
@@ -251,7 +251,7 @@ class LoadingDialog(QDialog):
         self.progress_bar.setObjectName("loadingProgress")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(10)
+        self.progress_bar.setFixedHeight(8)
         self.progress_bar.setTextVisible(False)
         card_layout.addWidget(self.progress_bar)
 
@@ -292,8 +292,8 @@ class LoadingDialog(QDialog):
             self.log_container = QFrame()
             self.log_container.setObjectName("logContainer")
             log_layout = QVBoxLayout(self.log_container)
-            log_layout.setContentsMargins(8, 7, 8, 8)
-            log_layout.setSpacing(6)
+            log_layout.setContentsMargins(7, 6, 7, 7)
+            log_layout.setSpacing(5)
             
             # Log header
             log_header = QHBoxLayout()
@@ -313,7 +313,7 @@ class LoadingDialog(QDialog):
             # Clear log button - with SVG icon
             self.btn_clear_log = QPushButton("Clear")
             self.btn_clear_log.setObjectName("clearLogButton")
-            self.btn_clear_log.setFixedSize(60, 24)
+            self.btn_clear_log.setFixedSize(56, 22)
             self.btn_clear_log.clicked.connect(self._clear_log)
             log_header.addWidget(self.btn_clear_log)
             
@@ -373,14 +373,14 @@ class LoadingDialog(QDialog):
 
     def _build_header(self):
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(14)
+        header_layout.setSpacing(10)
 
         # Logo Badge
         logo_badge = QFrame()
         logo_badge.setObjectName("logoBadge")
-        logo_badge.setFixedSize(58, 58)
+        logo_badge.setFixedSize(46, 46)
         logo_layout = QVBoxLayout(logo_badge)
-        logo_layout.setContentsMargins(6, 6, 6, 6)
+        logo_layout.setContentsMargins(5, 5, 5, 5)
 
         logo_label = QLabel()
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -391,7 +391,7 @@ class LoadingDialog(QDialog):
         header_layout.addWidget(logo_badge)
 
         title_layout = QVBoxLayout()
-        title_layout.setSpacing(3)
+        title_layout.setSpacing(2)
 
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
@@ -399,7 +399,7 @@ class LoadingDialog(QDialog):
         title_label = QLabel("Preparing KAY POS")
         title_label.setObjectName("titleLabel")
         title_font = QFont()
-        title_font.setPointSize(16)
+        title_font.setPointSize(13)
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_row.addWidget(title_label)
@@ -407,7 +407,7 @@ class LoadingDialog(QDialog):
         pill = QLabel("LOADING")
         pill.setObjectName("startPill")
         pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setFixedSize(76, 22)
+        pill.setFixedSize(68, 20)
         title_row.addWidget(pill)
         title_row.addStretch()
         title_layout.addLayout(title_row)
@@ -447,7 +447,7 @@ class LoadingDialog(QDialog):
             }}
             QFrame#loadingCard {{
                 background-color: {card_bg};
-                border: 1px solid {border_color};
+                border: none;
                 border-radius: 16px;
             }}
             QFrame#logoBadge {{
@@ -457,7 +457,7 @@ class LoadingDialog(QDialog):
             }}
             QLabel#logoFallback {{
                 color: white;
-                font-size: 24pt;
+                font-size: 19pt;
                 font-weight: 800;
             }}
             QLabel#titleLabel {{
@@ -466,31 +466,31 @@ class LoadingDialog(QDialog):
             }}
             QLabel#subtitleLabel {{
                 color: {text_secondary};
-                font-size: 9.5pt;
+                font-size: 9pt;
             }}
             QLabel#startPill {{
                 background-color: {border_hover};
                 color: #ffffff;
-                border-radius: 11px;
-                font-size: 8pt;
+                border-radius: 10px;
+                font-size: 7.5pt;
                 font-weight: 700;
                 letter-spacing: 0;
             }}
             QLabel#messageLabel {{
                 color: {text_color};
-                font-size: 11pt;
+                font-size: 10pt;
                 line-height: 1.35;
-                padding: 4px 0;
+                padding: 2px 0;
             }}
             QProgressBar#loadingProgress {{
                 background-color: {border_color};
                 border: 1px solid {border_color};
-                border-radius: 5px;
-                height: 10px;
+                border-radius: 4px;
+                height: 8px;
             }}
             QProgressBar#loadingProgress::chunk {{
                 background-color: {progress_bg};
-                border-radius: 5px;
+                border-radius: 4px;
             }}
             QLabel#progressPercentLabel {{
                 color: {text_secondary};
@@ -504,20 +504,20 @@ class LoadingDialog(QDialog):
             }}
             QLabel#statusLabel {{
                 color: {text_secondary};
-                font-size: 9.5pt;
+                font-size: 9pt;
                 font-style: italic;
             }}
             QLabel#dotsLabel {{
                 color: {progress_bg};
-                font-size: 15pt;
+                font-size: 13pt;
                 font-weight: 800;
                 letter-spacing: 0;
             }}
             QFrame#logContainer {{
                 background-color: {log_bg};
                 border: 1px solid {log_border};
-                border-radius: 10px;
-                margin-top: 4px;
+                border-radius: 8px;
+                margin-top: 2px;
             }}
             QLabel#logIcon {{
                 background: transparent;
@@ -534,10 +534,10 @@ class LoadingDialog(QDialog):
                 background-color: {clear_btn_bg};
                 color: {clear_btn_color};
                 border: none;
-                border-radius: 7px;
+                border-radius: 6px;
                 font-size: 8pt;
                 font-weight: 500;
-                padding: 2px 10px;
+                padding: 2px 8px;
             }}
             QPushButton#clearLogButton:hover {{
                 background-color: {clear_btn_hover};
@@ -549,10 +549,10 @@ class LoadingDialog(QDialog):
                 border: none;
                 border-radius: 6px;
                 font-family: Consolas, monospace;
-                font-size: 8pt;
-                padding: 7px 8px;
-                max-height: 150px;
-                min-height: 96px;
+                font-size: 7.5pt;
+                padding: 5px 7px;
+                max-height: 112px;
+                min-height: 72px;
             }}
             QTextEdit#logText::scrollbar:vertical {{
                 background: {log_bg};
@@ -805,7 +805,7 @@ class LoadingDialogWithWorker(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setModal(True)
-        self.setFixedSize(500, 290)
+        self.setFixedSize(460, 250)
         
         # Build UI
         self._setup_ui(title)
@@ -815,21 +815,21 @@ class LoadingDialogWithWorker(QDialog):
     
     def _setup_ui(self, title):
         card_layout = QVBoxLayout(self)
-        card_layout.setContentsMargins(26, 26, 26, 26)
+        card_layout.setContentsMargins(18, 18, 18, 18)
         
         # Card
         self.card = QFrame()
         self.card.setObjectName("card")
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(30)
-        shadow.setColor(QColor(0, 0, 0, 100))
-        shadow.setOffset(0, 8)
+        shadow.setBlurRadius(24)
+        shadow.setColor(QColor(0, 0, 0, 76))
+        shadow.setOffset(0, 6)
         self.card.setGraphicsEffect(shadow)
         card_layout.addWidget(self.card)
         
         inner_layout = QVBoxLayout(self.card)
-        inner_layout.setContentsMargins(26, 24, 26, 22)
-        inner_layout.setSpacing(13)
+        inner_layout.setContentsMargins(22, 20, 22, 18)
+        inner_layout.setSpacing(9)
         
         # Title
         title_label = QLabel(title)
@@ -849,7 +849,7 @@ class LoadingDialogWithWorker(QDialog):
         self.progress_bar.setObjectName("progressBar")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(10)
+        self.progress_bar.setFixedHeight(8)
         self.progress_bar.setTextVisible(False)
         inner_layout.addWidget(self.progress_bar)
         
@@ -868,7 +868,7 @@ class LoadingDialogWithWorker(QDialog):
         # Cancel button
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setObjectName("cancelBtn")
-        self.cancel_btn.setFixedHeight(38)
+        self.cancel_btn.setFixedHeight(34)
         self.cancel_btn.clicked.connect(self._on_cancel)
         inner_layout.addWidget(self.cancel_btn)
         
@@ -890,17 +890,17 @@ class LoadingDialogWithWorker(QDialog):
         self.setStyleSheet(f"""
             QFrame#card {{
                 background-color: {card_bg};
-                border: 1px solid {border_color};
+                border: none;
                 border-radius: 14px;
             }}
             QLabel#titleLabel {{
                 color: {text_color};
-                font-size: 16pt;
+                font-size: 14pt;
                 font-weight: 700;
             }}
             QLabel#messageLabel {{
                 color: {text_color};
-                font-size: 11pt;
+                font-size: 10pt;
             }}
             QLabel#statusLabel {{
                 color: {text_secondary};
@@ -915,18 +915,18 @@ class LoadingDialogWithWorker(QDialog):
             QProgressBar#progressBar {{
                 background-color: {border_color};
                 border: none;
-                border-radius: 5px;
-                height: 10px;
+                border-radius: 4px;
+                height: 8px;
             }}
             QProgressBar#progressBar::chunk {{
                 background-color: {progress_bg};
-                border-radius: 5px;
+                border-radius: 4px;
             }}
             QPushButton#cancelBtn {{
                 background-color: {colors['bg_hover']};
                 color: {text_color};
                 border: 1px solid {border_color};
-                border-radius: 8px;
+                border-radius: 7px;
                 font-size: 9pt;
                 font-weight: 600;
             }}

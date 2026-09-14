@@ -45,6 +45,7 @@ class SalesPage(QWidget):
         self._details_dialog = None
         self.btn_toggle_details = None
         self.right_container = None
+        self.content_surface = None
         self.btn_customer_display = None
         self.btn_cash_drawer = None
         self.btn_add_expense = None
@@ -85,8 +86,12 @@ class SalesPage(QWidget):
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(2, 2, 2, 2)
 
-        content_layout = QHBoxLayout()
+        self.content_surface = QWidget()
+        self.content_surface.setObjectName("salesContentSurface")
+        self.content_surface.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        content_layout = QHBoxLayout(self.content_surface)
         content_layout.setSpacing(8)
+        content_layout.setContentsMargins(12, 10, 12, 10)
 
         content_layout.addWidget(self.product_grid, stretch=7)
 
@@ -159,7 +164,7 @@ class SalesPage(QWidget):
         self._install_cart_actions()
 
         content_layout.addWidget(self.right_container, stretch=3)
-        main_layout.addLayout(content_layout, stretch=1)
+        main_layout.addWidget(self.content_surface, stretch=1)
 
         self.setLayout(main_layout)
         self._apply_root_theme_style()
@@ -426,9 +431,9 @@ class SalesPage(QWidget):
         if not hasattr(self, "cart_actions_footer"):
             return
         colors = get_theme_colors()
-        background = colors.get("card_bg", "#242832") if is_dark_theme() else "#edf2ff"
+        background = "#20242c" if is_dark_theme() else "#f8fafc"
         button_background = colors.get("card_bg", "#ffffff")
-        border = colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"
+        border = "#303846" if is_dark_theme() else "#e2e8f0"
         self.cart_actions_footer.setStyleSheet(
             f"QWidget#cartActionsFooter {{ background-color: {background}; border: 1px solid {border}; "
             "border-top-left-radius: 0px; border-top-right-radius: 0px; "
@@ -932,10 +937,16 @@ class SalesPage(QWidget):
 
     def _apply_root_theme_style(self):
         colors = get_theme_colors()
+        content_surface = "#20242c" if is_dark_theme() else "#f8fafc"
         self.setStyleSheet(f"""
             QWidget#salesPage {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
+            }}
+            QWidget#salesContentSurface {{
+                background-color: {content_surface};
+                border: none;
+                border-radius: 12px;
             }}
             QWidget#salesPage QLabel, QWidget#salesPage QPushButton,
             QWidget#salesPage QComboBox, QWidget#salesPage QLineEdit {{

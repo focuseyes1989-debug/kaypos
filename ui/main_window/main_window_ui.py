@@ -282,12 +282,13 @@ class MainWindowUI(QMainWindow):
                 QSplitter#workspaceSplitter::handle { background: transparent; }
             """)
         if self.page_surface:
-            self.page_surface.setStyleSheet("""
-                QFrame#workspaceSurface {
-                    background-color: transparent;
+            workspace_surface = "#20242c" if is_dark_theme() else "#f8fafc"
+            self.page_surface.setStyleSheet(f"""
+                QFrame#workspaceSurface {{
+                    background-color: {workspace_surface};
                     border: none;
-                    border-radius: 0;
-                }
+                    border-radius: 12px;
+                }}
             """)
         if self.pages:
             self.pages.setStyleSheet("""

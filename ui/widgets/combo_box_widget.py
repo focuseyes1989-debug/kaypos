@@ -110,12 +110,14 @@ class ComboBoxWidget(ContentWidthComboBox):
         colors = get_theme_colors()
         dark = is_dark_theme()
         bg = "transparent"
+        popup_bg = colors.get("card_bg", "#ffffff")
         text = colors.get("text", "#212529")
         muted = colors.get("text_secondary", "#6c757d")
         border = colors.get("input_border", colors.get("border", "#ced4da"))
         focus = colors.get("border_hover", "#5865f2")
         hover = colors.get("bg_hover", "#eef0ff")
-        selected = "#e7e9ff" if not dark else colors.get("bg_hover", "#40444b")
+        selected = colors.get("progress_bg", "#5865f2")
+        selected_text = "#ffffff"
         disabled_bg = "transparent"
 
         self.setStyleSheet(f"""
@@ -150,21 +152,28 @@ class ComboBoxWidget(ContentWidthComboBox):
                 height: 0px;
             }}
             QComboBox QAbstractItemView {{
-                background-color: {bg};
+                background-color: {popup_bg};
                 color: {text};
                 border: 1px solid {border};
                 border-radius: 4px;
                 padding: 4px 0px;
                 outline: none;
                 selection-background-color: {selected};
-                selection-color: {text};
+                selection-color: {selected_text};
             }}
             QComboBox QAbstractItemView::item {{
                 min-height: 30px;
                 padding: 6px 10px;
+                background-color: {popup_bg};
+                color: {text};
             }}
             QComboBox QAbstractItemView::item:hover {{
                 background-color: {hover};
+                color: {text};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {selected};
+                color: {selected_text};
             }}
             QLineEdit {{
                 background: transparent;
@@ -186,6 +195,32 @@ class ComboBoxWidget(ContentWidthComboBox):
                 self.lineEdit().actions()[0].setIcon(search_icon)
             if self._clear_action:
                 self._clear_action.setIcon(clear_icon)
+        self.view().setStyleSheet(f"""
+            QListView {{
+                background-color: {popup_bg};
+                color: {text};
+                border: 1px solid {border};
+                border-radius: 4px;
+                padding: 4px 0px;
+                outline: none;
+                selection-background-color: {selected};
+                selection-color: {selected_text};
+            }}
+            QListView::item {{
+                min-height: 30px;
+                padding: 6px 10px;
+                background-color: {popup_bg};
+                color: {text};
+            }}
+            QListView::item:hover {{
+                background-color: {hover};
+                color: {text};
+            }}
+            QListView::item:selected {{
+                background-color: {selected};
+                color: {selected_text};
+            }}
+        """)
 
     def showPopup(self):  # noqa: N802
         if self.searchable and self.lineEdit():

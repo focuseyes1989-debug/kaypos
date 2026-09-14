@@ -581,9 +581,9 @@ class CashierUI(QMainWindow):
         if not self.cart_actions_footer:
             return
         colors = get_theme_colors()
-        background = colors.get("card_bg", "#242832") if is_dark_theme() else "#edf2ff"
+        background = "#20242c" if is_dark_theme() else "#f8fafc"
         button_background = colors.get("card_bg", "#ffffff")
-        border = colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"
+        border = "#303846" if is_dark_theme() else "#e2e8f0"
         self.cart_actions_footer.setStyleSheet(
             f"QWidget#cartActionsFooter {{ background-color: {background}; border: 1px solid {border}; "
             "border-radius: 8px; }}"

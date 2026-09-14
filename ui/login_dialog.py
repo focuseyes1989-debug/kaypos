@@ -33,14 +33,14 @@ class LoginDialog(QDialog):
             dialog_width, dialog_height = get_responsive_dialog_size(
                 screen_geometry.width(),
                 screen_geometry.height(),
-                preferred_width=940,
-                preferred_height=580,
-                min_width=820,
-                min_height=520,
+                preferred_width=820,
+                preferred_height=500,
+                min_width=760,
+                min_height=460,
             )
             self.resize(dialog_width, dialog_height)
         else:
-            self.resize(940, 580)
+            self.resize(820, 500)
         self.user_info = None
 
         # Connect theme change
@@ -57,13 +57,13 @@ class LoginDialog(QDialog):
         left_widget = QWidget()
         left_widget.setObjectName("left_widget")
         left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(34, 34, 34, 30)
-        left_layout.setSpacing(12)
+        left_layout.setContentsMargins(24, 22, 24, 20)
+        left_layout.setSpacing(8)
 
         brand_row = QHBoxLayout()
         brand_mark = QLabel("K")
         brand_mark.setObjectName("brandMark")
-        brand_mark.setFixedSize(44, 44)
+        brand_mark.setFixedSize(38, 38)
         brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_name = QLabel("KAY")
         brand_name.setObjectName("brandName")
@@ -95,7 +95,7 @@ class LoginDialog(QDialog):
             pixmap = QPixmap(market_path)
             if not pixmap.isNull():
                 scaled_pixmap = pixmap.scaled(
-                    430, 360,
+                    340, 260,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
@@ -106,7 +106,7 @@ class LoginDialog(QDialog):
             # Fallback if image not found
             self.image_label.setText("🏪")
             self.image_label.setStyleSheet("""
-                font-size: 100px;
+                font-size: 72px;
                 color: #5865f2;
                 background: transparent;
                 border: none;
@@ -118,8 +118,8 @@ class LoginDialog(QDialog):
         right_widget = QWidget()
         right_widget.setObjectName("right_widget")
         right_layout = QVBoxLayout(right_widget)
-        right_layout.setSpacing(14)
-        right_layout.setContentsMargins(52, 42, 52, 28)
+        right_layout.setSpacing(10)
+        right_layout.setContentsMargins(38, 28, 38, 20)
 
         # ========== Spacer to push content down ==========
         right_layout.addStretch()
@@ -130,7 +130,7 @@ class LoginDialog(QDialog):
 
         # Logo container - NO BORDER
         logo_container = QFrame()
-        logo_container.setFixedSize(76, 76)
+        logo_container.setFixedSize(58, 58)
         logo_container.setStyleSheet("""
             QFrame {
                 background: transparent;
@@ -143,7 +143,7 @@ class LoginDialog(QDialog):
         logo_container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         logo_label = QLabel()
-        logo_label.setPixmap(pos_icon().pixmap(QSize(68, 68)))
+        logo_label.setPixmap(pos_icon().pixmap(QSize(52, 52)))
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_container_layout.addWidget(logo_label)
         
@@ -165,13 +165,13 @@ class LoginDialog(QDialog):
 
         # ========== Form (Username / Password) ==========
         form_layout = QFormLayout()
-        form_layout.setSpacing(12)
-        form_layout.setHorizontalSpacing(15)
+        form_layout.setSpacing(9)
+        form_layout.setHorizontalSpacing(12)
 
         self.username_edit = QLineEdit()
         self.username_edit.setObjectName("loginInput")
         self.username_edit.setPlaceholderText(tr("enter_username"))
-        self.username_edit.setMinimumHeight(38)
+        self.username_edit.setMinimumHeight(34)
         self.username_edit.setStyleSheet("""
             QLineEdit {
                 padding: 8px 14px;
@@ -190,7 +190,7 @@ class LoginDialog(QDialog):
         self.password_edit.setObjectName("loginInput")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setPlaceholderText(tr("enter_password"))
-        self.password_edit.setMinimumHeight(38)
+        self.password_edit.setMinimumHeight(34)
         self.password_edit.setStyleSheet("""
             QLineEdit {
                 padding: 8px 14px;
@@ -224,20 +224,20 @@ class LoginDialog(QDialog):
 
         # ========== Buttons ==========
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        btn_layout.setSpacing(10)
         
         # Cancel button (left)
         self.btn_cancel = ModernButton("Cancel", ModernButton.TERTIARY)
         self.btn_cancel.set_icon("close", size=(20, 20))
         self.btn_cancel.set_compact(False)
-        self.btn_cancel.setMinimumHeight(40)
+        self.btn_cancel.setMinimumHeight(36)
         self.btn_cancel.clicked.connect(self.reject)
         
         # Login button (right)
         self.btn_login = ModernButton("Sign In", ModernButton.PRIMARY)
         self.btn_login.set_icon("login", size=(20, 20))
         self.btn_login.set_compact(False)
-        self.btn_login.setMinimumHeight(40)
+        self.btn_login.setMinimumHeight(36)
         self.btn_login.clicked.connect(self.attempt_login)
 
         btn_layout.addWidget(self.btn_cancel)
@@ -300,18 +300,18 @@ class LoginDialog(QDialog):
             QWidget#right_widget {{ background-color: {colors['bg']}; }}
             QLabel#brandMark {{
                 background-color: {colors['progress_bg']}; color: white;
-                border-radius: 12px; font-size: 17pt; font-weight: 900;
+                border-radius: 10px; font-size: 15pt; font-weight: 900;
             }}
-            QLabel#brandName {{ color: {colors['text']}; font-size: 18pt; font-weight: 800; }}
-            QLabel#heroTitle {{ color: {colors['text']}; font-size: 21pt; font-weight: 750; }}
-            QLabel#heroSubtitle {{ color: {colors['text_secondary']}; font-size: 10pt; }}
-            QLabel#loginTitle {{ color: {colors['text']}; font-size: 20pt; font-weight: 750; }}
+            QLabel#brandName {{ color: {colors['text']}; font-size: 16pt; font-weight: 800; }}
+            QLabel#heroTitle {{ color: {colors['text']}; font-size: 17pt; font-weight: 750; }}
+            QLabel#heroSubtitle {{ color: {colors['text_secondary']}; font-size: 9pt; }}
+            QLabel#loginTitle {{ color: {colors['text']}; font-size: 17pt; font-weight: 750; }}
             QLabel#loginSubtitle {{ color: {colors['text_secondary']}; font-size: 9.5pt; }}
             QLabel#loginFooter {{ color: {colors['text_secondary']}; font-size: 8.5pt; }}
             QLineEdit#loginInput {{
                 background-color: {colors['input_bg']}; color: {colors['text']};
-                border: 1px solid {colors['input_border']}; border-radius: 9px;
-                padding: 9px 13px; min-height: 22px; font-size: 10pt;
+                border: 1px solid {colors['input_border']}; border-radius: 8px;
+                padding: 7px 12px; min-height: 20px; font-size: 10pt;
             }}
             QLineEdit#loginInput:hover {{ border-color: {colors['border']}; }}
             QLineEdit#loginInput:focus {{ border: 1px solid {colors['border_hover']}; }}
