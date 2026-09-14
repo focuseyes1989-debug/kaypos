@@ -7,9 +7,10 @@ from models.database import connect_db
 
 @dataclass(frozen=True)
 class PerformanceSettings:
-    product_page_size: int = 60
-    search_debounce_ms: int = 300
-    thumbnail_quality: str = "normal"
+    lite_mode_enabled: bool = False
+    product_page_size: int = 36
+    search_debounce_ms: int = 350
+    thumbnail_quality: str = "low"
     customer_display_youtube_enabled: bool = False
 
 
@@ -46,7 +47,8 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
                 'performance_product_page_size',
                 'performance_search_debounce_ms',
                 'performance_thumbnail_quality',
-                'performance_customer_display_youtube_enabled'
+                'performance_customer_display_youtube_enabled',
+                'performance_lite_mode_enabled'
             )
         """)
         values = dict(cursor.fetchall())
@@ -54,15 +56,24 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
     except Exception:
         values = {}
 
-    default_page_size = 60
-    default_debounce = 300
-    default_quality = "normal"
-    configured_page_size = _int(values.get("performance_product_page_size"), default_page_size, 12, 100)
+    default_page_size = 36
+    default_debounce = 350
+    default_quality = "low"
+    lite_mode_enabled = _bool(values.get("performance_lite_mode_enabled"), False)
+    if lite_mode_enabled:
+        configured_page_size = 24
+        configured_debounce = 450
+        configured_quality = "off"
+    else:
+        configured_page_size = _int(values.get("performance_product_page_size"), default_page_size, 12, 72)
+        configured_debounce = _int(values.get("performance_search_debounce_ms"), default_debounce, 150, 1200)
+        configured_quality = (values.get("performance_thumbnail_quality") or default_quality).strip().lower()
 
     _CACHE = PerformanceSettings(
+        lite_mode_enabled=lite_mode_enabled,
         product_page_size=configured_page_size,
-        search_debounce_ms=_int(values.get("performance_search_debounce_ms"), default_debounce, 150, 1200),
-        thumbnail_quality=(values.get("performance_thumbnail_quality") or default_quality).strip().lower(),
+        search_debounce_ms=configured_debounce,
+        thumbnail_quality=configured_quality,
         customer_display_youtube_enabled=_bool(values.get("performance_customer_display_youtube_enabled"), False),
     )
     return _CACHE

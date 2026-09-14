@@ -66,6 +66,8 @@ class ProductGrid(QWidget):
         self._grid_lazy_has_more = False
         self._grid_load_more_queued = False
         self._grid_auto_fill_done = False
+        self._categories_loaded = False
+        self._categories_load_queued = False
         self._product_loading_active = False
         self._product_loading_uses_overlay = False
         self._search_filter_timer = QTimer(self)
@@ -195,12 +197,8 @@ class ProductGrid(QWidget):
 
     def initialize_data(self) -> None:
         """Load the initial filters and products after the page has painted."""
-        blocked = self.category_combo.blockSignals(True)
-        try:
-            self.load_categories()
-        finally:
-            self.category_combo.blockSignals(blocked)
         self.load_products(page_size=self.rows_per_page)
+        self.queue_category_load(delay_ms=450)
 
     def _ensure_view_widget(self, view: int):
         return self.grid_view
@@ -210,6 +208,7 @@ class ProductGrid(QWidget):
         self.rows_per_page = self._performance_settings.product_page_size
         self.pagination.set_current_page(1, emit_signal=False)
         self.load_products(1, self.rows_per_page, show_progress=False)
+        self.queue_category_load(delay_ms=250)
 
     def _is_grid_view(self, view: int | None = None) -> bool:
         return True
@@ -362,6 +361,7 @@ class ProductGrid(QWidget):
         Load categories with indentation for parent-child hierarchy.
         Parent categories use folder.svg and child categories use category.svg.
         """
+        self._categories_load_queued = False
         conn = connect_db()
         cursor = conn.cursor()
         
@@ -374,7 +374,12 @@ class ProductGrid(QWidget):
         rows = cursor.fetchall()
         conn.close()
         
-        self.category_combo.load_categories()
+        blocked = self.category_combo.blockSignals(True)
+        try:
+            self.category_combo.load_categories()
+        finally:
+            self.category_combo.blockSignals(blocked)
+        self._categories_loaded = True
         
         if not rows:
             self._category_ids_by_name = {}
@@ -420,6 +425,14 @@ class ProductGrid(QWidget):
         
         # Load category slider data
         self._load_category_slider_data()
+        self._categories_loaded = True
+
+    def queue_category_load(self, delay_ms: int = 300):
+        """Load category filters after the product grid is already usable."""
+        if self._categories_loaded or self._categories_load_queued:
+            return
+        self._categories_load_queued = True
+        QTimer.singleShot(delay_ms, self.load_categories)
 
     def _load_category_slider_data(self):
         """Load category data for slider"""

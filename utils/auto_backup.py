@@ -1,10 +1,11 @@
 # utils/auto_backup.py
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 from PyQt6.QtCore import QTimer, QObject, pyqtSignal
 from models.database import connect_db
+from utils.db_compat import is_postgres_backend
 
 
 class AutoBackupManager(QObject):
@@ -62,8 +63,9 @@ class AutoBackupManager(QObject):
             self.timer.start(interval_ms)
             self.running = True
             logger.info(f"Auto backup started - Interval: {self.interval_hours} hours")
-            # Create first backup after 5 seconds
-            QTimer.singleShot(5000, self.create_backup)
+            if self.is_backup_due():
+                # Wait until the sales screen is usable before doing file I/O.
+                QTimer.singleShot(120000, self.create_backup)
 
     def stop(self):
         """Stop auto backup timer"""
@@ -106,6 +108,11 @@ class AutoBackupManager(QObject):
         if last_time:
             return last_time.strftime("%Y-%m-%d %I:%M %p")
         return "No backup yet"
+
+    def is_backup_due(self):
+        if not self.last_backup_time:
+            return True
+        return datetime.now() - self.last_backup_time >= timedelta(hours=max(1, self.interval_hours))
 
     def create_backup(self):
         """Create a database backup"""
@@ -180,12 +187,22 @@ class AutoBackupManager(QObject):
         try:
             conn = connect_db()
             cursor = conn.cursor()
-            cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
-                          ("auto_backup_enabled", '1' if enabled else '0'))
-            cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
-                          ("auto_backup_interval", str(interval_hours)))
-            cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
-                          ("auto_backup_max", str(max_backups)))
+            values = (
+                ("auto_backup_enabled", '1' if enabled else '0'),
+                ("auto_backup_interval", str(interval_hours)),
+                ("auto_backup_max", str(max_backups)),
+            )
+            if is_postgres_backend():
+                cursor.executemany(
+                    """
+                    INSERT INTO settings (key, value)
+                    VALUES (%s, %s)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    values,
+                )
+            else:
+                cursor.executemany("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", values)
             conn.commit()
             conn.close()
             

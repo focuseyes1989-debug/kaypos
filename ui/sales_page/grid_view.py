@@ -30,6 +30,8 @@ class GridViewWidget(QScrollArea):
     near_bottom = pyqtSignal()
     IMAGE_LOAD_BATCH_SIZE = 4
     IMAGE_LOAD_INTERVAL_MS = 12
+    VIRTUALIZE_AFTER_ROWS = 5
+    VIRTUAL_ROW_MARGIN = 2
 
     def __init__(self, parent=None, card_style: str = "classic"):
         super().__init__(parent)
@@ -62,6 +64,11 @@ class GridViewWidget(QScrollArea):
         self._last_rows: List[Any] = []
         self._loading_more = False
         self._has_more = False
+        self._virtual_render_range: tuple[int, int] = (-1, -1)
+        self._virtual_render_queued = False
+        self._virtual_card_size: tuple[int, int] = (0, 0)
+        self._virtual_spacing: tuple[int, int] = (0, 0)
+        self._virtual_margins = 0
         self._resize_timer = QTimer()
         self._resize_timer.setSingleShot(True)
         self._resize_timer.timeout.connect(self._delayed_populate)
@@ -249,6 +256,7 @@ class GridViewWidget(QScrollArea):
         self._last_rows = list(rows)
         self._cards.clear()
         self._loading_more = False
+        self._virtual_render_range = (-1, -1)
         clear_layout_widgets(self._grid)
 
         if not rows:
@@ -264,6 +272,17 @@ class GridViewWidget(QScrollArea):
         self._cols = cols
         
         card_width, card_height, _, _, _ = self._get_responsive_sizes(width)
+        h_spacing = self._grid.horizontalSpacing()
+        v_spacing = self._grid.verticalSpacing()
+        margins = self._grid.contentsMargins().top()
+        self._virtual_card_size = (card_width, card_height)
+        self._virtual_spacing = (h_spacing, v_spacing)
+        self._virtual_margins = margins
+        row_count = (len(rows) + cols - 1) // cols
+
+        if row_count > self.VIRTUALIZE_AFTER_ROWS:
+            self._render_virtual_window(force=True)
+            return
         
         for i in reversed(range(self._grid.count())):
             item = self._grid.itemAt(i)
@@ -308,7 +327,6 @@ class GridViewWidget(QScrollArea):
             self._cards.append(card)
 
         # ✅ Stretch Ratio ကို ညီအောင် ထားရှိခြင်း
-        row_count = (len(rows) + cols - 1) // cols
         self._apply_grid_track_sizes(cols, row_count, card_height)
         self._load_card_images_later(list(self._cards))
 
@@ -328,9 +346,20 @@ class GridViewWidget(QScrollArea):
         cols = self._calculate_columns(width)
         self._cols = cols
         card_width, card_height, _, _, _ = self._get_responsive_sizes(width)
+        h_spacing = self._grid.horizontalSpacing()
+        v_spacing = self._grid.verticalSpacing()
+        margins = self._grid.contentsMargins().top()
+        self._virtual_card_size = (card_width, card_height)
+        self._virtual_spacing = (h_spacing, v_spacing)
+        self._virtual_margins = margins
 
         start_idx = len(self._last_rows)
         self._last_rows.extend(rows)
+        row_count = (len(self._last_rows) + cols - 1) // cols
+        if row_count > self.VIRTUALIZE_AFTER_ROWS:
+            self._loading_more = False
+            self._render_virtual_window(force=True)
+            return
 
         new_cards = []
         for offset, prod in enumerate(rows):
@@ -376,6 +405,109 @@ class GridViewWidget(QScrollArea):
 
         self._loading_more = False
         self._load_card_images_later(new_cards)
+
+    def _create_product_card(self, prod, card_width: int, card_height: int):
+        prod_id, name, price, stock, low_stock, sold_by, image_path = prod[:7]
+        is_favourite = prod[7] if len(prod) > 7 else False
+        category_name = prod[8] if len(prod) > 8 else ""
+        discount_percent = prod[9] if len(prod) > 9 else 0
+        discount_type = prod[10] if len(prod) > 10 else "percentage"
+        manual_price = prod[11] if len(prod) > 11 else 0
+        if self._card_style == "modern":
+            card = ModernProductCard(
+                prod_id, name, price, stock, low_stock,
+                sold_by, image_path, category_name, discount_percent,
+                discount_type, manual_price,
+                is_favourite, self._is_dark,
+                card_width, card_height,
+                load_image_now=False,
+            )
+        else:
+            card = LoyverseProductCard(
+                prod_id, name, price, stock, low_stock,
+                sold_by, image_path, is_favourite, self._is_dark,
+                discount_percent, discount_type, manual_price,
+                card_width, card_height,
+                load_image_now=False,
+            )
+        card.clicked.connect(self._on_card_clicked)
+        card.installEventFilter(self)
+        card.favourite_toggled.connect(self.favourite_toggled.emit)
+        return card
+
+    def _virtual_row_stride(self) -> int:
+        _, card_height = self._virtual_card_size
+        _, v_spacing = self._virtual_spacing
+        return max(1, card_height + max(0, v_spacing))
+
+    def _visible_virtual_row_range(self) -> tuple[int, int]:
+        if not self._last_rows or self._cols <= 0:
+            return (0, 0)
+        row_count = (len(self._last_rows) + self._cols - 1) // self._cols
+        stride = self._virtual_row_stride()
+        scroll_value = self.verticalScrollBar().value()
+        viewport_rows = max(1, (self.viewport().height() // stride) + 2)
+        first = max(0, (scroll_value // stride) - self.VIRTUAL_ROW_MARGIN)
+        last = min(row_count, first + viewport_rows + self.VIRTUAL_ROW_MARGIN * 2)
+        return first, last
+
+    def _spacer(self, height: int) -> QWidget:
+        spacer = QWidget()
+        spacer.setFixedHeight(max(0, height))
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        spacer.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        return spacer
+
+    def _render_virtual_window(self, force: bool = False) -> None:
+        if not self._last_rows:
+            return
+        first_row, last_row = self._visible_virtual_row_range()
+        if not force and self._virtual_render_range == (first_row, last_row):
+            return
+        self._virtual_render_range = (first_row, last_row)
+        clear_layout_widgets(self._grid)
+        self._cards.clear()
+
+        card_width, card_height = self._virtual_card_size
+        stride = self._virtual_row_stride()
+        row_count = (len(self._last_rows) + self._cols - 1) // self._cols
+        top_height = first_row * stride
+        bottom_height = max(0, (row_count - last_row) * stride)
+
+        layout_row = 0
+        if top_height:
+            self._grid.addWidget(self._spacer(top_height), layout_row, 0, 1, self._cols)
+            layout_row += 1
+
+        new_cards = []
+        start_idx = first_row * self._cols
+        end_idx = min(len(self._last_rows), last_row * self._cols)
+        for idx in range(start_idx, end_idx):
+            prod = self._last_rows[idx]
+            card = self._create_product_card(prod, card_width, card_height)
+            row = layout_row + ((idx - start_idx) // self._cols)
+            col = idx % self._cols
+            self._grid.addWidget(card, row, col, Qt.AlignmentFlag.AlignCenter)
+            self._cards.append(card)
+            new_cards.append(card)
+
+        if bottom_height:
+            bottom_row = layout_row + max(1, last_row - first_row)
+            self._grid.addWidget(self._spacer(bottom_height), bottom_row, 0, 1, self._cols)
+
+        self._apply_grid_track_sizes(self._cols, max(1, last_row - first_row), card_height)
+        self._load_card_images_later(new_cards)
+
+    def _queue_virtual_render(self) -> None:
+        if self._virtual_render_queued:
+            return
+        self._virtual_render_queued = True
+
+        def run():
+            self._virtual_render_queued = False
+            self._render_virtual_window()
+
+        QTimer.singleShot(16, run)
 
     def _load_card_images_later(self, cards: List[QWidget], start: int = 0) -> None:
         if sip.isdeleted(self):
@@ -428,6 +560,8 @@ class GridViewWidget(QScrollArea):
         return super().eventFilter(obj, event)
 
     def _on_scroll_value_changed(self, value: int) -> None:
+        if self._last_rows and self._virtual_render_range != (-1, -1):
+            self._queue_virtual_render()
         if self._loading_more or not self._has_more:
             return
 

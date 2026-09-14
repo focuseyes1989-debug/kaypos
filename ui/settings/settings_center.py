@@ -422,7 +422,8 @@ class SettingsCenterWidget(QWidget):
         backup = "Auto backup on" if settings.get("auto_backup_enabled") == "1" else "Auto backup off"
         self._set_card_value("backup", backup)
 
-        self._set_card_value("performance", "Standard mode")
+        performance_mode = "Lite mode" if settings.get("performance_lite_mode_enabled") == "1" else "Standard mode"
+        self._set_card_value("performance", performance_mode)
 
         if "users" in self.overview_cards:
             self._set_card_value("users", "Manage accounts")
@@ -436,7 +437,7 @@ class SettingsCenterWidget(QWidget):
     def _load_settings(self):
         keys = [
             "shop_logo", "shop_qr_code", "receipt_printer_name", "language",
-            "currency", "auto_backup_enabled",
+            "currency", "auto_backup_enabled", "performance_lite_mode_enabled",
         ]
         values = {}
         try:

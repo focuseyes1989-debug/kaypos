@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QTimer, QObject, pyqtSignal
 from models.database import connect_db
+from utils.db_compat import is_postgres_backend
 from utils.currency import format_money, get_currency_symbol
 from datetime import datetime, timedelta
 from loguru import logger
@@ -18,8 +19,8 @@ class ExpenseNotificationChecker(QObject):
         """Start periodic checking for budget alerts"""
         # Check every hour
         self.timer.start(3600000)  # 1 hour in milliseconds
-        # Run first check immediately
-        QTimer.singleShot(5000, self.check_budgets)
+        # Run first check after startup settles.
+        QTimer.singleShot(120000, self.check_budgets)
 
     def check_budgets(self):
         """Check all budgets and create alerts if thresholds are exceeded"""
@@ -73,14 +74,19 @@ class ExpenseNotificationChecker(QObject):
         current_year = now.year
 
         # Get all budgets for current month
-        cursor.execute("""
+        month_key = f"{current_year}-{current_month:02d}"
+        if is_postgres_backend():
+            month_filter = "LEFT(CAST(e.expense_date AS TEXT), 7) = ?"
+        else:
+            month_filter = "strftime('%Y-%m', e.expense_date) = ?"
+        cursor.execute(f"""
             SELECT eb.category, eb.budget_amount, COALESCE(SUM(e.amount), 0) as actual
             FROM expense_budgets eb
-            LEFT JOIN expenses e ON e.category = eb.category 
-                AND strftime('%Y-%m', e.expense_date) = ?
+            LEFT JOIN expenses e ON e.category = eb.category
+                AND {month_filter}
             WHERE eb.month = ? AND eb.year = ?
             GROUP BY eb.category, eb.budget_amount
-        """, (f"{current_year}-{current_month:02d}", current_month, current_year))
+        """, (month_key, current_month, current_year))
         
         budgets = cursor.fetchall()
 

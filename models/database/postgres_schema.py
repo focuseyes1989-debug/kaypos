@@ -20,6 +20,7 @@ def ensure_postgres_app_schema(cursor):
             value TEXT
         )
     """)
+    _ensure_default_settings(cursor)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS products (
             id SERIAL PRIMARY KEY,
@@ -225,6 +226,27 @@ def ensure_postgres_app_schema(cursor):
 def ensure_postgres_restaurant_pilot_schema(cursor):
     """Backward-compatible alias for older startup/smoke-test code."""
     ensure_postgres_app_schema(cursor)
+
+
+def _ensure_default_settings(cursor):
+    default_settings = (
+        ("performance_lite_mode_enabled", "0"),
+        ("performance_product_page_size", "36"),
+        ("performance_search_debounce_ms", "350"),
+        ("performance_thumbnail_quality", "low"),
+        ("performance_customer_display_youtube_enabled", "0"),
+        ("customer_display_server_enabled", "0"),
+        ("performance_startup_preload_enabled", "0"),
+        ("ai_dashboard_digest_enabled", "0"),
+    )
+    cursor.executemany(
+        """
+        INSERT INTO settings (key, value)
+        VALUES (%s, %s)
+        ON CONFLICT (key) DO NOTHING
+        """,
+        default_settings,
+    )
 
 
 def _ensure_employee_tables(cursor):

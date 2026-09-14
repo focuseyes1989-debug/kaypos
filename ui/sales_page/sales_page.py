@@ -232,10 +232,13 @@ class SalesPage(QWidget):
         # the most expensive startup work on the GUI thread.
         self._initial_load_steps = [
             self.load_settings,
-            self.load_customers,
-            self.load_receipt_settings,
             self.load_payment_types,
             self.product_grid.initialize_data,
+            self.product_grid.focus_search,
+        ]
+        self._secondary_load_steps = [
+            self.load_receipt_settings,
+            self.load_customers,
         ]
         QTimer.singleShot(0, self._run_next_initial_load_step)
 
@@ -252,6 +255,7 @@ class SalesPage(QWidget):
         """Yield to Qt between startup data loads so the window stays responsive."""
         if not self._initial_load_steps:
             self._has_completed_initial_load = True
+            QTimer.singleShot(350, self._run_next_secondary_load_step)
             return
         step = self._initial_load_steps.pop(0)
         try:
@@ -259,6 +263,17 @@ class SalesPage(QWidget):
         except Exception as exc:
             logger.warning(f"Deferred Sales page initialization failed: {exc}")
         QTimer.singleShot(0, self._run_next_initial_load_step)
+
+    def _run_next_secondary_load_step(self):
+        """Load non-critical Sales data after barcode/search is ready."""
+        if not self._secondary_load_steps:
+            return
+        step = self._secondary_load_steps.pop(0)
+        try:
+            step()
+        except Exception as exc:
+            logger.warning(f"Deferred Sales secondary initialization failed: {exc}")
+        QTimer.singleShot(150, self._run_next_secondary_load_step)
 
     def _make_group_compact(self, group, hide_title=False):
         """Make a group box compact with reduced padding and spacing"""

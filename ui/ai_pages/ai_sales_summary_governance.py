@@ -150,5 +150,5 @@ class SalesSummaryDigestScheduler:
     @staticmethod
     def enabled():
         conn=connect_db();cursor=conn.cursor()
-        try:cursor.execute("SELECT value FROM settings WHERE key='ai_dashboard_digest_enabled'");row=cursor.fetchone();return str(row[0] if row else "1").lower() in ("1","true","yes","on")
+        try:cursor.execute("SELECT value FROM settings WHERE key='ai_dashboard_digest_enabled'");row=cursor.fetchone();return str(row[0] if row else "0").lower() in ("1","true","yes","on")
         finally:conn.close()

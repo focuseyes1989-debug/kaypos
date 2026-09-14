@@ -385,7 +385,7 @@ class Application:
         if self.main_window:
             self.main_window.showMaximized()
             QTimer.singleShot(0, self._load_initial_page_after_show)
-            QTimer.singleShot(3000, self._start_background_services_after_show)
+            QTimer.singleShot(15000, self._start_background_services_after_show)
             logger.info("✅ MainWindow displayed with lazy loading support")
         
         self.app.processEvents()

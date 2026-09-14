@@ -130,8 +130,9 @@ class MainWindow(MainWindowUI):
         self.dashboard_digest_timer = QTimer(self)
         self.dashboard_digest_timer.setInterval(15 * 60 * 1000)
         self.dashboard_digest_timer.timeout.connect(self._check_dashboard_digests)
-        self.dashboard_digest_timer.start()
-        QTimer.singleShot(5000, self._check_dashboard_digests)
+        if self._dashboard_digests_enabled():
+            self.dashboard_digest_timer.start()
+            QTimer.singleShot(120000, self._check_dashboard_digests)
 
         # ------------------------------------------------------------
         # ၁၀. Language ပြောင်းလဲမှုကို နားဆင်ခြင်း
@@ -179,6 +180,10 @@ class MainWindow(MainWindowUI):
         logger.info(f"✅ Layout: Sajiwa POS Style with Lazy Loading and QSplitter")
 
     def _check_dashboard_digests(self) -> None:
+        if not self._dashboard_digests_enabled():
+            if self.dashboard_digest_timer.isActive():
+                self.dashboard_digest_timer.stop()
+            return
         try:
             from ui.ai_pages.ai_dashboard_digest import DashboardDigestScheduler
             DashboardDigestScheduler.run_due(self.user_id,self.current_user.get("role"))
@@ -186,6 +191,21 @@ class MainWindow(MainWindowUI):
             SalesSummaryDigestScheduler.run_due(self.user_id,self.current_user.get("role"))
         except Exception as exc:
             logger.warning(f"Dashboard digest scheduler skipped: {exc}")
+
+    def _setting_enabled(self, key: str, default: bool = False) -> bool:
+        try:
+            conn = connect_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key=?", (key,))
+            row = cursor.fetchone()
+            conn.close()
+            fallback = "1" if default else "0"
+            return str(row[0] if row else fallback).strip().lower() in ("1", "true", "yes", "on")
+        except Exception:
+            return default
+
+    def _dashboard_digests_enabled(self) -> bool:
+        return self._setting_enabled("ai_dashboard_digest_enabled", default=False)
 
     def _start_background_services(self) -> None:
         """Start non-critical services after the main window has appeared."""
@@ -202,14 +222,16 @@ class MainWindow(MainWindowUI):
             self.auto_backup_manager.backup_failed.connect(self.on_background_activity_finished)
             self.auto_backup_manager.start()
 
-            from utils.customer_display_server import start_customer_display_server
             from utils.expense_notification_checker import ExpenseNotificationChecker
 
-            self.customer_display_server = start_customer_display_server()
-            self._show_customer_display_server_status()
+            if self._setting_enabled("customer_display_server_enabled", default=False):
+                from utils.customer_display_server import start_customer_display_server
 
-            if hasattr(self, "sales_page") and self.sales_page and hasattr(self.sales_page, 'publish_customer_display_state'):
-                getattr(self.sales_page, 'publish_customer_display_state')()
+                self.customer_display_server = start_customer_display_server()
+                self._show_customer_display_server_status()
+
+                if hasattr(self, "sales_page") and self.sales_page and hasattr(self.sales_page, 'publish_customer_display_state'):
+                    getattr(self.sales_page, 'publish_customer_display_state')()
 
 
             self.expense_notification_checker = ExpenseNotificationChecker(self)
@@ -222,6 +244,9 @@ class MainWindow(MainWindowUI):
 
     def _preload_initial_pages(self) -> None:
         """Preload initial pages for better UX"""
+        if not self._startup_preload_enabled():
+            logger.info("Initial page preload skipped by performance settings")
+            return
         # Preload Sales page (index 5)
         self.preload_page(5)
         # Preload Dashboard (index 0)
@@ -229,6 +254,9 @@ class MainWindow(MainWindowUI):
         # Preload adjacent pages
         self.preload_adjacent_pages(5)
         logger.info("✅ Initial pages preloaded")
+
+    def _startup_preload_enabled(self) -> bool:
+        return self._setting_enabled("performance_startup_preload_enabled", default=False)
 
     # ================================================================
     # WINDOW TITLE

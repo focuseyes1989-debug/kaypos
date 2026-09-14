@@ -439,7 +439,7 @@ class GeneralSettingWidget(QWidget):
         elif self.resolution_combo.count() > 0:
             self.resolution_combo.setCurrentIndex(0)
         cursor.execute("SELECT value FROM settings WHERE key='ai_dashboard_digest_enabled'")
-        row=cursor.fetchone();self.dashboard_digest_enabled.setChecked(str(row[0] if row else "1").lower() in ("1","true","yes","on"))
+        row=cursor.fetchone();self.dashboard_digest_enabled.setChecked(str(row[0] if row else "0").lower() in ("1","true","yes","on"))
         conn.close()
 
         sale_mode = get_sale_mode()

@@ -325,6 +325,7 @@ def create_tables():
             ('shop_qr_code', ''), ('shop_qr_code_image', ''), ('shop_qr_name', ''),
             ('shop_phone', ''), ('shop_address', ''), ('shop_footer_message', ''),
             ('customer_display_youtube_url', ''),
+            ('customer_display_server_enabled', '0'),
             ('receipt_header', ''), ('receipt_footer', ''), ('show_customer_name', '1'),
             ('receipt_printer_name', ''), ('receipt_paper_size', '0'),
             ('receipt_print_quality', '203'), ('receipt_cash_drawer_use_receipt_printer', '1'),
@@ -337,10 +338,13 @@ def create_tables():
             ('points_expiry_months', '12'), ('points_dollar_value', '0.01'),
             ('window_resolution', '1366x768'),
             ('follow_system_theme', '1'),
-            ('performance_product_page_size', '60'),
-            ('performance_search_debounce_ms', '300'),
-            ('performance_thumbnail_quality', 'normal'),
+            ('performance_lite_mode_enabled', '0'),
+            ('performance_product_page_size', '36'),
+            ('performance_search_debounce_ms', '350'),
+            ('performance_thumbnail_quality', 'low'),
             ('performance_customer_display_youtube_enabled', '0'),
+            ('performance_startup_preload_enabled', '0'),
+            ('ai_dashboard_digest_enabled', '0'),
             ('auto_backup_enabled', '0'), ('auto_backup_interval', '24'), ('auto_backup_max', '30')
         ]
         for key, val in default_settings:
