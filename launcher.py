@@ -1,4 +1,4 @@
-"""KAY application hub for POS, Car Management, and Server Manager."""
+"""KAY application hub for POS, service jobs, Car Management, and Server Manager."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from PyQt6.QtCore import QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QSize, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWindow,
@@ -32,6 +32,7 @@ INSTANCE_MUTEXES = {
     "car": r"Global\KAY_Car_Management_SingleInstance_v1",
     "server": r"Global\KAY_POS_Server_Manager_SingleInstance_v1",
     "printer": r"Global\KAY_Printer_Agent_SingleInstance_v1",
+    "service_job": r"Global\KAY_Service_Job_Client_SingleInstance_v1",
 }
 MULTI_INSTANCE_APPLICATIONS = {"lite"}
 
@@ -43,6 +44,7 @@ class LauncherMode:
     CAR = "car"
     SERVER = "server"
     LITE = "lite"
+    SERVICE_JOB = "service_job"
 
 
 @dataclass(frozen=True)
@@ -64,31 +66,32 @@ APPLICATIONS = (
     AppDefinition("car", "Car Management", "Vehicle Service", "ယာဉ်နှင့် ယာဉ်မောင်းများ မှတ်ပုံတင်ခြင်း၊ ဖောင်များပြင်ဆင်ခြင်းနှင့် QR ပရင့်တောင်းဆိုမှုများကို စီမံပါ။", ("car_client_main.py",), ("KAY_Car_Management.exe", "Car_Management.exe"), "#27c992", "C", "car-management.png"),
     AppDefinition("server", "Server Manager", "Services & Database", "ဘရောက်ဇာဝန်ဆောင်မှုများ စတင်ခြင်း၊ PostgreSQL စောင့်ကြည့်ခြင်းနှင့် ဆာဗာချိတ်ဆက်မှုကို စီမံပါ။", ("server_manager.py",), ("KAY_POS_Server_Manager.exe",), "#f3a64a", "S", "server-manager.png"),
     AppDefinition("printer", "Printer Agent", "LAN/Wi-Fi Printing", "ကွန်ရက်ပရင်တာများ၊ စာရွက်စာတမ်းပရင့်ထုတ်ခြင်းနှင့် လုံခြုံသောပရင့်အလုပ်များကို စီမံပါ။", ("printer_agent.py",), ("KAY_Printer_Agent.exe",), "#35a7ff", "P", "printer-server.png", ("--tray", "--open-manager")),
+    AppDefinition("service_job", "Service Job Client", "Repair & Pickup Desk", "Service job အပ်နှံမှု၊ အခြေအနေပြောင်းလဲမှု၊ ready-for-pickup စာရင်းနှင့် client-side workflow များကို စီမံပါ။", ("service_job_client_main.pyw", "service_job_client_main.py"), ("KAY_Service_Job_Client.exe",), "#ff6b8a", "J", "../icons/service_job.ico"),
     AppDefinition("lite", "KAY POS Lite", "Low-End Point of Sale", "စက်အင်အားနည်းသော PC များအတွက် မြန်ဆန်ပေါ့ပါးသည့် အရောင်းနှင့် စတော့စီမံခန့်ခွဲမှု။", ("kay_pos_lite.py",), ("KAY_POS_Lite.exe",), "#5365df", "L", "pos-system.png"),
     AppDefinition("native", "KAY POS Native", "Native Qt Desktop", "Standard PyQt6 widgets with server-backed POS workflows and separate local appearance/printing preferences.", ("kay_pos_native.pyw", "kay_pos_native.py"), ("KAY_POS_Native.exe",), "#398078", "N", "pos-system.png"),
 )
 
 STYLE = """
-QWidget { color:#edf2ff; font-family:"Segoe UI","Myanmar Text"; font-size:10pt; }
-QMainWindow, QWidget#root { background:#0d111b; }
-QFrame#sidebar { background:#111724; border-right:1px solid #252d3d; }
+QWidget { color:#f4f7ff; font-family:"Segoe UI","Myanmar Text","Noto Sans Myanmar"; font-size:11pt; }
+QMainWindow, QWidget#root { background:#070b13; }
+QFrame#headerPanel { background:#111827; border:2px solid #334155; border-radius:14px; }
 QLabel#brand { font-size:19pt; font-weight:800; color:white; }
-QLabel#eyebrow { color:#8995ad; font-size:9pt; font-weight:700; letter-spacing:1px; }
-QLabel#pageTitle { font-size:22pt; font-weight:800; color:white; }
-QLabel#muted { color:#99a4ba; }
-QLabel#clock { font-size:15pt; font-weight:700; color:white; }
-QFrame#appCard { background:#151c2a; border:1px solid #293348; border-radius:18px; }
-QFrame#appCard:hover { border-color:#465573; background:#192232; }
-QLabel#cardTitle { font-size:12pt; font-weight:750; color:white; }
-QLabel#cardSubtitle { color:#8f9bb3; font-weight:650; }
-QLabel#description { color:#aab4c8; }
-QLabel#badgeReady { color:#79e2bb; background:#17382f; border:1px solid #245744; border-radius:9px; padding:5px 9px; font-weight:700; }
-QLabel#badgeRunning { color:#aeb7ff; background:#252d55; border:1px solid #46529a; border-radius:9px; padding:5px 9px; font-weight:700; }
-QLabel#badgeMissing { color:#ff9ca7; background:#42242d; border:1px solid #713542; border-radius:9px; padding:5px 9px; font-weight:700; }
-QPushButton#sideButton { text-align:left; min-height:34px; border:0; border-radius:9px; background:transparent; color:#aeb8ca; padding:0 10px; font-weight:650; }
-QPushButton#sideButton:hover { background:#1c2535; color:white; }
-QFrame#statusBar { background:#121925; border:1px solid #253044; border-radius:12px; }
-QLabel#statusText { color:#aeb9cd; }
+QLabel#eyebrow { color:#b7c8e8; font-size:9pt; font-weight:800; letter-spacing:1px; }
+QLabel#pageTitle { font-size:21pt; font-weight:850; color:#ffffff; }
+QLabel#muted { color:#d4def2; }
+QLabel#clock { font-size:14pt; font-weight:800; color:#ffffff; }
+QFrame#appCard { background:#111827; border:2px solid #334155; border-radius:12px; }
+QFrame#appCard:hover { border-color:#93c5fd; background:#182235; }
+QLabel#cardTitle { font-size:12pt; font-weight:850; color:#ffffff; }
+QLabel#cardSubtitle { color:#c8d7f0; font-size:9pt; font-weight:800; }
+QLabel#description { color:#e2e8f0; font-size:10pt; line-height:140%; }
+QLabel#badgeReady { color:#052e1a; background:#86efac; border:1px solid #bbf7d0; border-radius:8px; padding:4px 8px; font-weight:900; }
+QLabel#badgeRunning { color:#111827; background:#bfdbfe; border:1px solid #dbeafe; border-radius:8px; padding:4px 8px; font-weight:900; }
+QLabel#badgeMissing { color:#3b0710; background:#fecdd3; border:1px solid #ffe4e6; border-radius:8px; padding:4px 8px; font-weight:900; }
+QPushButton#sideButton { min-height:34px; border:2px solid #475569; border-radius:9px; background:#1f2937; color:#ffffff; padding:0 12px; font-weight:800; }
+QPushButton#sideButton:hover { background:#334155; border-color:#93c5fd; }
+QFrame#statusBar { background:#111827; border:2px solid #334155; border-radius:10px; }
+QLabel#statusText { color:#e2e8f0; }
 QScrollArea#appsScrollArea { background:transparent; border:none; }
 QScrollArea#appsScrollArea > QWidget > QWidget { background:transparent; }
 """
@@ -127,6 +130,8 @@ def _definition_for_mode(mode: str) -> AppDefinition:
         return APPLICATIONS[2]
     if mode == LauncherMode.LITE:
         return next(item for item in APPLICATIONS if item.key == "lite")
+    if mode == LauncherMode.SERVICE_JOB:
+        return next(item for item in APPLICATIONS if item.key == "service_job")
     return APPLICATIONS[0]
 
 
@@ -200,7 +205,7 @@ def apply_launcher_font(app: QApplication) -> None:
         path = fonts_dir / filename
         if path.is_file():
             QFontDatabase.addApplicationFont(str(path))
-    app.setFont(QFont("Myanmar Text" if "Myanmar Text" in set(QFontDatabase.families()) else "Segoe UI", 10))
+    app.setFont(QFont("Segoe UI", 11))
 
 
 def launcher_icon() -> QIcon:
@@ -216,17 +221,17 @@ class AppCard(QFrame):
         self.setObjectName("appCard")
         self._state = "ready"
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(206)
-        self.setMaximumHeight(226)
+        self.setMinimumHeight(204)
+        self.setMaximumHeight(224)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         body = QVBoxLayout(self)
         body.setContentsMargins(14, 12, 14, 12)
-        body.setSpacing(4)
+        body.setSpacing(5)
         top = QHBoxLayout()
         glyph = QLabel(definition.glyph)
-        glyph.setFixedSize(38, 38)
+        glyph.setFixedSize(36, 36)
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        glyph.setStyleSheet(f"background:{definition.accent};color:white;border-radius:13px;font-size:18pt;font-weight:900;")
+        glyph.setStyleSheet(f"background:{definition.accent};color:white;border-radius:10px;font-size:17pt;font-weight:900;")
         top.addWidget(glyph)
         top.addStretch()
         self.badge = QLabel("READY")
@@ -239,7 +244,11 @@ class AppCard(QFrame):
         subtitle.setObjectName("cardSubtitle")
         body.addWidget(title)
         body.addWidget(subtitle)
-        body.addSpacing(2)
+        description = QLabel(definition.description)
+        description.setObjectName("description")
+        description.setWordWrap(True)
+        description.setMinimumHeight(48)
+        body.addWidget(description)
         artwork = ArtworkLabel(Path(get_app_dir()) / "assets" / "launcher" / definition.artwork)
         body.addWidget(artwork, 1)
 
@@ -268,10 +277,13 @@ class ArtworkLabel(QLabel):
 
     def __init__(self, image_path: Path, parent=None):
         super().__init__(parent)
-        self.source = QPixmap(str(image_path))
+        pixmap = QPixmap(str(image_path))
+        if pixmap.isNull():
+            pixmap = QIcon(str(image_path)).pixmap(QSize(128, 128))
+        self.source = pixmap
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumHeight(86)
-        self.setMaximumHeight(118)
+        self.setMinimumHeight(54)
+        self.setMaximumHeight(78)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -287,7 +299,7 @@ class LauncherWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("KAY Application Launcher")
         self.setWindowIcon(launcher_icon())
-        self.setMinimumSize(1024, 600)
+        self.setMinimumSize(1180, 680)
         self.resize(1366, 768)
         self.setStyleSheet(STYLE)
         self.processes: dict[str, subprocess.Popen] = {}
@@ -311,20 +323,24 @@ class LauncherWindow(QMainWindow):
         shell.setSpacing(0)
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(20, 16, 20, 10)
-        layout.setSpacing(8)
-        header = QHBoxLayout()
+        layout.setContentsMargins(18, 14, 18, 10)
+        layout.setSpacing(10)
+        header_panel = QFrame()
+        header_panel.setObjectName("headerPanel")
+        header = QHBoxLayout(header_panel)
+        header.setContentsMargins(14, 10, 14, 10)
+        header.setSpacing(10)
         mark = QLabel("K")
-        mark.setFixedSize(38, 38)
+        mark.setFixedSize(42, 42)
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setStyleSheet("background:#6675f5;color:white;border-radius:12px;font-size:17pt;font-weight:900;")
+        mark.setStyleSheet("background:#2563eb;color:white;border-radius:11px;font-size:19pt;font-weight:900;")
         header.addWidget(mark)
         heading = QVBoxLayout()
-        eyebrow = QLabel(f"KAY APPLICATION SUITE  ·  VERSION {current_version()}")
+        eyebrow = QLabel(f"KAY APPLICATION SUITE  -  VERSION {current_version()}")
         eyebrow.setObjectName("eyebrow")
-        title = QLabel("Choose an application")
+        title = QLabel("KAY Application Launcher")
         title.setObjectName("pageTitle")
-        hint = QLabel("KAY Application Suite က သင့်လုပ်ငန်းကို ပိုမိုမြန်ဆန်စေမှာပါ")
+        hint = QLabel("လိုအပ်တဲ့ app ကို တစ်နေရာတည်းကနေ မြန်မြန်ဖွင့်နိုင်ပါတယ်")
         hint.setObjectName("muted")
         heading.addWidget(eyebrow)
         heading.addWidget(title)
@@ -353,7 +369,7 @@ class LauncherWindow(QMainWindow):
         clock_box.addWidget(self.clock_label)
         clock_box.addWidget(self.date_label)
         header.addLayout(clock_box)
-        layout.addLayout(header)
+        layout.addWidget(header_panel)
         scroll = QScrollArea()
         scroll.setObjectName("appsScrollArea")
         scroll.setWidgetResizable(True)
@@ -362,9 +378,9 @@ class LauncherWindow(QMainWindow):
         scroll_content = QWidget()
         grid = QGridLayout(scroll_content)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(10)
-        column_count = 3
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
+        column_count = 4
         for index, definition in enumerate(APPLICATIONS):
             card = AppCard(definition)
             card.launch_requested.connect(self.launch_application)
@@ -378,15 +394,17 @@ class LauncherWindow(QMainWindow):
         status = QFrame()
         status.setObjectName("statusBar")
         status_row = QHBoxLayout(status)
-        status_row.setContentsMargins(15, 8, 15, 8)
+        status_row.setContentsMargins(14, 7, 14, 7)
         dot = QLabel("●")
-        dot.setStyleSheet("color:#55d9a5;")
+        dot.setStyleSheet("color:#86efac;")
         self.status_label = QLabel("Launcher ready")
         self.status_label.setObjectName("statusText")
         status_row.addWidget(dot)
         status_row.addWidget(self.status_label)
         status_row.addStretch()
-        status_row.addWidget(QLabel("Applications continue running when this launcher closes."))
+        note = QLabel("Apps keep running after closing launcher.")
+        note.setObjectName("statusText")
+        status_row.addWidget(note)
         layout.addWidget(status)
         shell.addWidget(content, 1)
 
