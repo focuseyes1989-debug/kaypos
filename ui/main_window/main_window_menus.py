@@ -277,7 +277,7 @@ class MainWindowMenus:
         self.customer_display_action.setShortcut(QKeySequence("Ctrl+D"))
         self.customer_display_action.setStatusTip("Show or hide the customer display")
         self.customer_display_action.triggered.connect(
-            lambda: self._invoke_sales_page_action("toggle_customer_display")
+            lambda: self._invoke_cashier_window_action("_toggle_customer_display")
         )
         self.file_menu.addAction(self.customer_display_action)
 
@@ -285,7 +285,7 @@ class MainWindowMenus:
         self.open_cash_drawer_action.setShortcut(QKeySequence("Ctrl+Shift+D"))
         self.open_cash_drawer_action.setStatusTip("Open the cash drawer")
         self.open_cash_drawer_action.triggered.connect(
-            lambda: self._invoke_sales_page_action("open_cash_drawer")
+            lambda: self._invoke_cashier_window_action("_open_cashdrawer")
         )
         self.file_menu.addAction(self.open_cash_drawer_action)
 
@@ -303,15 +303,15 @@ class MainWindowMenus:
         self.exit_action.triggered.connect(self.exit_app)
         self.file_menu.addAction(self.exit_action)
 
-    def _invoke_sales_page_action(self, method_name: str) -> None:
-        sales_page = getattr(self, "sales_page", None)
-        method = getattr(sales_page, method_name, None)
+    def _invoke_cashier_window_action(self, method_name: str) -> None:
+        cashier_window = getattr(self, "_cashier_window", None)
+        method = getattr(cashier_window, method_name, None)
         if callable(method):
             method()
             return
 
-        self.switch_to_page(5)
-        QTimer.singleShot(200, lambda: self._invoke_sales_page_action(method_name))
+        self.open_cashier_mode()
+        QTimer.singleShot(300, lambda: self._invoke_cashier_window_action(method_name))
 
     def _create_view_menu(self) -> None:
         """Create View menu items for Dashboard and Sales Summary"""

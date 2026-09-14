@@ -321,11 +321,11 @@ class Application:
                 if False and self._load_step == 5:
                     logger.info("Preloading frequently used pages...")
                     if self.main_window:
-                        # Preload Sales page and Dashboard
+                        # Preload native workspace pages
                         try:
-                            self.main_window.preload_page(5)  # Sales page
                             self.main_window.preload_page(0)  # Dashboard
-                            self._signals.log.emit("✅ Pages preloaded: Sales, Dashboard")
+                            self.main_window.preload_page(12)  # Service Orders
+                            self._signals.log.emit("✅ Pages preloaded: Dashboard, Service Orders")
                         except Exception as e:
                             logger.warning(f"Preload failed: {e}")
                     self.app.processEvents()

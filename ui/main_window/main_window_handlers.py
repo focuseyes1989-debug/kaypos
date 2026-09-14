@@ -458,7 +458,8 @@ class MainWindowHandlers:
                 8: "Ai",
                 3: "Inventory",
                 4: "Receipts",
-                5: "Sales",
+                12: "Service Orders",
+                10: "Restaurant",
                 6: "Customers",
                 7: "Expense",
             }
@@ -477,7 +478,7 @@ class MainWindowHandlers:
         
         # Page title
         if hasattr(self, 'page_title') and self.page_title:
-            current_index = self.pages.currentIndex() if hasattr(self, 'pages') and self.pages else 5
+            current_index = self.pages.currentIndex() if hasattr(self, 'pages') and self.pages else 0
             page_names = {
                 0: "Dashboard",
                 1: "Sales Summary",
@@ -486,7 +487,8 @@ class MainWindowHandlers:
                 8: "Ai",
                 3: "Inventory",
                 4: "Receipts",
-                5: "Sales",
+                12: "Service Orders",
+                10: "Restaurant",
                 6: "Customers",
                 7: "Expense",
             }

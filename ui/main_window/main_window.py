@@ -243,16 +243,14 @@ class MainWindow(MainWindowUI):
             logger.warning(f"Background services startup failed: {e}")
 
     def _preload_initial_pages(self) -> None:
-        """Preload initial pages for better UX"""
+        """Preload lightweight native pages for better UX."""
         if not self._startup_preload_enabled():
             logger.info("Initial page preload skipped by performance settings")
             return
-        # Preload Sales page (index 5)
-        self.preload_page(5)
-        # Preload Dashboard (index 0)
         self.preload_page(0)
-        # Preload adjacent pages
-        self.preload_adjacent_pages(5)
+        self.preload_page(12)
+        if 10 in getattr(self, "_lazy_widgets", {}):
+            self.preload_page(10)
         logger.info("✅ Initial pages preloaded")
 
     def _startup_preload_enabled(self) -> bool:

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLabel, QSizePolicy,
     QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor
 from models.database import connect_db
 from ui.products_page.product_filters import ProductFilters
@@ -250,9 +250,17 @@ class ProductsPage(QWidget):
 
     def on_barcode_scanned(self, keyword):
         main_window = self.window()
-        if hasattr(main_window, 'sales_page'):
-            main_window.switch_to_page(5)
-            main_window.sales_page.product_grid.barcode_scanned.emit(keyword)
+        if hasattr(main_window, 'open_cashier_mode'):
+            main_window.open_cashier_mode()
+
+            def forward_to_cashier():
+                cashier_window = getattr(main_window, "_cashier_window", None)
+                product_grid = getattr(cashier_window, "product_grid", None)
+                barcode_signal = getattr(product_grid, "barcode_scanned", None)
+                if barcode_signal:
+                    barcode_signal.emit(keyword)
+
+            QTimer.singleShot(350, forward_to_cashier)
 
     def apply_filter(self):
         if self.current_filter == "out_stock":

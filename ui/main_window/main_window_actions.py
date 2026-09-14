@@ -781,7 +781,8 @@ class MainWindowActions:
             8: "Ai",
             3: "Inventory",
             4: "Receipts",
-            5: "Sales",
+            12: "Service Orders",
+            10: "Restaurant",
             6: "Customers",
             7: "Expense",
         }

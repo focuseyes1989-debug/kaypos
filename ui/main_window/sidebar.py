@@ -561,7 +561,7 @@ class Sidebar(QFrame):
         self.sidebar_buttons = []
         
         pages = [
-            (5, "point_of_sale", "Sales", "sales"),
+            (-100, "point_of_sale", "Cashier Mode", "sales"),
             (12, "receipt_long", "Service Orders", "service_orders"),
             (10, "receipt_long", "Restaurant", "sales"),
             (0, "dashboard", "Dashboard", "dashboard"),
@@ -642,6 +642,9 @@ class Sidebar(QFrame):
         logger.info(f"Sidebar buttons created: {len(self.sidebar_buttons)} buttons (Menu bar style)")
     
     def _on_button_clicked(self, index: int) -> None:
+        if index == -100 and self._parent and hasattr(self._parent, 'open_cashier_mode'):
+            self._parent.open_cashier_mode()
+            return
         if self._parent and hasattr(self._parent, 'switch_to_page'):
             self._parent.switch_to_page(index)
     

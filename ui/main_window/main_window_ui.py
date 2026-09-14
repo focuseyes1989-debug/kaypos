@@ -196,7 +196,6 @@ class MainWindowUI(QMainWindow):
             (8, "AI Pages", self._build_ai_pages_page, "ai_pages"),
             (3, "Inventory", self._build_inventory_page, "inventory"),
             (4, "Receipts", self._build_receipts_page, "receipts"),
-            (5, "Sales", self._build_sales_page, "sales"),
             (12, "Service Orders", self._build_service_orders_page, "service_orders"),
             (10, "Restaurant", self._build_restaurant_page, "sales"),
             (6, "Customers", self._build_customers_page, "customers"),
@@ -244,7 +243,7 @@ class MainWindowUI(QMainWindow):
         self.apply_role_permissions()
         
         # ============================================================
-        # DEFAULT PAGE - Sales (index 5)
+        # DEFAULT PAGE - Dashboard/native workspace
         # ============================================================
         self._initial_page_index = self._get_initial_page_index()
         if self._initial_page_index is not None:
@@ -299,11 +298,10 @@ class MainWindowUI(QMainWindow):
 
     def _get_initial_page_index(self) -> Optional[int]:
         """Choose the first page to show without forcing it to load during startup."""
-        preferred = 10 if get_sale_mode() == "restaurant" else 5
-        if preferred in self._lazy_widgets and is_sale_page_enabled(preferred):
-            return preferred
-        if 5 in self._lazy_widgets and is_sale_page_enabled(5):
-            return 5
+        if 0 in self._lazy_widgets:
+            return 0
+        if 12 in self._lazy_widgets:
+            return 12
         if 10 in self._lazy_widgets and is_sale_page_enabled(10):
             return 10
         return next(iter(self._lazy_widgets), None)
@@ -585,8 +583,8 @@ class MainWindowUI(QMainWindow):
             8: "AI Pages",
             3: "Inventory",
             4: "Receipts",
-            5: "Sales",
             10: "Restaurant",
+            12: "Service Orders",
             6: "Customers",
             7: "Expense",
             11: "Employees",
@@ -603,7 +601,6 @@ class MainWindowUI(QMainWindow):
             8: "ai_pages_page",
             3: "inventory_page",
             4: "receipts_page",
-            5: "sales_page",
             12: "service_orders_page",
             10: "restaurant_page",
             6: "customers_page",
@@ -619,7 +616,6 @@ class MainWindowUI(QMainWindow):
         allowed = []
         sale_mode = get_sale_mode()
         page_permissions = {
-            5: "sales",
             12: "service_orders",
             0: "dashboard",
             1: "sales_summary",
@@ -765,7 +761,8 @@ class MainWindowUI(QMainWindow):
         
         # Update loaded pages only
         page_attrs = ['dashboard_page', 'sales_summary_page', 'products_page',
-                  'ai_pages_page', 'inventory_page', 'receipts_page', 'sales_page',
+                  'ai_pages_page', 'inventory_page', 'receipts_page',
+                      'service_orders_page', 'restaurant_page',
                       'customers_page', 'expense_page', 'discount_page']
         
         for attr_name in page_attrs:
