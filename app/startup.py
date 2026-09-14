@@ -74,13 +74,14 @@ def setup_logging(log_dir: str = None):
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
             level="INFO"
         )
+    file_log_level = "DEBUG" if os.getenv("ZAY_DEBUG", "0") == "1" else "INFO"
     logger.add(
         os.path.join(log_dir, "zaypos_{time:YYYY-MM-DD}.log"),
         rotation="1 day",
         retention="30 days",
         compression="zip",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-        level="DEBUG"
+        level=file_log_level
     )
 
 

@@ -856,6 +856,8 @@ class ProductGrid(QWidget):
         """Keep loading while the grid has no scrollbar but more products exist."""
         if not self._is_grid_view() or self._grid_lazy_loading or not self._grid_lazy_has_more:
             return
+        if getattr(self._performance_settings, "lite_mode_enabled", False):
+            return
         if self._grid_auto_fill_done:
             return
         active_grid = self._ensure_view_widget(self._current_view)

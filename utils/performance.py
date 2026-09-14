@@ -61,7 +61,7 @@ def get_performance_settings(refresh: bool = False) -> PerformanceSettings:
     default_quality = "low"
     lite_mode_enabled = _bool(values.get("performance_lite_mode_enabled"), False)
     if lite_mode_enabled:
-        configured_page_size = 24
+        configured_page_size = _int(values.get("performance_product_page_size"), 18, 12, 36)
         configured_debounce = 450
         configured_quality = "off"
     else:
