@@ -871,6 +871,16 @@ class RefundRequest(BaseModel):
     reason: str = Field(default="Customer return", max_length=500)
 
 
+class RefundItemRequest(BaseModel):
+    sale_item_id: int = Field(..., gt=0)
+    qty: int = Field(..., gt=0, le=1_000_000)
+
+
+class PartialRefundRequest(BaseModel):
+    reason: str = Field(default="Customer return", max_length=500)
+    items: List[RefundItemRequest] = Field(default_factory=list)
+
+
 class StockAdjustmentRequest(BaseModel):
     product_id: int = Field(..., gt=0)
     variant_id: Optional[int] = Field(default=None, gt=0)
@@ -2084,6 +2094,24 @@ def refund_sale(sale_id: int, payload: RefundRequest, user: Dict[str, Any] = Dep
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Lite POS refund failed")
+        raise HTTPException(status_code=500, detail=f"Refund failed: {exc}") from exc
+
+
+@app.post("/api/sales/{sale_id}/refund-items")
+def refund_sale_items(sale_id: int, payload: PartialRefundRequest, user: Dict[str, Any] = Depends(current_user)):
+    try:
+        actor = user.get("username", "Lite POS")
+        receipt = cashier_service.refund_sale_items(
+            sale_id,
+            [item.model_dump() for item in payload.items],
+            payload.reason,
+            actor,
+        )
+        return {"receipt": receipt}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lite POS item refund failed")
         raise HTTPException(status_code=500, detail=f"Refund failed: {exc}") from exc
 
 

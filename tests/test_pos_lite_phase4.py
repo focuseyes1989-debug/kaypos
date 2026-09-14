@@ -141,6 +141,33 @@ class PosLitePhase4RefundTests(unittest.TestCase):
         conn.close()
 
     @patch("server.cashier_service.is_postgres_backend", return_value=False)
+    def test_item_refund_restores_selected_quantity_once(self, _backend):
+        with patch("server.cashier_service.connect_db", self.connect):
+            receipt = cashier_service.refund_sale_items(
+                1,
+                [{"sale_item_id": 1, "qty": 1}],
+                "One item returned",
+                "tester",
+            )
+            with self.assertRaisesRegex(ValueError, "higher than remaining"):
+                cashier_service.refund_sale_items(
+                    1,
+                    [{"sale_item_id": 1, "qty": 2}],
+                    "Too many",
+                    "tester",
+                )
+        self.assertEqual(receipt["status"], "completed")
+        item = next(row for row in receipt["items"] if row["id"] == 1)
+        self.assertEqual(int(item["refunded_qty"]), 1)
+        conn = self.connect()
+        self.assertEqual(conn.execute("SELECT stock FROM products WHERE id=1").fetchone()[0], 4)
+        self.assertEqual(conn.execute("SELECT quantity FROM product_locations WHERE id=10").fetchone()[0], 4)
+        self.assertEqual(conn.execute("SELECT stock FROM product_variants WHERE id=20").fetchone()[0], 1)
+        self.assertEqual(conn.execute("SELECT status FROM sales WHERE id=1").fetchone()[0], "completed")
+        self.assertEqual(conn.execute("SELECT COUNT(*) FROM stock_movements WHERE type='refund'").fetchone()[0], 1)
+        conn.close()
+
+    @patch("server.cashier_service.is_postgres_backend", return_value=False)
     def test_refund_restores_blank_location_sale_item_to_shop_stock(self, _backend):
         conn = self.connect()
         conn.executescript(

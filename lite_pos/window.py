@@ -1003,6 +1003,80 @@ class CategoryManagerDialog(QDialog):
         except Exception as exc: QMessageBox.critical(self, "Categories", str(exc))
 
 
+class RefundItemsDialog(QDialog):
+    def __init__(self, receipt: dict, parent=None):
+        super().__init__(parent)
+        self.receipt = dict(receipt or {})
+        self.setWindowTitle(f"Refund Items · {self.receipt.get('invoice_no') or ''}")
+        self.resize(640, 440)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Select item quantities to refund. Stock will be restored for selected quantities."))
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Item", "Sold", "Refunded", "Refund Qty", "Amount"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column, width in {1: 70, 2: 80, 3: 95, 4: 100}.items():
+            self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+            self.table.setColumnWidth(column, width)
+        layout.addWidget(self.table, 1)
+        self.reason = QLineEdit("Customer return")
+        self.reason.setMaxLength(500)
+        layout.addWidget(QLabel("Reason"))
+        layout.addWidget(self.reason)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Refund")
+        buttons.accepted.connect(self._accept_if_valid)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self._spins: list[tuple[dict, QSpinBox]] = []
+        self._populate()
+
+    def _populate(self) -> None:
+        items = list(self.receipt.get("items") or [])
+        refundable = []
+        for item in items:
+            sold_qty = int(float(item.get("qty") or 0))
+            refunded_qty = int(float(item.get("refunded_qty") or 0))
+            remaining = max(0, sold_qty - refunded_qty)
+            if int(item.get("id") or 0) > 0 and remaining > 0:
+                refundable.append((item, sold_qty, refunded_qty, remaining))
+        self.table.setRowCount(len(refundable))
+        for row, (item, sold_qty, refunded_qty, remaining) in enumerate(refundable):
+            name = str(item.get("product_name") or "Item")
+            price = float(item.get("price") or 0)
+            values = [name, str(sold_qty), str(refunded_qty), "", f"{price * remaining:,.0f} Ks"]
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+            spin = QSpinBox()
+            spin.setRange(0, remaining)
+            spin.setValue(remaining)
+            spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setCellWidget(row, 3, spin)
+            self._spins.append((item, spin))
+
+    def selected_items(self) -> list[dict]:
+        return [
+            {"sale_item_id": int(item.get("id") or 0), "qty": spin.value()}
+            for item, spin in self._spins
+            if spin.value() > 0
+        ]
+
+    def refund_reason(self) -> str:
+        return self.reason.text().strip()
+
+    def _accept_if_valid(self) -> None:
+        if not self.selected_items():
+            QMessageBox.information(self, "Refund", "Select at least one item quantity to refund.")
+            return
+        if not self.refund_reason():
+            QMessageBox.information(self, "Refund", "Enter a refund reason.")
+            self.reason.setFocus()
+            return
+        self.accept()
+
+
 class ReceiptDialog(QDialog):
     def __init__(self, receipt: dict, parent=None, refund_callback: Callable[[dict], None] | None = None, settings: dict | None = None):
         super().__init__(parent)
@@ -1022,7 +1096,7 @@ class ReceiptDialog(QDialog):
         status = str(receipt.get("status") or "completed").lower()
         payment_type = str(receipt.get("payment_type") or "").lower()
         if refund_callback is not None and status == "completed" and payment_type != "credit":
-            refund_button = buttons.addButton("Refund Receipt", QDialogButtonBox.ButtonRole.ActionRole)
+            refund_button = buttons.addButton("Refund", QDialogButtonBox.ButtonRole.ActionRole)
             refund_button.clicked.connect(self.request_refund)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -1086,8 +1160,45 @@ class ReceiptDialog(QDialog):
                 pass
         document.setHtml(self._html())
 
-    def print_receipt(self) -> None:
+    def _build_print_document(self):
         from PyQt6.QtGui import QTextDocument
+
+        document = QTextDocument()
+        document.setDocumentMargin(0)
+        self._set_document_html(document)
+        logical_dpi = 96.0
+        logical_width = 72.0 * logical_dpi / 25.4
+        document.setTextWidth(logical_width)
+        content_height = document.documentLayout().documentSize().height()
+        return document, logical_dpi, logical_width, content_height
+
+    def _configure_receipt_printer_page(self, printer, content_height: float, logical_dpi: float) -> None:
+        page_height_mm = max(55.0, min(500.0, content_height * 25.4 / logical_dpi + 9.0))
+        receipt_page = QPageSize(
+            QSizeF(80.0, page_height_mm), QPageSize.Unit.Millimeter,
+            "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
+        )
+        printer.setPageLayout(QPageLayout(
+            receipt_page, QPageLayout.Orientation.Portrait,
+            QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
+        ))
+
+    def _paint_receipt_document(self, printer, document, logical_dpi: float, logical_width: float, content_height: float) -> bool:
+        self._configure_receipt_printer_page(printer, content_height, logical_dpi)
+        painter = QPainter(printer)
+        if not painter.isActive():
+            return False
+        scale = printer.resolution() / logical_dpi
+        paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
+        painter.save()
+        painter.translate(paint_rect.left(), paint_rect.top())
+        painter.scale(scale, scale)
+        document.drawContents(painter, QRectF(0.0, 0.0, logical_width, content_height))
+        painter.restore()
+        painter.end()
+        return True
+
+    def print_receipt(self) -> None:
         from PyQt6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
 
         saved_name = load_config().get("receipt_printer_name") or ""
@@ -1095,6 +1206,10 @@ class ReceiptDialog(QDialog):
             (info for info in QPrinterInfo.availablePrinters() if info.printerName() == saved_name),
             None,
         )
+        if saved_info is not None:
+            self.print_receipt_automatic()
+            return
+
         printer = (
             QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
             if saved_info is not None else QPrinter(QPrinter.PrinterMode.HighResolution)
@@ -1111,47 +1226,12 @@ class ReceiptDialog(QDialog):
         ))
         dialog = QPrintDialog(printer, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            document = QTextDocument()
-            document.setDocumentMargin(0)
-            self._set_document_html(document)
-
-            # QTextDocument lays text out in 96-DPI logical pixels. Measure the
-            # rendered content first, then make the roll page only that tall.
-            logical_dpi = 96.0
-            printable_width_mm = 72.0
-            logical_width = printable_width_mm * logical_dpi / 25.4
-            document.setTextWidth(logical_width)
-            content_height = document.documentLayout().documentSize().height()
-            content_height_mm = content_height * 25.4 / logical_dpi
-            page_height_mm = max(55.0, min(500.0, content_height_mm + 9.0))
-            receipt_page = QPageSize(
-                QSizeF(80.0, page_height_mm), QPageSize.Unit.Millimeter,
-                "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
-            )
-            printer.setPageLayout(QPageLayout(
-                receipt_page, QPageLayout.Orientation.Portrait,
-                QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
-            ))
-
-            # Draw the document ourselves. QTextDocument.print() paginates and
-            # adds a page number, which can make roll drivers feed to page end.
-            painter = QPainter(printer)
-            if not painter.isActive():
+            document, logical_dpi, logical_width, content_height = self._build_print_document()
+            if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
                 QMessageBox.critical(self, "Print Receipt", "Could not start the selected printer.")
-                return
-            scale = printer.resolution() / logical_dpi
-            paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
-            painter.translate(paint_rect.left(), paint_rect.top())
-            painter.scale(scale, scale)
-            document.drawContents(
-                painter,
-                QRectF(0.0, 0.0, logical_width, content_height),
-            )
-            painter.end()
 
     def print_receipt_automatic(self) -> None:
         """Print directly to the configured local receipt printer."""
-        from PyQt6.QtGui import QTextDocument
         from PyQt6.QtPrintSupport import QPrinter, QPrinterInfo
 
         saved_name = str(load_config().get("receipt_printer_name") or "")
@@ -1167,32 +1247,9 @@ class ReceiptDialog(QDialog):
             )
             return
         printer = QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
-        document = QTextDocument()
-        document.setDocumentMargin(0)
-        self._set_document_html(document)
-        logical_dpi = 96.0
-        logical_width = 72.0 * logical_dpi / 25.4
-        document.setTextWidth(logical_width)
-        content_height = document.documentLayout().documentSize().height()
-        page_height_mm = max(55.0, min(500.0, content_height * 25.4 / logical_dpi + 9.0))
-        receipt_page = QPageSize(
-            QSizeF(80.0, page_height_mm), QPageSize.Unit.Millimeter,
-            "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
-        )
-        printer.setPageLayout(QPageLayout(
-            receipt_page, QPageLayout.Orientation.Portrait,
-            QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
-        ))
-        painter = QPainter(printer)
-        if not painter.isActive():
+        document, logical_dpi, logical_width, content_height = self._build_print_document()
+        if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
             QMessageBox.critical(self, "Print Receipt", "Could not start the configured printer.")
-            return
-        scale = printer.resolution() / logical_dpi
-        paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
-        painter.translate(paint_rect.left(), paint_rect.top())
-        painter.scale(scale, scale)
-        document.drawContents(painter, QRectF(0.0, 0.0, logical_width, content_height))
-        painter.end()
 
 
 class ServiceOrderItemDialog(QDialog):
@@ -2488,7 +2545,7 @@ class LiteWindow(QMainWindow):
         outer.addWidget(self.history_table, 1)
         actions = QHBoxLayout()
         view = QPushButton("View / Reprint")
-        refund = QPushButton("Full Refund")
+        refund = QPushButton("Refund")
         self.history_prev = QPushButton("Previous")
         self.history_next = QPushButton("Next")
         view.clicked.connect(self.view_selected_receipt)
@@ -5644,7 +5701,7 @@ class LiteWindow(QMainWindow):
         self.refund_receipt(summary)
 
     def refund_receipt(self, summary: dict) -> None:
-        """Refund one complete receipt selected from history or its detail dialog."""
+        """Refund selected receipt items from history or its detail dialog."""
         if not summary or not self.api or self._threads:
             return
         if str(summary.get("status") or "").lower() == "refunded":
@@ -5654,29 +5711,44 @@ class LiteWindow(QMainWindow):
             QMessageBox.warning(self, "Refund", "Credit sales must be refunded from the full POS credit workflow.")
             return
         invoice = str(summary.get("invoice_no") or "")
-        answer = QMessageBox.question(
-            self, "Full Refund",
-            f"Refund the complete sale {invoice}?\n\nAll item stock will be restored.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        reason, accepted = QInputDialog.getText(self, "Refund Reason", "Reason:", text="Customer return")
-        if not accepted or not reason.strip():
-            return
         sale_id = int(summary.get("id") or 0)
-        self.history_status.setText("Refunding…")
+
+        def open_dialog(receipt):
+            dialog = RefundItemsDialog(receipt, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                self.history_status.setText("")
+                return
+            items = dialog.selected_items()
+            reason = dialog.refund_reason()
+            total_qty = sum(int(item.get("qty") or 0) for item in items)
+            answer = QMessageBox.question(
+                self, "Refund",
+                f"Refund {total_qty} item(s) from {invoice}?\n\nSelected item stock will be restored.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                self.history_status.setText("")
+                return
+            self.history_status.setText("Refunding…")
+            self._run_task(
+                lambda: self.api.refund_items(sale_id, items, reason), refunded,
+                lambda error: (self.history_status.setText("Refund failed"), QMessageBox.critical(self, "Refund", error)),
+            )
 
         def refunded(receipt):
             self.history_status.setText("Refund completed")
-            QMessageBox.information(self, "Refund", f"{invoice} was refunded and stock was restored.")
+            QMessageBox.information(self, "Refund", f"{invoice} refund completed and stock was restored.")
             ReceiptDialog(receipt, self, settings=self.receipt_settings).exec()
             QTimer.singleShot(100, self.load_history)
             QTimer.singleShot(200, self.load_products)
 
+        if summary.get("items"):
+            open_dialog(summary)
+            return
+        self.history_status.setText("Loading receipt…")
         self._run_task(
-            lambda: self.api.refund(sale_id, reason), refunded,
+            lambda: self.api.receipt(sale_id), open_dialog,
             lambda error: (self.history_status.setText("Refund failed"), QMessageBox.critical(self, "Refund", error)),
         )
 

@@ -7,6 +7,7 @@ inside the server process and use explicit transactions for sale checkout.
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 import math
@@ -58,6 +59,21 @@ def _execute_dynamic_insert(cursor, table_name: str, values: Dict[str, Any]) -> 
         [filtered[name] for name in names],
     )
     return int(cursor.lastrowid)
+
+
+def _ensure_sale_item_refund_columns(cursor) -> None:
+    columns = _table_columns(cursor, "sale_items")
+    changed = False
+    if "refunded_qty" not in columns:
+        cursor.execute("ALTER TABLE sale_items ADD COLUMN refunded_qty REAL DEFAULT 0")
+        columns.add("refunded_qty")
+        changed = True
+    if "refund_reason" not in columns:
+        cursor.execute("ALTER TABLE sale_items ADD COLUMN refund_reason TEXT")
+        columns.add("refund_reason")
+        changed = True
+    if changed:
+        _TABLE_COLUMNS_CACHE["sale_items"] = columns
 
 
 def _sync_postgres_id_sequences(cursor, table_names: Iterable[str]) -> None:
@@ -2162,6 +2178,84 @@ def get_receipt(sale_id: int) -> Dict[str, Any]:
         conn.close()
 
 
+def _restore_refund_stock(cursor, sale_id: int, item: Dict[str, Any], qty: int, reason: str, refunded_by: str, full_refund: bool = False) -> None:
+    product_id = int(item.get("product_id") or 0)
+    qty = int(qty or 0)
+    if not product_id or qty <= 0:
+        return
+    cursor.execute("SELECT COALESCE(stock, 0) FROM products WHERE id = ?", (product_id,))
+    product_row = cursor.fetchone()
+    if not product_row:
+        return
+    old_product_stock = int(product_row[0] or 0)
+    cursor.execute(
+        "UPDATE products SET stock = COALESCE(stock, 0) + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+        (qty, product_id),
+    )
+    variant_id = int(item.get("variant_id") or 0)
+    old_stock = old_product_stock
+    new_stock = old_product_stock + qty
+    movement_location = item.get("location") or "Refund"
+    if variant_id:
+        cursor.execute(
+            "SELECT COALESCE(stock, 0) FROM product_variants WHERE id = ? AND product_id = ?",
+            (variant_id, product_id),
+        )
+        variant_row = cursor.fetchone()
+        if variant_row:
+            old_stock = int(variant_row[0] or 0)
+            variant_batches.restore(cursor, product_id, variant_id, old_stock, qty, item.get("location"), item.get("batch_no"), item.get("expire_date"))
+            new_stock = old_stock + qty
+            cursor.execute(
+                "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (new_stock, variant_id),
+            )
+            movement_location = "Variant"
+    else:
+        location_id = int(item.get("location_id") or 0)
+        updated = False
+        if location_id:
+            cursor.execute(
+                "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ? AND product_id = ?",
+                (qty, location_id, product_id),
+            )
+            updated = cursor.rowcount == 1
+        if not updated:
+            fallback_location = str(item.get("location") or "Shop").strip() or "Shop"
+            fallback_batch = item.get("batch_no") or ""
+            fallback_expiry = item.get("expire_date") or ""
+            cursor.execute(
+                """
+                SELECT id FROM product_locations
+                WHERE product_id = ? AND COALESCE(location, '') = ?
+                  AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ?
+                LIMIT 1
+                """,
+                (product_id, fallback_location, fallback_batch, fallback_expiry),
+            )
+            location_row = cursor.fetchone()
+            if location_row:
+                cursor.execute(
+                    "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                    (qty, location_row[0]),
+                )
+                updated = True
+        if not updated:
+            _execute_dynamic_insert(cursor, "product_locations", {
+                "product_id": product_id, "location": fallback_location,
+                "batch_no": fallback_batch, "expire_date": fallback_expiry,
+                "quantity": qty,
+            })
+    refund_label = "Full sale refund" if full_refund else "Item refund"
+    _execute_dynamic_insert(cursor, "stock_movements", {
+        "product_id": product_id, "variant_id": variant_id or None,
+        "type": "refund", "quantity": qty, "old_stock": old_stock,
+        "new_stock": new_stock, "reason": reason,
+        "reference": f"REFUND-{sale_id}", "created_by": refunded_by,
+        "location": movement_location, "notes": f"{refund_label}: {item.get('product_name') or product_id}",
+    })
+
+
 def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str = "Lite POS") -> Dict[str, Any]:
     """Fully refund one completed sale and restore its stock atomically."""
     sale_id = int(sale_id or 0)
@@ -2189,7 +2283,7 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
 
         item_columns = _table_columns(cursor, "sale_items")
         wanted = [
-            "product_id", "variant_id", "qty", "location_id", "location",
+            "id", "product_id", "variant_id", "qty", "location_id", "location",
             "batch_no", "expire_date", "product_name",
         ]
         selected = [name for name in wanted if name in item_columns]
@@ -2199,81 +2293,14 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
         )
         items = [_dict_from_row(cursor, row) for row in cursor.fetchall()]
         for item in items:
-            product_id = int(item.get("product_id") or 0)
             qty = int(item.get("qty") or 0)
-            if not product_id or qty <= 0:
-                continue
-            cursor.execute("SELECT COALESCE(stock, 0) FROM products WHERE id = ?", (product_id,))
-            product_row = cursor.fetchone()
-            if not product_row:
-                continue
-            old_product_stock = int(product_row[0] or 0)
-            cursor.execute(
-                "UPDATE products SET stock = COALESCE(stock, 0) + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-                (qty, product_id),
-            )
-            variant_id = int(item.get("variant_id") or 0)
-            old_stock = old_product_stock
-            new_stock = old_product_stock + qty
-            movement_location = item.get("location") or "Refund"
-            if variant_id:
-                cursor.execute(
-                    "SELECT COALESCE(stock, 0) FROM product_variants WHERE id = ? AND product_id = ?",
-                    (variant_id, product_id),
-                )
-                variant_row = cursor.fetchone()
-                if variant_row:
-                    old_stock = int(variant_row[0] or 0)
-                    variant_batches.restore(cursor,product_id,variant_id,old_stock,qty,item.get("location"),item.get("batch_no"),item.get("expire_date"))
-                    new_stock = old_stock + qty
-                    cursor.execute(
-                        "UPDATE product_variants SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        (new_stock, variant_id),
-                    )
-                    movement_location = "Variant"
-            else:
-                location_id = int(item.get("location_id") or 0)
-                updated = False
-                if location_id:
-                    cursor.execute(
-                        "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ? AND product_id = ?",
-                        (qty, location_id, product_id),
-                    )
-                    updated = cursor.rowcount == 1
-                if not updated:
-                    fallback_location = str(item.get("location") or "Shop").strip() or "Shop"
-                    fallback_batch = item.get("batch_no") or ""
-                    fallback_expiry = item.get("expire_date") or ""
-                    cursor.execute(
-                        """
-                        SELECT id FROM product_locations
-                        WHERE product_id = ? AND COALESCE(location, '') = ?
-                          AND COALESCE(batch_no, '') = ? AND COALESCE(expire_date, '') = ?
-                        LIMIT 1
-                        """,
-                        (product_id, fallback_location, fallback_batch, fallback_expiry),
-                    )
-                    location_row = cursor.fetchone()
-                    if location_row:
-                        cursor.execute(
-                            "UPDATE product_locations SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
-                            (qty, location_row[0]),
-                        )
-                        updated = True
-                if not updated:
-                    _execute_dynamic_insert(cursor, "product_locations", {
-                        "product_id": product_id, "location": fallback_location,
-                        "batch_no": fallback_batch, "expire_date": fallback_expiry,
-                        "quantity": qty,
-                    })
-            _execute_dynamic_insert(cursor, "stock_movements", {
-                "product_id": product_id, "variant_id": variant_id or None,
-                "type": "refund", "quantity": qty, "old_stock": old_stock,
-                "new_stock": new_stock, "reason": reason,
-                "reference": f"REFUND-{sale_id}", "created_by": refunded_by,
-                "location": movement_location, "notes": f"Full sale refund: {item.get('product_name') or product_id}",
-            })
+            _restore_refund_stock(cursor, sale_id, item, qty, reason, refunded_by, full_refund=True)
 
+        _ensure_sale_item_refund_columns(cursor)
+        cursor.execute(
+            "UPDATE sale_items SET refunded_qty = COALESCE(qty, 0), refund_reason = ? WHERE sale_id = ?",
+            (reason, sale_id),
+        )
         cursor.execute(
             "UPDATE sales SET status = 'refunded' WHERE id = ? AND COALESCE(status, 'completed') = 'completed'",
             (sale_id,),
@@ -2283,6 +2310,117 @@ def refund_sale(sale_id: int, reason: str = "Customer return", refunded_by: str 
         receipt = _get_receipt_from_cursor(cursor, sale_id)
         conn.commit()
         logger.info(f"Sale refunded: {sale_id} by {refunded_by}")
+        return receipt
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def refund_sale_items(
+    sale_id: int,
+    refund_items: List[Dict[str, Any]],
+    reason: str = "Customer return",
+    refunded_by: str = "Lite POS",
+) -> Dict[str, Any]:
+    """Refund selected receipt items and restore stock for the selected quantities."""
+    sale_id = int(sale_id or 0)
+    if sale_id <= 0:
+        raise ValueError("Invalid sale")
+    reason = str(reason or "Customer return").strip()[:500]
+    requested: Dict[int, int] = {}
+    for item in refund_items or []:
+        sale_item_id = int(item.get("sale_item_id") or item.get("id") or 0)
+        qty = int(item.get("qty") or 0)
+        if sale_item_id > 0 and qty > 0:
+            requested[sale_item_id] = requested.get(sale_item_id, 0) + qty
+    if not requested:
+        raise ValueError("Select at least one item to refund")
+
+    conn = connect_db()
+    cursor = conn.cursor()
+    try:
+        if not is_postgres_backend():
+            cursor.execute("BEGIN IMMEDIATE")
+        _ensure_sale_item_refund_columns(cursor)
+        cursor.execute(
+            "SELECT status, payment_type FROM sales WHERE id = ?",
+            (sale_id,),
+        )
+        sale = cursor.fetchone()
+        if not sale:
+            raise ValueError("Sale not found")
+        if str(sale[0] or "completed").lower() == "refunded":
+            raise ValueError("This sale has already been refunded")
+        if str(sale[0] or "completed").lower() != "completed":
+            raise ValueError("Only completed sales can be refunded")
+        if str(sale[1] or "").lower() == "credit":
+            raise ValueError("Credit sales must be refunded from the full POS credit workflow")
+
+        item_columns = _table_columns(cursor, "sale_items")
+        wanted = [
+            "id", "product_id", "variant_id", "qty", "refunded_qty", "location_id",
+            "location", "batch_no", "expire_date", "product_name",
+        ]
+        selected = [name for name in wanted if name in item_columns]
+        placeholders = ", ".join("?" for _ in requested)
+        cursor.execute(
+            f"""
+            SELECT {', '.join(selected)}
+            FROM sale_items
+            WHERE sale_id = ? AND id IN ({placeholders})
+            ORDER BY id
+            """,
+            [sale_id, *requested.keys()],
+        )
+        rows = [_dict_from_row(cursor, row) for row in cursor.fetchall()]
+        found_ids = {int(row.get("id") or 0) for row in rows}
+        missing = set(requested) - found_ids
+        if missing:
+            raise ValueError("One or more selected items do not belong to this sale")
+
+        for item in rows:
+            sale_item_id = int(item.get("id") or 0)
+            sold_qty = int(item.get("qty") or 0)
+            already_refunded = int(float(item.get("refunded_qty") or 0))
+            qty = int(requested.get(sale_item_id) or 0)
+            remaining = sold_qty - already_refunded
+            if remaining <= 0:
+                raise ValueError(f"{item.get('product_name') or 'Item'} has already been refunded")
+            if qty > remaining:
+                raise ValueError(f"Refund quantity for {item.get('product_name') or 'item'} is higher than remaining quantity")
+            _restore_refund_stock(cursor, sale_id, item, qty, reason, refunded_by)
+            cursor.execute(
+                """
+                UPDATE sale_items
+                SET refunded_qty = COALESCE(refunded_qty, 0) + ?,
+                    refund_reason = ?
+                WHERE id = ? AND sale_id = ?
+                """,
+                (qty, reason, sale_item_id, sale_id),
+            )
+
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM sale_items
+            WHERE sale_id = ? AND COALESCE(refunded_qty, 0) < COALESCE(qty, 0)
+            """,
+            (sale_id,),
+        )
+        remaining_count = int((cursor.fetchone() or [0])[0] or 0)
+        if remaining_count == 0:
+            cursor.execute(
+                "UPDATE sales SET status = 'refunded' WHERE id = ? AND COALESCE(status, 'completed') = 'completed'",
+                (sale_id,),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Sale status changed; refresh and try again")
+
+        receipt = _get_receipt_from_cursor(cursor, sale_id)
+        conn.commit()
+        logger.info(f"Sale items refunded: {sale_id} by {refunded_by}")
         return receipt
     except Exception:
         conn.rollback()
@@ -2809,11 +2947,17 @@ def _get_receipt_from_cursor(cursor, sale_id: int) -> Dict[str, Any]:
             pass
 
     item_columns = _table_columns(cursor, "sale_items")
+    if "refunded_qty" not in item_columns:
+        with contextlib.suppress(Exception):
+            _ensure_sale_item_refund_columns(cursor)
+            item_columns = _table_columns(cursor, "sale_items")
     wanted_columns = [
+        "id",
         "product_id",
         "variant_id",
         "product_name",
         "qty",
+        "refunded_qty",
         "price",
         "total",
         "cost",

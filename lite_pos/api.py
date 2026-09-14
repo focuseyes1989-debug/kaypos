@@ -229,6 +229,17 @@ class LiteApiClient:
             "POST", f"/api/sales/{int(sale_id)}/refund", json={"reason": reason.strip()}
         ).get("receipt") or {})
 
+    def refund_items(self, sale_id: int, items: list[dict], reason: str) -> dict:
+        payload_items = [
+            {"sale_item_id": int(item.get("sale_item_id") or item.get("id") or 0), "qty": int(item.get("qty") or 0)}
+            for item in items
+        ]
+        return dict(self._request(
+            "POST",
+            f"/api/sales/{int(sale_id)}/refund-items",
+            json={"items": payload_items, "reason": reason.strip()},
+        ).get("receipt") or {})
+
     def service_orders(
         self, query: str = "", status: str = "", limit: int = 100, offset: int = 0,
         from_date: str = "", to_date: str = "",

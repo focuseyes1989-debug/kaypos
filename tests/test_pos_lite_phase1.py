@@ -375,7 +375,7 @@ class PosLitePhase1Tests(unittest.TestCase):
             refund_callback=callback,
         )
         labels = {button.text() for button in dialog.findChildren(QtPushButton)}
-        self.assertIn("Refund Receipt", labels)
+        self.assertIn("Refund", labels)
         dialog.close()
 
         refunded = ReceiptDialog(
@@ -383,7 +383,7 @@ class PosLitePhase1Tests(unittest.TestCase):
             refund_callback=callback,
         )
         labels = {button.text() for button in refunded.findChildren(QtPushButton)}
-        self.assertNotIn("Refund Receipt", labels)
+        self.assertNotIn("Refund", labels)
         refunded.close()
 
     def test_receipt_uses_setting_center_text_logo_and_shop_name(self):
