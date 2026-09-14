@@ -216,6 +216,7 @@ def ensure_postgres_app_schema(cursor):
     _ensure_user_tables(cursor)
     _ensure_employee_tables(cursor)
     _ensure_audit_hold_tables(cursor)
+    _ensure_service_order_tables(cursor)
     _ensure_restaurant_tables(cursor)
     _ensure_indexes(cursor)
     _ensure_default_users(cursor)
@@ -1080,6 +1081,72 @@ def _ensure_audit_hold_tables(cursor):
     """)
 
 
+def _ensure_service_order_tables(cursor):
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_orders (
+            id SERIAL PRIMARY KEY,
+            job_no TEXT UNIQUE,
+            customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+            customer_name TEXT,
+            customer_phone TEXT,
+            job_title TEXT NOT NULL,
+            complaint TEXT,
+            internal_notes TEXT,
+            status TEXT DEFAULT 'pending',
+            received_at TEXT NOT NULL,
+            expected_at TEXT,
+            work_started_at TEXT,
+            work_completed_at TEXT,
+            delivered_at TEXT,
+            cancelled_at TEXT,
+            working_by TEXT,
+            work_completed_by TEXT,
+            delivered_by TEXT,
+            deposit_amount DOUBLE PRECISION DEFAULT 0,
+            total_amount DOUBLE PRECISION DEFAULT 0,
+            sale_id INTEGER REFERENCES sales(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_order_items (
+            id SERIAL PRIMARY KEY,
+            service_order_id INTEGER NOT NULL REFERENCES service_orders(id) ON DELETE CASCADE,
+            product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+            variant_id INTEGER,
+            item_type TEXT DEFAULT 'service',
+            description TEXT NOT NULL,
+            qty DOUBLE PRECISION DEFAULT 1,
+            unit_price DOUBLE PRECISION DEFAULT 0,
+            estimated_cost DOUBLE PRECISION DEFAULT 0,
+            actual_cost DOUBLE PRECISION DEFAULT 0,
+            warranty_days INTEGER DEFAULT 0,
+            pricing_unit TEXT DEFAULT 'per_item',
+            pages_per_copy INTEGER DEFAULT 1,
+            copy_count INTEGER DEFAULT 1,
+            paper_size TEXT,
+            paper_type TEXT,
+            color_mode TEXT DEFAULT 'not_applicable',
+            print_side TEXT DEFAULT 'not_applicable',
+            finishing TEXT,
+            file_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_order_history (
+            id SERIAL PRIMARY KEY,
+            service_order_id INTEGER NOT NULL REFERENCES service_orders(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            note TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
 def _ensure_restaurant_tables(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS restaurant_tables (
@@ -1194,8 +1261,16 @@ def _ensure_restaurant_tables(cursor):
 def _ensure_indexes(cursor):
     statements = (
         "CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)",
+        "CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku)",
+        "CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)",
+        "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)",
+        "CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id)",
+        "CREATE INDEX IF NOT EXISTS idx_products_favourite_name ON products(is_favourite DESC, name)",
         "CREATE INDEX IF NOT EXISTS idx_products_sold_by ON products(sold_by)",
+        "CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_sales_status_created ON sales(status, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_product_discounts_product ON product_discounts(product_id)",
+        "CREATE INDEX IF NOT EXISTS idx_product_discounts_active_product ON product_discounts(product_id, active)",
         "CREATE INDEX IF NOT EXISTS idx_product_discounts_dates ON product_discounts(start_date, end_date)",
         "CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id)",
         "CREATE INDEX IF NOT EXISTS idx_product_variants_barcode ON product_variants(barcode)",
@@ -1236,6 +1311,10 @@ def _ensure_indexes(cursor):
         "CREATE INDEX IF NOT EXISTS idx_customer_points_log_customer ON customer_points_log(customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_user_activity_log_user ON user_activity_log(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_held_sales_hold_no ON held_sales(hold_no)",
+        "CREATE INDEX IF NOT EXISTS idx_service_orders_status ON service_orders(status, received_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_service_orders_expected ON service_orders(expected_at)",
+        "CREATE INDEX IF NOT EXISTS idx_service_order_items_order ON service_order_items(service_order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_service_order_history_order ON service_order_history(service_order_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_restaurant_orders_table ON restaurant_orders(table_id, status)",
         "CREATE INDEX IF NOT EXISTS idx_restaurant_orders_status ON restaurant_orders(status, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_restaurant_orders_type_status ON restaurant_orders(order_type, status, updated_at)",
@@ -1257,19 +1336,19 @@ def _ensure_default_users(cursor):
         (
             "Admin",
             "Full access to every page and action",
-            "dashboard,sales,create_sale,edit_sale,delete_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,delete_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,users,add_user,edit_user,delete_user,settings,edit_settings,backup,restore,factory_reset",
+            "dashboard,sales,create_sale,edit_sale,delete_sale,refund_sale,service_orders,manage_service_orders,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,delete_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,users,add_user,edit_user,delete_user,settings,edit_settings,backup,restore,factory_reset",
             1,
         ),
         (
             "Manager",
             "Manage daily operations without user deletion, restore, or factory reset",
-            "dashboard,sales,create_sale,edit_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,settings,backup",
+            "dashboard,sales,create_sale,edit_sale,refund_sale,service_orders,manage_service_orders,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,settings,backup",
             0,
         ),
         (
             "Cashier",
             "Process sales, print receipts, refund receipts, and manage sale customers",
-            "sales,create_sale,receipts,print_receipt,refund_receipt,customers,add_customer,credit,credit_sale,payment_collection",
+            "sales,create_sale,service_orders,manage_service_orders,receipts,print_receipt,refund_receipt,customers,add_customer,credit,credit_sale,payment_collection",
             0,
         ),
         (

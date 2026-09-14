@@ -65,6 +65,7 @@ class ProductGrid(QWidget):
         self._grid_lazy_loading = False
         self._grid_lazy_has_more = False
         self._grid_load_more_queued = False
+        self._grid_auto_fill_done = False
         self._product_loading_active = False
         self._product_loading_uses_overlay = False
         self._search_filter_timer = QTimer(self)
@@ -541,6 +542,8 @@ class ProductGrid(QWidget):
         if page_size is None:
             page_size = self._performance_settings.product_page_size
         is_grid_view = True
+        if not append_grid:
+            self._grid_auto_fill_done = False
         if is_grid_view:
             default_batch = self.GRID_APPEND_BATCH_SIZE if append_grid else self.GRID_INITIAL_BATCH_SIZE
             page_size = min(
@@ -840,9 +843,12 @@ class ProductGrid(QWidget):
         """Keep loading while the grid has no scrollbar but more products exist."""
         if not self._is_grid_view() or self._grid_lazy_loading or not self._grid_lazy_has_more:
             return
+        if self._grid_auto_fill_done:
+            return
         active_grid = self._ensure_view_widget(self._current_view)
         scrollbar = active_grid.verticalScrollBar() if active_grid else None
         if scrollbar is not None and scrollbar.maximum() <= 0:
+            self._grid_auto_fill_done = True
             QTimer.singleShot(40, self.load_next_grid_page)
 
     def on_page_changed(self, page: int, page_size: int):

@@ -65,6 +65,7 @@ class MainWindowUI(QMainWindow):
     inventory_page: Optional[Any] = None
     receipts_page: Optional[Any] = None
     sales_page: Optional[Any] = None
+    service_orders_page: Optional[Any] = None
     restaurant_page: Optional[Any] = None
     customers_page: Optional[Any] = None
     expense_page: Optional[Any] = None
@@ -196,6 +197,7 @@ class MainWindowUI(QMainWindow):
             (3, "Inventory", self._build_inventory_page, "inventory"),
             (4, "Receipts", self._build_receipts_page, "receipts"),
             (5, "Sales", self._build_sales_page, "sales"),
+            (12, "Service Orders", self._build_service_orders_page, "service_orders"),
             (10, "Restaurant", self._build_restaurant_page, "sales"),
             (6, "Customers", self._build_customers_page, "customers"),
             (7, "Expense", self._build_expense_page, "expense"),
@@ -441,6 +443,12 @@ class MainWindowUI(QMainWindow):
         self.sales_page = page
         return page
 
+    def _build_service_orders_page(self) -> QWidget:
+        from ui.service_orders_page import ServiceOrdersPage
+        page = ServiceOrdersPage(self.current_user)
+        self.service_orders_page = page
+        return page
+
     def _build_restaurant_page(self) -> QWidget:
         from ui.restaurant_page import RestaurantPage
         page = RestaurantPage()
@@ -505,7 +513,7 @@ class MainWindowUI(QMainWindow):
 
     def handle_ai_navigation(self,request: Dict[str,Any]) -> None:
         """Open an authorized page and apply safe, read-only AI filters."""
-        page_indices={"dashboard":0,"sales_summary":1,"products":2,"inventory":3,"receipts":4,"sales":5,"customers":6,"expense":7,"ai_pages":8,"employees":11}
+        page_indices={"dashboard":0,"sales_summary":1,"products":2,"inventory":3,"receipts":4,"sales":5,"customers":6,"expense":7,"ai_pages":8,"employees":11,"service_orders":12}
         page_name=str((request or {}).get("page") or "");index=page_indices.get(page_name)
         if index is None:return
         if index not in self._get_allowed_pages_for_role(self.current_user["id"]):
@@ -596,6 +604,7 @@ class MainWindowUI(QMainWindow):
             3: "inventory_page",
             4: "receipts_page",
             5: "sales_page",
+            12: "service_orders_page",
             10: "restaurant_page",
             6: "customers_page",
             7: "expense_page",
@@ -611,6 +620,7 @@ class MainWindowUI(QMainWindow):
         sale_mode = get_sale_mode()
         page_permissions = {
             5: "sales",
+            12: "service_orders",
             0: "dashboard",
             1: "sales_summary",
             2: "products",

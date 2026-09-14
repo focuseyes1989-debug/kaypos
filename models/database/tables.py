@@ -968,13 +968,13 @@ def create_tables():
         if cursor.fetchone()[0] == 0:
             default_roles = [
                 ('Admin', 'Full access to every page and action',
-                 'dashboard,sales,create_sale,edit_sale,delete_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,delete_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,users,add_user,edit_user,delete_user,settings,edit_settings,backup,restore,factory_reset',
+                 'dashboard,sales,create_sale,edit_sale,delete_sale,refund_sale,service_orders,manage_service_orders,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,delete_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,users,add_user,edit_user,delete_user,settings,edit_settings,backup,restore,factory_reset',
                  1),
                 ('Manager', 'Manage daily operations without user deletion, restore, or factory reset',
-                 'dashboard,sales,create_sale,edit_sale,refund_sale,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,settings,backup',
+                 'dashboard,sales,create_sale,edit_sale,refund_sale,service_orders,manage_service_orders,sales_summary,products,add_product,edit_product,delete_product,ai_pages,inventory,stock_in,stock_out,adjustment,receipts,print_receipt,refund_receipt,customers,add_customer,edit_customer,expense,add_expense,edit_expense,delete_expense,manage_expense_categories,reports,credit,credit_sale,payment_collection,settings,backup',
                  0),
                 ('Cashier', 'Process sales, print receipts, refund receipts, and manage sale customers',
-                 'sales,create_sale,receipts,print_receipt,refund_receipt,customers,add_customer,credit,credit_sale,payment_collection',
+                 'sales,create_sale,service_orders,manage_service_orders,receipts,print_receipt,refund_receipt,customers,add_customer,credit,credit_sale,payment_collection',
                  0),
                 ('Viewer', 'Read-only access to dashboards, lists, receipts, reports, and credit',
                  'dashboard,sales_summary,products,inventory,receipts,customers,reports,credit',
@@ -1089,6 +1089,81 @@ def create_tables():
         )
         """)
         logger.debug("Held sales table verified")
+
+        # ---------- Service Orders ----------
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_no TEXT UNIQUE,
+            customer_id INTEGER,
+            customer_name TEXT,
+            customer_phone TEXT,
+            job_title TEXT NOT NULL,
+            complaint TEXT,
+            internal_notes TEXT,
+            status TEXT DEFAULT 'pending',
+            received_at TEXT NOT NULL,
+            expected_at TEXT,
+            work_started_at TEXT,
+            work_completed_at TEXT,
+            delivered_at TEXT,
+            cancelled_at TEXT,
+            working_by TEXT,
+            work_completed_by TEXT,
+            delivered_by TEXT,
+            deposit_amount REAL DEFAULT 0,
+            total_amount REAL DEFAULT 0,
+            sale_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+            FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_order_id INTEGER NOT NULL,
+            product_id INTEGER,
+            variant_id INTEGER,
+            item_type TEXT DEFAULT 'service',
+            description TEXT NOT NULL,
+            qty REAL DEFAULT 1,
+            unit_price REAL DEFAULT 0,
+            estimated_cost REAL DEFAULT 0,
+            actual_cost REAL DEFAULT 0,
+            warranty_days INTEGER DEFAULT 0,
+            pricing_unit TEXT DEFAULT 'per_item',
+            pages_per_copy INTEGER DEFAULT 1,
+            copy_count INTEGER DEFAULT 1,
+            paper_size TEXT,
+            paper_type TEXT,
+            color_mode TEXT DEFAULT 'not_applicable',
+            print_side TEXT DEFAULT 'not_applicable',
+            finishing TEXT,
+            file_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (service_order_id) REFERENCES service_orders(id) ON DELETE CASCADE,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+        )
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS service_order_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_order_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            note TEXT,
+            created_by TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (service_order_id) REFERENCES service_orders(id) ON DELETE CASCADE
+        )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_status ON service_orders(status, received_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_orders_expected ON service_orders(expected_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_order_items_order ON service_order_items(service_order_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_service_order_history_order ON service_order_history(service_order_id, created_at DESC)")
+        logger.debug("Service order tables verified")
 
         # ---------- Restaurant Mode ----------
         cursor.execute("""
@@ -1238,7 +1313,11 @@ def create_tables():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_favourite ON products(is_favourite)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_favourite_name ON products(is_favourite DESC, name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sales_status_created ON sales(status, created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_product_discounts_active_product ON product_discounts(product_id, active)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)")

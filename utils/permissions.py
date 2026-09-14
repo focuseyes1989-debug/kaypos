@@ -15,6 +15,8 @@ class Permission(Enum):
     EDIT_SALE = "edit_sale"
     DELETE_SALE = "delete_sale"
     REFUND_SALE = "refund_sale"
+    VIEW_SERVICE_ORDERS = "service_orders"
+    MANAGE_SERVICE_ORDERS = "manage_service_orders"
     
     # Sales Summary
     VIEW_SALES_SUMMARY = "sales_summary"
@@ -161,6 +163,7 @@ class PermissionManager:
             "dashboard": Permission.VIEW_DASHBOARD,
             "sales_summary": Permission.VIEW_SALES_SUMMARY,
             "sales": Permission.VIEW_SALES,
+            "service_orders": Permission.VIEW_SERVICE_ORDERS,
             "products": Permission.VIEW_PRODUCTS,
             "ai_pages": Permission.VIEW_AI_PAGES,  # <-- NEW
             "inventory": Permission.VIEW_INVENTORY,
@@ -186,6 +189,7 @@ ROLE_PERMISSIONS = {
             Permission.VIEW_DASHBOARD,
             Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.EDIT_SALE,
             Permission.DELETE_SALE, Permission.REFUND_SALE,
+            Permission.VIEW_SERVICE_ORDERS, Permission.MANAGE_SERVICE_ORDERS,
             Permission.VIEW_SALES_SUMMARY,
             Permission.VIEW_PRODUCTS, Permission.ADD_PRODUCT, Permission.EDIT_PRODUCT, Permission.DELETE_PRODUCT,
             Permission.VIEW_AI_PAGES,
@@ -212,6 +216,7 @@ ROLE_PERMISSIONS = {
         "permissions": [
             Permission.VIEW_DASHBOARD,
             Permission.VIEW_SALES, Permission.CREATE_SALE, Permission.EDIT_SALE, Permission.REFUND_SALE,
+            Permission.VIEW_SERVICE_ORDERS, Permission.MANAGE_SERVICE_ORDERS,
             Permission.VIEW_SALES_SUMMARY,
             Permission.VIEW_PRODUCTS, Permission.ADD_PRODUCT, Permission.EDIT_PRODUCT, Permission.DELETE_PRODUCT,
             Permission.VIEW_AI_PAGES,
@@ -234,6 +239,7 @@ ROLE_PERMISSIONS = {
     "Cashier": {
         "permissions": [
             Permission.VIEW_SALES, Permission.CREATE_SALE,
+            Permission.VIEW_SERVICE_ORDERS, Permission.MANAGE_SERVICE_ORDERS,
             Permission.VIEW_AI_PAGES,
             Permission.VIEW_RECEIPTS, Permission.PRINT_RECEIPT, Permission.REFUND_RECEIPT,
             Permission.VIEW_CUSTOMERS, Permission.ADD_CUSTOMER,
@@ -329,6 +335,8 @@ def get_permission_description(permission):
         Permission.EDIT_SALE: "Edit Sale",
         Permission.DELETE_SALE: "Delete Sale",
         Permission.REFUND_SALE: "Refund Sale",
+        Permission.VIEW_SERVICE_ORDERS: "View Service Orders",
+        Permission.MANAGE_SERVICE_ORDERS: "Manage Service Orders",
         Permission.VIEW_SALES_SUMMARY: "View Sales Summary",
         Permission.VIEW_PRODUCTS: "View Products",
         Permission.ADD_PRODUCT: "Add Product",

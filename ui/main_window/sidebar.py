@@ -562,6 +562,7 @@ class Sidebar(QFrame):
         
         pages = [
             (5, "point_of_sale", "Sales", "sales"),
+            (12, "receipt_long", "Service Orders", "service_orders"),
             (10, "receipt_long", "Restaurant", "sales"),
             (0, "dashboard", "Dashboard", "dashboard"),
             (1, "analytics", "Sales Summary", "sales_summary"),
