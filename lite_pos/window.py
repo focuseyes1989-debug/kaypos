@@ -1199,9 +1199,9 @@ class ReceiptDialog(QDialog):
         return True
 
     def print_receipt(self) -> None:
-        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter, QPrinterInfo
+        from PyQt6.QtPrintSupport import QPrinter, QPrinterInfo
 
-        saved_name = load_config().get("receipt_printer_name") or ""
+        saved_name = str(load_config().get("receipt_printer_name") or "")
         saved_info = next(
             (info for info in QPrinterInfo.availablePrinters() if info.printerName() == saved_name),
             None,
@@ -1209,33 +1209,20 @@ class ReceiptDialog(QDialog):
         if saved_info is not None:
             self.print_receipt_automatic()
             return
-
-        printer = (
-            QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
-            if saved_info is not None else QPrinter(QPrinter.PrinterMode.HighResolution)
-        )
-        # GA-E200I is an 80 mm roll printer. Give the Windows dialog a compact
-        # initial receipt page instead of inheriting an A4/very-long roll page.
-        initial_page = QPageSize(
-            QSizeF(80.0, 120.0), QPageSize.Unit.Millimeter,
-            "80mm Receipt", QPageSize.SizeMatchPolicy.ExactMatch,
-        )
-        printer.setPageLayout(QPageLayout(
-            initial_page, QPageLayout.Orientation.Portrait,
-            QMarginsF(4.0, 3.0, 4.0, 4.0), QPageLayout.Unit.Millimeter,
-        ))
-        dialog = QPrintDialog(printer, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected_name = str(printer.printerName() or "").strip()
-            selected_info = next(
-                (info for info in QPrinterInfo.availablePrinters() if info.printerName() == selected_name),
-                None,
+        default_info = QPrinterInfo.defaultPrinter()
+        if default_info.isNull():
+            QMessageBox.warning(
+                self, "Print Receipt",
+                "Select a local receipt printer in Setting Center > Local Printer first.",
             )
-            if selected_info is not None:
-                printer = QPrinter(selected_info, QPrinter.PrinterMode.HighResolution)
-            document, logical_dpi, logical_width, content_height = self._build_print_document()
-            if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
-                QMessageBox.critical(self, "Print Receipt", "Could not start the selected printer.")
+            return
+        printer = QPrinter(default_info, QPrinter.PrinterMode.HighResolution)
+        document, logical_dpi, logical_width, content_height = self._build_print_document()
+        if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
+            QMessageBox.critical(
+                self, "Print Receipt",
+                "Could not start the default printer. Select the receipt printer in Setting Center > Local Printer.",
+            )
 
     def print_receipt_automatic(self) -> None:
         """Print directly to the configured local receipt printer."""
