@@ -73,9 +73,6 @@ class CategoryFormDialog(QDialog):
         self.resize(750, 650)
         self.setMinimumWidth(700)
         
-        # Apply theme styles
-        self._apply_theme_styles()
-        
         main_layout = QVBoxLayout()
         main_layout.setSpacing(12)
         main_layout.setContentsMargins(18, 18, 18, 18)
