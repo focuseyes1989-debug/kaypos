@@ -164,7 +164,7 @@ class StockTransferHandlers:
         d.st_qty.setMaximum(qty if qty > 0 else 1)
         
         # Update stock label
-        d.current_stock_label.setText(f"📊 Available: {qty}")
+        d.current_stock_label.setText(f"Available: {qty}")
         d.current_stock_label.setVisible(True)
         self.current_product_id = product_id
     
@@ -208,14 +208,14 @@ class StockTransferHandlers:
             """)
         
         remaining = available - qty
-        d.current_stock_label.setText(f"📊 {available} → {remaining} (after transfer)")
+        d.current_stock_label.setText(f"{available} → {remaining} (after transfer)")
     
     def update_product_info(self):
         """Update product information and image preview"""
         d = self.dialog
         product_id = d.st_product.currentData()
         if product_id is None:
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             return
         
@@ -233,11 +233,11 @@ class StockTransferHandlers:
             
             details = f"""
 <b style='font-size:11pt;'>{name}</b><br>
-<span style='color:#5d6d7e;'>📌 SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>🔢 Barcode:</span> <b>{barcode or 'N/A'}</b><br>
-<span style='color:#5d6d7e;'>📦 Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>💰 Cost:</span> <b style='color:#27ae60;'>{cost or 0}</b><br>
-<span style='color:#5d6d7e;'>🔄 Type:</span> <b>{sold_by or 'Each'}</b>
+<span style='color:#5d6d7e;'>SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Barcode:</span> <b>{barcode or 'N/A'}</b><br>
+<span style='color:#5d6d7e;'>Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Cost:</span> <b style='color:#27ae60;'>{cost or 0}</b><br>
+<span style='color:#5d6d7e;'>Type:</span> <b>{sold_by or 'Each'}</b>
             """
             d.product_details_label.setText(details)
             
@@ -254,13 +254,13 @@ class StockTransferHandlers:
                         d.image_preview.setPixmap(scaled_pixmap)
                         d.image_preview.setText("")
                     else:
-                        d.image_preview.setText("🖼️ Invalid Image")
+                        d.image_preview.setText("Invalid Image")
                 except Exception:
-                    d.image_preview.setText("🖼️ Image Not Available")
+                    d.image_preview.setText("Image Not Available")
             else:
-                d.image_preview.setText("📷 No Image Available")
+                d.image_preview.setText("No Image Available")
         else:
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     
     def on_search_entered(self):

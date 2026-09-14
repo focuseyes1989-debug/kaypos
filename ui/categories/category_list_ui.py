@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from ui.widgets.modern_button import ModernButton
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
 
@@ -231,12 +232,16 @@ class CategoryListUI:
         search_layout.addWidget(self.status_filter)
         
         # Parent filter
-        self.parent_filter = QComboBox()
-        self.parent_filter.addItem('📂 All Parents')
+        self.parent_filter = CategoryComboBox(
+            "All Parents",
+            include_all=True,
+            all_label="All Parents",
+            include_none=True,
+            none_label="No Parent",
+        )
         self.parent_filter.currentTextChanged.connect(self.on_filter_changed)
         self.parent_filter.setMinimumWidth(220)
         self.parent_filter.setToolTip("Show all categories or only children under one parent")
-        self.parent_filter.setStyleSheet(self._combobox_style(colors))
         search_layout.addWidget(self.parent_filter)
         
         # ✅ Add button with ModernButton and SVG icon
@@ -490,16 +495,24 @@ class CategoryListUI:
         
         return f"""
             QTableWidget {{
-                border: none;
-                background: {colors['card_bg']};
-                gridline-color: {grid_color};
+                border: 1px solid {border_color};
+                border-radius: 12px;
+                background: transparent;
+                alternate-background-color: transparent;
+                gridline-color: transparent;
                 outline: none;
                 font-size: 10pt;
-                font-family: 'Segoe UI', -apple-system, sans-serif;
+                font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI', -apple-system, sans-serif;
                 color: {colors['text']};
+                selection-background-color: {selection_bg};
+                selection-color: {selection_color};
+            }}
+            QTableWidget::viewport {{
+                background: transparent;
+                border-radius: 12px;
             }}
             QTableWidget::item {{
-                padding: 10px 14px;
+                padding: 6px 10px;
                 border: none;
                 border-bottom: 1px solid {border_color};
                 background: transparent;
@@ -513,22 +526,25 @@ class CategoryListUI:
                 background-color: {hover_bg};
             }}
             QHeaderView::section {{
-                background: {header_bg};
-                padding: 10px 14px;
+                background: {selection_bg};
+                padding: 8px 10px;
                 border: none;
                 border-bottom: 1px solid {border_color};
                 font-weight: 600;
                 color: {header_text};
                 font-size: 9pt;
-                text-transform: uppercase;
-                letter-spacing: 0.3px;
+                letter-spacing: 0px;
+            }}
+            QHeaderView::section:first {{
+                border-top-left-radius: 12px;
             }}
             QHeaderView::section:last {{
-                border-right: none;
+                border-top-right-radius: 12px;
             }}
             QTableWidget QTableCornerButton::section {{
-                background: {header_bg};
+                background: {selection_bg};
                 border: none;
+                border-top-left-radius: 12px;
                 border-bottom: 1px solid {border_color};
             }}
             QScrollBar:vertical {{

@@ -13,6 +13,7 @@ from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from datetime import datetime
 from loguru import logger
 import os
@@ -235,7 +236,7 @@ class CustomerLedgerDialog(QDialog):
         self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
-        self.btn_close.setFixedSize(112, 38)
+        self.btn_close.setFixedSize(112, 34)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         
@@ -376,76 +377,7 @@ class CustomerLedgerDialog(QDialog):
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            table_style = """
-                QTableWidget {
-                    background-color: #2f3136;
-                    alternate-background-color: #36393f;
-                    selection-background-color: #40444b;
-                    selection-color: #dcddde;
-                    gridline-color: #40444b;
-                    border: 1px solid #40444b;
-                    border-radius: 6px;
-                    color: #dcddde;
-                }
-                QTableWidget::item {
-                    padding: 10px 14px;
-                    color: #dcddde;
-                }
-                QTableWidget::item:selected {
-                    background-color: #40444b;
-                    color: #dcddde;
-                }
-                QHeaderView::section {
-                    background-color: #202225;
-                    padding: 10px 14px;
-                    border: none;
-                    border-bottom: 2px solid #40444b;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #b9bbbe;
-                }
-                QTableWidget::item:hover {
-                    background-color: #40444b;
-                }
-            """
-        else:
-            table_style = """
-                QTableWidget {
-                    background-color: white;
-                    alternate-background-color: #f8f9fa;
-                    selection-background-color: #e9ecef;
-                    selection-color: #212529;
-                    gridline-color: #dee2e6;
-                    border: 1px solid #dee2e6;
-                    border-radius: 6px;
-                    color: #212529;
-                }
-                QTableWidget::item {
-                    padding: 10px 14px;
-                    color: #212529;
-                }
-                QTableWidget::item:selected {
-                    background-color: #e9ecef;
-                    color: #212529;
-                }
-                QHeaderView::section {
-                    background-color: #f8f9fa;
-                    padding: 10px 14px;
-                    border: none;
-                    border-bottom: 2px solid #dee2e6;
-                    font-weight: 600;
-                    font-size: 10pt;
-                    color: #2c3e50;
-                }
-                QTableWidget::item:hover {
-                    background-color: #f1f3f5;
-                }
-            """
-        
-        self.table.setStyleSheet(table_style)
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
 
     def get_lang(self):
         try:

@@ -7,6 +7,7 @@ from utils.currency import format_money
 from ui.reports.base_report_dialog import BaseReportDialog
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from datetime import datetime
 import csv
 import os
@@ -104,6 +105,8 @@ class ProfitLossReportDialog(BaseReportDialog):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
+        return
         is_dark = is_dark_theme()
         
         # Update table style

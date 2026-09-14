@@ -1,7 +1,8 @@
 # ui/expense/expense_filters.py
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QComboBox, QDateEdit, QPushButton
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QDateEdit, QPushButton
 from PyQt6.QtCore import QDate, pyqtSignal
 from models.database import connect_db
+from ui.widgets.combo_box_widget import ComboBoxWidget
 
 
 class ExpenseFilters(QWidget):
@@ -23,7 +24,7 @@ class ExpenseFilters(QWidget):
         self.search_input.textChanged.connect(self.filter_changed.emit)
         layout.addWidget(self.search_input, 2)
         
-        self.category_filter = QComboBox()
+        self.category_filter = ComboBoxWidget("All Categories")
         self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.filter_changed.emit)
         layout.addWidget(QLabel("Category:"))

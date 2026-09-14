@@ -89,14 +89,14 @@ class ProductsPage(QWidget):
         # Top bar: filters and buttons
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("productsToolbarCard")
-        top_layout = QVBoxLayout(self.toolbar_card)
+        top_layout = QHBoxLayout(self.toolbar_card)
         top_layout.setContentsMargins(14, 10, 14, 10)
         top_layout.setSpacing(8)
         
         # âœ… ProductFilters - stretch á€™á€•á€±á€¸á€á€±á€¬á€·á€•á€«
         self.filters = ProductFilters(self)
         self.filters.filter_changed.connect(self.on_filter_changed)
-        top_layout.addWidget(self.filters)  # âœ… stretch á€–á€šá€ºá€œá€­á€¯á€€á€ºá€•á€«
+        top_layout.addWidget(self.filters, 1)
 
         self.action_toolbar = ActionToolbar(self)
         self.btn_add = self.action_toolbar.add_primary(" Add Item", self.open_add_dialog, "add", width=104)
@@ -108,7 +108,7 @@ class ProductsPage(QWidget):
         self.action_print_barcode = self.action_toolbar.add_more_action("Print Barcode", self.print_barcode, "barcode")
         self.action_toolbar.add_separator()
         self.action_toolbar.finalize()
-        top_layout.addWidget(self.action_toolbar)
+        top_layout.addWidget(self.action_toolbar, 0, Qt.AlignmentFlag.AlignRight)
         main_layout.addWidget(self.toolbar_card)
 
         # Product table; AI assistant lives in a non-modal floating dialog.

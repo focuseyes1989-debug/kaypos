@@ -816,8 +816,8 @@ class CategoryGroupsHandlers:
     
     def manage_categories(self):
         """Open manage categories dialog"""
-        from ui.products_page.manage_categories_dialog import ManageCategoriesDialog
-        dialog = ManageCategoriesDialog(self.dialog)
+        from ui.categories.category_list_dialog import CategoryListDialog
+        dialog = CategoryListDialog(self.dialog)
         dialog.categories_changed.connect(self.load_groups)
         dialog.exec()
     

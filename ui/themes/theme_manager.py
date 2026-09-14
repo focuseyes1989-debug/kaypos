@@ -345,12 +345,12 @@ def get_scaled_font_size(base_size=9):
 
 
 def get_preferred_font_family():
-    """Use the native UI font first and let Qt fall back for Myanmar glyphs."""
+    """Prefer stable Myanmar UI fonts before falling back to system UI fonts."""
     preferred_fonts = [
-        "Segoe UI",
         "Myanmar Text",
-        "Noto Sans Myanmar",
         "Pyidaungsu",
+        "Noto Sans Myanmar",
+        "Segoe UI",
         "Myanmar3",
     ]
     try:
@@ -368,6 +368,12 @@ def apply_font():
     app = QApplication.instance()
     if isinstance(app, QApplication):
         font_size = get_scaled_font_size(10)
+        try:
+            QFont.insertSubstitutions("Myanmar Text", ["Pyidaungsu", "Noto Sans Myanmar", "Segoe UI"])
+            QFont.insertSubstitutions("Pyidaungsu", ["Myanmar Text", "Noto Sans Myanmar", "Segoe UI"])
+            QFont.insertSubstitutions("Segoe UI", ["Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar"])
+        except Exception:
+            pass
         font = QFont(get_preferred_font_family(), font_size)
         app.setFont(font)
         return font

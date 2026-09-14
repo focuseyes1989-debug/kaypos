@@ -38,15 +38,15 @@ class ProductTransactionHistoryDialog(QDialog):
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         layout = QVBoxLayout()
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         # Header info
         info_layout = QHBoxLayout()
-        info_layout.setSpacing(15)
+        info_layout.setSpacing(10)
         
         self.info_label = QLabel(f"<b>Product:</b> {product_name}")
-        self.info_label.setStyleSheet("font-size: 12pt;")
+        self.info_label.setStyleSheet("font-size: 11pt;")
         info_layout.addWidget(self.info_label)
         
         info_layout.addStretch()
@@ -64,12 +64,12 @@ class ProductTransactionHistoryDialog(QDialog):
         filter_frame.setStyleSheet(self._get_filter_frame_style(colors))
         
         filter_layout = QHBoxLayout(filter_frame)
-        filter_layout.setSpacing(12)
-        filter_layout.setContentsMargins(15, 8, 15, 8)
+        filter_layout.setSpacing(8)
+        filter_layout.setContentsMargins(10, 8, 10, 8)
         
         # Date Range Widget
-        date_label = QLabel("📅 Date:")
-        date_label.setStyleSheet(f"color: {colors['text']}; font-size: 10pt;")
+        date_label = QLabel("Date")
+        date_label.setStyleSheet(f"color: {colors['text']}; font-size: 9pt; font-weight: 600;")
         filter_layout.addWidget(date_label)
         
         self.date_range = DateRangeWidget(self)
@@ -77,8 +77,8 @@ class ProductTransactionHistoryDialog(QDialog):
         filter_layout.addWidget(self.date_range)
         
         # Action filter
-        action_label = QLabel("📌 Action:")
-        action_label.setStyleSheet(f"color: {colors['text']}; font-size: 10pt;")
+        action_label = QLabel("Action")
+        action_label.setStyleSheet(f"color: {colors['text']}; font-size: 9pt; font-weight: 600;")
         filter_layout.addWidget(action_label)
         
         self.action_filter = QComboBox()
@@ -88,13 +88,15 @@ class ProductTransactionHistoryDialog(QDialog):
         filter_layout.addWidget(self.action_filter)
         
         # Refresh Button
-        self.btn_refresh = ModernButton("🔄 Refresh", ModernButton.SECONDARY)
+        self.btn_refresh = ModernButton("Refresh", ModernButton.SECONDARY)
+        self.btn_refresh.set_icon("refresh", size=(16, 16))
         self.btn_refresh.set_compact(True)
         self.btn_refresh.clicked.connect(self.load_history)
         filter_layout.addWidget(self.btn_refresh)
         
         # Export Button
-        self.btn_export = ModernButton("📊 Export Excel", ModernButton.SECONDARY)
+        self.btn_export = ModernButton("Export Excel", ModernButton.SECONDARY)
+        self.btn_export.set_icon("file_export", size=(16, 16))
         self.btn_export.set_compact(True)
         self.btn_export.clicked.connect(self.export_to_excel)
         filter_layout.addWidget(self.btn_export)
@@ -165,7 +167,7 @@ class ProductTransactionHistoryDialog(QDialog):
         # Update filter labels
         for child in self.findChildren(QLabel):
             if child.parent() and child.parent().objectName() == "filter_frame":
-                child.setStyleSheet(f"color: {colors['text']}; font-size: 10pt;")
+                child.setStyleSheet(f"color: {colors['text']}; font-size: 9pt; font-weight: 600;")
         
         # Update combobox
         if hasattr(self, 'action_filter'):
@@ -178,17 +180,24 @@ class ProductTransactionHistoryDialog(QDialog):
         self.load_current_stock()
     
     def _get_filter_frame_style(self, colors):
-        return modern_panel_stylesheet(colors, "filter_frame")
+        return f"""
+            QFrame#filter_frame {{
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
+            }}
+        """
     
     def _get_combobox_style(self, colors):
         return f"""
             QComboBox {{
-                padding: 6px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: transparent;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
+                min-height: 24px;
                 min-width: 120px;
             }}
             QComboBox:focus {{
@@ -568,11 +577,11 @@ class ProductTransactionHistoryDialog(QDialog):
         self.date_range.retranslateUi(lang)
         
         if lang == "my":
-            self.btn_refresh.setText("🔄 ပြန်လည်")
-            self.btn_export.setText("📊 Excel ထုတ်မည်")
+            self.btn_refresh.setText("ပြန်လည်")
+            self.btn_export.setText("Excel ထုတ်မည်")
         else:
-            self.btn_refresh.setText("🔄 Refresh")
-            self.btn_export.setText("📊 Export Excel")
+            self.btn_refresh.setText("Refresh")
+            self.btn_export.setText("Export Excel")
         
         # Apply theme after language change
         self._apply_theme()

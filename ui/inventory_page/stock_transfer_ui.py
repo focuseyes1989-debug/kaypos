@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QPixmap, QIcon
 from ui.widgets.modern_button import ModernButton
 from ui.inventory_page.stock_in_widgets import StockInfoLabel, HeaderFrame
-from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.themes.theme_manager import get_icon_with_color, theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import os
@@ -124,18 +124,18 @@ class StockTransferUI:
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Stock Transfer")
-        fit_dialog_to_available_screen(dialog, 940, 640, 820, 540)
+        fit_dialog_to_available_screen(dialog, 920, 620, 820, 540)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Setup header
         self._setup_header(main_layout, dialog)
         
         # Setup content (left panel + right panel)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
+        content_layout.setSpacing(10)
         
         left_panel = self._setup_left_panel(dialog, colors)
         right_panel = self._setup_right_panel(dialog, colors)
@@ -155,48 +155,61 @@ class StockTransferUI:
     
     def _setup_header(self, parent_layout, dialog):
         """Setup the header section"""
-        header_frame = HeaderFrame()
+        header_frame = QFrame()
+        header_frame.setObjectName("header_frame")
+        header_frame.setStyleSheet("""
+            QFrame#header_frame {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+        """)
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 10, 20, 10)
+        header_layout.setContentsMargins(0, 0, 0, 4)
+        header_layout.setSpacing(8)
         
-        # ✅ Header with SVG icon
-        icon = self._load_svg_icon("swap_horiz", size=(24, 24))
+        colors = get_theme_colors()
+        header_text = colors.get("text", "#172033")
+        header_muted = colors.get("text_secondary", "#667085")
+        # Header with SVG icon
+        icon = get_icon_with_color("swap_horiz", header_text, (24, 24))
         if icon and not icon.isNull():
             icon_label = QLabel()
             icon_label.setPixmap(icon.pixmap(24, 24))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header_layout.addWidget(icon_label)
         
-        title_label = QLabel(" Stock Transfer")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16pt;
+        title_label = QLabel("Stock Transfer")
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {header_text};
+                font-size: 13pt;
                 font-weight: 600;
-            }
+                background: transparent;
+                border: none;
+            }}
         """)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         # Transfer Number
         no_label = QLabel("No:")
-        no_label.setStyleSheet("color: rgba(255,255,255,0.8); font-weight: 500; font-size: 10pt;")
+        no_label.setVisible(False)
         header_layout.addWidget(no_label)
         
         dialog.st_transfer_no = QLineEdit()
         dialog.st_transfer_no.setReadOnly(True)
         dialog.st_transfer_no.setText(f"TRF-{datetime.now().strftime('%Y%m%d%H%M%S')}")
-        dialog.st_transfer_no.setStyleSheet("""
-            QLineEdit {
-                background: rgba(255,255,255,0.15);
-                color: white;
-                border: 1px solid rgba(255,255,255,0.25);
-                border-radius: 4px;
-                padding: 5px 12px;
-                font-weight: 600;
-                font-size: 10pt;
+        dialog.st_transfer_no.setStyleSheet(f"""
+            QLineEdit {{
+                background: transparent;
+                color: {header_muted};
+                border: none;
+                padding: 2px 8px;
+                font-weight: 500;
+                font-size: 9pt;
                 min-width: 160px;
-            }
+            }}
         """)
         header_layout.addWidget(dialog.st_transfer_no)
         
@@ -205,17 +218,18 @@ class StockTransferUI:
     def _get_left_panel_style(self, colors):
         return f"""
             QWidget#left_panel {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
             }}
         """
     
     def _get_right_panel_style(self, colors):
         return f"""
             QFrame#right_panel {{
-                background: {colors['card_bg']};
+                background: transparent;
                 border: 1px solid {colors['border']};
-                border-radius: 8px;
+                border-radius: 4px;
             }}
         """
     
@@ -226,25 +240,25 @@ class StockTransferUI:
         left_panel.setStyleSheet(self._get_left_panel_style(colors))
         
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(20, 20, 20, 20)
-        left_layout.setSpacing(8)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setSpacing(2)
         
         grid = QGridLayout()
-        grid.setVerticalSpacing(10)
-        grid.setHorizontalSpacing(15)
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(10)
         grid.setContentsMargins(0, 0, 0, 0)
         
         row = 0
         
         # Row 0: Search
-        search_label = self._create_label("🔍 Search", colors)
+        search_label = self._create_label("Search", colors)
         dialog.product_search = self._create_search_input(colors)
         grid.addWidget(search_label, row, 0)
         grid.addWidget(dialog.product_search, row, 1)
         row += 1
         
         # Row 1: Product (with stock label)
-        product_label = self._create_label("📋 Product", colors)
+        product_label = self._create_label("Product", colors)
         product_widget = QWidget()
         product_layout = QHBoxLayout(product_widget)
         product_layout.setContentsMargins(0, 0, 0, 0)
@@ -263,21 +277,21 @@ class StockTransferUI:
         row += 1
         
         # Row 2: From Location
-        from_label = self._create_label("📤 From", colors)
+        from_label = self._create_label("From", colors)
         dialog.st_from_location = self._create_location_combobox("Select From Location...", colors)
         grid.addWidget(from_label, row, 0)
         grid.addWidget(dialog.st_from_location, row, 1)
         row += 1
         
         # Row 3: To Location
-        to_label = self._create_label("📥 To", colors)
+        to_label = self._create_label("To", colors)
         dialog.st_to_location = self._create_location_combobox("Select To Location...", colors)
         grid.addWidget(to_label, row, 0)
         grid.addWidget(dialog.st_to_location, row, 1)
         row += 1
         
         # Row 4: Available Stock
-        available_label = self._create_label("📊 Available", colors)
+        available_label = self._create_label("Available", colors)
         dialog.st_available_stock = QLabel("0")
         dialog.st_available_stock.setStyleSheet(self._get_available_stock_style(colors))
         grid.addWidget(available_label, row, 0)
@@ -285,21 +299,21 @@ class StockTransferUI:
         row += 1
         
         # Row 5: Quantity
-        qty_label = self._create_label("🔢 Quantity", colors)
+        qty_label = self._create_label("Quantity", colors)
         dialog.st_qty = self._create_spinbox(colors)
         grid.addWidget(qty_label, row, 0)
         grid.addWidget(dialog.st_qty, row, 1)
         row += 1
         
         # Row 6: Reason
-        reason_label = self._create_label("📝 Reason", colors)
+        reason_label = self._create_label("Reason", colors)
         dialog.st_reason = self._create_lineedit("Reason for transfer...", colors)
         grid.addWidget(reason_label, row, 0)
         grid.addWidget(dialog.st_reason, row, 1)
         row += 1
         
         # Row 7: Date
-        date_label = self._create_label("📆 Date", colors)
+        date_label = self._create_label("Date", colors)
         dialog.st_date = QLabel(datetime.now().strftime("%Y-%m-%d %H:%M"))
         dialog.st_date.setStyleSheet(self._get_date_label_style(colors))
         grid.addWidget(date_label, row, 0)
@@ -307,7 +321,7 @@ class StockTransferUI:
         row += 1
         
         # Row 8: Notes
-        notes_label = self._create_label("📝 Notes", colors)
+        notes_label = self._create_label("Notes", colors)
         dialog.st_notes = self._create_text_edit(colors)
         grid.addWidget(notes_label, row, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(dialog.st_notes, row, 1)
@@ -327,11 +341,11 @@ class StockTransferUI:
         right_layout.setSpacing(10)
         
         # Image title
-        image_title = QLabel("🖼️ Product Image")
+        image_title = QLabel("Product Image")
         image_title.setStyleSheet(f"""
             QLabel {{
                 font-weight: 600;
-                font-size: 10pt;
+                font-size: 9pt;
                 color: {colors['text']};
                 background: transparent;
                 border: none;
@@ -346,7 +360,7 @@ class StockTransferUI:
         dialog.image_preview.setMinimumHeight(250)
         dialog.image_preview.setMaximumHeight(350)
         dialog.image_preview.setStyleSheet(self._get_image_preview_style(colors, self._is_dark))
-        dialog.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+        dialog.image_preview.setText("No Image\n\nSelect a product to preview")
         dialog.image_preview.setWordWrap(True)
         right_layout.addWidget(dialog.image_preview, 1)
         
@@ -362,7 +376,7 @@ class StockTransferUI:
             QLabel {{
                 font-weight: 600;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 background: transparent;
                 border: none;
             }}
@@ -390,32 +404,32 @@ class StockTransferUI:
         button_layout.setContentsMargins(15, 8, 15, 8)
         button_layout.addStretch()
         
-        # ✅ Transfer button with SVG icon
+        #  Transfer button with SVG icon
         dialog.btn_transfer = ModernButton(" Transfer Stock", ModernButton.PRIMARY)
         dialog.btn_transfer.set_icon("swap_horiz", size=(16, 16))
         dialog.btn_transfer.set_compact(False)
-        dialog.btn_transfer.setMinimumHeight(32)
+        dialog.btn_transfer.setMinimumHeight(34)
         dialog.btn_transfer.setMinimumWidth(140)
         dialog.btn_transfer.setStyleSheet(dialog.btn_transfer.styleSheet() + """
             QPushButton {
-                font-size: 10pt;
+                font-size: 9pt;
                 font-weight: 600;
                 padding: 8px 24px;
-                border-radius: 6px;
+                border-radius: 4px;
             }
         """)
         
-        # ✅ Cancel button with SVG icon
+        #  Cancel button with SVG icon
         dialog.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
         dialog.btn_cancel.set_icon("close", size=(16, 16))
         dialog.btn_cancel.set_compact(False)
-        dialog.btn_cancel.setMinimumHeight(32)
+        dialog.btn_cancel.setMinimumHeight(34)
         dialog.btn_cancel.setMinimumWidth(120)
         dialog.btn_cancel.setStyleSheet(dialog.btn_cancel.styleSheet() + """
             QPushButton {
-                font-size: 10pt;
+                font-size: 9pt;
                 padding: 8px 20px;
-                border-radius: 6px;
+                border-radius: 4px;
             }
         """)
         
@@ -432,18 +446,18 @@ class StockTransferUI:
     
     def _create_label(self, text, colors):
         label = QLabel(text)
-        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 10pt;")
+        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 9pt;")
         return label
     
     def _get_input_style(self, colors):
         return f"""
             QLineEdit, QComboBox, QSpinBox, QTextEdit {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QTextEdit:focus {{
                 border-color: #5865f2;
@@ -456,12 +470,12 @@ class StockTransferUI:
     def _get_combobox_style(self, colors):
         return f"""
             QComboBox {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: transparent;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QComboBox:focus {{
                 border-color: #5865f2;
@@ -494,12 +508,12 @@ class StockTransferUI:
     def _get_spinbox_style(self, colors):
         return f"""
             QSpinBox {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 min-width: 100px;
             }}
             QSpinBox:focus {{
@@ -523,7 +537,7 @@ class StockTransferUI:
                 color: {colors['text']};
                 background: {colors['bg_hover']};
                 padding: 8px 16px;
-                border-radius: 6px;
+                border-radius: 4px;
                 font-size: 11pt;
                 border: 1px solid {colors['border']};
                 min-width: 80px;
@@ -533,11 +547,11 @@ class StockTransferUI:
     def _get_date_label_style(self, colors):
         return f"""
             QLabel {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
-                font-size: 10pt;
+                font-size: 9pt;
                 color: {colors['text']};
             }}
         """
@@ -546,11 +560,13 @@ class StockTransferUI:
         search = QLineEdit()
         search.setPlaceholderText("Search product by name, barcode or SKU...")
         search.setStyleSheet(self._get_input_style(colors))
+        search.setMinimumHeight(34)
         return search
     
     def _create_combobox(self, colors):
         combo = QComboBox()
         combo.setStyleSheet(self._get_combobox_style(colors))
+        combo.setMinimumHeight(34)
         return combo
     
     def _create_lineedit(self, placeholder, colors):
@@ -558,12 +574,14 @@ class StockTransferUI:
         if placeholder:
             edit.setPlaceholderText(placeholder)
         edit.setStyleSheet(self._get_input_style(colors))
+        edit.setMinimumHeight(34)
         return edit
     
     def _create_spinbox(self, colors):
         spin = QSpinBox()
         spin.setRange(1, 999999)
         spin.setStyleSheet(self._get_spinbox_style(colors))
+        spin.setMinimumHeight(34)
         return spin
     
     def _create_location_combobox(self, placeholder, colors):
@@ -574,7 +592,7 @@ class StockTransferUI:
     
     def _create_text_edit(self, colors):
         edit = QTextEdit()
-        edit.setMaximumHeight(70)
+        edit.setMaximumHeight(68)
         edit.setPlaceholderText("Additional notes or remarks...")
         edit.setStyleSheet(self._get_input_style(colors))
         return edit
@@ -609,8 +627,9 @@ class StockTransferUI:
     def _get_button_frame_style(self, colors):
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
                 padding: 5px;
             }}
         """

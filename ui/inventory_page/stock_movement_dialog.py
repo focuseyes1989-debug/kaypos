@@ -16,6 +16,7 @@ from ui.widgets.date_range_widget import DateRangeWidget
 from ui.widgets.status_badge_widget import StatusBadgeWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from datetime import datetime
 import os
 from utils.branded_icons import pos_icon
@@ -132,7 +133,7 @@ class StockMovementDialog(QDialog):
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
             }}
             QFrame#movement_header {{
                 background: transparent;
@@ -181,24 +182,7 @@ class StockMovementDialog(QDialog):
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        table_style = f"""
-            QTableWidget {{
-                background-color: {colors['card_bg']};
-                alternate-background-color: {colors['table_alt']};
-                selection-background-color: {colors['bg_hover']};
-                selection-color: {colors['text']};
-                border: 1px solid {colors['border']}; border-radius: 12px;
-                gridline-color: transparent; color: {colors['text']}; outline: none;
-            }}
-            QTableWidget::item {{ padding: 8px 12px; border-bottom: 1px solid {colors['border']}; }}
-            QTableWidget::item:selected, QTableWidget::item:hover {{ background-color: {colors['bg_hover']}; }}
-            QHeaderView::section {{
-                background-color: {colors['card_bg']}; color: {colors['text_secondary']};
-                padding: 11px 12px; border: none; border-bottom: 1px solid {colors['border']};
-                font-weight: 600; font-size: 9pt;
-            }}
-        """
-        self.table.setStyleSheet(table_style)
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
     
     def _update_filter_styles(self, colors):
         """Update filter widget styles"""
@@ -384,7 +368,7 @@ class StockMovementDialog(QDialog):
         self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
-        self.btn_close.setFixedSize(112, 38)
+        self.btn_close.setFixedSize(112, 34)
         self.btn_close.clicked.connect(self.accept)
         button_layout.addWidget(self.btn_close)
         

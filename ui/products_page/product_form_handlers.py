@@ -97,12 +97,15 @@ class ProductFormHandlers:
     
     def load_categories(self):
         """Load categories from database"""
+        d = self.dialog
+        if hasattr(d.category_combo, "load_categories"):
+            d.category_combo.load_categories()
+            return
+
         conn = connect_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id, name FROM categories ORDER BY name")
         rows = cursor.fetchall()
-        
-        d = self.dialog
         d.category_combo.clear()
         for cat_id, name in rows:
             d.category_combo.addItem(name, cat_id)
@@ -947,7 +950,7 @@ class ProductFormHandlers:
         """Update the product details preview"""
         d = self.dialog
         name = d.name_input.text().strip()
-        category = d.category_combo.currentText()
+        category = d.category_combo.currentText().strip()
         price = d.price_input.value()
         sold_by = d.sold_by_combo.currentText()
         low_stock = d.low_stock_input.value()
@@ -1091,7 +1094,7 @@ class ProductFormHandlers:
         
         # Process image
         image_path = self.normalize_product_image_path(self.image_path)
-        category_name = d.category_combo.currentText()
+        category_name = d.category_combo.currentText().strip()
         category_id = d.category_combo.currentData()
         units = normalize_unit_settings(
             d.base_unit_input.text() if hasattr(d, "base_unit_input") else None,

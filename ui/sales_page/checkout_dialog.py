@@ -160,7 +160,7 @@ class CheckoutDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{ background: {colors['card_bg']}; }}
             QWidget#checkoutForm, QWidget#checkoutKeypad {{ background: transparent; }}
-            QLabel {{ background: transparent; color: {colors['text']}; font-family: 'Segoe UI'; font-size: 13px; }}
+            QLabel {{ background: transparent; color: {colors['text']}; font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI'; font-size: 13px; }}
             QFrame#checkoutSummary {{ border: 1px solid {colors['border']}; border-radius: 8px; }}
             QPushButton {{ background: {colors['card_bg']}; color: {colors['text']}; border: 1px solid {colors['border']};
                 border-radius: 8px; min-width: 0; padding: 0 8px; font-size: 14px; }}

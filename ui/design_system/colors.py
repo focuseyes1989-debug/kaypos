@@ -82,7 +82,7 @@ LIGHT_THEME_QSS = """
 QWidget {
     background-color: #F8F9FA;
     color: #212529;
-    font-family: 'Segoe UI', Arial, sans-serif;
+    font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI', Arial, sans-serif;
 }
 
 /* Main Window */

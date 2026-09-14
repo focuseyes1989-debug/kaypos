@@ -4,7 +4,7 @@
 DARK_THEME = """
 /* ========== GLOBAL ========== */
 * {
-    font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar", "Pyidaungsu", "sans-serif";
+    font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI", "sans-serif";
     font-size: 10pt;
 }
 
@@ -357,6 +357,8 @@ QPushButton {
     padding: 6px 12px;
     font-weight: 500;
     min-width: 70px;
+    min-height: 24px;
+    max-height: 24px;
 }
 QPushButton:hover {
     background-color: #6d7df0;
@@ -378,6 +380,8 @@ QTableWidget QPushButton, QDialog QPushButton {
     color: #eef2f7;
     border-radius: 3px;
     padding: 4px 8px;
+    min-height: 24px;
+    max-height: 24px;
 }
 QTableWidget QPushButton:hover, QDialog QPushButton:hover {
     background-color: #7482f5;
@@ -386,24 +390,41 @@ QTableWidget QPushButton:hover, QDialog QPushButton:hover {
 
 /* ========== TABLES ========== */
 QTableWidget {
-    background-color: #2a303b;
-    alternate-background-color: #2a303c;
+    background-color: transparent;
+    alternate-background-color: transparent;
     selection-background-color: #3d4655;
     selection-color: #eef2f7;
     gridline-color: transparent;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid #3d4655;
+    border-radius: 12px;
+}
+QTableWidget::viewport {
+    background-color: transparent;
+    border-radius: 12px;
 }
 QHeaderView::section {
-    background-color: #262c36;
+    background-color: #3d4655;
     padding: 8px 10px;
     border: none;
     border-bottom: 1px solid #3d4655;
     font-weight: 600;
     color: #c8d0dc;
 }
+QHeaderView::section:first {
+    border-top-left-radius: 12px;
+}
+QHeaderView::section:last {
+    border-top-right-radius: 12px;
+}
 QTableWidget::item {
-    padding: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid #3d4655;
+    background-color: transparent;
+}
+QTableWidget::item:selected, QTableWidget::item:hover {
+    background-color: #3d4655;
+    color: #eef2f7;
 }
 
 /* ========== INPUT FIELDS ========== */
@@ -597,8 +618,8 @@ QMessageBox QLabel {
 }
 QMessageBox QPushButton {
     min-width: 86px;
-    min-height: 28px;
-    max-height: 28px;
+    min-height: 24px;
+    max-height: 24px;
     padding: 4px 16px;
 }
 

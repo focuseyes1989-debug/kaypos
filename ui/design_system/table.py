@@ -32,9 +32,9 @@ class ModernTable(QTableWidget):
         is_dark = is_dark_theme()
         theme = get_theme()
         
-        bg = colors.card_bg
-        alt_bg = colors.table_alternate
-        header_bg = colors.table_header
+        bg = "transparent"
+        alt_bg = "transparent"
+        header_bg = colors.bg_hover
         header_text = colors.text_secondary
         border = colors.border
         selection_bg = colors.table_selection
@@ -47,7 +47,7 @@ class ModernTable(QTableWidget):
             QTableWidget {{
                 background-color: {bg};
                 alternate-background-color: {alt_bg};
-                gridline-color: {grid_color};
+                gridline-color: transparent;
                 border: 1px solid {border};
                 border-radius: {theme.radius.table}px;
                 color: {text_color};
@@ -56,8 +56,12 @@ class ModernTable(QTableWidget):
                 outline: none;
                 spacing: 0px;
             }}
+            QTableWidget::viewport {{
+                background-color: transparent;
+                border-radius: {theme.radius.table}px;
+            }}
             QTableWidget::item {{
-                padding: 4px 10px;
+                padding: 6px 10px;
                 border: none;
                 border-bottom: 1px solid {border};
                 color: {text_color};
@@ -76,18 +80,22 @@ class ModernTable(QTableWidget):
                 color: {header_text};
                 padding: 8px 10px;
                 border: none;
-                border-bottom: 2px solid {border};
+                border-bottom: 1px solid {border};
                 font-weight: {theme.typography.weight_semibold};
                 font-size: {theme.typography.size_body}pt;
                 letter-spacing: 0px;
                 font-family: {theme.typography.font_family};
             }}
+            QHeaderView::section:first {{
+                border-top-left-radius: {theme.radius.table}px;
+            }}
             QHeaderView::section:last {{
-                border-right: none;
+                border-top-right-radius: {theme.radius.table}px;
             }}
             QTableWidget QTableCornerButton::section {{
                 background-color: {header_bg};
                 border: none;
+                border-top-left-radius: {theme.radius.table}px;
                 border-bottom: 1px solid {border};
             }}
             QScrollBar:vertical {{

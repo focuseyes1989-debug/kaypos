@@ -8,6 +8,7 @@ from utils.excel_exporter import ExcelExporter
 from utils.translations import tr
 from utils.language import lang
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from loguru import logger
 from datetime import datetime
 
@@ -126,6 +127,31 @@ class FinancialSummaryTab(QWidget):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
+        for table in [self.sales_category_table, self.expense_category_table]:
+            table.setStyleSheet(modern_table_stylesheet(colors))
+        
+        # Groupbox styles
+        for group in [self.sales_cat_group, self.exp_cat_group]:
+            group.setStyleSheet(f"""
+                QGroupBox {{
+                    font-weight: 600;
+                    font-size: 10pt;
+                    border: 1px solid {colors['border']};
+                    border-radius: 8px;
+                    padding-top: 10px;
+                    margin-top: 5px;
+                    color: {colors['text']};
+                    background-color: {colors['card_bg']};
+                }}
+                QGroupBox::title {{
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px;
+                    color: {colors['text']};
+                    background-color: {colors['card_bg']};
+                }}
+            """)
+        return
         is_dark = is_dark_theme()
         
         # Table styles

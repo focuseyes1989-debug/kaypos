@@ -96,7 +96,7 @@ class StockInDialog(QDialog):
             self.si_po_no.setPlaceholderText("PO-YYYYMMDDXXXX")
             
             self.product_details_label.setText("ပစ္စည်းအသေးစိတ်ကြည့်ရန် ရွေးချယ်ပါ")
-            self.image_preview.setText("📷 ပုံမရှိပါ\n\nပစ္စည်းတစ်ခုရွေးချယ်ပါ")
+            self.image_preview.setText("ပုံမရှိပါ\n\nပစ္စည်းတစ်ခုရွေးချယ်ပါ")
         else:
             self.setWindowTitle("Stock In")
             self.btn_save.setText(" Save Stock In")

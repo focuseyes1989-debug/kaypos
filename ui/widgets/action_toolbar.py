@@ -19,7 +19,7 @@ class ActionToolbar(QWidget):
         self.layout.setSpacing(6)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.more_button = QToolButton(self)
-        self.more_button.setText("More")
+        self.more_button.setText("More..")
         self.more_button.setToolTip("More actions")
         self.more_button.setAccessibleName("More actions")
         self.more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -27,7 +27,7 @@ class ActionToolbar(QWidget):
         self.more_menu = QMenu(self.more_button)
         self.more_button.setMenu(self.more_menu)
         self.more_button.setFixedHeight(34)
-        self.more_button.setMinimumWidth(76)
+        self.more_button.setMinimumWidth(86)
         self._more_added = False
         self._action_icons: dict[QAction, str] = {}
         self._apply_style()
@@ -118,10 +118,12 @@ class ActionToolbar(QWidget):
                 border-color: {colors.get('progress_bg', '#6675f5')};
             }}
             QToolButton::menu-indicator {{
-                width: 12px;
+                image: none;
+                width: 0px;
             }}
         """)
-        self.more_button.setIconSize(QSize(16, 16))
+        self.more_button.setIcon(get_themed_icon("arrow_circle_down", size=(14, 14)))
+        self.more_button.setIconSize(QSize(14, 14))
         self.more_menu.setStyleSheet(f"""
             QMenu {{
                 background-color: {bg};

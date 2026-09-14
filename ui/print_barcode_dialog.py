@@ -192,15 +192,15 @@ class PrintBarcodeDialog(QDialog):
         self._is_dark = is_dark_theme()
 
         self.setWindowTitle(tr("print_barcode_title") + f" - {self.product_name}")
-        self.setMinimumSize(600, 650)
+        self.setMinimumSize(640, 620)
         self.setModal(True)
 
         # ✅ Connect theme change signal
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(12)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(14, 14, 14, 14)
 
         # ============================================================
         # HEADER - Simple title without background
@@ -268,7 +268,7 @@ class PrintBarcodeDialog(QDialog):
         form_widget.setStyleSheet(self._get_form_widget_style())
         
         form_layout = QVBoxLayout(form_widget)
-        form_layout.setContentsMargins(15, 15, 15, 15)
+        form_layout.setContentsMargins(0, 0, 0, 0)
         form_layout.setSpacing(8)
 
         # Grid layout for form fields
@@ -438,14 +438,14 @@ class PrintBarcodeDialog(QDialog):
 
         # ✅ Preview button - ModernButton SECONDARY with preview icon
         self.btn_preview = ModernButton("Preview", ModernButton.SECONDARY)
-        self.btn_preview.set_compact(True)
+        self.btn_preview.set_dense(True)
         self.btn_preview.set_icon("preview", size=(16, 16))
         self.btn_preview.clicked.connect(self.update_preview)
         button_layout.addWidget(self.btn_preview)
 
         # ✅ Save PNG button - ModernButton SECONDARY with file_png icon
         self.btn_save_png = ModernButton("Save PNG", ModernButton.SECONDARY)
-        self.btn_save_png.set_compact(True)
+        self.btn_save_png.set_dense(True)
         self.btn_save_png.set_icon("file_png", size=(16, 16))
         self.btn_save_png.clicked.connect(self.save_png)
         button_layout.addWidget(self.btn_save_png)
@@ -454,14 +454,14 @@ class PrintBarcodeDialog(QDialog):
 
         # ✅ Print button - ModernButton PRIMARY with print icon
         self.btn_print = ModernButton("Print", ModernButton.PRIMARY)
-        self.btn_print.set_compact(True)
+        self.btn_print.set_dense(True)
         self.btn_print.set_icon("print", size=(16, 16))
         self.btn_print.clicked.connect(self.print_barcode)
         button_layout.addWidget(self.btn_print)
 
         # ✅ Close button - ModernButton TERTIARY with close icon
         self.btn_close = ModernButton("Close", ModernButton.TERTIARY)
-        self.btn_close.set_compact(True)
+        self.btn_close.set_dense(True)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.clicked.connect(self.accept)
         button_layout.addWidget(self.btn_close)
@@ -865,9 +865,10 @@ class PrintBarcodeDialog(QDialog):
         colors = get_theme_colors()
         return f"""
             QFrame#info_frame {{
-                background: {colors['bg_hover']};
+                background: transparent;
+                border: 1px solid {colors['border']};
                 border-radius: 8px;
-                padding: 5px;
+                padding: 4px;
             }}
         """
 
@@ -888,9 +889,8 @@ class PrintBarcodeDialog(QDialog):
         colors = get_theme_colors()
         return f"""
             QWidget#form_widget {{
-                background: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 8px;
+                background: transparent;
+                border: none;
             }}
         """
 
@@ -898,7 +898,7 @@ class PrintBarcodeDialog(QDialog):
         colors = get_theme_colors()
         return f"""
             QFrame#preview_frame {{
-                background: {colors['bg_hover']};
+                background: transparent;
                 border: 1px solid {colors['border']};
                 border-radius: 8px;
             }}
@@ -920,7 +920,7 @@ class PrintBarcodeDialog(QDialog):
     def _get_preview_label_style(self):
         colors = get_theme_colors()
         border_color = colors['border']
-        bg_color = colors['bg_hover']
+        bg_color = "transparent"
         text_color = colors['text_secondary']
         
         return f"""
@@ -938,9 +938,9 @@ class PrintBarcodeDialog(QDialog):
         colors = get_theme_colors()
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
-                padding: 3px;
+                background: transparent;
+                border: none;
+                padding: 0px;
             }}
         """
 

@@ -13,6 +13,7 @@ from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
+from ui.design_system.dialog_styles import modern_table_stylesheet
 import csv
 from datetime import datetime
 from loguru import logger
@@ -171,7 +172,7 @@ class OutstandingReportDialog(QDialog):
         self.btn_close = ModernButton("Close", ModernButton.SECONDARY)
         self.btn_close.set_icon("close", size=(16, 16))
         self.btn_close.set_compact(False)
-        self.btn_close.setFixedSize(112, 38)
+        self.btn_close.setFixedSize(112, 34)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)
         
@@ -207,7 +208,7 @@ class OutstandingReportDialog(QDialog):
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
             }}
             QFrame#report_header {{
                 background: transparent;
@@ -258,42 +259,7 @@ class OutstandingReportDialog(QDialog):
     
     def _update_table_style(self, colors):
         """Update table style based on theme"""
-        table_style = f"""
-            QTableWidget#outstanding_table {{
-                background-color: {colors['card_bg']};
-                alternate-background-color: {colors['table_alt']};
-                color: {colors['text']};
-                border: none;
-                border-radius: 11px;
-                gridline-color: transparent;
-                selection-background-color: {colors['bg_hover']};
-                selection-color: {colors['text']};
-                font-size: 9.5pt;
-            }}
-            QTableWidget#outstanding_table::item {{
-                padding: 7px 12px;
-                border-bottom: 1px solid {colors['border']};
-            }}
-            QTableWidget#outstanding_table::item:hover,
-            QTableWidget#outstanding_table::item:selected {{
-                background-color: {colors['bg_hover']};
-            }}
-            QHeaderView::section {{
-                background-color: {colors['card_bg']};
-                color: {colors['text_secondary']};
-                padding: 11px 12px;
-                border: none;
-                border-bottom: 1px solid {colors['border']};
-                font-weight: 600;
-                font-size: 9pt;
-            }}
-            QTableCornerButton::section {{
-                background-color: {colors['card_bg']};
-                border: none;
-                border-bottom: 1px solid {colors['border']};
-            }}
-        """
-        self.table.setStyleSheet(table_style)
+        self.table.setStyleSheet(modern_table_stylesheet(colors, "QTableWidget#outstanding_table"))
 
     def get_lang(self):
         return lang.get_current()

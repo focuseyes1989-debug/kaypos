@@ -12,6 +12,7 @@ from ui.widgets import DateRangeWidget, ToastNotificationWidget, SummaryCardWidg
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from datetime import datetime
 import csv
 import os
@@ -204,6 +205,8 @@ class ProfitLossReportDialog(QDialog):
     
     def _apply_table_theme(self):
         """Apply theme-aware table styling"""
+        self.table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        return
         is_dark = is_dark_theme()
         
         if is_dark:

@@ -30,7 +30,8 @@ from ui.widgets import (
     ToastNotificationWidget,
     LoadingSpinnerWidget,
     SummaryCardWidget,
-    SearchWidget
+    SearchWidget,
+    ComboBoxWidget
 )
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.action_toolbar import ActionToolbar
@@ -140,6 +141,19 @@ class ExpensePage(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(14)
         
+        # ========== Date Range Row ==========
+        self.date_card = QFrame()
+        self.date_card.setObjectName("expenseDateCard")
+        date_layout = QHBoxLayout(self.date_card)
+        date_layout.setContentsMargins(14, 10, 14, 10)
+        date_layout.setSpacing(8)
+        
+        self.date_range = DateRangeWidget()
+        self.date_range.date_range_changed.connect(self.on_filter_changed)
+        date_layout.addWidget(self.date_range)
+        date_layout.addStretch()
+        layout.addWidget(self.date_card)
+        
         # ========== Cards (Using SummaryCardWidget with SVG icons) ==========
         card_layout = QHBoxLayout()
         card_layout.setSpacing(8)
@@ -176,19 +190,31 @@ class ExpensePage(QWidget):
         
         layout.addLayout(card_layout)
         
-        # ========== Main Toolbar (Date + Buttons) ==========
+        # ========== Main Toolbar (Search + Buttons) ==========
         self.toolbar_card = QFrame()
         self.toolbar_card.setObjectName("expenseToolbarCard")
         toolbar_layout = QHBoxLayout(self.toolbar_card)
         toolbar_layout.setContentsMargins(14, 10, 14, 10)
         toolbar_layout.setSpacing(8)
         
-        # âœ… DateRangeWidget
-        self.date_range = DateRangeWidget()
-        self.date_range.date_range_changed.connect(self.on_filter_changed)
-        toolbar_layout.addWidget(self.date_range)
+        self.search_widget = SearchWidget(
+            placeholder="Search by description or reference...",
+            show_label=False
+        )
+        self.search_widget.search_changed.connect(self.on_filter_changed)
+        self.search_widget.setMinimumWidth(240)
+        self.search_widget.setMaximumWidth(16777215)
+        toolbar_layout.addWidget(self.search_widget, 2)
         
-        toolbar_layout.addStretch()
+        category_label = QLabel("Category:")
+        toolbar_layout.addWidget(category_label)
+        
+        self.category_filter = ComboBoxWidget("All Categories")
+        self.category_filter.addItem("All Categories")
+        self.category_filter.currentTextChanged.connect(self.on_filter_changed)
+        self.category_filter.setMaximumWidth(150)
+        self.category_filter.setMinimumWidth(100)
+        toolbar_layout.addWidget(self.category_filter, 1)
         
         # âœ… Add button - Primary with SVG icon
         self.action_toolbar = ActionToolbar(self)
@@ -236,34 +262,6 @@ class ExpensePage(QWidget):
         table_layout = QVBoxLayout(self.table_tab)
         table_layout.setContentsMargins(0, 0, 0, 0)
         table_layout.setSpacing(8)  # âœ… Increased spacing
-        
-        # âœ… Filter row inside List Tab - Compact layout with more padding
-        filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(6)
-        filter_layout.setContentsMargins(0, 4, 0, 4)  # âœ… Added top/bottom margin
-        
-        # SearchWidget - stretching 2 parts
-        self.search_widget = SearchWidget(
-            placeholder="Search by description or reference...",
-            show_label=False
-        )
-        self.search_widget.search_changed.connect(self.on_filter_changed)
-        self.search_widget.setMinimumWidth(240)
-        self.search_widget.setMaximumWidth(16777215)
-        filter_layout.addWidget(self.search_widget, 2)
-        
-        # âœ… Category filter - Compact with fixed widths
-        category_label = QLabel("Category:")
-        filter_layout.addWidget(category_label)
-        
-        self.category_filter = QComboBox()
-        self.category_filter.addItem("All Categories")
-        self.category_filter.currentTextChanged.connect(self.on_filter_changed)
-        self.category_filter.setMaximumWidth(150)
-        self.category_filter.setMinimumWidth(100)
-        filter_layout.addWidget(self.category_filter, 1)
-        
-        table_layout.addLayout(filter_layout)
         
         # Table
         self.table = ExpenseTable(self)
@@ -314,6 +312,7 @@ class ExpensePage(QWidget):
         colors = get_theme_colors()
         self.setStyleSheet(f"""
             QWidget#expensePage {{ background: transparent; }}
+            QFrame#expenseDateCard,
             QFrame#expenseToolbarCard {{
                 background: transparent;
                 border: none;

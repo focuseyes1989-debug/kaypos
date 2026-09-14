@@ -147,27 +147,10 @@ class CategoryListDialog(QDialog):
     def load_parent_filter(self):
         """Load parent filter options"""
         try:
-            categories, _ = self.service.get_categories(limit=1000)
-            self.parent_filter.blockSignals(True)
-            
-            current_data = self.parent_filter.currentData()
-            self.parent_filter.clear()
             all_parents_label, no_parent_label = self._parent_filter_labels()
-            self.parent_filter.addItem(all_parents_label, None)
-            self.parent_filter.addItem(no_parent_label, -1)
-            
-            # Add category names with icons
-            for cat in sorted(categories, key=lambda item: (item.get('sort_order', 0), item.get('name') or '')):
-                name = cat.get('name')
-                if not name:
-                    continue
-                icon = cat.get('icon') or '📁'
-                self.parent_filter.addItem(f"{icon} {name}", cat.get('id'))
-            
-            idx = self.parent_filter.findData(current_data)
-            self.parent_filter.setCurrentIndex(idx if idx >= 0 else 0)
-            self.parent_filter.blockSignals(False)
-            
+            self.parent_filter.set_all_label(all_parents_label)
+            self.parent_filter.set_none_label(no_parent_label)
+            self.parent_filter.load_categories()
         except Exception as e:
             logger.error(f"Failed to load parent filter: {e}")
     
@@ -177,8 +160,8 @@ class CategoryListDialog(QDialog):
 
     def _parent_filter_labels(self):
         if lang.get_current() == "my":
-            return "📂 မိဘအားလုံး", "📁 မိဘမရှိ"
-        return "📂 All Parents", "📁 No Parent"
+            return "မိဘအားလုံး", "မိဘမရှိ"
+        return "All Parents", "No Parent"
 
     def _configure_filter_data(self):
         """Keep filter values stable when display text is translated."""
@@ -290,8 +273,8 @@ class CategoryListDialog(QDialog):
             self.status_filter.setItemText(2, "မလှုပ်ရှား")
             self.status_filter.setItemText(3, "ဝှက်ထား")
             
-            self.parent_filter.setItemText(0, "📂 မိဘအားလုံး")
-            self.parent_filter.setItemText(1, "📁 မိဘမရှိ")
+            self.parent_filter.set_all_label("မိဘအားလုံး")
+            self.parent_filter.set_none_label("မိဘမရှိ")
             
         else:
             self.setWindowTitle("Manage Categories")
@@ -316,8 +299,8 @@ class CategoryListDialog(QDialog):
             self.status_filter.setItemText(2, "Inactive")
             self.status_filter.setItemText(3, "Hidden")
             
-            self.parent_filter.setItemText(0, "📂 All Parents")
-            self.parent_filter.setItemText(1, "📁 No Parent")
+            self.parent_filter.set_all_label("All Parents")
+            self.parent_filter.set_none_label("No Parent")
 
         self._update_control_tooltips(is_my)
         

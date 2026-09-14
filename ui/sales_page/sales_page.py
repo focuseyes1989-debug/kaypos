@@ -1,4 +1,4 @@
-﻿# ui/sales_page/sales_page.py
+# ui/sales_page/sales_page.py
 import ctypes
 import json
 from PyQt6 import sip
@@ -385,10 +385,33 @@ class SalesPage(QWidget):
         cart.footer.hide()
         cart.clear_btn.hide()
         more = QToolButton(cart.header)
-        more.setIcon(get_icon("settings"))
+        more.setText("More..")
+        more.setIcon(get_icon("arrow_circle_down", color_hex=get_theme_colors()["text_secondary"]))
+        more.setIconSize(QSize(14, 14))
         more.setToolTip("Sale actions")
-        more.setStyleSheet("QToolButton { border: none; padding: 0; min-width: 0; } QToolButton::menu-indicator { image: none; }")
-        more.setFixedSize(32, 32)
+        more.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        colors = get_theme_colors()
+        more.setStyleSheet(f"""
+            QToolButton {{
+                background-color: transparent;
+                color: {colors['text']};
+                border: 1px solid {colors['border']};
+                border-radius: 8px;
+                padding: 0px 12px;
+                font-weight: 600;
+                font-size: 9pt;
+            }}
+            QToolButton:hover {{
+                background-color: {colors['bg_hover']};
+                border-color: {colors['border_hover']};
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
+                width: 0px;
+            }}
+        """)
+        more.setFixedHeight(34)
+        more.setMinimumWidth(86)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(more)
         menu.addAction("Sale Details", self.open_sale_details_dialog)
@@ -442,13 +465,15 @@ class SalesPage(QWidget):
         )
         self.cart_total.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {colors['text']};")
         self.cart_checkout.setStyleSheet(
-            "QPushButton { background: #167c65; color: white; border: none; border-radius: 6px; padding: 0 12px; font-weight: 600; }"
+            "QPushButton { background: #167c65; color: white; border: none; border-radius: 6px; padding: 0 12px; "
+            "font-weight: 600; min-height: 34px; max-height: 34px; }"
             "QPushButton:hover { background: #126b56; }"
             f"QPushButton:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}"
         )
         self.cart_checkout.setIcon(get_icon("shopping_cart", color_hex="#ffffff" if self.cart_checkout.isEnabled() else colors['text_secondary']))
         self.cart_clear.setStyleSheet(
-            f"QPushButton {{ background: {button_background}; color: {colors['text']}; border: 1px solid {border}; border-radius: 6px; padding: 0 12px; }}"
+            f"QPushButton {{ background: {button_background}; color: {colors['text']}; border: 1px solid {border}; "
+            "border-radius: 6px; padding: 0 12px; min-height: 34px; max-height: 34px; }}"
             f"QPushButton:disabled {{ color: {colors['text_secondary']}; }}"
         )
 
@@ -950,7 +975,7 @@ class SalesPage(QWidget):
             }}
             QWidget#salesPage QLabel, QWidget#salesPage QPushButton,
             QWidget#salesPage QComboBox, QWidget#salesPage QLineEdit {{
-                font-family: "Segoe UI";
+                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
             }}
             QWidget#productBrowserPanel {{
                 background-color: transparent;

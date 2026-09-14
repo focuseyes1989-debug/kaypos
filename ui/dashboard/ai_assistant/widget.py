@@ -254,7 +254,7 @@ class AIAssistantWidget(QFrame):
         self.export_btn = ModernButton("Export", ModernButton.PRIMARY)
         self.export_btn.set_compact(False)
         self.export_btn.set_icon("file_export", size=(16, 16))
-        self.export_btn.setFixedHeight(38)
+        self.export_btn.setFixedHeight(34)
         self.export_btn.setFixedWidth(100)
         self.export_btn.clicked.connect(self._export_report)
         control_layout.addWidget(self.export_btn)

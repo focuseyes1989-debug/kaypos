@@ -778,19 +778,19 @@ class DateRangeWidget(QWidget):
         self.choose_btn = ModernButton("Choose Date", ModernButton.PRIMARY)
         self.choose_btn.set_icon("calendar", size=(18, 18))
         self.choose_btn.set_compact(True)
-        self.choose_btn.setFixedHeight(38)
+        self.choose_btn.setFixedHeight(34)
         self.choose_btn.clicked.connect(self.show_date_picker)
         main_layout.addWidget(self.choose_btn)
 
         # --- Selected Date Display ---
         self.date_display = QLabel("No date selected")
         self.date_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.date_display.setMinimumHeight(38)
+        self.date_display.setMinimumHeight(34)
         main_layout.addWidget(self.date_display)
         
         main_layout.addStretch()
         self.setLayout(main_layout)
-        self.setMinimumHeight(38)
+        self.setMinimumHeight(34)
     
     def show_date_picker(self):
         """Open the date picker dialog"""

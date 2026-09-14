@@ -15,6 +15,7 @@ from PyQt6.QtGui import QColor, QPixmap, QIcon
 
 from ui.categories.category_service import CategoryService
 from ui.widgets.modern_button import ModernButton
+from ui.widgets.category_combo_box import CategoryComboBox
 from utils.translations import tr
 from utils.language import lang
 from utils.slug_generator import generate_slug
@@ -271,9 +272,12 @@ class CategoryFormDialog(QDialog):
         parent_label.setStyleSheet(f"font-weight: 600; min-width: 120px; color: {colors['text']};")
         parent_layout.addWidget(parent_label)
         
-        self.parent_combo = QComboBox()
-        self.parent_combo.addItem("None (Root Category)", None)
-        self.parent_combo.setStyleSheet(self._combobox_style(colors))
+        self.parent_combo = CategoryComboBox(
+            "Parent Category",
+            include_none=True,
+            none_label="None (Root Category)",
+            exclude_id=self.category_id,
+        )
         parent_layout.addWidget(self.parent_combo, 1)
         content_layout.addLayout(parent_layout)
         
@@ -564,35 +568,8 @@ class CategoryFormDialog(QDialog):
     def load_parents(self):
         """Load parent categories into combo box"""
         try:
-            categories, _ = self.service.get_categories(limit=1000)
-            
-            self.parent_combo.blockSignals(True)
-            self.parent_combo.clear()
-            self.parent_combo.addItem("None (Root Category)", None)
-            
-            # Build hierarchical options
-            def add_category(cat, prefix=''):
-                # Skip self if editing
-                if self.category_id and cat['id'] == self.category_id:
-                    return
-                
-                self.parent_combo.addItem(f"{prefix}{cat['name']}", cat['id'])
-                
-                # Add children
-                children = [c for c in categories if c['parent_id'] == cat['id']]
-                children = sorted(children, key=lambda x: (x.get('sort_order', 0), x['name']))
-                for child in children:
-                    add_category(child, prefix + '  ')
-            
-            # Get root categories
-            roots = [c for c in categories if c['parent_id'] is None]
-            roots = sorted(roots, key=lambda x: (x.get('sort_order', 0), x['name']))
-            
-            for root in roots:
-                add_category(root)
-            
-            self.parent_combo.blockSignals(False)
-            
+            self.parent_combo.exclude_id = self.category_id
+            self.parent_combo.load_categories()
         except Exception as e:
             logger.error(f"Failed to load parents: {e}")
     
@@ -1102,7 +1079,7 @@ class CategoryFormDialog(QDialog):
             self.notes_input.setPlaceholderText("Internal notes about this category...")
         
         # Update parent combo placeholder
-        self.parent_combo.setItemText(0, "None (Root Category)" if not is_my else "မိဘမရှိ (အမြစ်အမျိုးအစား)")
+        self.parent_combo.set_none_label("None (Root Category)" if not is_my else "မိဘမရှိ (အမြစ်အမျိုးအစား)")
         
         # Update status combo
         if is_my:

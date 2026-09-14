@@ -15,6 +15,7 @@ from PyQt6.QtGui import QColor, QPixmap, QPainter, QBrush, QPen, QFont, QAction
 from loguru import logger
 
 from ui.categories.category_service import CategoryService
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.search_widget import ModernSearchWidget
 
@@ -846,18 +847,14 @@ class CategoryFilterWidget(QWidget):
         layout.addWidget(self.status_filter)
         
         # Parent filter
-        self.parent_filter = QComboBox()
-        self.parent_filter.addItem("All Parents")
+        self.parent_filter = CategoryComboBox(
+            "All Parents",
+            include_all=True,
+            all_label="All Parents",
+            include_none=True,
+            none_label="No Parent",
+        )
         self.parent_filter.currentTextChanged.connect(self._on_filter_changed)
-        self.parent_filter.setStyleSheet("""
-            QComboBox {
-                padding: 4px 10px;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                font-size: 9pt;
-                min-width: 130px;
-            }
-        """)
         layout.addWidget(QLabel("Parent:"))
         layout.addWidget(self.parent_filter)
         
@@ -868,42 +865,31 @@ class CategoryFilterWidget(QWidget):
     def load_filters(self):
         """Load parent filter options"""
         try:
-            categories, _ = self.service.get_categories(limit=1000)
-            
-            self.parent_filter.blockSignals(True)
-            current = self.parent_filter.currentText()
-            self.parent_filter.clear()
-            self.parent_filter.addItem("All Parents")
-            self.parent_filter.addItem("No Parent")
-            
-            cat_names = sorted(set(c['name'] for c in categories if c['name']))
-            for name in cat_names:
-                self.parent_filter.addItem(name)
-            
-            idx = self.parent_filter.findText(current)
-            if idx >= 0:
-                self.parent_filter.setCurrentIndex(idx)
-            else:
-                self.parent_filter.setCurrentIndex(0)
-            
-            self.parent_filter.blockSignals(False)
+            self.parent_filter.load_categories()
         except Exception as e:
             logger.error(f"Failed to load parent filter: {e}")
     
     def _on_filter_changed(self):
         status = self.status_filter.currentText().lower()
-        parent = self.parent_filter.currentText()
-        if parent == "All Parents":
+        parent_data = self.parent_filter.currentData()
+        parent = self.parent_filter.currentText().strip()
+        if parent_data is None and self.parent_filter.currentIndex() == 0:
             parent = None
-        elif parent == "No Parent":
+        elif parent_data == -1:
             parent = "none"
         self.filter_changed.emit(status, parent)
     
     def get_filters(self) -> dict:
         """Get current filter values"""
+        parent_data = self.parent_filter.currentData()
+        parent = self.parent_filter.currentText().strip()
+        if parent_data is None and self.parent_filter.currentIndex() == 0:
+            parent = None
+        elif parent_data == -1:
+            parent = "none"
         return {
             'status': self.status_filter.currentText().lower(),
-            'parent': self.parent_filter.currentText()
+            'parent': parent
         }
     
     def reset_filters(self):

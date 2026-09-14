@@ -26,30 +26,20 @@ class StockInfoLabel(QLabel):
         colors = get_theme_colors()
         is_dark = is_dark_theme()
         
-        if is_dark:
-            self.setStyleSheet(f"""
-                QLabel {{
-                    font-weight: 600;
-                    color: #dcddde;
-                    background: #40444b;
-                    padding: 6px 16px;
-                    border-radius: 6px;
-                    font-size: 10pt;
-                    border: 1px solid #40444b;
-                }}
-            """)
-        else:
-            self.setStyleSheet("""
-                QLabel {
-                    font-weight: 600;
-                    color: #2c3e50;
-                    background: #ecf0f1;
-                    padding: 6px 16px;
-                    border-radius: 6px;
-                    font-size: 10pt;
-                    border: 1px solid #dfe6e9;
-                }
-            """)
+        bg = colors.get("bg_hover", "#eef0ff")
+        border = colors.get("border", "#dbe1ee")
+        text = colors.get("text", "#172033")
+        self.setStyleSheet(f"""
+            QLabel {{
+                font-weight: 600;
+                color: {text};
+                background: {bg};
+                padding: 5px 10px;
+                border-radius: 4px;
+                font-size: 9pt;
+                border: 1px solid {border};
+            }}
+        """)
 
 
 class HeaderFrame(QFrame):
@@ -70,23 +60,11 @@ class HeaderFrame(QFrame):
     
     def apply_style(self):
         """Apply theme-aware style"""
-        is_dark = is_dark_theme()
-        
-        if is_dark:
-            self.setStyleSheet("""
-                QFrame {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #4752c4, stop:1 #3c45a3);
-                    border-radius: 8px;
-                    padding: 5px;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QFrame {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 #5865f2, stop:1 #4752c4);
-                    border-radius: 8px;
-                    padding: 5px;
-                }
-            """)
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: {colors.get('progress_bg', '#6675f5')};
+                border-radius: 6px;
+                padding: 2px;
+            }}
+        """)

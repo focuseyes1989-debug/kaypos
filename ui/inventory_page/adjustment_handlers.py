@@ -8,7 +8,7 @@ from utils.translations import tr
 from datetime import datetime
 import os
 
-# ✅ Import theme manager
+#  Import theme manager
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 from utils.paths import app_path, get_product_images_dir
 from utils.product_image_store import cached_product_image_path
@@ -83,7 +83,7 @@ class AdjustmentHandlers:
         d.btn_cancel.clicked.connect(d.reject)
         d.adj_type.currentIndexChanged.connect(self.on_type_changed)
         
-        # ✅ Connect location only toggle
+        #  Connect location only toggle
         if hasattr(d, 'adj_location_only'):
             d.adj_location_only.toggled.connect(self.on_location_only_toggled)
     
@@ -96,7 +96,7 @@ class AdjustmentHandlers:
         self.filter_products()
         conn.close()
     
-    # ✅ Updated: Removed "None" option
+    #  Updated: Removed "None" option
     def load_locations(self):
         """Load locations from database"""
         conn = connect_db()
@@ -199,13 +199,13 @@ class AdjustmentHandlers:
                     d.adj_new_qty.setEnabled(True)
                     d.adj_old_qty.setText(_format_quantity(stock))
                     
-                    # ✅ Check if location only mode is active
+                    #  Check if location only mode is active
                     if hasattr(d, 'adj_location_only') and d.adj_location_only.isChecked():
                         d.adj_new_qty.setValue(stock)
-                        d.current_stock_label.setText("📍 Location Only Mode - Stock will not change")
+                        d.current_stock_label.setText("Location Only Mode - Stock will not change")
                     else:
                         d.adj_new_qty.setValue(stock)
-                        d.current_stock_label.setText(f"📊 Stock: {_format_quantity(stock)}")
+                        d.current_stock_label.setText(f"Stock: {_format_quantity(stock)}")
                     
                     d.current_stock_label.setVisible(True)
                     self.current_product_id = pid
@@ -256,7 +256,7 @@ class AdjustmentHandlers:
             """)
             d.adj_diff.setText(_format_quantity(diff))
         else:
-            # ✅ Check if location only mode is active
+            #  Check if location only mode is active
             if hasattr(d, 'adj_location_only') and d.adj_location_only.isChecked():
                 d.adj_diff.setStyleSheet("""
                     QLabel {
@@ -270,7 +270,7 @@ class AdjustmentHandlers:
                         min-width: 80px;
                     }
                 """)
-                d.adj_diff.setText("📍")
+                d.adj_diff.setText("Location only")
             else:
                 d.adj_diff.setStyleSheet("""
                     QLabel {
@@ -298,7 +298,7 @@ class AdjustmentHandlers:
         product_id = d.adj_product.currentData()
         if product_id is None:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             return
         
@@ -316,11 +316,11 @@ class AdjustmentHandlers:
             
             details = f"""
 <b style='font-size:11pt;'>{name}</b><br>
-<span style='color:#5d6d7e;'>📌 SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>🔢 Barcode:</span> <b>{barcode or 'N/A'}</b><br>
-<span style='color:#5d6d7e;'>📦 Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>💰 Cost:</span> <b style='color:#27ae60;'>{cost or 0}</b><br>
-<span style='color:#5d6d7e;'>🔄 Type:</span> <b>{sold_by or 'Each'}</b>
+<span style='color:#5d6d7e;'>SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Barcode:</span> <b>{barcode or 'N/A'}</b><br>
+<span style='color:#5d6d7e;'>Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Cost:</span> <b style='color:#27ae60;'>{cost or 0}</b><br>
+<span style='color:#5d6d7e;'>Type:</span> <b>{sold_by or 'Each'}</b>
             """
             d.product_details_label.setText(details)
             
@@ -339,16 +339,16 @@ class AdjustmentHandlers:
                         d.image_preview.setText("")
                     else:
                         d.image_preview.setPixmap(QPixmap())
-                        d.image_preview.setText("🖼️ Invalid Image")
+                        d.image_preview.setText("Invalid Image")
                 except Exception:
                     d.image_preview.setPixmap(QPixmap())
-                    d.image_preview.setText("🖼️ Image Not Available")
+                    d.image_preview.setText("Image Not Available")
             else:
                 d.image_preview.setPixmap(QPixmap())
-                d.image_preview.setText("📷 No Image Available")
+                d.image_preview.setText("No Image Available")
         else:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     
     def on_search_entered(self):
@@ -412,7 +412,7 @@ class AdjustmentHandlers:
         if current_data == "__NEW__" or current_text == "+ Add New Location":
             self.add_new_location()
     
-    # ✅ Updated: Handle default location after adding
+    #  Updated: Handle default location after adding
     def add_new_location(self):
         """Add a new location"""
         d = self.dialog
@@ -474,7 +474,7 @@ class AdjustmentHandlers:
                 d.adj_location.setCurrentIndex(0)
     
     # =========================================================================
-    # ✅ Location Only Mode
+    #  Location Only Mode
     # =========================================================================
     
     def on_location_only_toggled(self, checked):
@@ -499,7 +499,7 @@ class AdjustmentHandlers:
                     d.adj_new_qty.setValue(stock)
                     
                     # Update label
-                    d.current_stock_label.setText("📍 Location Only Mode - Stock will not change")
+                    d.current_stock_label.setText("Location Only Mode - Stock will not change")
                     d.adj_diff.setStyleSheet("""
                         QLabel {
                             font-weight: bold;
@@ -512,7 +512,7 @@ class AdjustmentHandlers:
                             min-width: 80px;
                         }
                     """)
-                    d.adj_diff.setText("📍")
+                    d.adj_diff.setText("Location only")
             
             # Update UI hint
             d.adj_diff.setStyleSheet("""
@@ -527,7 +527,7 @@ class AdjustmentHandlers:
                     min-width: 80px;
                 }
             """)
-            d.adj_diff.setText("📍")
+            d.adj_diff.setText("Location only")
             
             # Change new_qty background to indicate it's locked
             d.adj_new_qty.setStyleSheet("""
@@ -583,10 +583,10 @@ class AdjustmentHandlers:
         """
     
     # =========================================================================
-    # ✅ Save Method with Location Only Support
+    #  Save Method with Location Only Support
     # =========================================================================
     
-    # ✅ Updated: Added location = "Default" fallback
+    #  Updated: Added location = "Default" fallback
     def save(self):
         """Save adjustment"""
         d = self.dialog
@@ -602,7 +602,7 @@ class AdjustmentHandlers:
         location = d.adj_location.currentData()
         lang = self.get_lang()
         
-        # ✅ Check if Location Only mode is active
+        #  Check if Location Only mode is active
         is_location_only = hasattr(d, 'adj_location_only') and d.adj_location_only.isChecked()
         
         if not reason:
@@ -615,13 +615,13 @@ class AdjustmentHandlers:
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ Updated validation
+        #  Updated validation
         if location == "__NEW__":
             msg = "Please select a valid location or add a new one first." if lang != "my" else "ကျေးဇူးပြု၍ နေရာတစ်ခုရွေးပါ သို့မဟုတ် အသစ်ထည့်ပါ။"
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ If no location selected, use "Default"
+        #  If no location selected, use "Default"
         if location is None:
             location = "Default"
 
@@ -644,7 +644,7 @@ class AdjustmentHandlers:
                 conn.close()
                 return
             
-            # ✅ Check if Location Only mode
+            #  Check if Location Only mode
             if is_location_only:
                 # Location Only Mode - Update location without changing stock
                 if location and location != "None":
@@ -693,7 +693,7 @@ class AdjustmentHandlers:
                     conn.close()
                     return
             
-            # ✅ Normal Adjustment Mode
+            #  Normal Adjustment Mode
             if old_stock == new_qty:
                 QMessageBox.information(self.dialog, tr("info"), tr("no_change"))
                 conn.close()

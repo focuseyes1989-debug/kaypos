@@ -224,7 +224,7 @@ class ExpenseCategoriesDialog(QDialog):
         self.btn_close.set_icon("close", size=(15, 15))
         self.btn_close.set_compact(False)
         self.btn_close.clicked.connect(self.accept)
-        self.btn_close.setFixedSize(112, 38)
+        self.btn_close.setFixedSize(112, 34)
         bottom_layout.addWidget(self.btn_close)
         
         parent_layout.addWidget(self.bottom_bar)
@@ -450,7 +450,7 @@ class ExpenseCategoriesDialog(QDialog):
         if hasattr(self, 'btn_close'):
             self.btn_close.update_theme()
             self.btn_close.set_compact(False)
-            self.btn_close.setFixedSize(112, 38)
+            self.btn_close.setFixedSize(112, 34)
         
         # Update buttons in table cells
         for row in range(self.table.rowCount()):
@@ -496,7 +496,7 @@ class ExpenseCategoriesDialog(QDialog):
         self.btn_add.setFixedSize(160, 32)
         self.btn_close.update_theme()
         self.btn_close.set_compact(False)
-        self.btn_close.setFixedSize(112, 38)
+        self.btn_close.setFixedSize(112, 34)
         
         # Update buttons in table cells
         for row in range(self.table.rowCount()):

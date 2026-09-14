@@ -291,7 +291,7 @@ class LoginDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {colors['bg']}; color: {colors['text']};
-                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
             }}
             QWidget#left_widget {{
                 background-color: {colors['card_bg']};

@@ -6,6 +6,7 @@ from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.excel_exporter import ExcelExporter
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from loguru import logger
 from datetime import datetime
 
@@ -163,6 +164,8 @@ class ProfitLossReportTab(QWidget):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
+        return
         is_dark = is_dark_theme()
         
         if is_dark:

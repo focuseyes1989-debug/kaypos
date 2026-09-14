@@ -25,6 +25,7 @@ from loguru import logger
 from models.database import connect_db, safe_initialize_postgres_pilot_database
 from utils.db_compat import is_postgres_backend
 from ui.themes.theme_manager import get_theme_colors, theme_manager
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from ui.widgets.action_toolbar import ActionToolbar
 from ui.widgets.combo_box_widget import ContentWidthComboBox
 from ui.widgets.modern_button import ModernButton
@@ -159,25 +160,7 @@ class DiscountPage(QWidget):
                 border: none;
                 border-radius: 0;
             }}
-            QTableWidget {{
-                background-color: {colors.get('card_bg', '#ffffff')};
-                color: {colors.get('text', '#212529')};
-                gridline-color: transparent;
-                border: none;
-                border-radius: 12px;
-            }}
-            QHeaderView::section {{
-                background-color: {colors.get('table_header', colors.get('bg_hover', '#f8f9fa'))};
-                color: {colors.get('text_secondary', colors.get('text', '#212529'))};
-                border: none;
-                border-bottom: 1px solid {colors.get('border', '#dee2e6')};
-                padding: 8px 10px;
-                font-weight: 600;
-            }}
-            QTableWidget::item {{
-                border: none;
-                padding: 6px 10px;
-            }}
+            {modern_table_stylesheet(colors)}
         """)
         if hasattr(self, "search_widget"):
             self.search_widget.apply_modern_style()

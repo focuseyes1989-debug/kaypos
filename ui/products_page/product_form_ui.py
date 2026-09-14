@@ -12,7 +12,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 from ui.widgets.modern_button import ModernButton
 from ui.products_page.product_form_ui_panels import ProductFormUIPanels
 from ui.products_page.product_form_ui_styles import ProductFormUIStyles
-from ui.themes.theme_manager import get_theme_colors, is_dark_theme
+from ui.themes.theme_manager import get_icon_with_color, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
 import os
 
@@ -64,7 +64,7 @@ class ProductFormUI(ProductFormUIPanels):
         fit_dialog_to_available_screen(dialog, 900, 640, 780, 540)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(10)
         main_layout.setContentsMargins(12, 12, 12, 12)
         
         # Setup header
@@ -90,45 +90,49 @@ class ProductFormUI(ProductFormUIPanels):
         header_frame.setStyleSheet(ProductFormUIStyles.get_header_style())
         
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(15, 8, 15, 8)
+        header_layout.setContentsMargins(0, 0, 0, 4)
+        header_layout.setSpacing(8)
         
         icon_name = "edit" if product_id else "add"
         title_text = "Edit Product" if product_id else "Add New Product"
+        header_text = colors.get("text", "#172033")
+        header_muted = colors.get("text_secondary", "#667085")
         
-        # ✅ Header with SVG icon
-        icon = self._load_svg_icon(icon_name, size=(24, 24))
+        # Header with SVG icon
+        icon = get_icon_with_color(icon_name, header_text, (24, 24))
         title_label = QLabel()
         if icon and not icon.isNull():
-            # Create icon display
             icon_label = QLabel()
             icon_label.setPixmap(icon.pixmap(24, 24))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header_layout.addWidget(icon_label)
             title_label.setText(title_text)
         else:
-            title_label.setText(f"{'✏️' if product_id else '➕'} {title_text}")
+            title_label.setText(title_text)
         
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 14pt;
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {header_text};
+                font-size: 13pt;
                 font-weight: 600;
-            }
+                background: transparent;
+                border: none;
+            }}
         """)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         if product_id:
             badge = QLabel(f"ID: #{product_id}")
-            badge.setStyleSheet("""
-                QLabel {
-                    background: rgba(255,255,255,0.2);
-                    color: white;
-                    padding: 2px 12px;
-                    border-radius: 10px;
+            badge.setStyleSheet(f"""
+                QLabel {{
+                    background: transparent;
+                    color: {header_muted};
+                    padding: 2px 8px;
+                    border: none;
                     font-size: 9pt;
                     font-weight: 500;
-                }
+                }}
             """)
             header_layout.addWidget(badge)
         
@@ -163,10 +167,10 @@ class ProductFormUI(ProductFormUIPanels):
         # ✅ Cancel button with SVG icon
         dialog.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
         dialog.btn_cancel.set_icon("close", size=(16, 16))
-        dialog.btn_cancel.set_compact(True)
-        dialog.btn_cancel.setMinimumHeight(28)
-        dialog.btn_cancel.setMaximumHeight(32)
-        dialog.btn_cancel.setMinimumWidth(80)
+        dialog.btn_cancel.set_dense(True)
+        dialog.btn_cancel.setMinimumHeight(34)
+        dialog.btn_cancel.setMaximumHeight(34)
+        dialog.btn_cancel.setMinimumWidth(96)
         dialog.btn_cancel.setMaximumWidth(120)
         dialog.btn_cancel.setStyleSheet(dialog.btn_cancel.styleSheet() + """
             QPushButton {
@@ -179,11 +183,11 @@ class ProductFormUI(ProductFormUIPanels):
         # ✅ Save button with SVG icon
         dialog.btn_save = ModernButton(" Save", ModernButton.PRIMARY)
         dialog.btn_save.set_icon("save", size=(16, 16))
-        dialog.btn_save.set_compact(True)
-        dialog.btn_save.setMinimumHeight(28)
-        dialog.btn_save.setMaximumHeight(32)
-        dialog.btn_save.setMinimumWidth(80)
-        dialog.btn_save.setMaximumWidth(120)
+        dialog.btn_save.set_dense(True)
+        dialog.btn_save.setMinimumHeight(34)
+        dialog.btn_save.setMaximumHeight(34)
+        dialog.btn_save.setMinimumWidth(112)
+        dialog.btn_save.setMaximumWidth(140)
         dialog.btn_save.setStyleSheet(dialog.btn_save.styleSheet() + """
             QPushButton {
                 font-size: 9pt;
@@ -266,7 +270,10 @@ class ProductFormUI(ProductFormUIPanels):
         if hasattr(dialog, 'description_input'):
             dialog.description_input.setStyleSheet(ProductFormUIStyles.get_textedit_style(colors))
         if hasattr(dialog, 'category_combo'):
-            dialog.category_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
+            if hasattr(dialog.category_combo, "apply_theme"):
+                dialog.category_combo.apply_theme()
+            else:
+                dialog.category_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
         if hasattr(dialog, 'sold_by_combo'):
             dialog.sold_by_combo.setStyleSheet(ProductFormUIStyles.get_combobox_style(colors))
         if hasattr(dialog, 'restaurant_modifiers_table'):

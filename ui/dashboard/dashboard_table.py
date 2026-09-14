@@ -1,10 +1,11 @@
 # ui/dashboard/dashboard_table.py
-from PyQt6.QtWidgets import QWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget, QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QVBoxLayout, QLabel, QHBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from models.database import connect_db
 from utils.currency import format_money
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
+from ui.design_system.icon import load_svg_icon
 from loguru import logger
 
 
@@ -23,14 +24,25 @@ class DashboardTable(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Header
-        header_label = QLabel("📋 Sales Performance")
-        header_label.setStyleSheet("""
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(6)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        self.header_icon_label = QLabel()
+        self.header_icon_label.setFixedSize(18, 18)
+        self.header_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_icon_label.setStyleSheet("background: transparent; border: none;")
+
+        self.header_label = QLabel("Sales Performance")
+        self.header_label.setStyleSheet("""
             font-size: 12pt;
             font-weight: 600;
             background: transparent;
             border: none;
         """)
-        layout.addWidget(header_label)
+        header_layout.addWidget(self.header_icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        header_layout.addWidget(self.header_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        header_layout.addStretch(1)
+        layout.addLayout(header_layout)
         
         # Table
         self.table = QTableWidget()
@@ -65,10 +77,20 @@ class DashboardTable(QFrame):
     
     def _update_table_style(self):
         colors = get_theme_colors()
+        icon = load_svg_icon("bar_chart", 16, colors["text_secondary"])
+        if icon:
+            self.header_icon_label.setPixmap(icon)
+        self.header_label.setStyleSheet(f"""
+            font-size: 12pt;
+            font-weight: 600;
+            color: {colors['text']};
+            background: transparent;
+            border: none;
+        """)
         table_style = f"""
                 QTableWidget {{
-                    background-color: {colors['card_bg']};
-                    alternate-background-color: {colors['table_alt']};
+                    background-color: transparent;
+                    alternate-background-color: transparent;
                     selection-background-color: {colors['bg_hover']};
                     selection-color: {colors['text']};
                     gridline-color: transparent;
@@ -77,7 +99,7 @@ class DashboardTable(QFrame):
                     color: {colors['text']};
                 }}
                 QTableWidget::viewport {{
-                    background-color: {colors['card_bg']};
+                    background-color: transparent;
                     border-radius: 12px;
                 }}
                 QTableWidget::item {{

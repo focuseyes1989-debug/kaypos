@@ -13,6 +13,7 @@ from utils.currency import get_currency_symbol, format_money
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.search_widget import SearchWidget
 from ui.widgets.combo_box_widget import ComboBoxWidget, ContentWidthComboBox
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.widgets.numeric_keypad_dialog import get_numeric_input_value
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme
 from ui.sales_page.product_utils import effective_stock_sql, get_effective_stock, load_thumbnail
@@ -91,8 +92,7 @@ class ProductGrid(QWidget):
 
         combo_class = ComboBoxWidget if self.use_modern_combos else ContentWidthComboBox
 
-        self.category_combo = combo_class("All Categories") if self.use_modern_combos else combo_class()
-        self.category_combo.addItem("All Categories")
+        self.category_combo = CategoryComboBox(include_all=True, all_label="All Categories")
         self.category_combo.currentTextChanged.connect(self.on_category_combo_changed)
         self.category_combo.setFixedWidth(160)
         self.category_combo.setMinimumHeight(36)
@@ -350,18 +350,16 @@ class ProductGrid(QWidget):
         self.load_products(show_progress=False)
 
     def _clean_category_display_text(self, text):
-        """Remove emojis and indentation from display text to get clean category name"""
+        """Remove legacy emojis and indentation from display text to get clean category name"""
         import re
-        # Remove emojis (📁, 📄, etc.)
         clean = re.sub(r'[📁📄📂🔹🔸]', '', text)
-        # Remove indentation spaces
         clean = clean.strip()
         return clean
 
     def load_categories(self):
         """
         Load categories with indentation for parent-child hierarchy.
-        ✅ Parent categories: 📁, Child categories: 📄 with indentation
+        Parent categories use folder.svg and child categories use category.svg.
         """
         conn = connect_db()
         cursor = conn.cursor()
@@ -375,13 +373,13 @@ class ProductGrid(QWidget):
         rows = cursor.fetchall()
         conn.close()
         
-        self.category_combo.blockSignals(True)
-        current = self.category_combo.currentText()
-        self.category_combo.clear()
-        self.category_combo.addItem("All Categories")
+        self.category_combo.load_categories()
         
         if not rows:
-            self.category_combo.blockSignals(False)
+            self._category_ids_by_name = {}
+            self._category_names_by_id = {}
+            self._category_tree_cache = {}
+            self._load_category_slider_data()
             return
         
         # Build category hierarchy
@@ -409,27 +407,6 @@ class ProductGrid(QWidget):
         # Sort root categories by name
         root_categories.sort(key=lambda x: category_dict[x]['name'])
         
-        # Add categories with indentation
-        def add_category_with_indent(cat_id, indent=0):
-            data = category_dict[cat_id]
-            prefix = "  " * indent
-            
-            # Parent ကို 📁, Child ကို 📄 နဲ့ ခွဲပြမယ်
-            if indent == 0:
-                display_name = f"📁 {data['name']}"
-            else:
-                display_name = f"{prefix}📄 {data['name']}"
-            
-            self.category_combo.addItem(display_name, cat_id)
-            
-            # Add children with more indentation
-            children = sorted(data['children'], key=lambda x: category_dict[x]['name'])
-            for child_id in children:
-                add_category_with_indent(child_id, indent + 1)
-        
-        for root_id in root_categories:
-            add_category_with_indent(root_id)
-
         def collect_tree_ids(cat_id):
             ids = [cat_id]
             for child_id in category_dict[cat_id]['children']:
@@ -439,15 +416,6 @@ class ProductGrid(QWidget):
         self._category_tree_cache = {
             cat_id: collect_tree_ids(cat_id) for cat_id in category_dict
         }
-        
-        # Restore selection
-        idx = self.category_combo.findText(current)
-        if idx >= 0:
-            self.category_combo.setCurrentIndex(idx)
-        else:
-            self.category_combo.setCurrentIndex(0)
-        
-        self.category_combo.blockSignals(False)
         
         # Load category slider data
         self._load_category_slider_data()
@@ -595,11 +563,7 @@ class ProductGrid(QWidget):
                 active_grid.set_lazy_state(loading=True, has_more=self._grid_lazy_has_more)
         search_text = self.search_input.text().strip().lower()
         
-        selected_category_text = (
-            "All Categories"
-            if self.category_combo.currentIndex() == 0
-            else self.category_combo.currentText()
-        )
+        selected_category_text = self.category_combo.currentText().strip()
         
         use_category = False
         selected_category_names = []
@@ -1198,8 +1162,7 @@ class ProductGrid(QWidget):
             current = self.category_combo.currentText()
             # Keep the items as they are (they have icons and indentation)
             # Just update "All Categories" to "အားလုံး"
-            if self.category_combo.count() > 0:
-                self.category_combo.setItemText(0, "အားလုံး")
+            self.category_combo.set_all_label("အားလုံး")
             idx = self.category_combo.findText(current)
             if idx >= 0:
                 self.category_combo.setCurrentIndex(idx)
@@ -1234,8 +1197,7 @@ class ProductGrid(QWidget):
             # Update combo item texts for English
             self.category_combo.blockSignals(True)
             current = self.category_combo.currentText()
-            if self.category_combo.count() > 0:
-                self.category_combo.setItemText(0, "All Categories")
+            self.category_combo.set_all_label("All Categories")
             idx = self.category_combo.findText(current)
             if idx >= 0:
                 self.category_combo.setCurrentIndex(idx)

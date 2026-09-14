@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QPixmap, QIcon
 from ui.widgets.modern_button import ModernButton
 from ui.inventory_page.stock_in_widgets import StockInfoLabel, HeaderFrame
-from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.themes.theme_manager import get_icon_with_color, theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
 import os
 
@@ -117,18 +117,18 @@ class StockInUI:
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Stock In")
-        fit_dialog_to_available_screen(dialog, 940, 640, 820, 540)
+        fit_dialog_to_available_screen(dialog, 920, 620, 820, 540)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Setup header
         self._setup_header(main_layout)
         
         # Setup content (left panel + right panel)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
+        content_layout.setSpacing(10)
         
         left_panel = self._setup_left_panel(dialog, colors)
         right_panel = self._setup_right_panel(dialog, colors)
@@ -148,49 +148,62 @@ class StockInUI:
     
     def _setup_header(self, parent_layout):
         """Setup the header section"""
-        header_frame = HeaderFrame()
+        header_frame = QFrame()
+        header_frame.setObjectName("header_frame")
+        header_frame.setStyleSheet("""
+            QFrame#header_frame {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+        """)
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 10, 20, 10)
+        header_layout.setContentsMargins(0, 0, 0, 4)
+        header_layout.setSpacing(8)
         
-        # ✅ Header with SVG icon
-        icon = self._load_svg_icon("inventory", size=(24, 24))
+        colors = get_theme_colors()
+        header_text = colors.get("text", "#172033")
+        header_muted = colors.get("text_secondary", "#667085")
+        # Header with SVG icon
+        icon = get_icon_with_color("inventory", header_text, (24, 24))
         if icon and not icon.isNull():
             icon_label = QLabel()
             icon_label.setPixmap(icon.pixmap(24, 24))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header_layout.addWidget(icon_label)
         
-        title_label = QLabel(" Stock In")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16pt;
+        title_label = QLabel("Stock In")
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {header_text};
+                font-size: 13pt;
                 font-weight: 600;
-            }
+                background: transparent;
+                border: none;
+            }}
         """)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         # Stock In Number
         no_label = QLabel("No:")
-        no_label.setStyleSheet("color: rgba(255,255,255,0.8); font-weight: 500; font-size: 10pt;")
+        no_label.setVisible(False)
         header_layout.addWidget(no_label)
         
         from datetime import datetime
         self.stock_in_no = QLineEdit()
         self.stock_in_no.setReadOnly(True)
         self.stock_in_no.setText(f"SIN-{datetime.now().strftime('%Y%m%d%H%M%S')}")
-        self.stock_in_no.setStyleSheet("""
-            QLineEdit {
-                background: rgba(255,255,255,0.15);
-                color: white;
-                border: 1px solid rgba(255,255,255,0.25);
-                border-radius: 4px;
-                padding: 5px 12px;
-                font-weight: 600;
-                font-size: 10pt;
+        self.stock_in_no.setStyleSheet(f"""
+            QLineEdit {{
+                background: transparent;
+                color: {header_muted};
+                border: none;
+                padding: 2px 8px;
+                font-weight: 500;
+                font-size: 9pt;
                 min-width: 160px;
-            }
+            }}
         """)
         header_layout.addWidget(self.stock_in_no)
         
@@ -200,8 +213,9 @@ class StockInUI:
         """Get left panel style"""
         return f"""
             QWidget#left_panel {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
             }}
         """
     
@@ -209,9 +223,9 @@ class StockInUI:
         """Get right panel style"""
         return f"""
             QFrame#right_panel {{
-                background: {colors['card_bg']};
+                background: transparent;
                 border: 1px solid {colors['border']};
-                border-radius: 8px;
+                border-radius: 4px;
             }}
         """
     
@@ -222,25 +236,25 @@ class StockInUI:
         left_panel.setStyleSheet(self._get_left_panel_style(colors))
         
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(20, 20, 20, 20)
-        left_layout.setSpacing(8)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setSpacing(2)
         
         grid = QGridLayout()
-        grid.setVerticalSpacing(10)
-        grid.setHorizontalSpacing(15)
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(10)
         grid.setContentsMargins(0, 0, 0, 0)
         
         row = 0
         
         # Row 0: Search
-        search_label = self._create_label("🔍 Search", colors)
+        search_label = self._create_label("Search", colors)
         dialog.product_search = self._create_search_input(colors)
         grid.addWidget(search_label, row, 0)
         grid.addWidget(dialog.product_search, row, 1)
         row += 1
         
         # Row 1: Product
-        product_label = self._create_label("📋 Product", colors)
+        product_label = self._create_label("Product", colors)
         product_widget = QWidget()
         product_layout = QHBoxLayout(product_widget)
         product_layout.setContentsMargins(0, 0, 0, 0)
@@ -268,16 +282,16 @@ class StockInUI:
         row += 1
         
         # Row 3: Supplier | PO No
-        supplier_label = self._create_label("🏢 Supplier", colors)
+        supplier_label = self._create_label("Supplier", colors)
         dialog.si_supplier = self._create_combobox(colors)
-        po_label = self._create_label("📄 PO No", colors)
+        po_label = self._create_label("PO No", colors)
         dialog.si_po_no = self._create_lineedit("PO-YYYYMMDDXXXX", colors)
         grid.addWidget(supplier_label, row, 0)
         grid.addWidget(dialog.si_supplier, row, 1)
         row += 1
         
         # Row 3: Quantity | Unit Cost
-        qty_label = self._create_label("🔢 Quantity", colors)
+        qty_label = self._create_label("Quantity", colors)
         qty_widget = QWidget()
         qty_layout = QHBoxLayout(qty_widget)
         qty_layout.setContentsMargins(0, 0, 0, 0)
@@ -287,14 +301,14 @@ class StockInUI:
         dialog.si_unit = self._create_combobox(colors)
         dialog.si_unit.setMinimumWidth(120)
         qty_layout.addWidget(dialog.si_unit, 1)
-        unit_cost_label = self._create_label("💰 Unit Cost", colors)
+        unit_cost_label = self._create_label("Unit Cost", colors)
         dialog.si_unit_cost = self._create_double_spinbox(colors)
         grid.addWidget(qty_label, row, 0)
         grid.addWidget(qty_widget, row, 1)
         row += 1
         
         # Row 4: Unit Cost (display) | Total Cost
-        total_label = self._create_label("💵 Total Cost", colors)
+        total_label = self._create_label("Total Cost", colors)
         cost_widget = self._create_cost_widget(dialog, colors)
         dialog.si_total_cost, total_widget = self._create_total_widget(colors)
         grid.addWidget(unit_cost_label, row, 0)
@@ -307,9 +321,9 @@ class StockInUI:
         row += 1
         
         # Row 6: Batch No | Expiry
-        batch_label = self._create_label("📦 Batch No", colors)
+        batch_label = self._create_label("Batch No", colors)
         dialog.si_batch_no = self._create_lineedit("BATCH-YYYYMMDDXXXX", colors)
-        expiry_label = self._create_label("📅 Expiry Date", colors)
+        expiry_label = self._create_label("Expiry Date", colors)
         dialog.si_expiry = self._create_date_edit(colors, QDate(1900, 1, 1))
         dialog.si_expiry.setMinimumDate(QDate(1900, 1, 1))
         dialog.si_expiry.setSpecialValueText("Select expiry date")
@@ -338,25 +352,25 @@ class StockInUI:
         row += 1
 
         # Row 7: Received By | Date
-        received_label = self._create_label("👤 Received By", colors)
+        received_label = self._create_label("Received By", colors)
         dialog.si_received_by = self._create_lineedit("", colors)
-        date_label = self._create_label("📆 Date", colors)
+        date_label = self._create_label("Date", colors)
         dialog.si_date = self._create_date_edit(colors, QDate.currentDate())
         grid.addWidget(received_label, row, 0)
         grid.addWidget(dialog.si_received_by, row, 1)
         row += 1
         
         # Row 8: Location | Payment Status
-        location_label = self._create_label("📍 Location", colors)
+        location_label = self._create_label("Location", colors)
         dialog.si_location = self._create_location_combobox(colors)
-        payment_label = self._create_label("💳 Payment Status", colors)
+        payment_label = self._create_label("Payment Status", colors)
         dialog.si_payment_status = self._create_payment_combobox(colors)
         grid.addWidget(location_label, row, 0)
         grid.addWidget(dialog.si_location, row, 1)
         row += 1
         
         # Row 9: Notes
-        notes_label = self._create_label("📝 Notes", colors)
+        notes_label = self._create_label("Notes", colors)
         dialog.si_notes = self._create_text_edit(colors)
         grid.addWidget(notes_label, row, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(dialog.si_notes, row, 1)
@@ -376,11 +390,11 @@ class StockInUI:
         right_layout.setSpacing(10)
         
         # Image title
-        image_title = QLabel("🖼️ Product Image")
+        image_title = QLabel("Product Image")
         image_title.setStyleSheet(f"""
             QLabel {{
                 font-weight: 600;
-                font-size: 10pt;
+                font-size: 9pt;
                 color: {colors['text']};
                 background: transparent;
                 border: none;
@@ -395,7 +409,7 @@ class StockInUI:
         dialog.image_preview.setMinimumHeight(250)
         dialog.image_preview.setMaximumHeight(350)
         dialog.image_preview.setStyleSheet(self._get_image_preview_style(colors, self._is_dark))
-        dialog.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+        dialog.image_preview.setText("No Image\n\nSelect a product to preview")
         dialog.image_preview.setWordWrap(True)
         right_layout.addWidget(dialog.image_preview, 1)
         
@@ -411,7 +425,7 @@ class StockInUI:
             QLabel {{
                 font-weight: 600;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 background: transparent;
                 border: none;
             }}
@@ -439,32 +453,32 @@ class StockInUI:
         button_layout.setContentsMargins(15, 8, 15, 8)
         button_layout.addStretch()
         
-        # ✅ Save button with SVG icon
+        #  Save button with SVG icon
         dialog.btn_save = ModernButton(" Save Stock In", ModernButton.PRIMARY)
         dialog.btn_save.set_icon("save", size=(16, 16))
         dialog.btn_save.set_compact(False)
-        dialog.btn_save.setMinimumHeight(32)
+        dialog.btn_save.setMinimumHeight(34)
         dialog.btn_save.setMinimumWidth(140)
         dialog.btn_save.setStyleSheet(dialog.btn_save.styleSheet() + """
             QPushButton {
-                font-size: 10pt;
+                font-size: 9pt;
                 font-weight: 600;
                 padding: 8px 24px;
-                border-radius: 6px;
+                border-radius: 4px;
             }
         """)
         
-        # ✅ Cancel button with SVG icon
+        #  Cancel button with SVG icon
         dialog.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
         dialog.btn_cancel.set_icon("close", size=(16, 16))
         dialog.btn_cancel.set_compact(False)
-        dialog.btn_cancel.setMinimumHeight(32)
+        dialog.btn_cancel.setMinimumHeight(34)
         dialog.btn_cancel.setMinimumWidth(120)
         dialog.btn_cancel.setStyleSheet(dialog.btn_cancel.styleSheet() + """
             QPushButton {
-                font-size: 10pt;
+                font-size: 9pt;
                 padding: 8px 20px;
-                border-radius: 6px;
+                border-radius: 4px;
             }
         """)
         
@@ -482,18 +496,18 @@ class StockInUI:
     
     def _create_label(self, text, colors):
         label = QLabel(text)
-        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 10pt;")
+        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 9pt;")
         return label
     
     def _get_input_style(self, colors):
         return f"""
             QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTextEdit:focus {{
                 border-color: #5865f2;
@@ -507,22 +521,24 @@ class StockInUI:
         search = QLineEdit()
         search.setPlaceholderText("Type product name, barcode or SKU...")
         search.setStyleSheet(self._get_input_style(colors))
+        search.setMinimumHeight(34)
         return search
     
     def _create_combobox(self, colors):
         combo = QComboBox()
         combo.setStyleSheet(self._get_combobox_style(colors))
+        combo.setMinimumHeight(34)
         return combo
     
     def _get_combobox_style(self, colors):
         return f"""
             QComboBox {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: transparent;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QComboBox:focus {{
                 border-color: #5865f2;
@@ -557,12 +573,14 @@ class StockInUI:
         if placeholder:
             edit.setPlaceholderText(placeholder)
         edit.setStyleSheet(self._get_input_style(colors))
+        edit.setMinimumHeight(34)
         return edit
     
     def _create_spinbox(self, colors):
         spin = QSpinBox()
         spin.setRange(1, 999999)
         spin.setStyleSheet(self._get_spinbox_style(colors))
+        spin.setMinimumHeight(34)
         return spin
     
     def _create_double_spinbox(self, colors):
@@ -570,17 +588,18 @@ class StockInUI:
         spin.setRange(0, 1000000)
         spin.setDecimals(0)
         spin.setStyleSheet(self._get_spinbox_style(colors))
+        spin.setMinimumHeight(34)
         return spin
     
     def _get_spinbox_style(self, colors):
         return f"""
             QSpinBox, QDoubleSpinBox {{
-                padding: 8px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 min-width: 100px;
             }}
             QSpinBox:focus, QDoubleSpinBox:focus {{
@@ -617,10 +636,10 @@ class StockInUI:
             QLabel {{
                 font-weight: bold;
                 color: #27ae60;
-                font-size: 16pt;
+                font-size: 13pt;
                 padding: 8px 16px;
                 background: #e8f8f5;
-                border-radius: 6px;
+                border-radius: 4px;
                 border: 1px solid #a3e4d7;
                 min-width: 150px;
             }}
@@ -645,6 +664,7 @@ class StockInUI:
         else:
             date_edit.setDate(QDate.currentDate().addYears(1))
         date_edit.setStyleSheet(self._get_input_style(colors))
+        date_edit.setMinimumHeight(34)
         date_edit.setDisplayFormat("yyyy-MM-dd")
         return date_edit
     
@@ -663,7 +683,7 @@ class StockInUI:
     
     def _create_text_edit(self, colors):
         edit = QTextEdit()
-        edit.setMaximumHeight(70)
+        edit.setMaximumHeight(68)
         edit.setPlaceholderText("Additional notes or remarks...")
         edit.setStyleSheet(self._get_input_style(colors))
         return edit
@@ -698,8 +718,9 @@ class StockInUI:
     def _get_button_frame_style(self, colors):
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
                 padding: 5px;
             }}
         """

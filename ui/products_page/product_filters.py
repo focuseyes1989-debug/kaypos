@@ -1,9 +1,9 @@
 # ui/products_page/product_filters.py
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QComboBox, QLabel
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QLabel
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QPixmap, QIcon
-from models.database import connect_db
 from ui.widgets.search_widget import ModernSearchWidget
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
 import os
 
@@ -46,13 +46,11 @@ class ProductFilters(QWidget):
         category_layout.addWidget(self.category_label)
 
         # ✅ Category Combo Box - Theme aware
-        self.category_combo = QComboBox()
+        self.category_combo = CategoryComboBox(include_all=True, all_label="All Categories")
         self.category_combo.setObjectName("categoryCombo")
-        self.category_combo.addItem("All Categories")
         self.category_combo.currentTextChanged.connect(self._on_filter_changed)
         self.category_combo.setMinimumWidth(180)
         self.category_combo.setFixedHeight(38)
-        self._update_combo_style()
         category_layout.addWidget(self.category_combo)
 
         layout.addWidget(category_container)
@@ -88,6 +86,9 @@ class ProductFilters(QWidget):
 
     def _update_combo_style(self):
         """Update combo box style based on theme"""
+        if hasattr(self.category_combo, "apply_theme"):
+            self.category_combo.apply_theme()
+            return
         colors = get_theme_colors()
         is_dark = is_dark_theme()
         
@@ -182,28 +183,13 @@ class ProductFilters(QWidget):
         return self.search_widget.get_text().lower()
 
     def get_category(self) -> str:
-        if self.category_combo.currentIndex() == 0:
+        text = self.category_combo.currentText().strip()
+        if text in {"All Categories", "အားလုံး"}:
             return ""
-        return self.category_combo.currentText()
+        return text
 
     def load_categories(self):
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM categories ORDER BY name")
-        rows = cursor.fetchall()
-        self.category_combo.blockSignals(True)
-        current = self.category_combo.currentText()
-        self.category_combo.clear()
-        self.category_combo.addItem("All Categories")
-        for (name,) in rows:
-            self.category_combo.addItem(name)
-        idx = self.category_combo.findText(current)
-        if idx >= 0:
-            self.category_combo.setCurrentIndex(idx)
-        else:
-            self.category_combo.setCurrentIndex(0)
-        self.category_combo.blockSignals(False)
-        conn.close()
+        self.category_combo.load_categories()
 
     def reset(self):
         """Reset search and category to default (all products)"""
@@ -222,14 +208,12 @@ class ProductFilters(QWidget):
             self.search_widget.retranslateUi("my")
             self.search_widget.set_placeholder_text("ပစ္စည်းအမည် / ဘားကုဒ် / SKU ဖြင့် ရှာရန်...")
             self.category_label.setText("အမျိုးအစား:")
-            if self.category_combo.count() > 0:
-                self.category_combo.setItemText(0, "အားလုံး")
+            self.category_combo.set_all_label("အားလုံး")
         else:
             self.search_widget.retranslateUi("en")
             self.search_widget.set_placeholder_text("Search by name / barcode / SKU...")
             self.category_label.setText("Category:")
-            if self.category_combo.count() > 0:
-                self.category_combo.setItemText(0, "All Categories")
+            self.category_combo.set_all_label("All Categories")
         
         # ✅ Update label style after language change (keep theme colors)
         self._update_label_style()

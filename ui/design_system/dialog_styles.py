@@ -35,30 +35,50 @@ def add_standard_close_footer(layout, dialog, text="Close"):
 def modern_table_stylesheet(colors, selector="QTableWidget"):
     return f"""
         {selector} {{
-            background-color: {colors['card_bg']};
-            alternate-background-color: {colors['table_alt']};
+            background-color: transparent;
+            alternate-background-color: transparent;
             color: {colors['text']};
             border: 1px solid {colors['border']};
             border-radius: {CARD_RADIUS}px;
             gridline-color: transparent;
             outline: none;
+            selection-background-color: {colors['bg_hover']};
+            selection-color: {colors['text']};
+        }}
+        {selector}::viewport {{
+            background-color: transparent;
+            border-radius: {CARD_RADIUS}px;
         }}
         {selector}::item {{
-            padding: 4px 10px;
+            padding: 6px 10px;
             border-bottom: 1px solid {colors['border']};
+            background-color: transparent;
+            color: {colors['text']};
         }}
         {selector}::item:selected, {selector}::item:hover {{
             background-color: {colors['bg_hover']};
             color: {colors['text']};
         }}
         QHeaderView::section {{
-            background-color: {colors['card_bg']};
+            background-color: {colors['bg_hover']};
             color: {colors['text_secondary']};
             padding: 8px 10px;
             border: none;
             border-bottom: 1px solid {colors['border']};
             font-size: 9pt;
             font-weight: 600;
+        }}
+        QHeaderView::section:first {{
+            border-top-left-radius: {CARD_RADIUS}px;
+        }}
+        QHeaderView::section:last {{
+            border-top-right-radius: {CARD_RADIUS}px;
+        }}
+        {selector} QTableCornerButton::section {{
+            background-color: {colors['bg_hover']};
+            border: none;
+            border-top-left-radius: {CARD_RADIUS}px;
+            border-bottom: 1px solid {colors['border']};
         }}
     """
 

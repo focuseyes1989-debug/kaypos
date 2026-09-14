@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QComboBox, QCompleter, QLineEdit, QStyleOptionViewItem
 
-from ui.themes.theme_manager import get_icon_with_color, get_theme_colors, is_dark_theme, theme_manager
+from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
 
 
 class ContentWidthComboBox(QComboBox):
@@ -58,8 +58,16 @@ class ComboBoxWidget(ContentWidthComboBox):
         self.apply_theme()
         theme_manager.theme_changed.connect(self._on_theme_changed)
 
-    def addItem(self, text, userData=None):  # noqa: N802 - QComboBox API compatibility
-        super().addItem(text, userData)
+    def addItem(self, *args):  # noqa: N802 - QComboBox API compatibility
+        if args and isinstance(args[0], QIcon):
+            icon = args[0]
+            text = args[1] if len(args) > 1 else ""
+            userData = args[2] if len(args) > 2 else None
+            super().addItem(icon, text, userData)
+        else:
+            text = args[0] if args else ""
+            userData = args[1] if len(args) > 1 else None
+            super().addItem(text, userData)
         self._refresh_completer()
         self._sync_selected_text()
 
@@ -179,7 +187,7 @@ class ComboBoxWidget(ContentWidthComboBox):
                 background: transparent;
                 border: none;
                 color: {text};
-                padding: 0px 2px;
+                padding: 0px 2px 0px 0px;
                 selection-background-color: {focus};
                 selection-color: #ffffff;
             }}
@@ -189,12 +197,8 @@ class ComboBoxWidget(ContentWidthComboBox):
         """)
 
         if self.searchable and self.lineEdit():
-            search_icon = get_icon_with_color("search", muted, (16, 16))
-            clear_icon = get_icon_with_color("close", muted, (14, 14))
-            if self.lineEdit().actions():
-                self.lineEdit().actions()[0].setIcon(search_icon)
             if self._clear_action:
-                self._clear_action.setIcon(clear_icon)
+                self._clear_action.setVisible(False)
         self.view().setStyleSheet(f"""
             QListView {{
                 background-color: {popup_bg};
@@ -252,12 +256,6 @@ class ComboBoxWidget(ContentWidthComboBox):
         self.setLineEdit(edit)
         edit.installEventFilter(self)
 
-        search_icon = get_icon_with_color("search", get_theme_colors().get("text_secondary", "#6c757d"), (16, 16))
-        clear_icon = get_icon_with_color("close", get_theme_colors().get("text_secondary", "#6c757d"), (14, 14))
-        edit.addAction(search_icon, QLineEdit.ActionPosition.LeadingPosition)
-        self._clear_action = edit.addAction(clear_icon, QLineEdit.ActionPosition.TrailingPosition)
-        self._clear_action.triggered.connect(self.clear_search)
-        self._clear_action.setVisible(False)
         edit.textEdited.connect(self._on_text_edited)
 
     def _setup_completer(self) -> None:
@@ -287,7 +285,7 @@ class ComboBoxWidget(ContentWidthComboBox):
 
     def _show_clear_action(self, visible: bool) -> None:
         if self._clear_action:
-            self._clear_action.setVisible(visible and self._user_filtering)
+            self._clear_action.setVisible(False)
 
     def _sync_selected_text(self, *_args) -> None:
         if not self.searchable or not self.lineEdit() or self._user_filtering:

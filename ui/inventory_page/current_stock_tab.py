@@ -10,6 +10,7 @@ from utils.translations import tr
 from ui.widgets.pagination_widget import PaginationWidget
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.search_widget import SearchWidget
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.inventory_page.product_transaction_history_dialog import ProductTransactionHistoryDialog
 from ui.product_detail_dialog import ProductDetailDialog
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
@@ -97,10 +98,9 @@ class CurrentStockTab(QWidget):
         
         # Category filter
         filter_layout.addWidget(QLabel("Category:"))
-        self.category_filter = QComboBox()
+        self.category_filter = CategoryComboBox(include_all=True, all_label="All Categories")
         self.category_filter.setMinimumWidth(170)
         self.category_filter.setFixedHeight(34)
-        self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.category_filter, 1)
         
@@ -277,23 +277,7 @@ class CurrentStockTab(QWidget):
         return self.selected_product_id, self.selected_product_name
 
     def load_categories(self):
-        conn = connect_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM categories ORDER BY name")
-        rows = cursor.fetchall()
-        self.category_filter.blockSignals(True)
-        current = self.category_filter.currentText()
-        self.category_filter.clear()
-        self.category_filter.addItem("All Categories")
-        for (name,) in rows:
-            self.category_filter.addItem(name)
-        idx = self.category_filter.findText(current)
-        if idx >= 0:
-            self.category_filter.setCurrentIndex(idx)
-        else:
-            self.category_filter.setCurrentIndex(0)
-        self.category_filter.blockSignals(False)
-        conn.close()
+        self.category_filter.load_categories()
 
     def on_filter_changed(self):
         self.current_page = 1
@@ -452,7 +436,7 @@ class CurrentStockTab(QWidget):
             
         lang = self.get_lang()
         search_text = self.search_widget.get_text().lower()
-        category = self.category_filter.currentText()
+        category = self.category_filter.currentText().strip()
         status_filter = self.status_filter.currentText()
         use_category = category not in {"All Categories", "အားလုံး"}
         

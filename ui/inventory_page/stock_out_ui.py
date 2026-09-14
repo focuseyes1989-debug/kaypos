@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QPixmap, QIcon
 from ui.widgets.modern_button import ModernButton
 from ui.inventory_page.stock_out_widgets import HeaderFrame
-from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.themes.theme_manager import get_icon_with_color, theme_manager, get_theme_colors, is_dark_theme
 from ui.responsive_utils import fit_dialog_to_available_screen
 from datetime import datetime
 import os
@@ -118,18 +118,18 @@ class StockOutUI:
         colors = get_theme_colors()
         
         dialog.setWindowTitle("Stock Out")
-        fit_dialog_to_available_screen(dialog, 940, 640, 820, 540)
+        fit_dialog_to_available_screen(dialog, 920, 620, 820, 540)
         
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(14, 14, 14, 14)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Setup header
         self._setup_header(main_layout)
         
         # Setup content (left panel + right panel)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(12)
+        content_layout.setSpacing(10)
         
         left_panel = self._setup_left_panel(dialog, colors)
         right_panel = self._setup_right_panel(dialog, colors)
@@ -149,48 +149,61 @@ class StockOutUI:
     
     def _setup_header(self, parent_layout):
         """Setup the header section"""
-        header_frame = HeaderFrame()
+        header_frame = QFrame()
+        header_frame.setObjectName("header_frame")
+        header_frame.setStyleSheet("""
+            QFrame#header_frame {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+        """)
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 10, 20, 10)
+        header_layout.setContentsMargins(0, 0, 0, 4)
+        header_layout.setSpacing(8)
         
-        # ✅ Header with SVG icon
-        icon = self._load_svg_icon("inventory", size=(24, 24))
+        colors = get_theme_colors()
+        header_text = colors.get("text", "#172033")
+        header_muted = colors.get("text_secondary", "#667085")
+        # Header with SVG icon
+        icon = get_icon_with_color("inventory", header_text, (24, 24))
         if icon and not icon.isNull():
             icon_label = QLabel()
             icon_label.setPixmap(icon.pixmap(24, 24))
             icon_label.setStyleSheet("background: transparent; border: none;")
             header_layout.addWidget(icon_label)
         
-        title_label = QLabel(" Stock Out")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: white;
-                font-size: 16pt;
+        title_label = QLabel("Stock Out")
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {header_text};
+                font-size: 13pt;
                 font-weight: 600;
-            }
+                background: transparent;
+                border: none;
+            }}
         """)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         # Stock Out Number
         no_label = QLabel("No:")
-        no_label.setStyleSheet("color: rgba(255,255,255,0.8); font-weight: 500; font-size: 10pt;")
+        no_label.setVisible(False)
         header_layout.addWidget(no_label)
         
         self.stock_out_no = QLineEdit()
         self.stock_out_no.setReadOnly(True)
         self.stock_out_no.setText(f"SOUT-{datetime.now().strftime('%Y%m%d%H%M%S')}")
-        self.stock_out_no.setStyleSheet("""
-            QLineEdit {
-                background: rgba(255,255,255,0.15);
-                color: white;
-                border: 1px solid rgba(255,255,255,0.25);
-                border-radius: 4px;
-                padding: 5px 12px;
-                font-weight: 600;
-                font-size: 10pt;
+        self.stock_out_no.setStyleSheet(f"""
+            QLineEdit {{
+                background: transparent;
+                color: {header_muted};
+                border: none;
+                padding: 2px 8px;
+                font-weight: 500;
+                font-size: 9pt;
                 min-width: 160px;
-            }
+            }}
         """)
         header_layout.addWidget(self.stock_out_no)
         
@@ -199,17 +212,18 @@ class StockOutUI:
     def _get_left_panel_style(self, colors):
         return f"""
             QWidget#left_panel {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
             }}
         """
     
     def _get_right_panel_style(self, colors):
         return f"""
             QFrame#right_panel {{
-                background: {colors['card_bg']};
+                background: transparent;
                 border: 1px solid {colors['border']};
-                border-radius: 8px;
+                border-radius: 4px;
             }}
         """
     
@@ -220,25 +234,25 @@ class StockOutUI:
         left_panel.setStyleSheet(self._get_left_panel_style(colors))
         
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(20, 15, 20, 15)
-        left_layout.setSpacing(5)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setSpacing(2)
         
         grid = QGridLayout()
-        grid.setVerticalSpacing(4)
-        grid.setHorizontalSpacing(15)
+        grid.setVerticalSpacing(5)
+        grid.setHorizontalSpacing(10)
         grid.setContentsMargins(0, 0, 0, 0)
         
         row = 0
         
         # Row 0: Search
-        search_label = self._create_label("🔍 Search", colors)
+        search_label = self._create_label("Search", colors)
         dialog.product_search = self._create_search_input(colors)
         grid.addWidget(search_label, row, 0)
         grid.addWidget(dialog.product_search, row, 1)
         row += 1
         
         # Row 1: Product
-        product_label = self._create_label("📋 Product", colors)
+        product_label = self._create_label("Product", colors)
         product_widget = QWidget()
         product_layout = QHBoxLayout(product_widget)
         product_layout.setContentsMargins(0, 0, 0, 0)
@@ -250,7 +264,7 @@ class StockOutUI:
         
         # Current Stock display
         self.current_stock_label = QLabel()
-        self.current_stock_label.setFixedHeight(33)
+        self.current_stock_label.setFixedHeight(34)
         self.current_stock_label.setStyleSheet(self._get_stock_label_style(colors, is_dark_theme()))
         self.current_stock_label.setVisible(False)
         self.current_stock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -262,56 +276,56 @@ class StockOutUI:
         row += 1
         
         # Row 2: Quantity
-        qty_label = self._create_label("🔢 Quantity", colors)
+        qty_label = self._create_label("Quantity", colors)
         dialog.so_qty = self._create_spinbox(colors)
         grid.addWidget(qty_label, row, 0)
         grid.addWidget(dialog.so_qty, row, 1)
         row += 1
         
         # Row 3: Reason
-        reason_label = self._create_label("📌 Reason", colors)
+        reason_label = self._create_label("Reason", colors)
         dialog.so_reason = self._create_reason_combobox(colors)
         grid.addWidget(reason_label, row, 0)
         grid.addWidget(dialog.so_reason, row, 1)
         row += 1
         
         # Row 4: Customer
-        customer_label = self._create_label("👤 Customer", colors)
+        customer_label = self._create_label("Customer", colors)
         dialog.so_customer = self._create_combobox(colors)
         grid.addWidget(customer_label, row, 0)
         grid.addWidget(dialog.so_customer, row, 1)
         row += 1
         
         # Row 5: Date
-        date_label = self._create_label("📆 Date", colors)
+        date_label = self._create_label("Date", colors)
         dialog.so_date = self._create_date_edit(colors, QDate.currentDate())
         grid.addWidget(date_label, row, 0)
         grid.addWidget(dialog.so_date, row, 1)
         row += 1
         
         # Row 6: Location
-        location_label = self._create_label("📍 Location", colors)
+        location_label = self._create_label("Location", colors)
         dialog.so_location = self._create_location_combobox(colors)
         grid.addWidget(location_label, row, 0)
         grid.addWidget(dialog.so_location, row, 1)
         row += 1
         
         # Row 7: Reference
-        ref_label = self._create_label("🔖 Reference", colors)
+        ref_label = self._create_label("Reference", colors)
         dialog.so_reference = self._create_lineedit("", colors)
         grid.addWidget(ref_label, row, 0)
         grid.addWidget(dialog.so_reference, row, 1)
         row += 1
         
         # Row 8: Issued By
-        issued_label = self._create_label("✍️ Issued By", colors)
+        issued_label = self._create_label("Issued By", colors)
         dialog.so_issued_by = self._create_lineedit("", colors)
         grid.addWidget(issued_label, row, 0)
         grid.addWidget(dialog.so_issued_by, row, 1)
         row += 1
         
         # Row 9: Notes
-        notes_label = self._create_label("📝 Notes", colors)
+        notes_label = self._create_label("Notes", colors)
         dialog.so_notes = self._create_text_edit(colors)
         grid.addWidget(notes_label, row, 0, Qt.AlignmentFlag.AlignTop)
         grid.addWidget(dialog.so_notes, row, 1)
@@ -332,11 +346,11 @@ class StockOutUI:
         right_layout.setSpacing(10)
         
         # Image title
-        image_title = QLabel("🖼️ Product Image")
+        image_title = QLabel("Product Image")
         image_title.setStyleSheet(f"""
             QLabel {{
                 font-weight: 600;
-                font-size: 10pt;
+                font-size: 9pt;
                 color: {colors['text']};
                 background: transparent;
                 border: none;
@@ -351,7 +365,7 @@ class StockOutUI:
         dialog.image_preview.setMinimumHeight(250)
         dialog.image_preview.setMaximumHeight(350)
         dialog.image_preview.setStyleSheet(self._get_image_preview_style(colors, self._is_dark))
-        dialog.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+        dialog.image_preview.setText("No Image\n\nSelect a product to preview")
         dialog.image_preview.setWordWrap(True)
         right_layout.addWidget(dialog.image_preview, 1)
         
@@ -367,7 +381,7 @@ class StockOutUI:
             QLabel {{
                 font-weight: 600;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 background: transparent;
                 border: none;
                 padding: 0px;
@@ -398,14 +412,14 @@ class StockOutUI:
         button_layout.setContentsMargins(15, 8, 15, 8)
         button_layout.addStretch()
         
-        # ✅ Save button with SVG icon
+        #  Save button with SVG icon
         dialog.btn_save = ModernButton(" Save Stock Out", ModernButton.PRIMARY)
         dialog.btn_save.set_icon("save", size=(16, 16))
         dialog.btn_save.setCheckable(False)
         dialog.btn_save.setAutoExclusive(False)
         dialog.btn_save.set_compact(False)
         
-        # ✅ Cancel button with SVG icon
+        #  Cancel button with SVG icon
         dialog.btn_cancel = ModernButton(" Cancel", ModernButton.TERTIARY)
         dialog.btn_cancel.set_icon("close", size=(16, 16))
         dialog.btn_cancel.setCheckable(False)
@@ -426,18 +440,18 @@ class StockOutUI:
     
     def _create_label(self, text, colors):
         label = QLabel(text)
-        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 10pt; padding: 2px 0px;")
+        label.setStyleSheet(f"font-weight: 600; color: {colors['text']}; font-size: 9pt; padding: 1px 0px;")
         return label
     
     def _get_input_style(self, colors):
         return f"""
             QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit {{
-                padding: 6px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus, QTextEdit:focus {{
                 border-color: #5865f2;
@@ -450,12 +464,12 @@ class StockOutUI:
     def _get_combobox_style(self, colors):
         return f"""
             QComboBox {{
-                padding: 6px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: transparent;
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QComboBox:focus {{
                 border-color: #5865f2;
@@ -488,12 +502,12 @@ class StockOutUI:
     def _get_spinbox_style(self, colors):
         return f"""
             QSpinBox {{
-                padding: 6px 12px;
+                padding: 5px 10px;
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
+                border-radius: 4px;
                 background: {colors['card_bg']};
                 color: {colors['text']};
-                font-size: 10pt;
+                font-size: 9pt;
                 min-width: 100px;
             }}
             QSpinBox:focus {{
@@ -540,11 +554,13 @@ class StockOutUI:
         search = QLineEdit()
         search.setPlaceholderText("Search product by name, barcode or SKU...")
         search.setStyleSheet(self._get_input_style(colors))
+        search.setMinimumHeight(34)
         return search
     
     def _create_combobox(self, colors):
         combo = QComboBox()
         combo.setStyleSheet(self._get_combobox_style(colors))
+        combo.setMinimumHeight(34)
         return combo
     
     def _create_lineedit(self, placeholder, colors):
@@ -552,12 +568,14 @@ class StockOutUI:
         if placeholder:
             edit.setPlaceholderText(placeholder)
         edit.setStyleSheet(self._get_input_style(colors))
+        edit.setMinimumHeight(34)
         return edit
     
     def _create_spinbox(self, colors):
         spin = QSpinBox()
         spin.setRange(1, 999999)
         spin.setStyleSheet(self._get_spinbox_style(colors))
+        spin.setMinimumHeight(34)
         return spin
     
     def _create_reason_combobox(self, colors):
@@ -572,6 +590,7 @@ class StockOutUI:
         if default_date:
             date_edit.setDate(default_date)
         date_edit.setStyleSheet(self._get_input_style(colors))
+        date_edit.setMinimumHeight(34)
         date_edit.setDisplayFormat("yyyy-MM-dd")
         return date_edit
     
@@ -583,7 +602,7 @@ class StockOutUI:
     
     def _create_text_edit(self, colors):
         edit = QTextEdit()
-        edit.setMaximumHeight(70)
+        edit.setMaximumHeight(68)
         edit.setPlaceholderText("Additional notes or remarks...")
         edit.setStyleSheet(self._get_input_style(colors))
         return edit
@@ -619,8 +638,9 @@ class StockOutUI:
     def _get_button_frame_style(self, colors):
         return f"""
             QFrame#button_frame {{
-                background: {colors['bg_hover']};
-                border-radius: 8px;
+                background: transparent;
+                border: 1px solid {colors['border']};
+                border-radius: 4px;
                 padding: 5px;
             }}
         """

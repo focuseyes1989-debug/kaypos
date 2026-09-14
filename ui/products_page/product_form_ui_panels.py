@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from ui.widgets.modern_button import ModernButton
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.products_page.product_form_widgets import InfoLabel
 from ui.products_page.product_form_ui_base import ProductFormUIBase
 from ui.products_page.product_form_ui_styles import ProductFormUIStyles
@@ -86,7 +87,7 @@ class ProductFormUIPanels(ProductFormUIBase):
     def _add_category_row(self, dialog, grid, row, colors):
         """Add category row"""
         dialog.label_category = self._create_label_with_icon("category.svg", "Category", colors)
-        dialog.category_combo = self._create_combobox(colors)
+        dialog.category_combo = CategoryComboBox("Category")
         grid.addWidget(dialog.label_category, row, 0)
         grid.addWidget(dialog.category_combo, row, 1)
         return row + 1

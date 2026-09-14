@@ -13,10 +13,9 @@ class ProductFormUIStyles:
     def get_header_style():
         return """
             QFrame#header_frame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #5865f2, stop:1 #4752c4);
-                border-radius: 8px;
-                padding: 5px;
+                background: transparent;
+                border: none;
+                padding: 0px;
             }
         """
     
@@ -264,24 +263,42 @@ class ProductFormUIStyles:
         return f"""
             QTableWidget {{
                 background: transparent;
+                alternate-background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
-                border-radius: 6px;
-                gridline-color: {colors['border']};
-                selection-background-color: #5865f2;
-                selection-color: white;
+                border-radius: 12px;
+                gridline-color: transparent;
+                selection-background-color: {colors['bg_hover']};
+                selection-color: {colors['text']};
+            }}
+            QTableWidget::viewport {{
+                background: transparent;
+                border-radius: 12px;
             }}
             QHeaderView::section {{
                 background: {colors['bg_hover']};
-                color: {colors['text']};
+                color: {colors['text_secondary']};
                 border: none;
-                border-right: 1px solid {colors['border']};
+                border-bottom: 1px solid {colors['border']};
                 padding: 4px 6px;
                 font-weight: 600;
                 font-size: 8.5pt;
             }}
+            QHeaderView::section:first {{
+                border-top-left-radius: 12px;
+            }}
+            QHeaderView::section:last {{
+                border-top-right-radius: 12px;
+            }}
             QTableWidget::item {{
                 padding: 3px 5px;
+                border-bottom: 1px solid {colors['border']};
+                background: transparent;
+                color: {colors['text']};
+            }}
+            QTableWidget::item:selected, QTableWidget::item:hover {{
+                background-color: {colors['bg_hover']};
+                color: {colors['text']};
             }}
             QTableWidget QLineEdit {{
                 background: {colors['card_bg']};

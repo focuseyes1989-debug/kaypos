@@ -74,7 +74,7 @@ class ServicePriceDialog(NumericKeypadDialog):
         colors = get_theme_colors()
         self.setStyleSheet(f"""
             QDialog {{ background: {colors['card_bg']}; border: 1px solid {colors['border']}; }}
-            QLabel {{ color: {colors['text']}; background: transparent; font-family: 'Segoe UI'; font-size: 13px; }}
+            QLabel {{ color: {colors['text']}; background: transparent; font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI'; font-size: 13px; }}
             QLineEdit {{ background: {colors['card_bg']}; color: {colors['text']};
                 border: 2px solid {colors['text']}; border-radius: 8px; padding: 4px 10px; font-size: 22px; }}
             QPushButton {{ background: {colors['card_bg']}; color: {colors['text']};

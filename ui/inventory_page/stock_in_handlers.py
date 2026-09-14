@@ -86,7 +86,7 @@ class StockInHandlers:
         d = self.dialog
         d.si_location.blockSignals(True)
         d.si_location.clear()
-        # ✅ REMOVED: "None" option
+        #  REMOVED: "None" option
         
         locations_set = set()
         for (name,) in rows:
@@ -160,7 +160,7 @@ class StockInHandlers:
         product_id = d.si_product.currentData()
         if product_id is None:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             self.update_unit_selector(None)
             return
@@ -181,11 +181,11 @@ class StockInHandlers:
             
             details = f"""
 <b style='font-size:11pt;'>{name}</b><br>
-<span style='color:#5d6d7e;'>📌 SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>🔢 Barcode:</span> <b>{barcode or 'N/A'}</b><br>
-<span style='color:#5d6d7e;'>📦 Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>💰 Cost:</span> <b style='color:#27ae60;'>{format_money(cost or 0)}</b><br>
-<span style='color:#5d6d7e;'>🔄 Type:</span> <b>{sold_by or 'Each'}</b>
+<span style='color:#5d6d7e;'>SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Barcode:</span> <b>{barcode or 'N/A'}</b><br>
+<span style='color:#5d6d7e;'>Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Cost:</span> <b style='color:#27ae60;'>{format_money(cost or 0)}</b><br>
+<span style='color:#5d6d7e;'>Type:</span> <b>{sold_by or 'Each'}</b>
             """
             d.product_details_label.setText(details)
             
@@ -211,13 +211,13 @@ class StockInHandlers:
                     d.image_preview.setText("")
                 else:
                     d.image_preview.setPixmap(QPixmap())
-                    d.image_preview.setText("📷 No Image Available")
+                    d.image_preview.setText("No Image Available")
             except Exception:
                 d.image_preview.setPixmap(QPixmap())
-                d.image_preview.setText("🖼️ Image Not Available")
+                d.image_preview.setText("Image Not Available")
         else:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
     
     def update_unit_selector(self, product_id):
@@ -281,7 +281,7 @@ class StockInHandlers:
         
         if row:
             stock = row[0] if row[0] is not None else 0
-            d.current_stock_label.setText(f"📊 Stock: {stock}")
+            d.current_stock_label.setText(f"Stock: {stock}")
             d.current_stock_label.setVisible(True)
             self.current_product_id = product_id
         else:
@@ -305,7 +305,7 @@ class StockInHandlers:
         if row:
             current_stock = row[0] if row[0] is not None else 0
             after_stock = current_stock + qty
-            d.current_stock_label.setText(f"📊 {current_stock} → {after_stock}")
+            d.current_stock_label.setText(f"{current_stock} → {after_stock}")
             d.current_stock_label.setVisible(True)
     
     def update_total(self):
@@ -559,13 +559,13 @@ class StockInHandlers:
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ Updated validation
+        #  Updated validation
         if location == "__NEW__":
             msg = "Please select a valid location or add a new one first." if lang != "my" else "ကျေးဇူးပြု၍ နေရာတစ်ခုရွေးပါ သို့မဟုတ် အသစ်ထည့်ပါ။"
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ If no location selected, use "Default"
+        #  If no location selected, use "Default"
         if location is None:
             location = "Default"
 

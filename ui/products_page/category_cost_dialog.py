@@ -15,6 +15,7 @@ from ui.widgets.search_widget import ModernSearchWidget
 from ui.widgets.modern_button import ModernButton
 from ui.widgets.summary_card_widget import SummaryCardWidget
 from ui.themes.theme_manager import get_theme_colors, is_dark_theme, theme_manager
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from datetime import datetime
 from loguru import logger
 import os
@@ -210,6 +211,8 @@ class CategoryCostDialog(QDialog):
     
     def _apply_table_scrollbar_style(self):
         """Apply smaller scrollbar style to table"""
+        self.table.setStyleSheet(modern_table_stylesheet(get_theme_colors()))
+        return
         is_dark = is_dark_theme()
         
         if is_dark:

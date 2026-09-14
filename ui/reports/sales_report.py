@@ -7,6 +7,7 @@ from utils.currency import get_currency_symbol, format_money
 from utils.excel_exporter import ExcelExporter
 from ui.widgets import PaginationWidget
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from loguru import logger
 from datetime import datetime
 
@@ -93,27 +94,7 @@ class SalesReportTab(QWidget):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
-        self.table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {colors['card_bg']};
-                alternate-background-color: {colors['table_alt']};
-                selection-background-color: {colors['bg_hover']};
-                selection-color: {colors['text']};
-                gridline-color: transparent;
-                border: 1px solid {colors['border']};
-                border-radius: 12px;
-                color: {colors['text']};
-            }}
-            QTableWidget::item {{ padding: 8px 12px; }}
-            QHeaderView::section {{
-                background-color: {colors['bg_hover']};
-                padding: 9px 12px;
-                border: none;
-                border-bottom: 1px solid {colors['border']};
-                font-weight: 600;
-                color: {colors['text_secondary']};
-            }}
-        """)
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
     
     def setup_ui(self):
         layout = QVBoxLayout()

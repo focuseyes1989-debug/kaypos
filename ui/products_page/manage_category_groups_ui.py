@@ -30,8 +30,8 @@ class CategoryGroupsUI:
     def setup_ui(self, dialog):
         """Setup the complete UI"""
         main_layout = QVBoxLayout(dialog)
-        main_layout.setSpacing(14)
-        main_layout.setContentsMargins(28, 24, 28, 20)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(16, 14, 16, 14)
         
         # Header
         self._create_header(dialog, main_layout)
@@ -106,8 +106,8 @@ class CategoryGroupsUI:
         stats_widget = QWidget()
         stats_widget.setObjectName("statsWidget")
         stats_layout = QHBoxLayout(stats_widget)
-        stats_layout.setContentsMargins(12, 6, 12, 6)
-        stats_layout.setSpacing(20)
+        stats_layout.setContentsMargins(0, 4, 0, 4)
+        stats_layout.setSpacing(16)
         
         dialog.total_label = QLabel("📊 Total: 0")
         dialog.total_label.setObjectName("statLabel")
@@ -304,14 +304,14 @@ class CategoryGroupsUI:
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Segoe UI", "Myanmar Text", "Noto Sans Myanmar";
+                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
             }}
             QLabel {{
                 color: {colors['text']};
             }}
             QLabel#headerTitle {{
                 color: {colors['text']};
-                font-size: 20pt;
+                font-size: 14pt;
                 font-weight: 700;
             }}
             QLabel#headerSubtitle {{
@@ -354,8 +354,8 @@ class CategoryGroupsUI:
                 border-color: #f1c40f;
             }}
             QTableWidget#groupsTable {{
-                background-color: {colors['card_bg']};
-                alternate-background-color: {colors['table_alt']};
+                background-color: transparent;
+                alternate-background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
                 border-radius: 12px;
@@ -363,10 +363,15 @@ class CategoryGroupsUI:
                 outline: none;
                 gridline-color: transparent;
             }}
+            QTableWidget#groupsTable::viewport {{
+                background-color: transparent;
+                border-radius: 12px;
+            }}
             QTableWidget#groupsTable::item {{
-                padding: 9px 12px;
+                padding: 6px 10px;
                 border-bottom: 1px solid {colors['border']};
                 color: {colors['text']};
+                background-color: transparent;
             }}
             QTableWidget#groupsTable::item:selected {{
                 background-color: {colors['bg_hover']};
@@ -376,18 +381,17 @@ class CategoryGroupsUI:
                 background-color: {colors['card_hover']};
             }}
             QHeaderView::section {{
-                background: {colors['card_bg']};
+                background: {colors['bg_hover']};
                 color: {colors['text_secondary']};
                 border: none;
                 border-bottom: 1px solid {colors['border']};
-                padding: 10px 12px;
+                padding: 8px 10px;
                 font-weight: 600;
-                font-size: 10pt;
+                font-size: 9pt;
             }}
             QWidget#statsWidget {{
-                background-color: {colors['card_bg']};
-                border: 1px solid {colors['border']};
-                border-radius: 10px;
+                background-color: transparent;
+                border: none;
             }}
             QLabel#statLabel {{
                 color: {colors['text_secondary']};

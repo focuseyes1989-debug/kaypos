@@ -50,7 +50,7 @@ class StockOutHandlers:
             d.so_customer.addItem(name, cid)
         conn.close()
     
-    # ✅ Updated: Removed "None" option
+    #  Updated: Removed "None" option
     def load_locations(self):
         """Load locations from database"""
         conn = connect_db()
@@ -103,7 +103,7 @@ class StockOutHandlers:
             # Clear product info if no products found
             d.current_stock_label.setVisible(False)
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nNo products found")
+            d.image_preview.setText("No Image\n\nNo products found")
             d.product_details_label.setText("No products match your search")
             self.current_product_id = None
     
@@ -159,7 +159,7 @@ class StockOutHandlers:
         
         if product_id is None:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nSelect a product to preview")
+            d.image_preview.setText("No Image\n\nSelect a product to preview")
             d.product_details_label.setText("Select a product to view details")
             return
         
@@ -177,11 +177,11 @@ class StockOutHandlers:
             
             details = f"""
 <b style='font-size:11pt;'>{name}</b><br>
-<span style='color:#5d6d7e;'>📌 SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>🔢 Barcode:</span> <b>{barcode or 'N/A'}</b><br>
-<span style='color:#5d6d7e;'>📦 Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
-<span style='color:#5d6d7e;'>💰 Cost:</span> <b style='color:#27ae60;'>{format_money(cost or 0)}</b><br>
-<span style='color:#5d6d7e;'>🔄 Type:</span> <b>{sold_by or 'Each'}</b>
+<span style='color:#5d6d7e;'>SKU:</span> <b>{sku or 'N/A'}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Barcode:</span> <b>{barcode or 'N/A'}</b><br>
+<span style='color:#5d6d7e;'>Stock:</span> <b style='color:#2c3e50;'>{stock or 0}</b> &nbsp;|&nbsp; 
+<span style='color:#5d6d7e;'>Cost:</span> <b style='color:#27ae60;'>{format_money(cost or 0)}</b><br>
+<span style='color:#5d6d7e;'>Type:</span> <b>{sold_by or 'Each'}</b>
             """
             d.product_details_label.setText(details)
             
@@ -207,13 +207,13 @@ class StockOutHandlers:
                     d.image_preview.setText("")
                 else:
                     d.image_preview.setPixmap(QPixmap())
-                    d.image_preview.setText("📷 No Image Available")
+                    d.image_preview.setText("No Image Available")
             except Exception:
                 d.image_preview.setPixmap(QPixmap())
-                d.image_preview.setText("🖼️ Image Not Available")
+                d.image_preview.setText("Image Not Available")
         else:
             d.image_preview.setPixmap(QPixmap())
-            d.image_preview.setText("📷 No Image\n\nProduct not found")
+            d.image_preview.setText("No Image\n\nProduct not found")
             d.product_details_label.setText("Product not found")
     
     def update_current_stock(self):
@@ -233,7 +233,7 @@ class StockOutHandlers:
         
         if row:
             stock = row[0] if row[0] is not None else 0
-            d.current_stock_label.setText(f"📊 Stock: {stock}")
+            d.current_stock_label.setText(f"Stock: {stock}")
             d.current_stock_label.setVisible(True)
             d.current_stock_label.setStyleSheet("""
                 QLabel {
@@ -272,7 +272,7 @@ class StockOutHandlers:
             d.current_stock_label.setVisible(True)
             
             if after_stock < 0:
-                d.current_stock_label.setText(f"⚠️ {current_stock} → {after_stock} (Insufficient!)")
+                d.current_stock_label.setText(f"{current_stock} → {after_stock} (Insufficient!)")
                 d.current_stock_label.setStyleSheet("""
                     QLabel {
                         font-weight: 600;
@@ -285,7 +285,7 @@ class StockOutHandlers:
                     }
                 """)
             else:
-                d.current_stock_label.setText(f"📊 {current_stock} → {after_stock}")
+                d.current_stock_label.setText(f"{current_stock} → {after_stock}")
                 d.current_stock_label.setStyleSheet("""
                     QLabel {
                         font-weight: 600;
@@ -358,7 +358,7 @@ class StockOutHandlers:
         if current_data == "__NEW__" or current_text == "+ Add New Location":
             self.add_new_location()
     
-    # ✅ Updated: Handle default location after adding
+    #  Updated: Handle default location after adding
     def add_new_location(self):
         """Add a new location"""
         d = self.dialog
@@ -419,7 +419,7 @@ class StockOutHandlers:
             if d.so_location.count() > 0:
                 d.so_location.setCurrentIndex(0)
     
-    # ✅ Updated: Added location = "Default" fallback
+    #  Updated: Added location = "Default" fallback
     def save(self):
         """Save stock out transaction"""
         d = self.dialog
@@ -442,13 +442,13 @@ class StockOutHandlers:
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ Updated validation
+        #  Updated validation
         if location == "__NEW__":
             msg = "Please select a valid location or add a new one first." if lang != "my" else "ကျေးဇူးပြု၍ နေရာတစ်ခုရွေးပါ သို့မဟုတ် အသစ်ထည့်ပါ။"
             QMessageBox.warning(self.dialog, tr("error"), msg)
             return
         
-        # ✅ If no location selected, use "Default"
+        #  If no location selected, use "Default"
         if location is None:
             location = "Default"
 

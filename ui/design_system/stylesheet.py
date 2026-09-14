@@ -26,8 +26,6 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
     radius = theme.radius
     typo = theme.typography
 
-    table_bg = colors.card_bg
-    table_alt = colors.table_alternate
     group_title_bg = colors.bg if not dark else colors.card_bg
 
     return f"""
@@ -174,9 +172,15 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
             border: 1px solid {colors.border};
             border-radius: {_px(radius.button)};
             padding: 6px {_px(spacing.button_padding_x)};
-            min-height: 22px;
+            min-height: {_px(CONTROL_HEIGHT - 10)};
+            max-height: {_px(CONTROL_HEIGHT - 10)};
             min-width: 72px;
             font-weight: {typo.weight_medium};
+        }}
+
+        QToolButton {{
+            min-height: {_px(CONTROL_HEIGHT - 10)};
+            max-height: {_px(CONTROL_HEIGHT - 10)};
         }}
 
         QPushButton:hover {{
@@ -199,19 +203,26 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QTableWidget, QTableView {{
-            background-color: {table_bg};
-            alternate-background-color: {table_alt};
+            background-color: transparent;
+            alternate-background-color: transparent;
             color: {colors.text};
             gridline-color: transparent;
-            border: none;
+            border: 1px solid {colors.border};
             border-radius: {_px(radius.table)};
             selection-background-color: {colors.table_selection};
             selection-color: {colors.text};
         }}
 
+        QTableWidget::viewport, QTableView::viewport {{
+            background-color: transparent;
+            border-radius: {_px(radius.table)};
+        }}
+
         QTableWidget::item, QTableView::item {{
-            padding: 4px 10px;
+            padding: 6px 10px;
             border: none;
+            border-bottom: 1px solid {colors.border};
+            background-color: transparent;
         }}
 
         QTableWidget::item:selected, QTableView::item:selected {{
@@ -220,13 +231,21 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
         }}
 
         QHeaderView::section {{
-            background-color: {colors.table_header};
+            background-color: {colors.bg_hover};
             color: {colors.text_secondary};
             border: none;
             border-bottom: 1px solid {colors.border};
             padding: 8px 10px;
             font-size: {typo.size_body}pt;
             font-weight: {typo.weight_semibold};
+        }}
+
+        QHeaderView::section:first {{
+            border-top-left-radius: {_px(radius.table)};
+        }}
+
+        QHeaderView::section:last {{
+            border-top-right-radius: {_px(radius.table)};
         }}
 
         QScrollBar:vertical {{
@@ -429,7 +448,7 @@ def build_design_stylesheet(theme_name: str = "Light") -> str:
 
         QListWidget, QListView, QTreeWidget, QTreeView {{
             background-color: {colors.card_bg};
-            alternate-background-color: {table_alt};
+            alternate-background-color: {colors.table_alternate};
             color: {colors.text};
             border: 1px solid {colors.border};
             border-radius: {_px(radius.input)};

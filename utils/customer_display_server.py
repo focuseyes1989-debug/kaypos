@@ -96,7 +96,7 @@ def _customer_display_html():
       min-height: 100vh;
       background: var(--bg);
       color: var(--text);
-      font-family: "Myanmar Text", "Noto Sans Myanmar", "Segoe UI", Arial, sans-serif;
+      font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI", Arial, sans-serif;
     }
     .shell { padding: 20px; max-width: 1120px; margin: 0 auto; }
     header {

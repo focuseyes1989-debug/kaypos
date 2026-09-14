@@ -12,6 +12,7 @@ from ui.widgets.toast_notification_widget import ToastNotificationWidget
 from ui.widgets.currency_input_widget import CurrencyInputWidget
 from ui.widgets.auto_complete_combo import AutoCompleteComboBox
 from ui.widgets.combo_box_widget import ComboBoxWidget, ModernComboBoxWidget
+from ui.widgets.category_combo_box import CategoryComboBox
 from ui.widgets.tag_input_widget import TagInputWidget
 from ui.widgets.file_upload_widget import FileUploadWidget
 from ui.widgets.modern_date_picker import ModernDatePicker
@@ -55,6 +56,7 @@ __all__ = [
     'AutoCompleteComboBox',
     'ComboBoxWidget',
     'ModernComboBoxWidget',
+    'CategoryComboBox',
     'TagInputWidget',
     'FileUploadWidget',
     

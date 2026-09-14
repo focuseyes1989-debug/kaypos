@@ -1,13 +1,14 @@
 # ui/reports/expense_report.py
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox, QWidget, QComboBox, QLabel
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QMessageBox, QWidget, QLabel
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QIcon, QColor
 from models.database import connect_db
 from utils.currency import get_currency_symbol, format_money
 from utils.excel_exporter import ExcelExporter
-from ui.widgets import PaginationWidget
+from ui.widgets import PaginationWidget, ComboBoxWidget
 from ui.widgets.modern_button import ModernButton
 from ui.themes.theme_manager import theme_manager, get_theme_colors, is_dark_theme
+from ui.design_system.dialog_styles import modern_table_stylesheet
 from loguru import logger
 from datetime import datetime
 import os
@@ -113,8 +114,10 @@ class ExpenseReportTab(QWidget):
     def _apply_theme(self):
         """Apply theme-aware styles"""
         colors = get_theme_colors()
+        self.table.setStyleSheet(modern_table_stylesheet(colors))
         
         # Table style
+        return
         is_dark = is_dark_theme()
         if is_dark:
             table_style = """
@@ -273,22 +276,9 @@ class ExpenseReportTab(QWidget):
         filter_layout.setContentsMargins(0, 8, 0, 8)
         
         filter_layout.addWidget(QLabel("Category:"))
-        self.category_filter = QComboBox()
+        self.category_filter = ComboBoxWidget("All Categories")
         self.category_filter.addItem("All Categories")
         self.category_filter.currentTextChanged.connect(self.on_category_changed)
-        self.category_filter.setStyleSheet("""
-            QComboBox {
-                padding: 6px 12px;
-                border: 1px solid #dfe6e9;
-                border-radius: 6px;
-                background: white;
-                font-size: 10pt;
-                min-width: 120px;
-            }
-            QComboBox:focus {
-                border-color: #5865f2;
-            }
-        """)
         filter_layout.addWidget(self.category_filter)
         filter_layout.addStretch()
         layout.addLayout(filter_layout)

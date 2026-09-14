@@ -111,7 +111,7 @@ class DarkThemeColors:
 @dataclass
 class ThemeTypography:
     """Typography settings"""
-    font_family: str = "'Segoe UI', 'Myanmar Text', 'Noto Sans Myanmar', 'Pyidaungsu', sans-serif"
+    font_family: str = "'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI', sans-serif"
     font_family_mono: str = "'Consolas', 'Courier New', monospace"
     
     # Sizes (in points)

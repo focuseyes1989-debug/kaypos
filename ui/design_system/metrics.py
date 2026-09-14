@@ -1,6 +1,6 @@
 """Shared logical-pixel metrics for desktop components, independent of DPI."""
 
-CONTROL_HEIGHT = 38
+CONTROL_HEIGHT = 34
 COMPACT_HEIGHT = 32
 CONTROL_RADIUS = 6
 CARD_RADIUS = 8
@@ -21,6 +21,7 @@ def button_metrics_stylesheet(selector="QPushButton", *, compact=False):
     height = COMPACT_HEIGHT if compact else CONTROL_HEIGHT
     return f"""{selector} {{
         min-height: {height - 10}px;
+        max-height: {height - 10}px;
         padding: 4px 12px;
         border-radius: {CONTROL_RADIUS}px;
         font-size: 9pt;

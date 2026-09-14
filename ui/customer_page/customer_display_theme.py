@@ -67,7 +67,7 @@ def get_launcher_style():
         QWidget {{
             background: {colors['window']};
             color: {colors['text']};
-            font-family: 'Segoe UI', 'Arial', 'Myanmar Text', 'Noto Sans Myanmar';
+            font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI', Arial;
         }}
 
         QGroupBox {{
