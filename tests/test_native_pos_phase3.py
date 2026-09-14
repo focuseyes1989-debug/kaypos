@@ -225,6 +225,29 @@ class NativeSalesWidgetTests(unittest.TestCase):
         QTimer.singleShot(3000, loop.quit); loop.exec()
         self.assertFalse(self.window.runner.busy)
 
+    def test_native_sales_page_remains_default_standard_widget_workspace(self):
+        self.assertIn(5, self.window.route_pages)
+        self.assertIs(self.window.route_pages[5], self.page)
+        self.assertIs(self.window.pages.currentWidget(), self.page)
+        self.assertEqual(self.window.navigation.currentItem().text(), 'Sales')
+        self.assertTrue(self.window.cashier_action.isEnabled())
+
+        self.assertEqual(
+            [self.page.product_table.horizontalHeaderItem(i).text() for i in range(self.page.product_table.columnCount())],
+            ['Product', 'Price', 'Stock'],
+        )
+        self.assertEqual(
+            [self.page.cart_table.horizontalHeaderItem(i).text() for i in range(self.page.cart_table.columnCount())],
+            ['Cart', 'Qty', 'Price', 'Amount'],
+        )
+        self.assertEqual(self.page.search.placeholderText(), 'Search products (F2)')
+        self.assertEqual(self.page.barcode.placeholderText(), 'Scan barcode / SKU then Enter (F4)')
+        self.assertEqual(self.page.checkout_button.text(), 'Review sale (F9)')
+        self.assertEqual(self.page.reload_button.text(), 'Connect / Refresh')
+        self.assertEqual(self.page.recover_button.text(), 'Recover pending checkout')
+        self.assertEqual(self.page.receipt_button.text(), 'Last receipt')
+        self.assertEqual(self.page.drawer_button.text(), 'Open cash drawer…')
+
     def test_cart_scan_variant_service_and_quantity_limit(self):
         with patch.object(self.api, 'scan_product', return_value={'id': 1, 'name': 'Shirt', 'stock': 2, 'sold_by': 'Variants',
                            'matched_variant_id': 21, 'variants': [{'variant_id': 21, 'color': 'Blue', 'size': 'M', 'stock': 2, 'price': 200}]}):
