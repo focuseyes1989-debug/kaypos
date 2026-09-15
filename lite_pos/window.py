@@ -1134,7 +1134,7 @@ class ReceiptDialog(QDialog):
             f"<b>Due Date:</b> {escape(str(self.receipt.get('due_date') or '—'))}</p>"
         ) if is_credit else ""
         return (
-            "<div style='font-family:Segoe UI,Myanmar Text;font-size:10pt'>"
+            "<div style='font-family:\"Myanmar Text\",Pyidaungsu,\"Segoe UI\",sans-serif;font-size:10pt'>"
             f"{logo}<h2 style='text-align:center;margin:2px 0'>{shop_name}</h2>"
             f"{header_html}"
             f"<p><b>Invoice:</b> {escape(str(self.receipt.get('invoice_no') or ''))}<br>"
@@ -1149,6 +1149,9 @@ class ReceiptDialog(QDialog):
         )
 
     def _set_document_html(self, document) -> None:
+        from PyQt6.QtGui import QFont
+
+        document.setDefaultFont(QFont("Myanmar Text", 10))
         logo_data = str(self.settings.get("shop_logo_image") or "")
         if logo_data.startswith("data:image/") and "," in logo_data:
             try:
@@ -1188,15 +1191,161 @@ class ReceiptDialog(QDialog):
         painter = QPainter(printer)
         if not painter.isActive():
             return False
-        scale = printer.resolution() / logical_dpi
         paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
+        image = self._render_receipt_image(paint_rect.width())
         painter.save()
-        painter.translate(paint_rect.left(), paint_rect.top())
-        painter.scale(scale, scale)
-        document.drawContents(painter, QRectF(0.0, 0.0, logical_width, content_height))
+        painter.drawImage(paint_rect.left(), paint_rect.top(), image)
         painter.restore()
         painter.end()
         return True
+
+    def _render_receipt_image(self, target_width: int) -> QImage:
+        from PIL import Image, ImageDraw
+        import freetype
+        import uharfbuzz as hb
+
+        class ReceiptFont:
+            def __init__(self, path: str, size: int):
+                self.path = path
+                self.size = int(size)
+                self.face = freetype.Face(path)
+                self.face.set_pixel_sizes(0, self.size)
+                self.font_data = open(path, "rb").read()
+                self.hb_face = hb.Face(self.font_data)
+                self.hb_font = hb.Font(self.hb_face)
+                self.hb_font.scale = (self.size * 64, self.size * 64)
+                hb.ot_font_set_funcs(self.hb_font)
+                self.ascender = self.face.size.ascender / 64
+                self.line_height = max(self.size + 8, int(self.face.size.height / 64) + 8)
+
+            def shape(self, text: str):
+                buffer = hb.Buffer()
+                buffer.add_str(str(text or ""))
+                buffer.guess_segment_properties()
+                hb.shape(self.hb_font, buffer, {})
+                return buffer.glyph_infos, buffer.glyph_positions
+
+            def width(self, text: str) -> float:
+                return sum(position.x_advance for position in self.shape(text)[1]) / 64
+
+            def draw(self, image: Image.Image, x: int, y: int, text: str) -> None:
+                infos, positions = self.shape(text)
+                pen_x = float(x)
+                pen_y = float(y) + self.ascender
+                for info, position in zip(infos, positions):
+                    self.face.load_glyph(info.codepoint, freetype.FT_LOAD_RENDER)
+                    bitmap = self.face.glyph.bitmap
+                    if bitmap.width and bitmap.rows:
+                        glyph = Image.frombytes("L", (bitmap.width, bitmap.rows), bytes(bitmap.buffer))
+                        glyph_x = int(round(pen_x + position.x_offset / 64 + self.face.glyph.bitmap_left))
+                        glyph_y = int(round(pen_y - position.y_offset / 64 - self.face.glyph.bitmap_top))
+                        image.paste((0, 0, 0), (glyph_x, glyph_y), glyph)
+                    pen_x += position.x_advance / 64
+                    pen_y += position.y_advance / 64
+
+        width = max(384, int(target_width or 576))
+        margin = max(14, width // 32)
+        content_width = width - margin * 2
+        font_path = r"C:\Windows\Fonts\mmrtext.ttf"
+        bold_font_path = r"C:\Windows\Fonts\mmrtextb.ttf"
+        title_font = ReceiptFont(bold_font_path, max(32, width // 15))
+        normal_font = ReceiptFont(font_path, max(24, width // 22))
+        small_font = ReceiptFont(font_path, max(22, width // 25))
+        bold_font = ReceiptFont(bold_font_path, max(24, width // 22))
+        currency = str(self.settings.get("currency_symbol") or "Ks")
+
+        line_height = normal_font.line_height
+        small_height = small_font.line_height
+        y = margin
+        commands: list[tuple[str, object]] = []
+
+        def wrap_line(raw_line: str, font: ReceiptFont) -> list[str]:
+            if font.width(raw_line) <= content_width:
+                return [raw_line]
+            words = str(raw_line).split(" ")
+            if len(words) > 1:
+                lines: list[str] = []
+                current = ""
+                for word in words:
+                    candidate = f"{current} {word}".strip()
+                    if current and font.width(candidate) > content_width:
+                        lines.append(current)
+                        current = word
+                    else:
+                        current = candidate
+                if current:
+                    lines.append(current)
+                return lines
+            lines = []
+            current = ""
+            for char in str(raw_line):
+                candidate = current + char
+                if current and font.width(candidate) > content_width:
+                    lines.append(current)
+                    current = char
+                else:
+                    current = candidate
+            if current:
+                lines.append(current)
+            return lines or [raw_line]
+
+        def add_text(text: str, font=normal_font, align: str = "left", height: int | None = None) -> None:
+            nonlocal y
+            for raw_line in str(text or "").splitlines() or [""]:
+                wrapped = wrap_line(raw_line, font)
+                for line in wrapped:
+                    commands.append(("text", (line, font, align, y)))
+                    y += height or line_height
+
+        def add_rule() -> None:
+            nonlocal y
+            y += 5
+            commands.append(("rule", y))
+            y += 12
+
+        add_text(str(self.settings.get("shop_name") or "KAY POS"), title_font, "center", line_height + 10)
+        for value in (self.settings.get("receipt_header"),):
+            if value:
+                add_text(str(value), small_font, "center", small_height)
+        add_text(f"Invoice: {self.receipt.get('invoice_no') or ''}", normal_font)
+        add_text(f"Date: {self.receipt.get('created_at') or ''}", normal_font)
+        add_text(f"Status: {str(self.receipt.get('status') or 'completed').title()}", normal_font)
+        add_rule()
+        add_text("Item", bold_font)
+        for item in self.receipt.get("items") or []:
+            name = str(item.get("product_name") or "")
+            qty = int(item.get("qty") or 0)
+            total = float(item.get("total") or 0)
+            add_text(name, normal_font)
+            add_text(f"{qty} x {float(item.get('price') or 0):,.0f}    {total:,.0f}", small_font, "right", small_height)
+        add_rule()
+        add_text(f"Total: {float(self.receipt.get('total') or 0):,.0f} {currency}", bold_font, "right", line_height + 2)
+        add_text(f"Payment: {float(self.receipt.get('payment') or 0):,.0f} {currency}", normal_font, "right")
+        add_text(f"Change: {float(self.receipt.get('change_amount') or 0):,.0f} {currency}", normal_font, "right")
+        if str(self.receipt.get("payment_type") or "").casefold() == "credit":
+            add_text(f"Balance Due: {float(self.receipt.get('balance_amount') or 0):,.0f} {currency}", normal_font, "right")
+            add_text(f"Due Date: {self.receipt.get('due_date') or '-'}", normal_font, "right")
+        for value in (self.settings.get("receipt_footer"), self.settings.get("shop_footer_message")):
+            if value:
+                add_text(str(value), small_font, "center", small_height)
+
+        image = Image.new("RGB", (width, y + margin), "white")
+        draw = ImageDraw.Draw(image)
+        for kind, payload in commands:
+            if kind == "rule":
+                draw.line((margin, int(payload), width - margin, int(payload)), fill="black", width=2)
+                continue
+            line, font, align, line_y = payload
+            line_width = font.width(line)
+            x = margin
+            if align == "center":
+                x = max(margin, (width - line_width) // 2)
+            elif align == "right":
+                x = max(margin, width - margin - line_width)
+            font.draw(image, int(x), int(line_y), line)
+        rgba = image.convert("RGBA")
+        data = rgba.tobytes("raw", "RGBA")
+        return QImage(data, rgba.width, rgba.height, QImage.Format.Format_RGBA8888).copy()
 
     def print_receipt(self) -> None:
         from PyQt6.QtPrintSupport import QPrinter, QPrinterInfo
@@ -3040,24 +3189,23 @@ class LiteWindow(QMainWindow):
                 QTimer.singleShot(100, self.load_products)
                 return
             page = list(products)
-            start_row = len(self.products)
             self.products.extend(page)
+            self.products.sort(key=lambda product: self._product_stock_status(
+                product, self._product_display_stock(product)
+            ) == "out")
             if self.api and not query and not selected_category:
                 save_product_cache(self.products)
             self.product_table.setUpdatesEnabled(False); self.product_table.blockSignals(True); self.product_table.setRowCount(len(self.products))
-            for page_row, product in enumerate(page):
-                row = start_row + page_row
+            self.product_grid.clear()
+            self.product_rows = {}
+            self.product_grid_items = {}
+            self.product_grid_tiles = {}
+            for row, product in enumerate(self.products):
                 image_item = QTableWidgetItem()
                 image_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.product_table.setItem(row, 0, image_item)
                 variants = product.get("variants") or []
-                mode = sold_by_mode(product.get("sold_by"))
-                display_stock = (
-                    "Service" if mode == "service"
-                    else sum(int(variant.get("stock") or 0) for variant in variants)
-                    if mode == "variants" and variants
-                    else int(product.get("stock") or 0)
-                )
+                display_stock = self._product_display_stock(product)
                 stock_status = self._product_stock_status(product, display_stock)
                 values = (
                     product.get("name") or "",
@@ -3138,6 +3286,16 @@ class LiteWindow(QMainWindow):
             ),
             loaded, failed,
         )
+
+    @staticmethod
+    def _product_display_stock(product: dict) -> int | str:
+        variants = product.get("variants") or []
+        mode = sold_by_mode(product.get("sold_by"))
+        if mode == "service":
+            return "Service"
+        if mode == "variants" and variants:
+            return sum(int(variant.get("stock") or 0) for variant in variants)
+        return int(product.get("stock") or 0)
 
     @staticmethod
     def _product_stock_status(product: dict, display_stock: int) -> str:
