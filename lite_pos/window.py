@@ -350,20 +350,23 @@ class LiteSaleDisplay(QWidget):
         self.setObjectName("liteSaleDisplay")
         self.setWindowTitle("KAY POS Lite · Sale Display")
         self.setStyleSheet("""
-            QWidget#liteSaleDisplay { background: #0d111b; color: #edf2ff; }
-            QLabel#displayShop { color: #ffffff; font-size: 28pt; font-weight: 800; }
-            QLabel#displayMessage { color: #99a4ba; font-size: 13pt; }
-            QLabel#displayTotalCaption { color: #aeb8ca; font-size: 18pt; font-weight: 600; }
-            QLabel#displayTotal { color: #ffffff; background: #5365df; border-radius: 18px;
-                                  padding: 18px 28px; font-size: 34pt; font-weight: 800; }
-            QTableWidget { background: #151c2a; color: #edf2ff; gridline-color: #293348;
-                           border: 1px solid #293348; font-size: 15pt; }
-            QHeaderView::section { background: #111724; color: #aeb8ca; border: 0;
-                                   border-bottom: 1px solid #293348; padding: 10px; font-size: 12pt; }
+            QWidget#liteSaleDisplay { background: #ffffff; color: #111827; }
+            QLabel#displayShop { color: #111827; font-size: 24pt; font-weight: 800; }
+            QLabel#displayMessage { color: #6b7280; font-size: 12pt; }
+            QLabel#displayTotalCaption { color: #374151; font-size: 17pt; font-weight: 700; }
+            QLabel#displayTotal { color: #111827; background: transparent; border: 0;
+                                  padding: 4px 0; font-size: 34pt; font-weight: 800; }
+            QTableWidget { background: #ffffff; color: #111827; gridline-color: #e5e7eb;
+                           border: 1px solid #d1d5db; font-size: 15pt; }
+            QTableWidget::item { padding: 8px; border-bottom: 1px solid #f3f4f6; }
+            QTableWidget::item:alternate { background: #f9fafb; }
+            QHeaderView::section { background: #f9fafb; color: #374151; border: 0;
+                                   border-bottom: 1px solid #d1d5db; padding: 10px; font-size: 12pt;
+                                   font-weight: 700; }
         """)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(42, 34, 42, 38)
-        layout.setSpacing(18)
+        layout.setContentsMargins(38, 30, 38, 34)
+        layout.setSpacing(14)
         self.shop_label = QLabel(shop_name or "KAY POS", objectName="displayShop")
         self.message_label = QLabel("Your order", objectName="displayMessage")
         layout.addWidget(self.shop_label)
@@ -372,9 +375,10 @@ class LiteSaleDisplay(QWidget):
         self.items_table.setHorizontalHeaderLabels(["Item", "Qty", "Price", "Amount"])
         self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.items_table.setAlternatingRowColors(True)
         self.items_table.verticalHeader().setVisible(False)
-        self.items_table.verticalHeader().setDefaultSectionSize(48)
-        self.items_table.horizontalHeader().setMinimumHeight(48)
+        self.items_table.verticalHeader().setDefaultSectionSize(44)
+        self.items_table.horizontalHeader().setMinimumHeight(44)
         self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for column in (1, 2, 3):
             self.items_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
@@ -383,7 +387,7 @@ class LiteSaleDisplay(QWidget):
         total_row.addStretch()
         total_row.addWidget(QLabel("TOTAL", objectName="displayTotalCaption"))
         self.total_label = QLabel("0 Ks", objectName="displayTotal")
-        self.total_label.setMinimumWidth(310)
+        self.total_label.setMinimumWidth(280)
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         total_row.addWidget(self.total_label)
         layout.addLayout(total_row)
