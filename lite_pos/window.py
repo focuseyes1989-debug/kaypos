@@ -345,8 +345,10 @@ class LiteSaleDisplay(QWidget):
 
     closed = pyqtSignal()
 
-    def __init__(self, shop_name: str = "KAY POS", parent=None):
+    def __init__(self, shop_name: str = "KAY POS", parent=None, host=None):
         super().__init__(parent, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.host = host
+        self.image_labels: dict[int, QLabel] = {}
         self.setObjectName("liteSaleDisplay")
         self.setWindowTitle("KAY POS Lite · Sale Display")
         self.setStyleSheet("""
@@ -371,16 +373,18 @@ class LiteSaleDisplay(QWidget):
         self.message_label = QLabel("Your order", objectName="displayMessage")
         layout.addWidget(self.shop_label)
         layout.addWidget(self.message_label)
-        self.items_table = QTableWidget(0, 4)
-        self.items_table.setHorizontalHeaderLabels(["Item", "Qty", "Price", "Amount"])
+        self.items_table = QTableWidget(0, 5)
+        self.items_table.setHorizontalHeaderLabels(["", "Item", "Qty", "Price", "Amount"])
         self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.items_table.setAlternatingRowColors(True)
         self.items_table.verticalHeader().setVisible(False)
         self.items_table.verticalHeader().setDefaultSectionSize(44)
         self.items_table.horizontalHeader().setMinimumHeight(44)
-        self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in (1, 2, 3):
+        self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.items_table.setColumnWidth(0, 74)
+        self.items_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for column in (2, 3, 4):
             self.items_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.items_table, 1)
         total_row = QHBoxLayout()
@@ -396,9 +400,22 @@ class LiteSaleDisplay(QWidget):
         self.shop_label.setText(str(shop_name or "KAY POS"))
 
     def set_cart(self, items: list[dict]) -> None:
+        self.image_labels = {}
         self.items_table.setRowCount(len(items))
         total = 0.0
         for row, item in enumerate(items):
+            product_id = int(item.get("product_id") or 0)
+            image = QLabel()
+            image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            image.setFixedSize(58, 40)
+            image.setStyleSheet("background:#f3f4f6;border:1px solid #e5e7eb;color:#9ca3af;font-size:9pt;")
+            image.setText("No\nImage")
+            self.items_table.setCellWidget(row, 0, image)
+            if product_id:
+                self.image_labels[product_id] = image
+                cached = getattr(self.host, "thumbnail_cache", {}).get(product_id) if self.host else None
+                if cached is not None:
+                    self.set_product_image(product_id, cached)
             quantity = int(item.get("qty") or 0)
             price = float(item.get("price") or 0)
             amount = price * quantity
@@ -407,13 +424,25 @@ class LiteSaleDisplay(QWidget):
             if item.get("variant_label"):
                 name += f" · {item['variant_label']}"
             values = (name, f"{quantity:,}", f"{price:,.0f} Ks", f"{amount:,.0f} Ks")
-            for column, value in enumerate(values):
+            for column, value in enumerate(values, start=1):
                 cell = QTableWidgetItem(value)
-                if column:
+                if column > 1:
                     cell.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.items_table.setItem(row, column, cell)
+            self.items_table.setRowHeight(row, 48)
         self.message_label.setText(f"{sum(int(item.get('qty') or 0) for item in items):,} item(s)" if items else "Welcome · Your order will appear here")
         self.total_label.setText(f"{total:,.0f} Ks")
+
+    def set_product_image(self, product_id: int, pixmap: QPixmap) -> None:
+        label = self.image_labels.get(int(product_id or 0))
+        if label is None:
+            return
+        label.setText("")
+        label.setStyleSheet("background:#ffffff;border:1px solid #e5e7eb;")
+        label.setPixmap(pixmap.scaled(
+            label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
 
     def closeEvent(self, event) -> None:
         self.closed.emit()
@@ -3477,7 +3506,19 @@ class LiteWindow(QMainWindow):
         self.thumbnail_cache[product_id] = pixmap
         self._apply_product_thumbnail(product_id, pixmap)
 
+    def _request_product_thumbnail(self, product_id: int) -> None:
+        product_id = int(product_id or 0)
+        if not self.api or not product_id or product_id in self.thumbnail_cache or product_id in self.thumbnail_pending:
+            return
+        self.thumbnail_pending.add(product_id)
+        reply = self.thumbnail_manager.get(QNetworkRequest(QUrl(f"{self.api.server_url}/api/products/{product_id}/image")))
+        if not self.api.verify_tls:
+            reply.sslErrors.connect(lambda _errors, current=reply: current.ignoreSslErrors())
+        reply.finished.connect(lambda current=reply, pid=product_id: self._thumbnail_finished(pid, current))
+
     def _apply_product_thumbnail(self, product_id: int, pixmap: QPixmap) -> None:
+        if self.sale_display:
+            self.sale_display.set_product_image(product_id, pixmap)
         grid_tile = self.product_grid_tiles.get(product_id)
         if grid_tile is not None:
             grid_tile.set_product_image(pixmap)
@@ -3770,6 +3811,8 @@ class LiteWindow(QMainWindow):
         self.checkout_button.setEnabled(bool(items))
         if self.sale_display:
             self.sale_display.set_cart(items)
+            for item in items:
+                self._request_product_thumbnail(int(item.get("product_id") or 0))
 
     def toggle_sale_display(self) -> None:
         if self.sale_display:
@@ -3798,10 +3841,13 @@ class LiteWindow(QMainWindow):
                 )
             return False
         screen = extended_screens[0]
-        display = LiteSaleDisplay(self.receipt_settings.get("shop_name") or "KAY POS")
+        display = LiteSaleDisplay(self.receipt_settings.get("shop_name") or "KAY POS", host=self)
         self.sale_display = display
         display.closed.connect(self._sale_display_closed)
-        display.set_cart(list(self.cart.items.values()))
+        items = list(self.cart.items.values())
+        display.set_cart(items)
+        for item in items:
+            self._request_product_thumbnail(int(item.get("product_id") or 0))
         # Create and show the native window on the target monitor before
         # applying fullscreen. On Windows, fullscreening an unseen window can
         # otherwise relocate it to the POS window's monitor.
