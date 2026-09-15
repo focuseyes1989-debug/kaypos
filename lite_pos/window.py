@@ -1191,13 +1191,18 @@ class ReceiptDialog(QDialog):
         painter = QPainter(printer)
         if not painter.isActive():
             return False
-        paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
-        image = self._render_receipt_image(paint_rect.width())
-        painter.save()
-        painter.drawImage(paint_rect.left(), paint_rect.top(), image)
-        painter.restore()
-        painter.end()
-        return True
+        try:
+            paint_rect = printer.pageLayout().paintRectPixels(printer.resolution())
+            image = self._render_receipt_image(paint_rect.width())
+            painter.save()
+            painter.drawImage(paint_rect.left(), paint_rect.top(), image)
+            painter.restore()
+            return True
+        except Exception as exc:
+            self._last_print_error = str(exc)
+            return False
+        finally:
+            painter.end()
 
     def _render_receipt_image(self, target_width: int) -> QImage:
         from PIL import Image, ImageDraw
@@ -1368,9 +1373,12 @@ class ReceiptDialog(QDialog):
         printer = QPrinter(default_info, QPrinter.PrinterMode.HighResolution)
         document, logical_dpi, logical_width, content_height = self._build_print_document()
         if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
+            detail = getattr(self, "_last_print_error", "")
             QMessageBox.critical(
                 self, "Print Receipt",
-                "Could not start the default printer. Select the receipt printer in Setting Center > Local Printer.",
+                "Could not print the receipt. "
+                "Install POS Lite print dependencies and try again."
+                + (f"\n\nDetails: {detail}" if detail else ""),
             )
 
     def print_receipt_automatic(self) -> None:
@@ -1392,7 +1400,13 @@ class ReceiptDialog(QDialog):
         printer = QPrinter(saved_info, QPrinter.PrinterMode.HighResolution)
         document, logical_dpi, logical_width, content_height = self._build_print_document()
         if not self._paint_receipt_document(printer, document, logical_dpi, logical_width, content_height):
-            QMessageBox.critical(self, "Print Receipt", "Could not start the configured printer.")
+            detail = getattr(self, "_last_print_error", "")
+            QMessageBox.critical(
+                self, "Print Receipt",
+                "Could not print the receipt on the configured printer. "
+                "Install POS Lite print dependencies and try again."
+                + (f"\n\nDetails: {detail}" if detail else ""),
+            )
 
 
 class ServiceOrderItemDialog(QDialog):
