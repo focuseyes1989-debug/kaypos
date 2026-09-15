@@ -502,7 +502,7 @@ class CategoryListUI:
                 gridline-color: transparent;
                 outline: none;
                 font-size: 10pt;
-                font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI', -apple-system, sans-serif;
+                font-family: 'Segoe UI', 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', -apple-system, sans-serif;
                 color: {colors['text']};
                 selection-background-color: {selection_bg};
                 selection-color: {selection_color};

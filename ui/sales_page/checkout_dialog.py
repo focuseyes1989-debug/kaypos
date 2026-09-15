@@ -160,7 +160,7 @@ class CheckoutDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{ background: {colors['card_bg']}; }}
             QWidget#checkoutForm, QWidget#checkoutKeypad {{ background: transparent; }}
-            QLabel {{ background: transparent; color: {colors['text']}; font-family: 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar', 'Segoe UI'; font-size: 13px; }}
+            QLabel {{ background: transparent; color: {colors['text']}; font-family: 'Segoe UI', 'Myanmar Text', 'Pyidaungsu', 'Noto Sans Myanmar'; font-size: 13px; }}
             QFrame#checkoutSummary {{ border: 1px solid {colors['border']}; border-radius: 8px; }}
             QPushButton {{ background: {colors['card_bg']}; color: {colors['text']}; border: 1px solid {colors['border']};
                 border-radius: 8px; min-width: 0; padding: 0 8px; font-size: 14px; }}
@@ -233,10 +233,16 @@ class CheckoutDialog(QDialog):
                 if result:
                     return result
             return None
-        location = find(widget.parentWidget().layout())
-        if location is None:
-            raise RuntimeError("Checkout control has no owning layout")
-        self._borrowed.append((*location, widget, widget.isHidden(), widget.minimumWidth(), widget.styleSheet()))
+        parent = widget.parentWidget()
+        location = find(parent.layout()) if parent and parent.layout() else None
+        self._borrowed.append((
+            *(location or (None, None)),
+            widget,
+            parent,
+            widget.isHidden(),
+            widget.minimumWidth(),
+            widget.styleSheet(),
+        ))
 
     def restore_controls(self):
         totals = self.page.totals_widget
@@ -247,8 +253,12 @@ class CheckoutDialog(QDialog):
         totals.discount_input.setSuffix(suffix)
         self.page.payment_widget.payment_input.validator().setDecimals(self._received_decimals)
         self.page._touch_checkout_active = False
-        for layout, index, widget, hidden, minimum_width, stylesheet in reversed(self._borrowed):
-            layout.insertWidget(index, widget)
+        for layout, index, widget, parent, hidden, minimum_width, stylesheet in reversed(self._borrowed):
+            if layout is not None and index is not None:
+                layout.insertWidget(index, widget)
+            else:
+                # Parentless controls must leave the dialog before it is deleted.
+                widget.setParent(parent if parent is not None else self.page)
             widget.setMinimumWidth(minimum_width)
             widget.setStyleSheet(stylesheet)
             widget.setVisible(not hidden)

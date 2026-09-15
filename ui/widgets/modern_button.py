@@ -266,7 +266,7 @@ class ModernButton(QPushButton):
             QPushButton {{
                 border: none;
                 border-radius: {CONTROL_RADIUS}px;
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
                 font-weight: 600;
                 text-align: center;
                 outline: none;

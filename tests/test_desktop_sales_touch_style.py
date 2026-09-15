@@ -73,10 +73,12 @@ class SalesTouchStyleTests(unittest.TestCase):
                 widget.show()
                 self.app.processEvents()
                 from PyQt6.QtWidgets import QLabel
-                self.assertFalse(any(label.text() in ("Enter service price", "Price") for label in widget.findChildren(QLabel)))
+                labels = {label.text() for label in widget.findChildren(QLabel)}
+                self.assertIn("Enter service price", labels)
+                self.assertIn("Price", labels)
                 for key in widget.findChildren(QPushButton):
                     if key.text().isdigit():
-                        self.assertEqual(key.height(), 52)
+                        self.assertEqual(key.height(), widget.DIGIT_KEY_HEIGHT)
                 effects = parent.findChildren(QGraphicsBlurEffect)
                 self.assertTrue(any(effect.parent().isVisible() for effect in effects))
                 widget._handle_key("C")
@@ -227,6 +229,33 @@ class SalesTouchStyleTests(unittest.TestCase):
             self.assertTrue(cart.empty_widget.isVisible())
             self.assertFalse(cart.empty_action_btn.isVisible())
             cart.close()
+
+    def test_cashier_customer_survives_checkout_disposal(self):
+        from PyQt6 import sip
+        from ui.cashier_window.cashier_ui import CashierUI
+        from ui.sales_page.checkout_dialog import CheckoutDialog
+
+        with patch.object(CashierUI, "_load_initial_data"), patch.object(CashierUI, "_restore_cart"), patch("ui.sales_page.product_grid.ProductGrid.load_products"), patch("ui.sales_page.cart_widget.save_cart_to_file"), patch("ui.cashier_window.cart_widget.delete_cart_backup"):
+            page = CashierUI({"id": 1, "username": "test"})
+            try:
+                combo = page.customer_combo
+                self.assertIs(combo.parentWidget(), page)
+                # Also cover controls created without an original Qt owner.
+                for parentless in (False, True):
+                    if parentless:
+                        combo.setParent(None)
+                    dialog = CheckoutDialog(page)
+                    dialog.reject()
+                    dialog.restore_controls()
+                    sip.delete(dialog)
+                    self.assertFalse(sip.isdeleted(combo))
+                    self.assertIs(combo.parentWidget(), page)
+                    combo.addItem("Customer", 123)
+                    combo.setCurrentIndex(combo.count() - 1)
+                    page.cart_widget.clear()
+                    self.assertEqual(combo.currentIndex(), 0)
+            finally:
+                sip.delete(page)
 
     @unittest.skipUnless(os.environ.get("KAY_DESKTOP_QA_ISOLATED") == "1", "Use isolated runner")
     def test_checkout_dialog_cancel_confirm_and_explicit_print(self):

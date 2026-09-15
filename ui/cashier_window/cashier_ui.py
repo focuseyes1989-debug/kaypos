@@ -110,7 +110,7 @@ class CashierUI(QMainWindow):
         self.show_customer_name = True
         
         # Window setup
-        self.setWindowTitle("💰 Cashier Mode - ZAY POS")
+        self.setWindowTitle("KAY POS")
         self.setWindowIcon(pos_icon())
         
         # Screen size အလိုက် Window Size ချိန်ညှိခြင်း
@@ -211,9 +211,9 @@ class CashierUI(QMainWindow):
         self._main_splitter.addWidget(sale_panel)
         
         # ─── Column 3: Widgets & Checkout ─────────────────────────────
-        product_grid_container.setMinimumWidth(720)
+        product_grid_container.setMinimumWidth(580)
         sale_panel.setMinimumWidth(380)
-        sale_panel.setMaximumWidth(620)
+        sale_panel.setMaximumWidth(520)
         self._main_splitter.setStretchFactor(0, 4)
         self._main_splitter.setStretchFactor(1, 1)
         self._set_default_splitter_sizes()
@@ -246,11 +246,12 @@ class CashierUI(QMainWindow):
             QWidget#cashierContainer QPushButton,
             QWidget#cashierContainer QComboBox,
             QWidget#cashierContainer QLineEdit {{
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QWidget#cashierProductColumn {{
-                background-color: transparent;
+                background-color: {colors.get("card_bg", "#ffffff") if is_dark_theme() else "#f8fbff"};
                 border: none;
+                border-radius: 0px;
             }}
             QWidget#cashierSalePanel {{
                 background-color: {card};
@@ -266,6 +267,21 @@ class CashierUI(QMainWindow):
                 border: 1px solid {colors.get("border", "#4b5568") if is_dark_theme() else "#c9d5f4"};
                 border-radius: 8px;
             }}
+            QPushButton#cashierPrimaryUtility,
+            QPushButton#cashierSecondaryUtility {{
+                border-radius: 8px;
+                padding: 0 14px;
+                font-weight: 700;
+            }}
+            QPushButton#cashierSecondaryUtility {{
+                background-color: {card};
+                color: {text};
+                border: 1px solid {border};
+            }}
+            QPushButton#cashierSecondaryUtility:hover {{
+                background-color: {colors.get("bg_hover", "#eef2ff")};
+                border-color: {colors.get("border_hover", "#5865f2")};
+            }}
         """)
 
     def _set_default_splitter_sizes(self):
@@ -274,7 +290,7 @@ class CashierUI(QMainWindow):
             return
 
         total_width = max(self.width(), 1024)
-        sale_width = min(max(int(total_width * 0.28), 420), 600)
+        sale_width = min(max(int(total_width * 0.30), 400), 520)
         self._main_splitter.setSizes([
             total_width - sale_width,
             sale_width,
@@ -289,13 +305,8 @@ class CashierUI(QMainWindow):
         container.setObjectName("cashierProductColumn")
         
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(
-            12,
-            10,
-            8,
-            10,
-        )
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 12, 10, 12)
+        layout.setSpacing(10)
         
         self.product_grid = ProductGrid(self, use_modern_combos=True)
 
@@ -332,19 +343,19 @@ class CashierUI(QMainWindow):
                 background-color: {input_bg};
                 color: {text};
                 border: 1px solid {input_border};
-                border-radius: 4px;
-                padding: 5px 8px;
-                min-height: 24px;
-                max-height: 24px;
+                border-radius: 8px;
+                padding: 7px 10px;
+                min-height: 28px;
+                max-height: 28px;
             }}
             QComboBox {{
                 background-color: transparent;
                 color: {text};
                 border: 1px solid {input_border};
-                border-radius: 4px;
-                padding: 5px 8px;
-                min-height: 24px;
-                max-height: 24px;
+                border-radius: 8px;
+                padding: 7px 10px;
+                min-height: 28px;
+                max-height: 28px;
             }}
             QLineEdit:focus, QComboBox:focus {{
                 border: 1px solid {focus};
@@ -363,17 +374,17 @@ class CashierUI(QMainWindow):
             self.product_grid.discount_filter_combo,
             self.product_grid.view_combo,
         ):
-            control.setFixedHeight(36)
+            control.setFixedHeight(40)
             if hasattr(control, "apply_theme"):
                 control.apply_theme()
             else:
                 control.setStyleSheet(control_style)
         if hasattr(self.product_grid, "search_widget"):
-            self.product_grid.search_widget.setFixedHeight(36)
+            self.product_grid.search_widget.setFixedHeight(40)
             self.product_grid.search_widget.setMinimumWidth(220)
             self.product_grid.search_widget.setMaximumWidth(16777215)
             self.product_grid.search_widget.apply_modern_style()
-        self.product_grid.search_input.setFixedHeight(24)
+        self.product_grid.search_input.setFixedHeight(28)
     
     def _create_cart_column(self) -> QWidget:
         """Column 2: Mobile Shopping Cart"""
@@ -409,8 +420,8 @@ class CashierUI(QMainWindow):
         container.setObjectName("cashierSalePanel")
 
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(8, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 12, 12, 12)
+        layout.setSpacing(10)
 
         self._setup_customer_section()
         layout.addLayout(self.customer_layout)
@@ -529,7 +540,7 @@ class CashierUI(QMainWindow):
         cart.clear_btn.hide()
 
         more = QToolButton(cart.header)
-        more.setText("More..")
+        more.setText("More...")
         more.setIcon(get_icon("arrow_circle_down", color_hex=get_theme_colors()["text_secondary"]))
         more.setIconSize(QSize(14, 14))
         more.setToolTip("Sale actions")
@@ -540,8 +551,8 @@ class CashierUI(QMainWindow):
                 background-color: transparent;
                 color: {colors['text']};
                 border: 1px solid {colors['border']};
-                border-radius: 8px;
-                padding: 0px 12px;
+                border-radius: 10px;
+                padding: 0px 14px;
                 font-weight: 600;
                 font-size: 9pt;
             }}
@@ -554,8 +565,8 @@ class CashierUI(QMainWindow):
                 width: 0px;
             }}
         """)
-        more.setFixedHeight(34)
-        more.setMinimumWidth(86)
+        more.setFixedHeight(36)
+        more.setMinimumWidth(96)
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(more)
         menu.addAction("Sale Details", self.open_sale_details_dialog)
@@ -570,10 +581,11 @@ class CashierUI(QMainWindow):
         footer = QWidget(cart)
         footer.setObjectName("cartActionsFooter")
         footer.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        footer.setFixedHeight(104)
+        self.cart_actions_footer = footer
+        footer.setFixedHeight(140)
         footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(12, 10, 12, 10)
-        footer_layout.setSpacing(8)
+        footer_layout.setContentsMargins(14, 12, 14, 16)
+        footer_layout.setSpacing(12)
 
         total_row = QHBoxLayout()
         total_row.addWidget(QLabel("Total"))
@@ -585,13 +597,21 @@ class CashierUI(QMainWindow):
 
         action_row = QHBoxLayout()
         self.cart_clear = QPushButton("Clear")
+        self.cart_clear.setObjectName("cashierSecondaryUtility")
         self.cart_clear.clicked.connect(self.checkout_handler.clear_cart)
-        self.cart_checkout = QPushButton("Checkout (F4)")
+        self.cart_checkout = QPushButton("Checkout")
+        self.cart_checkout.setToolTip("Checkout (F4)")
+        self.cart_checkout.setObjectName("cashierPrimaryUtility")
         self.cart_checkout.setIcon(get_icon("shopping_cart"))
         self.cart_checkout.clicked.connect(self.request_checkout)
         for button in (self.cart_clear, self.cart_checkout):
-            button.setFixedHeight(44)
+            button.setFixedHeight(66)
+            button.setMinimumHeight(66)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
             action_row.addWidget(button)
+        action_row.setSpacing(10)
+        action_row.setStretch(0, 1)
+        action_row.setStretch(1, 2)
         footer_layout.addLayout(action_row)
 
         cart.layout().addWidget(footer)
@@ -608,21 +628,22 @@ class CashierUI(QMainWindow):
         button_background = colors.get("card_bg", "#ffffff")
         border = "#303846" if is_dark_theme() else "#e2e8f0"
         self.cart_actions_footer.setStyleSheet(
-            f"QWidget#cartActionsFooter {{ background-color: {background}; border: 1px solid {border}; "
-            "border-radius: 8px; }}"
+            f"QWidget#cartActionsFooter {{ background-color: {background}; border-top: 1px solid {border}; "
+            "border-radius: 0px; }"
             "QLabel { background: transparent; border: none; }"
         )
         self.cart_total.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {colors['text']};")
         self.cart_checkout.setStyleSheet(
-            "QPushButton { background: #167c65; color: white; border: none; border-radius: 6px; padding: 0 12px; "
-            "font-weight: 600; min-height: 34px; max-height: 34px; }"
-            "QPushButton:hover { background: #126b56; }"
-            f"QPushButton:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; }}"
+            "QPushButton { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 0 14px; "
+            "font-size: 11pt; font-weight: 700; min-height: 66px; max-height: 66px; }"
+            "QPushButton:hover { background: #1d4ed8; }"
+            f"QPushButton:disabled {{ background: {colors['bg_hover']}; color: {colors['text_secondary']}; border: 1px solid {border}; }}"
         )
         self.cart_checkout.setIcon(get_icon("shopping_cart", color_hex="#ffffff" if self.cart_checkout.isEnabled() else colors['text_secondary']))
         self.cart_clear.setStyleSheet(
             f"QPushButton {{ background: {button_background}; color: {colors['text']}; border: 1px solid {border}; "
-            "border-radius: 6px; padding: 0 12px; min-height: 34px; max-height: 34px; }}"
+            "border-radius: 8px; padding: 0 14px; min-height: 64px; max-height: 64px; font-size: 10pt; font-weight: 600; }"
+            f"QPushButton:hover {{ background: {colors['bg_hover']}; }}"
             f"QPushButton:disabled {{ color: {colors['text_secondary']}; }}"
         )
 
@@ -854,6 +875,7 @@ class CashierUI(QMainWindow):
         self.customer_icon.hide()
 
         self.customer_combo = ComboBoxWidget("Customer")
+        self.customer_combo.setParent(self)
         self.customer_combo.addItem("Walk-in", None)
         self.customer_combo.currentIndexChanged.connect(self._on_customer_changed)
         self.customer_combo.setMinimumWidth(120)
@@ -1887,7 +1909,7 @@ class CashierUI(QMainWindow):
     def retranslateUi(self):
         """Update UI language"""
         if lang.get_current() == "my":
-            self.setWindowTitle("💰 ငွေကိုင်မုဒ် - ZAY POS")
+            self.setWindowTitle("KAY POS")
             if hasattr(self, 'cart_widget') and self.cart_widget:
                 self.cart_widget.retranslateUi()
             if hasattr(self, 'btn_checkout'):
@@ -1913,7 +1935,7 @@ class CashierUI(QMainWindow):
                 self.btn_backup.setText("Backup")
                 self.btn_backup.setToolTip("Database Backup ပြုလုပ်ရန်")
         else:
-            self.setWindowTitle("💰 Cashier Mode - ZAY POS")
+            self.setWindowTitle("KAY POS")
             if hasattr(self, 'cart_widget') and self.cart_widget:
                 self.cart_widget.retranslateUi()
             if hasattr(self, 'btn_checkout'):

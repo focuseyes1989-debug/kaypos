@@ -378,12 +378,15 @@ html[data-touch-theme=dark] .touch-combo-option[aria-selected="true"]{
   gap:8px;
 }
 .service-keypad button{
-  min-height:46px;
   border:1px solid var(--line);
   border-radius:10px;
   background:#fff;
   color:var(--ink);
   font-size:16px;
+}
+.service-keypad button:not([data-keypad="clear"]){
+  min-height:92px;
+  font-size:20px;
 }
 .service-keypad button:active{
   transform:translateY(1px);
@@ -391,6 +394,7 @@ html[data-touch-theme=dark] .touch-combo-option[aria-selected="true"]{
 }
 .service-keypad button[data-keypad="clear"]{
   grid-column:1/-1;
+  min-height:46px;
   color:var(--bad);
 }
 .variant-list{

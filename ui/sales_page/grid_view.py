@@ -714,7 +714,7 @@ class GridViewWidget(QScrollArea):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        width = event.size().width()
+        width = self.viewport().width()
         height = event.size().height()
         
         if width <= 10 or height <= 10:
@@ -727,7 +727,7 @@ class GridViewWidget(QScrollArea):
         self._update_responsive_layout(width)
         
         new_cols = self._calculate_columns(width)
-        if new_cols != self._cols and self._last_rows:
+        if self._last_rows and (new_cols != self._cols or width != self._last_layout_width):
             self._last_layout_width = width
             self._resize_timer.start(100)
 

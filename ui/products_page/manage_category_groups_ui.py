@@ -304,7 +304,7 @@ class CategoryGroupsUI:
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QLabel {{
                 color: {colors['text']};

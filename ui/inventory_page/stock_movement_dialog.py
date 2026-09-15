@@ -133,7 +133,7 @@ class StockMovementDialog(QDialog):
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QFrame#movement_header {{
                 background: transparent;

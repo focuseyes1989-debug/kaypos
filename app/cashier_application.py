@@ -27,7 +27,7 @@ class CashierApplication:
 
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
         self.app = QApplication(sys.argv)
-        self.app.setApplicationName("ZAY POS Cashier Mode")
+        self.app.setApplicationName("KAY POS")
         self.app.setWindowIcon(pos_icon())
         self.app.setQuitOnLastWindowClosed(True)
         from utils.touch_scroll import install_global_touch_scrolling
@@ -156,18 +156,14 @@ class CashierApplication:
         apply_theme(self.app, self._load_saved_theme())
 
     def _set_application_font(self):
-        if "Myanmar Text" in QFontDatabase.families():
-            self.app.setFont(QFont("Myanmar Text", 10))
-        elif "Noto Sans Myanmar" in QFontDatabase.families():
-            self.app.setFont(QFont("Noto Sans Myanmar", 10))
-        else:
-            self.app.setFont(QFont("Segoe UI", 10))
+        from ui.themes.theme_manager import get_preferred_font_family
+        self.app.setFont(QFont(get_preferred_font_family(), 10))
 
     def _login_and_open_cashier(self) -> bool:
         from ui.login_dialog import LoginDialog
 
         login = LoginDialog()
-        login.setWindowTitle("ZAY POS - Cashier Login")
+        login.setWindowTitle("KAY POS")
         if login.exec() != LoginDialog.DialogCode.Accepted:
             return False
 
@@ -184,7 +180,7 @@ class CashierApplication:
         from ui.cashier_window.cashier_ui import CashierUI
 
         self.cashier_window = CashierUI(user_info)
-        self.cashier_window.setWindowTitle("ZAY POS - Cashier Mode")
+        self.cashier_window.setWindowTitle("KAY POS")
         self.cashier_window.set_on_closed_callback(self.app.quit)
         self.cashier_window.show()
         return True

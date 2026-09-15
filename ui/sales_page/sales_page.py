@@ -990,7 +990,7 @@ class SalesPage(QWidget):
             }}
             QWidget#salesPage QLabel, QWidget#salesPage QPushButton,
             QWidget#salesPage QComboBox, QWidget#salesPage QLineEdit {{
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QWidget#productBrowserPanel {{
                 background-color: transparent;

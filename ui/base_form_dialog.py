@@ -53,7 +53,7 @@ class BaseFormDialog(QDialog):
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {colors['bg']}; color: {colors['text']};
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QLabel#baseFormTitle {{ color: {colors['text']}; font-size: 14pt; font-weight: 600; }}
             QLabel#baseFormSubtitle {{ color: {colors['text_secondary']}; font-size: 9.5pt; }}

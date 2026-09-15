@@ -39,7 +39,7 @@ class CartItemWidget(CashierCartItemWidget):
     THUMBNAIL_SIZE = 44
 
     def _setup_ui(self):
-        self.setFixedHeight(66)
+        self.setFixedHeight(80)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(9, 6, 9, 6)
         layout.setSpacing(10)
@@ -71,17 +71,21 @@ class CartItemWidget(CashierCartItemWidget):
         qty_row.setSpacing(4)
         self.qty_label = QLabel(str(self.item["qty"]))
         self.qty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.qty_label.setFixedSize(24, 20)
+        self.qty_label.setMinimumWidth(36)
+        self.qty_label.setFixedHeight(30)
+        self.qty_label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.qty_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.qty_label.mousePressEvent = self._on_qty_clicked
-        qty_row.addWidget(self.qty_label)
+        qty_row.addWidget(self.qty_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self.x_label = QLabel("x")
+        self.x_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         qty_row.addWidget(self.x_label)
 
         symbol = get_currency_symbol()
         self.price_label = QLabel(format_money(self.item["price"], symbol))
-        self.price_label.setFixedWidth(78)
+        self.price_label.setMinimumWidth(60)
+        self.price_label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.price_label.setToolTip(format_money(self.item["price"], symbol))
         qty_row.addWidget(self.price_label)
         qty_row.addStretch()
@@ -96,7 +100,7 @@ class CartItemWidget(CashierCartItemWidget):
         total = self.item["price"] * self.item["qty"]
         self.total_label = QLabel(format_money(total, symbol))
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.total_label.setFixedWidth(74)
+        self.total_label.setMinimumWidth(74)
         self.total_label.setFixedHeight(20)
         self.total_label.setToolTip(format_money(total, symbol))
         right_layout.addWidget(self.total_label)
@@ -189,7 +193,7 @@ class CartItemWidget(CashierCartItemWidget):
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: {card_bg};
-                border-radius: 9px;
+                border-radius: 8px;
                 margin: 2px 0px;
                 border: 1px solid {colors.get('border', '#293348')};
             }}
@@ -199,13 +203,15 @@ class CartItemWidget(CashierCartItemWidget):
         """)
         self.name_label.setStyleSheet(f"font-size: 9.5pt; font-weight: 600; color: {text}; background: transparent; border: none;")
         self.qty_label.setStyleSheet(f"""
-            font-size: 9pt;
+            font-family: "Segoe UI";
+            font-size: 10pt;
             font-weight: bold;
             background: transparent;
             color: {accent};
             border: 1px solid {accent};
             border-radius: 4px;
-            padding: 0px 2px;
+            padding: 0px 6px;
+            margin: 0px;
         """)
         self.x_label.setStyleSheet(f"font-size: 8pt; color: {secondary}; background: transparent; border: none;")
         self.price_label.setStyleSheet(f"font-size: 8.5pt; color: {secondary}; background: transparent; border: none;")

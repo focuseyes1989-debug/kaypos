@@ -345,12 +345,12 @@ def get_scaled_font_size(base_size=9):
 
 
 def get_preferred_font_family():
-    """Prefer stable Myanmar UI fonts before falling back to system UI fonts."""
+    """Use system UI metrics for Latin text, with Myanmar glyph fallbacks."""
     preferred_fonts = [
+        "Segoe UI",
         "Myanmar Text",
         "Pyidaungsu",
         "Noto Sans Myanmar",
-        "Segoe UI",
         "Myanmar3",
     ]
     try:

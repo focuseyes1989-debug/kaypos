@@ -208,7 +208,7 @@ class OutstandingReportDialog(QDialog):
             QDialog {{
                 background-color: {colors['bg']};
                 color: {colors['text']};
-                font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI";
+                font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar";
             }}
             QFrame#report_header {{
                 background: transparent;

@@ -212,12 +212,8 @@ class Application:
     
     def set_application_font(self):
         """Set application font."""
-        if "Myanmar Text" in QFontDatabase.families():
-            self.app.setFont(QFont("Myanmar Text", 10))
-        elif "Noto Sans Myanmar" in QFontDatabase.families():
-            self.app.setFont(QFont("Noto Sans Myanmar", 10))
-        else:
-            self.app.setFont(QFont("Segoe UI", 10))
+        from ui.themes.theme_manager import get_preferred_font_family
+        self.app.setFont(QFont(get_preferred_font_family(), 10))
     
     def create_login_loop(self):
         """Create login loop function."""

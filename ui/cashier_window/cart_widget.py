@@ -298,15 +298,18 @@ class CartItemWidget(QFrame):
         row2_layout = QHBoxLayout()
         row2_layout.setSpacing(6)
         row2_layout.setContentsMargins(0, 0, 0, 0)
+        row2_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         left_layout = QHBoxLayout()
         left_layout.setSpacing(4)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         # Qty label (clickable)
         self.qty_label = QLabel(str(self.item["qty"]))
         self.qty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.qty_label.setFixedWidth(24)
+        self.qty_label.setFixedSize(28, 22)
+        self.qty_label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.qty_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.qty_label.setStyleSheet("""
             font-size: 10pt;
@@ -315,12 +318,16 @@ class CartItemWidget(QFrame):
             color: #5865f2;
             border: 1px solid #5865f2;
             border-radius: 4px;
-            padding: 0px 2px;
+            padding: 0px 4px;
+            min-height: 20px;
+            max-height: 20px;
         """)
         self.qty_label.mousePressEvent = self._on_qty_clicked
         left_layout.addWidget(self.qty_label)
         
         self.x_label = QLabel("×")
+        self.x_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.x_label.setFixedHeight(22)
         self.x_label.setStyleSheet("""
             font-size: 8pt;
             background: transparent;
@@ -331,6 +338,8 @@ class CartItemWidget(QFrame):
         
         symbol = get_currency_symbol()
         self.price_label = QLabel(format_money(self.item["price"], symbol))
+        self.price_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.price_label.setFixedHeight(22)
         self.price_label.setStyleSheet("""
             font-size: 9pt;
             background: transparent;
@@ -643,7 +652,9 @@ class CartItemWidget(QFrame):
                 color: #5865f2;
                 border: 1px solid #5865f2;
                 border-radius: 4px;
-                padding: 0px 2px;
+                padding: 0px 4px;
+                min-height: 20px;
+                max-height: 20px;
             """)
             self.total_label.setStyleSheet("""
                 font-size: 10pt;
@@ -697,7 +708,9 @@ class CartItemWidget(QFrame):
                 color: #5865f2;
                 border: 1px solid #5865f2;
                 border-radius: 4px;
-                padding: 0px 2px;
+                padding: 0px 4px;
+                min-height: 20px;
+                max-height: 20px;
             """)
             self.total_label.setStyleSheet("""
                 font-size: 10pt;

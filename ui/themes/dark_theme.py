@@ -4,7 +4,7 @@
 DARK_THEME = """
 /* ========== GLOBAL ========== */
 * {
-    font-family: "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "Segoe UI", "sans-serif";
+    font-family: "Segoe UI", "Myanmar Text", "Pyidaungsu", "Noto Sans Myanmar", "sans-serif";
     font-size: 10pt;
 }
 
